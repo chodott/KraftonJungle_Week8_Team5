@@ -1,7 +1,7 @@
 # Blender 5.1.0 MTL File: 'None'
 # www.blender.org
 
-newmtl Material_#60
+newmtl SquirtleBody
 Ns 20.000006
 Ka 1.000000 1.000000 1.000000
 Ks 0.000000 0.000000 0.000000
@@ -11,7 +11,7 @@ d 1.000000
 illum 1
 map_Kd C:/Users/jungle/Downloads/squirtle/source/3DS - Pokemon X Y - 007 Squirtle/Pokemon XY/Squirtle/images/pm0007_00_Body1.png
 
-newmtl Material_#61
+newmtl SquirtleEye
 Ns 20.000006
 Ka 1.000000 1.000000 1.000000
 Ks 0.000000 0.000000 0.000000
