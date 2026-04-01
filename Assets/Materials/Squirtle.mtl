@@ -9,7 +9,7 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 1
-map_Kd C:/Users/jungle/Downloads/squirtle/source/3DS - Pokemon X Y - 007 Squirtle/Pokemon XY/Squirtle/images/pm0007_00_Body1.png
+map_Kd pm0007_00_Body1.png
 
 newmtl SquirtleEye
 Ns 20.000006
@@ -19,4 +19,4 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 1
-map_Kd C:/Users/jungle/Downloads/squirtle/source/3DS - Pokemon X Y - 007 Squirtle/Pokemon XY/Squirtle/images/pm0007_00_Eye1.png
+map_Kd pm0007_00_Eye1.png
