@@ -1,0 +1,17 @@
+-r
+C:\Users\jungle\Documents\GitHub\KraftonJungle3_Week5_Team5\Editor\Intel® VTune™ Profiler Results\Editor\r001hs
+--stack-stitching
+--data-limit-mb=1000
+--disk-space-limit=0
+--mrte-type=java,dotnet,python
+--stack-unwind-limit=8388608
+--itt-config=frame
+--itt-config=task,event,counter
+--stackwalk=offline
+--mrte-mode=auto
+--type=cpu:stack
+--interval=10
+--platform-type=151
+--app-working-dir=C:\Users\jungle\Documents\GitHub\KraftonJungle3_Week5_Team5\Editor\
+--
+C:\Users\jungle\Documents\GitHub\KraftonJungle3_Week5_Team5\Editor\Bin\Release\Editor.exe
