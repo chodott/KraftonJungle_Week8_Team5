@@ -1,4 +1,4 @@
-﻿#include "Renderer.h"
+#include "Renderer.h"
 #include "ShaderType.h"
 #include "Shader.h"
 #include "ShaderMap.h"
@@ -7,6 +7,8 @@
 #include "MaterialManager.h"
 #include "Core/Paths.h"
 #include "RenderMesh.h"
+#include "Component/HeightFogComponent.h"
+#include "Renderer/Feature/FogRenderFeature.h"
 #include "Renderer/SceneCommandBuilder.h"
 #include <cassert>
 #include <algorithm>
@@ -28,6 +30,39 @@ namespace
 	{
 		const FMatrix InvView = ViewMatrix.GetInverse();
 		return FVector(InvView.M[3][0], InvView.M[3][1], InvView.M[3][2]);
+	}
+
+	FFogRenderRequest BuildFogRenderRequest(
+		const FSceneRenderPacket& ScenePacket,
+		const FSceneViewRenderRequest& SceneView,
+		ID3D11ShaderResourceView* DepthTextureSRV)
+	{
+		FFogRenderRequest Request;
+		Request.DepthTextureSRV = DepthTextureSRV;
+		Request.CameraPosition = SceneView.CameraPosition;
+		Request.InverseViewProjection = (SceneView.ViewMatrix * SceneView.ProjectionMatrix).GetInverse();
+		Request.Items.reserve(ScenePacket.FogPrimitives.size());
+
+		for (const FSceneFogPrimitive& Primitive : ScenePacket.FogPrimitives)
+		{
+			const UHeightFogComponent* FogComponent = Primitive.Component;
+			if (!FogComponent)
+			{
+				continue;
+			}
+
+			FFogRenderItem& Item = Request.Items.emplace_back();
+			Item.FogOrigin = FogComponent->GetWorldLocation();
+			Item.FogDensity = FogComponent->FogDensity;
+			Item.FogHeightFalloff = FogComponent->FogHeightFalloff;
+			Item.StartDistance = FogComponent->StartDistance;
+			Item.FogCutoffDistance = FogComponent->FogCutoffDistance;
+			Item.FogMaxOpacity = FogComponent->FogMaxOpacity;
+			Item.FogInscatteringColor = FogComponent->FogInscatteringColor;
+			Item.AllowBackground = FogComponent->AllowBackground;
+		}
+
+		return Request;
 	}
 }
 
@@ -154,6 +189,7 @@ bool FRenderer::Initialize(HWND InHwnd, int32 Width, int32 Height)
 		return false;
 	}
 
+	FogFeature = std::make_unique<FFogRenderFeature>();
 	OutlineFeature = std::make_unique<FOutlineRenderFeature>();
 	DebugLineFeature = std::make_unique<FDebugLineRenderFeature>();
 
@@ -191,6 +227,11 @@ void FRenderer::EndFrame()
 
 bool FRenderer::RenderGameFrame(const FGameFrameRequest& Request)
 {
+	const FFogRenderRequest FogRequest = BuildFogRenderRequest(
+		Request.ScenePacket,
+		Request.SceneView,
+		RenderDevice.GetDepthShaderResourceView());
+
 	if (!SceneRenderer.RenderPacketToTarget(
 		*this,
 		RenderDevice.GetRenderTargetView(),
@@ -201,7 +242,8 @@ bool FRenderer::RenderGameFrame(const FGameFrameRequest& Request)
 		Request.AdditionalCommands,
 		Request.bForceWireframe,
 		Request.WireframeMaterial,
-		Request.ClearColor))
+		Request.ClearColor,
+		&FogRequest))
 	{
 		return false;
 	}
@@ -236,6 +278,11 @@ bool FRenderer::RenderEditorFrame(const FEditorFrameRequest& Request)
 			continue;
 		}
 
+		const FFogRenderRequest FogRequest = BuildFogRenderRequest(
+			ScenePass.ScenePacket,
+			ScenePass.SceneView,
+			ScenePass.DepthShaderResourceView);
+
 		if (!SceneRenderer.RenderPacketToTarget(
 			*this,
 			ScenePass.RenderTargetView,
@@ -246,7 +293,8 @@ bool FRenderer::RenderEditorFrame(const FEditorFrameRequest& Request)
 			ScenePass.AdditionalCommands,
 			ScenePass.bForceWireframe,
 			ScenePass.WireframeMaterial,
-			ScenePass.ClearColor))
+			ScenePass.ClearColor,
+			&FogRequest))
 		{
 			continue;
 		}
@@ -473,6 +521,7 @@ bool FRenderer::CreateTextureFromSTB(ID3D11Device* Device, const std::filesystem
 void FRenderer::Release()
 {
 	ViewportCompositor.Release();
+	if (FogFeature) FogFeature->Release();
 	if (OutlineFeature) OutlineFeature->Release();
 	if (DebugLineFeature) DebugLineFeature->Release();
 	if (TextFeature) TextFeature->Release();
@@ -480,6 +529,7 @@ void FRenderer::Release()
 	if (BillboardFeature) BillboardFeature->Release();
 	OutlineFeature.reset();
 	DebugLineFeature.reset();
+	FogFeature.reset();
 	TextFeature.reset();
 	SubUVFeature.reset();
 	BillboardFeature.reset();

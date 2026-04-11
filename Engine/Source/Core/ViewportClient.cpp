@@ -7,9 +7,43 @@
 #include "Level/SceneRenderPacket.h"
 #include "Debug/EngineLog.h"
 #include "Core/Engine.h"
+#include "Actor/Actor.h"
 #include "Component/CameraComponent.h"
+#include "Component/HeightFogComponent.h"
 #include "Math/Frustum.h"
 #include "Component/PrimitiveComponent.h"
+
+namespace
+{
+	void AppendHeightFogPrimitives(ULevel* Level, const FShowFlags& Flags, FSceneRenderPacket& OutPacket)
+	{
+		if (!Level || !Flags.HasFlag(EEngineShowFlags::SF_Fog))
+		{
+			return;
+		}
+
+		const TArray<AActor*>& Actors = Level->GetActors();
+		OutPacket.FogPrimitives.reserve(OutPacket.FogPrimitives.size() + Actors.size());
+
+		for (AActor* Actor : Actors)
+		{
+			if (!Actor || Actor->IsPendingDestroy() || !Actor->IsVisible())
+			{
+				continue;
+			}
+
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				if (!Component || Component->IsPendingKill() || !Component->IsA(UHeightFogComponent::StaticClass()))
+				{
+					continue;
+				}
+
+				OutPacket.FogPrimitives.push_back({ static_cast<UHeightFogComponent*>(Component) });
+			}
+		}
+	}
+}
 
 void IViewportClient::Attach(FEngine* Engine, FRenderer* Renderer)
 {
@@ -92,6 +126,7 @@ void IViewportClient::BuildSceneRenderPacket(
 	TArray<UPrimitiveComponent*> VisiblePrimitives;
 	Level->QueryPrimitivesByFrustum(Frustum, VisiblePrimitives);
 	ScenePacketBuilder.BuildScenePacket(VisiblePrimitives, Flags, OutPacket);
+	AppendHeightFogPrimitives(Level, Flags, OutPacket);
 }
 
 void IViewportClient::HandleFileDoubleClick(const FString& FilePath)

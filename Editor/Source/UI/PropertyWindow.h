@@ -34,6 +34,7 @@ private:
 	void DrawStaticMeshComponentDetails(class UStaticMeshComponent* MeshComponent);
 	void DrawTextComponentDetails(class UTextRenderComponent* TextComponent);
 	void DrawSubUVComponentDetails(class USubUVComponent* SubUVComponent);
+	void DrawHeightFogComponentDetails(class UHeightFogComponent* HeightFogComponent);
 	void DrawBillboardComponentDetials(class UBillboardComponent* BillboardComponent, FEditorEngine* Engine);
 	bool DrawVector3Control(const char* Label, const FVector& Value, FVector& OutValue, float Speed, const char* Format);
 	bool DrawAddComponentButton(AActor* SelectedActor);

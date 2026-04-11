@@ -9,6 +9,7 @@
 class FRenderer;
 class FMaterial;
 struct FSceneViewRenderRequest;
+struct FFogRenderRequest;
 
 /**
  * 씬 전용 렌더러다.
@@ -33,7 +34,8 @@ public:
 		const FRenderCommandQueue& AdditionalCommands,
 		bool bForceWireframe,
 		FMaterial* WireframeMaterial,
-		const float ClearColor[4]);
+		const float ClearColor[4],
+		const FFogRenderRequest* FogRequest = nullptr);
 
 	// 이미 구성된 커맨드 큐를 지정한 타깃에 렌더링한다.
 	bool RenderQueueToTarget(
@@ -43,7 +45,8 @@ public:
 		const D3D11_VIEWPORT& Viewport,
 		const FRenderCommandQueue& Queue,
 		const float ClearColor[4],
-		bool bClearTarget = true);
+		bool bClearTarget = true,
+		const FFogRenderRequest* FogRequest = nullptr);
 
 private:
 	// 고수준 씬 패킷을 실제 씬 커맨드 큐로 변환한다.
@@ -59,7 +62,7 @@ private:
 	// 큐 내용을 내부 실행 버킷으로 적재한다.
 	void SubmitCommands(FRenderer& Renderer, const FRenderCommandQueue& Queue);
 	// 내부 씬 커맨드 버킷을 순서대로 정렬하고 실행한다.
-	void ExecuteCommands(FRenderer& Renderer);
+	void ExecuteCommands(FRenderer& Renderer, const FFogRenderRequest* FogRequest);
 	// 버킷 하나를 필요한 정렬 정책에 따라 정렬한다.
 	static void SortRenderPass(TArray<FRenderCommand>& Commands, ERenderLayer RenderLayer);
 	// 버킷 하나를 실제 드로우콜로 실행한다.

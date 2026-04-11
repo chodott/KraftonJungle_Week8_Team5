@@ -188,6 +188,7 @@ void FEditorViewportRenderService::RenderAll(
 		FViewportScenePassRequest ScenePass;
 		ScenePass.RenderTargetView = RTV;
 		ScenePass.DepthStencilView = DSV;
+		ScenePass.DepthShaderResourceView = Entry.Viewport->GetDepthSRV();
 		ScenePass.Viewport = Viewport;
 		ScenePass.ScenePacket = std::move(ScenePacket);
 		ScenePass.SceneView.ViewMatrix = AdditionalQueue.ViewMatrix;

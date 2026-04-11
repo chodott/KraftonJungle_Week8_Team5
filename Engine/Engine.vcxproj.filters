@@ -344,6 +344,12 @@
     <ClCompile Include="Source\Component\MoveComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Actor\PlayerCameraActor.cpp" />
+    <ClCompile Include="Source\Component\DecalComponent.cpp" />
+    <ClCompile Include="Source\Component\HeightFogComponent.cpp" />
+    <ClCompile Include="Source\Renderer\LinearColor.cpp" />
+    <ClCompile Include="Source\Actor\HeightFogActor.cpp" />
+    <ClCompile Include="Source\Renderer\Feature\FogRenderFeature.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\CoreMinimal.h">
@@ -972,6 +978,12 @@
     <ClInclude Include="Source\Component\MoveComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Actor\PlayerCameraActor.h" />
+    <ClInclude Include="Source\Component\DecalComponent.h" />
+    <ClInclude Include="Source\Component\HeightFogComponent.h" />
+    <ClInclude Include="Source\Renderer\LinearColor.h" />
+    <ClInclude Include="Source\Actor\HeightFogActor.h" />
+    <ClInclude Include="Source\Renderer\Feature\FogRenderFeature.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

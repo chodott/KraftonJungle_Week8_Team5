@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "Renderer/Feature/FogRenderFeature.h"
 #include "Renderer/Material.h"
 #include "Renderer/RenderMesh.h"
 #include "Renderer/Renderer.h"
@@ -150,7 +151,7 @@ void FSceneRenderer::SortRenderPass(TArray<FRenderCommand>& Commands, ERenderLay
 	}
 }
 
-void FSceneRenderer::ExecuteCommands(FRenderer& Renderer)
+void FSceneRenderer::ExecuteCommands(FRenderer& Renderer, const FFogRenderRequest* FogRequest)
 {
 	Renderer.SetConstantBuffers();
 	Renderer.UpdateFrameConstantBuffer();
@@ -160,6 +161,11 @@ void FSceneRenderer::ExecuteCommands(FRenderer& Renderer)
 
 	SortRenderPass(TransparentCommandList, ERenderLayer::Transparent);
 	ExecuteRenderPass(Renderer, TransparentCommandList);
+
+	if (FogRequest && !FogRequest->IsEmpty() && Renderer.FogFeature)
+	{
+		Renderer.FogFeature->Render(Renderer, *FogRequest);
+	}
 
 	Renderer.ClearDepthBuffer();
 
@@ -305,7 +311,8 @@ bool FSceneRenderer::RenderPacketToTarget(
 	const FRenderCommandQueue& AdditionalCommands,
 	bool bForceWireframe,
 	FMaterial* WireframeMaterial,
-	const float ClearColor[4])
+	const float ClearColor[4],
+	const FFogRenderRequest* FogRequest)
 {
 	FRenderCommandQueue SceneQueue;
 	BuildQueue(Renderer, Packet, SceneView, SceneQueue);
@@ -318,7 +325,7 @@ bool FSceneRenderer::RenderPacketToTarget(
 	// 추가 커맨드를 같은 프레임 큐에 합쳐 깊이 버퍼 연속성을 유지한다.
 	SceneQueue.Append(AdditionalCommands);
 
-	return RenderQueueToTarget(Renderer, RenderTargetView, DepthStencilView, Viewport, SceneQueue, ClearColor, true);
+	return RenderQueueToTarget(Renderer, RenderTargetView, DepthStencilView, Viewport, SceneQueue, ClearColor, true, FogRequest);
 }
 
 bool FSceneRenderer::RenderQueueToTarget(
@@ -328,7 +335,8 @@ bool FSceneRenderer::RenderQueueToTarget(
 	const D3D11_VIEWPORT& Viewport,
 	const FRenderCommandQueue& Queue,
 	const float ClearColor[4],
-	bool bClearTarget)
+	bool bClearTarget,
+	const FFogRenderRequest* FogRequest)
 {
 	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
 	if (!Context || !RenderTargetView || !DepthStencilView)
@@ -347,10 +355,15 @@ bool FSceneRenderer::RenderQueueToTarget(
 
 	if (Queue.IsEmpty())
 	{
+		// 씬 오브젝트가 없어도 fog는 post-process이므로 독립적으로 렌더한다.
+		if (FogRequest && !FogRequest->IsEmpty() && Renderer.FogFeature)
+		{
+			Renderer.FogFeature->Render(Renderer, *FogRequest);
+		}
 		return true;
 	}
 
 	SubmitCommands(Renderer, Queue);
-	ExecuteCommands(Renderer);
+	ExecuteCommands(Renderer, FogRequest);
 	return true;
 }

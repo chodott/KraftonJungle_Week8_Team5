@@ -11,6 +11,7 @@
 #include "Component/TextComponent.h"
 #include "Component/UUIDBillboardComponent.h"
 #include "Component/BillboardComponent.h"
+#include "Component/HeightFogComponent.h"
 #include "Component/MoveComponent.h"
 #include "Level/Level.h"
 #include "Object/Class.h"
@@ -20,6 +21,8 @@
 #include "Renderer/RenderMesh.h"
 #include "Renderer/Material.h"
 #include "Renderer/MaterialManager.h"
+
+#include <algorithm>
 
 namespace
 {
@@ -460,6 +463,57 @@ void FPropertyWindow::DrawSubUVComponentDetails(USubUVComponent* SubUVComponent)
 	}
 }
 
+void FPropertyWindow::DrawHeightFogComponentDetails(UHeightFogComponent* HeightFogComponent)
+{
+	if (!HeightFogComponent)
+	{
+		return;
+	}
+
+	ImGui::Spacing();
+	ImGui::TextDisabled("Height Fog");
+
+	if (ImGui::DragFloat("Fog Density", &HeightFogComponent->FogDensity, 0.001f, 0.0f, 10.0f, "%.3f"))
+	{
+		HeightFogComponent->FogDensity = (std::max)(0.0f, HeightFogComponent->FogDensity);
+	}
+
+	if (ImGui::DragFloat("Height Falloff", &HeightFogComponent->FogHeightFalloff, 0.001f, 0.0f, 10.0f, "%.3f"))
+	{
+		HeightFogComponent->FogHeightFalloff = (std::max)(0.0f, HeightFogComponent->FogHeightFalloff);
+	}
+
+	if (ImGui::DragFloat("Start Distance", &HeightFogComponent->StartDistance, 0.1f, 0.0f, 100000.0f, "%.2f"))
+	{
+		HeightFogComponent->StartDistance = (std::max)(0.0f, HeightFogComponent->StartDistance);
+	}
+
+	if (ImGui::DragFloat("Cutoff Distance", &HeightFogComponent->FogCutoffDistance, 0.1f, 0.0f, 100000.0f, "%.2f"))
+	{
+		HeightFogComponent->FogCutoffDistance = (std::max)(0.0f, HeightFogComponent->FogCutoffDistance);
+	}
+
+	ImGui::SliderFloat("Max Opacity", &HeightFogComponent->FogMaxOpacity, 0.0f, 1.0f, "%.2f");
+
+	float ColorArray[4] =
+	{
+		HeightFogComponent->FogInscatteringColor.R,
+		HeightFogComponent->FogInscatteringColor.G,
+		HeightFogComponent->FogInscatteringColor.B,
+		HeightFogComponent->FogInscatteringColor.A
+	};
+	if (ImGui::ColorEdit4("Fog Color", ColorArray))
+	{
+		HeightFogComponent->FogInscatteringColor = FLinearColor(ColorArray);
+	}
+
+	bool AllowBackground = (bool)HeightFogComponent->AllowBackground;
+	if (ImGui::Checkbox("Allow Background", &AllowBackground))
+	{
+		HeightFogComponent->AllowBackground = (float)AllowBackground;
+	}
+}
+
 void FPropertyWindow::DrawBillboardComponentDetials(UBillboardComponent* BillboardComponent, FEditorEngine* Engine)
 {
 	std::wstring CurrentPath = BillboardComponent->GetTexturePath();
@@ -581,6 +635,11 @@ void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngi
 	if (Component->IsA(USubUVComponent::StaticClass()))
 	{
 		DrawSubUVComponentDetails(static_cast<USubUVComponent*>(Component));
+	}
+
+	if (Component->IsA(UHeightFogComponent::StaticClass()))
+	{
+		DrawHeightFogComponentDetails(static_cast<UHeightFogComponent*>(Component));
 	}
 
 	if (Component->IsA(UBillboardComponent::StaticClass()))

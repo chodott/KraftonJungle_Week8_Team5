@@ -26,6 +26,7 @@ struct FRenderMesh;
 class FPixelShader;
 class FMaterial;
 class ULevel;
+class FFogRenderFeature;
 
 struct FSceneViewRenderRequest
 {
@@ -62,6 +63,7 @@ struct FViewportScenePassRequest
 	// 이 뷰포트 씬 패스가 그릴 대상 렌더 서피스다.
 	ID3D11RenderTargetView* RenderTargetView = nullptr;
 	ID3D11DepthStencilView* DepthStencilView = nullptr;
+	ID3D11ShaderResourceView* DepthShaderResourceView = nullptr;
 	D3D11_VIEWPORT Viewport = {};
 	// 이 뷰포트에서 수집한 씬 패킷이다.
 	FSceneRenderPacket ScenePacket;
@@ -186,6 +188,7 @@ public:
 
 private:
 	friend class FSceneRenderer;
+	friend class FFogRenderFeature;
 	friend class FOutlineRenderFeature;
 	friend class FDebugLineRenderFeature;
 	friend class FScreenUIRenderer;
@@ -223,6 +226,7 @@ private:
 	std::unique_ptr<FTextRenderFeature> TextFeature;
 	std::unique_ptr<FSubUVRenderFeature> SubUVFeature;
 	std::unique_ptr<FBillboardRenderFeature> BillboardFeature;
+	std::unique_ptr<FFogRenderFeature> FogFeature;
 	std::unique_ptr<FOutlineRenderFeature> OutlineFeature;
 	std::unique_ptr<FDebugLineRenderFeature> DebugLineFeature;
 

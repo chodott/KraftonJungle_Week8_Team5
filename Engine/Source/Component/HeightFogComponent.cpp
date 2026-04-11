@@ -1,0 +1,52 @@
+#include "HeightFogComponent.h"
+
+#include <algorithm>
+
+#include "Object/Class.h"
+#include "Serializer/Archive.h"
+
+IMPLEMENT_RTTI(UHeightFogComponent, UPrimitiveComponent)
+
+void UHeightFogComponent::PostConstruct()
+{
+	bDrawDebugBounds = false;
+}
+
+void UHeightFogComponent::Serialize(FArchive& Ar)
+{
+	UPrimitiveComponent::Serialize(Ar);
+
+	FVector4 FogColor = FogInscatteringColor.ToVector4();
+
+	Ar.Serialize("FogDensity", FogDensity);
+	Ar.Serialize("FogHeightFalloff", FogHeightFalloff);
+	Ar.Serialize("StartDistance", StartDistance);
+	Ar.Serialize("FogCutoffDistance", FogCutoffDistance);
+	Ar.Serialize("FogMaxOpacity", FogMaxOpacity);
+	Ar.Serialize("FogInscatteringColor", FogColor);
+	Ar.Serialize("FogAllowBackground", AllowBackground);
+
+	if (Ar.IsLoading())
+	{
+		FogDensity = (std::max)(0.0f, FogDensity);
+		FogHeightFalloff = (std::max)(0.0f, FogHeightFalloff);
+		StartDistance = (std::max)(0.0f, StartDistance);
+		FogCutoffDistance = (std::max)(0.0f, FogCutoffDistance);
+		FogMaxOpacity = std::clamp(FogMaxOpacity, 0.0f, 1.0f);
+		FogInscatteringColor = FLinearColor(FogColor.X, FogColor.Y, FogColor.Z, FogColor.W);
+	}
+}
+
+void UHeightFogComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const
+{
+	UPrimitiveComponent::DuplicateShallow(DuplicatedObject, Context);
+
+	UHeightFogComponent* DuplicatedFogComponent = static_cast<UHeightFogComponent*>(DuplicatedObject);
+	DuplicatedFogComponent->FogDensity = FogDensity;
+	DuplicatedFogComponent->FogHeightFalloff = FogHeightFalloff;
+	DuplicatedFogComponent->StartDistance = StartDistance;
+	DuplicatedFogComponent->FogCutoffDistance = FogCutoffDistance;
+	DuplicatedFogComponent->FogMaxOpacity = FogMaxOpacity;
+	DuplicatedFogComponent->FogInscatteringColor = FogInscatteringColor;
+	DuplicatedFogComponent->AllowBackground = AllowBackground;
+}

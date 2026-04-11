@@ -20,7 +20,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Actor\BillboardActor.h" />
+    <ClInclude Include="Source\Actor\HeightFogActor.h" />
     <ClInclude Include="Source\Component\BillboardComponent.h" />
+    <ClInclude Include="Source\Component\DecalComponent.h" />
+    <ClInclude Include="Source\Component\HeightFogComponent.h" />
     <ClInclude Include="Source\Component\MoveComponent.h" />
     <ClInclude Include="Source\CoreMinimal.h" />
     <ClInclude Include="Source\EngineAPI.h" />
@@ -89,12 +92,14 @@
     <ClInclude Include="Source\Primitive\PrimitiveGizmo.h" />
     <ClInclude Include="Source\Primitive\UnrealEditorStyledGizmo.h" />
     <ClInclude Include="Source\Renderer\Feature\DebugLineRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Feature\FogRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\OutlineRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\SubUVRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\TextRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\BillboardRenderFeature.h" />
     <ClInclude Include="Source\Renderer\BillboardRenderer.h" />
     <ClInclude Include="Source\Renderer\FontAtlas.h" />
+    <ClInclude Include="Source\Renderer\LinearColor.h" />
     <ClInclude Include="Source\Renderer\Material.h" />
     <ClInclude Include="Source\Renderer\MaterialManager.h" />
     <ClInclude Include="Source\Renderer\MeshData.h" />
@@ -239,6 +244,7 @@
     <ClCompile Include="Source\Actor\Actor.cpp" />
     <ClCompile Include="Source\Actor\BillboardActor.cpp" />
     <ClCompile Include="Source\Actor\CubeActor.cpp" />
+    <ClCompile Include="Source\Actor\HeightFogActor.cpp" />
     <ClCompile Include="Source\Actor\PlaneActor.cpp" />
     <ClCompile Include="Source\Actor\PlayerCameraActor.cpp" />
     <ClCompile Include="Source\Actor\SkySphereActor.cpp" />
@@ -251,6 +257,8 @@
     <ClCompile Include="Source\Component\ActorComponent.cpp" />
     <ClCompile Include="Source\Component\BillboardComponent.cpp" />
     <ClCompile Include="Source\Component\CameraComponent.cpp" />
+    <ClCompile Include="Source\Component\DecalComponent.cpp" />
+    <ClCompile Include="Source\Component\HeightFogComponent.cpp" />
     <ClCompile Include="Source\Component\LineBatchComponent.cpp" />
     <ClCompile Include="Source\Component\MeshComponent.cpp" />
     <ClCompile Include="Source\Component\MoveComponent.cpp" />
@@ -295,12 +303,14 @@
     <ClCompile Include="Source\Primitive\PrimitiveGizmo.cpp" />
     <ClCompile Include="Source\Primitive\UnrealEditorStyledGizmo.cpp" />
     <ClCompile Include="Source\Renderer\Feature\DebugLineRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Feature\FogRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\OutlineRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\SubUVRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\TextRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\BillboardRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\BillboardRenderer.cpp" />
     <ClCompile Include="Source\Renderer\FontAtlas.cpp" />
+    <ClCompile Include="Source\Renderer\LinearColor.cpp" />
     <ClCompile Include="Source\Renderer\Material.cpp" />
     <ClCompile Include="Source\Renderer\MaterialManager.cpp" />
     <ClCompile Include="Source\Renderer\MeshData.cpp" />
