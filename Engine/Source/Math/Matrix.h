@@ -823,6 +823,21 @@ public:
 
 		return Result;
 	}
+
+	FVector4 TransformVector4(const FVector4& V) const noexcept
+	{
+		const DirectX::XMVECTOR In =
+			DirectX::XMVectorSet(V.X, V.Y, V.Z, V.W);
+
+		const DirectX::XMVECTOR Out =
+			DirectX::XMVector4Transform(In, ToXMMatrix());
+
+		return FVector4(
+			DirectX::XMVectorGetX(Out),
+			DirectX::XMVectorGetY(Out),
+			DirectX::XMVectorGetZ(Out),
+			DirectX::XMVectorGetW(Out));
+	}
 };
 
 inline FMatrix operator*(float Scalar, const FMatrix& Matrix) noexcept

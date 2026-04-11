@@ -21,6 +21,8 @@ public:
 	FCamera* GetCamera() const;
 	FMatrix GetViewMatrix() const;
 	FMatrix GetProjectionMatrix() const;
+	float GetNearPlane() const;
+	float GetFarPlane() const;
 
 	//Setting
 	void SetFov(float inFov);

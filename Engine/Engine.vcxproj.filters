@@ -341,6 +341,9 @@
     <ClCompile Include="Source\Actor\BillboardActor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Actor\DecalActor.cpp">
+      <Filter>Source\Actor</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Component\MoveComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
@@ -350,6 +353,7 @@
     <ClCompile Include="Source\Renderer\LinearColor.cpp" />
     <ClCompile Include="Source\Actor\HeightFogActor.cpp" />
     <ClCompile Include="Source\Renderer\Feature\FogRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Feature\DecalRenderFeature.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\CoreMinimal.h">
@@ -975,6 +979,9 @@
     <ClInclude Include="Source\Actor\BillboardActor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Actor\DecalActor.h">
+      <Filter>Source\Actor</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Component\MoveComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
@@ -984,6 +991,7 @@
     <ClInclude Include="Source\Renderer\LinearColor.h" />
     <ClInclude Include="Source\Actor\HeightFogActor.h" />
     <ClInclude Include="Source\Renderer\Feature\FogRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Feature\DecalRenderFeature.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

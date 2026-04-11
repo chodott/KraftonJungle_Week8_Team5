@@ -194,6 +194,8 @@ void FEditorViewportRenderService::RenderAll(
 		ScenePass.SceneView.ViewMatrix = AdditionalQueue.ViewMatrix;
 		ScenePass.SceneView.ProjectionMatrix = AdditionalQueue.ProjectionMatrix;
 		ScenePass.SceneView.CameraPosition = CameraPosition;
+		ScenePass.SceneView.NearZ = Entry.LocalState.NearPlane;
+		ScenePass.SceneView.FarZ = Entry.LocalState.FarPlane;
 		ScenePass.SceneView.TotalTimeSeconds = Engine ? static_cast<float>(Engine->GetTimer().GetTotalTime()) : 0.0f;
 		ScenePass.AdditionalCommands = std::move(AdditionalQueue);
 		ScenePass.bForceWireframe = (Entry.LocalState.ViewMode == ERenderMode::Wireframe && WireFrameMaterial != nullptr);

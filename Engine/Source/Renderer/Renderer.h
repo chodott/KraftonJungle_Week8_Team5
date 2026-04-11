@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Level/SceneRenderPacket.h"
@@ -9,6 +9,7 @@
 #include "Renderer/Feature/SubUVRenderFeature.h"
 #include "Renderer/Feature/TextRenderFeature.h"
 #include "Renderer/Feature/BillboardRenderFeature.h"
+#include "Renderer/Feature/DecalRenderFeature.h"
 #include "Renderer/RenderFeatureInterfaces.h"
 #include "Renderer/RenderStateManager.h"
 #include "Renderer/SceneRenderer.h"
@@ -38,6 +39,8 @@ struct FSceneViewRenderRequest
 	FVector CameraPosition = FVector::ZeroVector;
 	// SubUV 같은 시간 기반 기능이 참조할 누적 프레임 시간이다.
 	float TotalTimeSeconds = 0.0f;
+	float NearZ = 0.1f;
+	float FarZ = 1000.0f;
 };
 
 struct FGameFrameRequest
@@ -180,6 +183,7 @@ public:
 	FBillboardRenderer& GetBillboardRenderer() { return BillboardFeature->GetRenderer(); }
 	// 현재 ViewMatrix를 기준으로 카메라 월드 위치를 계산한다.
 	FVector GetCameraPosition() const;
+	const FDecalFrameStats& GetDecalFrameStats() const;
 
 	// 에디터 폴더 아이콘 SRV를 반환한다.
 	ID3D11ShaderResourceView* GetFolderIconSRV() const { return FolderIconSRV; }
@@ -191,6 +195,7 @@ private:
 	friend class FFogRenderFeature;
 	friend class FOutlineRenderFeature;
 	friend class FDebugLineRenderFeature;
+	friend class FDecalRenderFeature;
 	friend class FScreenUIRenderer;
 
 	// 코어 씬 셰이더가 기대하는 프레임/오브젝트 상수 버퍼를 바인딩한다.
@@ -205,6 +210,9 @@ private:
 	void UpdateObjectConstantBuffer(const FMatrix& WorldMatrix);
 	// 현재 바인딩된 깊이 버퍼만 선택적으로 비운다.
 	void ClearDepthBuffer();
+	bool CreateSolidColorTextureSRV(ID3D11Device* Device, uint32 PackedRGBA, ID3D11ShaderResourceView** OutSRV);
+	ID3D11ShaderResourceView* GetOrLoadDecalBaseColorTexture(const std::wstring& TexturePath);
+	ID3D11ShaderResourceView* ResolveDecalBaseColorTexture(const FSceneRenderPacket& ScenePacket, std::wstring& OutResolvedTexturePath);
 
 private:
 	std::unique_ptr<FRenderStateManager> RenderStateManager = nullptr;
@@ -229,10 +237,13 @@ private:
 	std::unique_ptr<FFogRenderFeature> FogFeature;
 	std::unique_ptr<FOutlineRenderFeature> OutlineFeature;
 	std::unique_ptr<FDebugLineRenderFeature> DebugLineFeature;
+	std::unique_ptr<FDecalRenderFeature> DecalFeature;
 
 	ID3D11ShaderResourceView* FolderIconSRV = nullptr;
 	ID3D11ShaderResourceView* FileIconSRV = nullptr;
+	ID3D11ShaderResourceView* DecalFallbackBaseColorSRV = nullptr;
 	ID3D11SamplerState* NormalSampler = nullptr;
+	TMap<std::wstring, ID3D11ShaderResourceView*> DecalBaseColorTextureCache;
 
 public:
 	FShaderManager ShaderManager;

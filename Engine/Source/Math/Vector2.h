@@ -27,4 +27,9 @@ struct ENGINE_API FVector2
 	{
 		return FVector2(X + Other.X, Y + Other.Y);
 	}
+
+	bool operator==(const FVector2& Other) const
+	{
+		return X == Other.X && Y == Other.Y;
+	}
 };

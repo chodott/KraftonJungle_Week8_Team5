@@ -108,6 +108,16 @@ FMatrix UCameraComponent::GetProjectionMatrix() const
 	return Camera->GetProjectionMatrix();
 }
 
+float UCameraComponent::GetNearPlane() const
+{
+	return Camera ? Camera->GetNearPlane() : 0.1f;
+}
+
+float UCameraComponent::GetFarPlane() const
+{
+	return Camera ? Camera->GetFarPlane() : 1000.0f;
+}
+
 void UCameraComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const
 {
 	USceneComponent::DuplicateShallow(DuplicatedObject, Context);

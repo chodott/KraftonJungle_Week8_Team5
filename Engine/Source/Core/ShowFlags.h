@@ -12,6 +12,7 @@ enum class EEngineShowFlags : uint64
 	SF_Text			= 1ull << 6,
 	SF_Grid			= 1ull << 7,
 	SF_Fog			= 1ull << 8,
+	SF_Decal		= 1ull << 9,
 };
 class ENGINE_API FShowFlags
 {
@@ -22,7 +23,9 @@ public:
 			static_cast<uint64>(EEngineShowFlags::SF_UUID) |
 			static_cast<uint64>(EEngineShowFlags::SF_Billboard) |
 			static_cast<uint64>(EEngineShowFlags::SF_Text) |
-			static_cast<uint64>(EEngineShowFlags::SF_Fog))
+			static_cast<uint64>(EEngineShowFlags::SF_Fog) |
+			static_cast<uint64>(EEngineShowFlags::SF_Decal)
+		)
 	{
 	}
 	void SetFlag(EEngineShowFlags InFlag, bool bEnabled);

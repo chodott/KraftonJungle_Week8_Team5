@@ -19,6 +19,7 @@ VS_OUTPUT main(VS_INPUT Input)
 	Output.Normal = mul(Input.Normal, (float3x3) World);
 	
 	Output.UV = Input.UV + (UVScrollSpeed * Time);
+	Output.WorldPosition = WorldPos.xyz;
 	
 	return Output;
 }

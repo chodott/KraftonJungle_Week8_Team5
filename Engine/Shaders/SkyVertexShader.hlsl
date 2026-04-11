@@ -11,5 +11,7 @@ VS_OUTPUT main(VS_INPUT Input)
 	Output.Position = ClipPos; 
 	Output.Color = Input.Color;
 	Output.Normal = mul(Input.Normal, (float3x3) World);
+	Output.UV = Input.UV;
+	Output.WorldPosition = WorldPos.xyz;
 	return Output;
 }

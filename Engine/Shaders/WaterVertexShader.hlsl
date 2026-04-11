@@ -23,6 +23,7 @@ VS_OUTPUT main(VS_INPUT Input)
 	float uvWaveY = cos(Input.UV.x * WaveData.y + Time * WaveData.z) * WaveData.x;
     
 	Output.UV = Input.UV + (UVScrollSpeed * Time) + float2(uvWaveX, uvWaveY);
+	Output.WorldPosition = WorldPos.xyz;
     
 	return Output;
 }

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 
@@ -7,6 +7,7 @@ class UTextRenderComponent;
 class USubUVComponent;
 class UBillboardComponent;
 class UHeightFogComponent;
+class UDecalComponent;
 
 struct ENGINE_API FSceneMeshPrimitive
 {
@@ -38,6 +39,12 @@ struct ENGINE_API FSceneFogPrimitive
 	UHeightFogComponent* Component = nullptr;
 };
 
+struct ENGINE_API FSceneDecalPrimitive
+{
+	// 데칼 패스가 참조할 데칼 컴포넌트다.
+	UDecalComponent* Component = nullptr;
+};
+
 struct ENGINE_API FSceneRenderPacket
 {
 	// 이 뷰에서 월드로부터 수집한 메시 프리미티브 목록이다.
@@ -50,6 +57,8 @@ struct ENGINE_API FSceneRenderPacket
 	TArray<FSceneBillboardPrimitive> BillboardPrimitives;
 	// 프러스텀과 무관하게 뷰 전체에 적용할 포그 컴포넌트 목록이다.
 	TArray<FSceneFogPrimitive> FogPrimitives;
+	// 데칼 컴포넌트 목록이다.
+	TArray<FSceneDecalPrimitive> DecalPrimitives;
 
 	// 각 프리미티브 버킷에 같은 reserve 힌트를 적용한다.
 	void Reserve(size_t PrimitiveCountHint)
@@ -59,6 +68,7 @@ struct ENGINE_API FSceneRenderPacket
 		SubUVPrimitives.reserve(PrimitiveCountHint);
 		BillboardPrimitives.reserve(PrimitiveCountHint);
 		FogPrimitives.reserve(PrimitiveCountHint);
+		DecalPrimitives.reserve(PrimitiveCountHint);
 	}
 
 	// 패킷 안의 모든 프리미티브 버킷을 비운다.
@@ -69,5 +79,6 @@ struct ENGINE_API FSceneRenderPacket
 		SubUVPrimitives.clear();
 		BillboardPrimitives.clear();
 		FogPrimitives.clear();
+		DecalPrimitives.clear();
 	}
 };

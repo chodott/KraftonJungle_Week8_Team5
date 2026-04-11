@@ -8,6 +8,7 @@
 #include "Core/Paths.h"
 #include "RenderMesh.h"
 #include "Component/HeightFogComponent.h"
+#include "Component/DecalComponent.h"
 #include "Renderer/Feature/FogRenderFeature.h"
 #include "Renderer/SceneCommandBuilder.h"
 #include <cassert>
@@ -60,6 +61,77 @@ namespace
 			Item.FogMaxOpacity = FogComponent->FogMaxOpacity;
 			Item.FogInscatteringColor = FogComponent->FogInscatteringColor;
 			Item.AllowBackground = FogComponent->AllowBackground;
+		}
+
+		return Request;
+	}
+
+	FDecalRenderRequest BuildDecalRenderRequest(
+		const FSceneRenderPacket& ScenePacket,
+		const FSceneViewRenderRequest& SceneView,
+		const D3D11_VIEWPORT& Viewport,
+		const std::wstring& SelectedBaseColorTexturePath,
+		ID3D11ShaderResourceView* BaseColorTextureArraySRV)
+	{
+		FDecalRenderRequest Request;
+		const std::wstring NormalizedSelectedTexturePath = SelectedBaseColorTexturePath.empty()
+			? std::wstring()
+			: std::filesystem::path(SelectedBaseColorTexturePath).lexically_normal().wstring();
+
+		Request.View = SceneView.ViewMatrix;
+		Request.Projection = SceneView.ProjectionMatrix;
+		Request.ViewProjection = SceneView.ViewMatrix * SceneView.ProjectionMatrix;
+		Request.InverseViewProjection = Request.ViewProjection.GetInverse();
+		Request.CameraPosition = SceneView.CameraPosition;
+
+		Request.ViewportWidth = static_cast<uint32>(Viewport.Width);
+		Request.ViewportHeight = static_cast<uint32>(Viewport.Height);
+
+		Request.NearZ = SceneView.NearZ;
+		Request.FarZ = SceneView.FarZ;
+
+		Request.ClusterCountX = 16;
+		Request.ClusterCountY = 9;
+		Request.ClusterCountZ = 24;
+
+		Request.BaseColorTextureArraySRV = BaseColorTextureArraySRV;
+		Request.ReceiverLayerMask = 0xFFFFFFFFu;
+		Request.bEnabled = true;
+		Request.Items.reserve(ScenePacket.DecalPrimitives.size());
+
+		for (const FSceneDecalPrimitive& Primitive : ScenePacket.DecalPrimitives)
+		{
+			const UDecalComponent* DecalComponent = Primitive.Component;
+			if (!DecalComponent || !DecalComponent->IsEnabled())
+			{
+				continue;
+			}
+
+			const std::wstring ComponentTexturePath = DecalComponent->GetTexturePath().empty()
+				? std::wstring()
+				: std::filesystem::path(DecalComponent->GetTexturePath()).lexically_normal().wstring();
+			const bool bMatchesSelectedTexture = NormalizedSelectedTexturePath.empty()
+				? ComponentTexturePath.empty()
+				: ComponentTexturePath == NormalizedSelectedTexturePath;
+			if (!bMatchesSelectedTexture)
+			{
+				continue;
+			}
+
+			FDecalRenderItem& Item = Request.Items.emplace_back();
+			Item.AtlasScaleBias = DecalComponent->GetAtlasScaleBias();
+			Item.BaseColorTint = DecalComponent->GetBaseColorTint();
+			Item.DecalWorld = DecalComponent->GetWorldTransform();
+			Item.EdgeFade = DecalComponent->GetEdgeFade();
+			Item.EmissiveBlend = DecalComponent->GetEmissiveBlend();
+			Item.Extents = DecalComponent->GetExtents();
+			Item.Flags = DecalComponent->GetRenderFlags();
+			Item.NormalBlend = DecalComponent->GetNormalBlend();
+			Item.Priority = DecalComponent->GetPriority();
+			Item.ReceiverLayerMask = DecalComponent->GetReceiverLayerMask();
+			Item.RoughnessBlend = DecalComponent->GetRoughnessBlend();
+			Item.TextureIndex = 0;
+			Item.WorldToDecal = Item.DecalWorld.GetInverse();
 		}
 
 		return Request;
@@ -189,6 +261,12 @@ bool FRenderer::Initialize(HWND InHwnd, int32 Width, int32 Height)
 		return false;
 	}
 
+	DecalFeature = std::make_unique<FDecalRenderFeature>();
+	if (!DecalFeature)
+	{
+		return false;
+	}
+
 	FogFeature = std::make_unique<FFogRenderFeature>();
 	OutlineFeature = std::make_unique<FOutlineRenderFeature>();
 	DebugLineFeature = std::make_unique<FDebugLineRenderFeature>();
@@ -197,6 +275,10 @@ bool FRenderer::Initialize(HWND InHwnd, int32 Width, int32 Height)
 	std::filesystem::path FileIconPath = FPaths::AssetDir() / FString("Textures/FileIcon.png");
 	CreateTextureFromSTB(Device, FolderIconPath, &FolderIconSRV);
 	CreateTextureFromSTB(Device, FileIconPath, &FileIconSRV);
+	if (!CreateSolidColorTextureSRV(Device, 0xFFFFFFFFu, &DecalFallbackBaseColorSRV))
+	{
+		return false;
+	}
 
 	return true;
 }
@@ -211,6 +293,7 @@ void FRenderer::SetConstantBuffers()
 
 	ID3D11Buffer* CBs[2] = { FrameConstantBuffer, ObjectConstantBuffer };
 	DeviceContext->VSSetConstantBuffers(0, 2, CBs);
+	DeviceContext->PSSetConstantBuffers(0, 2, CBs);
 }
 
 void FRenderer::BeginFrame()
@@ -231,6 +314,20 @@ bool FRenderer::RenderGameFrame(const FGameFrameRequest& Request)
 		Request.ScenePacket,
 		Request.SceneView,
 		RenderDevice.GetDepthShaderResourceView());
+
+	if (DecalFeature)
+	{
+		std::wstring ResolvedDecalTexturePath;
+		ID3D11ShaderResourceView* BaseColorTextureSRV =
+			ResolveDecalBaseColorTexture(Request.ScenePacket, ResolvedDecalTexturePath);
+		const FDecalRenderRequest DecalRequest = BuildDecalRenderRequest(
+			Request.ScenePacket,
+			Request.SceneView,
+			RenderDevice.GetViewport(),
+			ResolvedDecalTexturePath,
+			BaseColorTextureSRV);
+		DecalFeature->Prepare(*this, DecalRequest);
+	}
 
 	if (!SceneRenderer.RenderPacketToTarget(
 		*this,
@@ -282,6 +379,20 @@ bool FRenderer::RenderEditorFrame(const FEditorFrameRequest& Request)
 			ScenePass.ScenePacket,
 			ScenePass.SceneView,
 			ScenePass.DepthShaderResourceView);
+
+		if (DecalFeature)
+		{
+			std::wstring ResolvedDecalTexturePath;
+			ID3D11ShaderResourceView* BaseColorTextureSRV =
+				ResolveDecalBaseColorTexture(ScenePass.ScenePacket, ResolvedDecalTexturePath);
+			const FDecalRenderRequest DecalRequest = BuildDecalRenderRequest(
+				ScenePass.ScenePacket,
+				ScenePass.SceneView,
+				ScenePass.Viewport,
+				ResolvedDecalTexturePath,
+				BaseColorTextureSRV);
+			DecalFeature->Prepare(*this, DecalRequest);
+		}
 
 		if (!SceneRenderer.RenderPacketToTarget(
 			*this,
@@ -363,6 +474,12 @@ void FRenderer::ClearDepthBuffer()
 FVector FRenderer::GetCameraPosition() const
 {
 	return GetCameraWorldPositionFromViewMatrix(ViewMatrix);
+}
+
+const FDecalFrameStats& FRenderer::GetDecalFrameStats() const
+{
+	static const FDecalFrameStats EmptyStats = {};
+	return DecalFeature ? DecalFeature->GetFrameStats() : EmptyStats;
 }
 
 size_t FRenderer::GetPrevCommandCount() const
@@ -518,6 +635,99 @@ bool FRenderer::CreateTextureFromSTB(ID3D11Device* Device, const std::filesystem
 	return SUCCEEDED(hr);
 }
 
+bool FRenderer::CreateSolidColorTextureSRV(ID3D11Device* Device, uint32 PackedRGBA, ID3D11ShaderResourceView** OutSRV)
+{
+	if (Device == nullptr || OutSRV == nullptr)
+	{
+		return false;
+	}
+
+	*OutSRV = nullptr;
+
+	D3D11_TEXTURE2D_DESC Desc = {};
+	Desc.Width = 1;
+	Desc.Height = 1;
+	Desc.MipLevels = 1;
+	Desc.ArraySize = 1;
+	Desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	Desc.SampleDesc.Count = 1;
+	Desc.Usage = D3D11_USAGE_DEFAULT;
+	Desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+	const D3D11_SUBRESOURCE_DATA InitData = { &PackedRGBA, sizeof(PackedRGBA), 0 };
+
+	ID3D11Texture2D* Texture = nullptr;
+	if (FAILED(Device->CreateTexture2D(&Desc, &InitData, &Texture)) || !Texture)
+	{
+		return false;
+	}
+
+	const HRESULT Hr = Device->CreateShaderResourceView(Texture, nullptr, OutSRV);
+	Texture->Release();
+	return SUCCEEDED(Hr);
+}
+
+ID3D11ShaderResourceView* FRenderer::GetOrLoadDecalBaseColorTexture(const std::wstring& TexturePath)
+{
+	if (TexturePath.empty())
+	{
+		return DecalFallbackBaseColorSRV;
+	}
+
+	const std::wstring NormalizedPath = std::filesystem::path(TexturePath).lexically_normal().wstring();
+	auto Found = DecalBaseColorTextureCache.find(NormalizedPath);
+	if (Found != DecalBaseColorTextureCache.end())
+	{
+		return Found->second;
+	}
+
+	ID3D11Device* Device = GetDevice();
+	if (!Device)
+	{
+		return DecalFallbackBaseColorSRV;
+	}
+
+	ID3D11ShaderResourceView* LoadedSRV = nullptr;
+	if (!CreateTextureFromSTB(Device, std::filesystem::path(NormalizedPath), &LoadedSRV) || !LoadedSRV)
+	{
+		return DecalFallbackBaseColorSRV;
+	}
+
+	DecalBaseColorTextureCache.emplace(NormalizedPath, LoadedSRV);
+	return LoadedSRV;
+}
+
+ID3D11ShaderResourceView* FRenderer::ResolveDecalBaseColorTexture(
+	const FSceneRenderPacket& ScenePacket,
+	std::wstring& OutResolvedTexturePath)
+{
+	OutResolvedTexturePath.clear();
+
+	for (const FSceneDecalPrimitive& Primitive : ScenePacket.DecalPrimitives)
+	{
+		const UDecalComponent* DecalComponent = Primitive.Component;
+		if (!DecalComponent || !DecalComponent->IsEnabled())
+		{
+			continue;
+		}
+
+		const std::wstring& TexturePath = DecalComponent->GetTexturePath();
+		if (TexturePath.empty())
+		{
+			continue;
+		}
+
+		ID3D11ShaderResourceView* TextureSRV = GetOrLoadDecalBaseColorTexture(TexturePath);
+		if (TextureSRV && TextureSRV != DecalFallbackBaseColorSRV)
+		{
+			OutResolvedTexturePath = std::filesystem::path(TexturePath).lexically_normal().wstring();
+			return TextureSRV;
+		}
+	}
+
+	return DecalFallbackBaseColorSRV;
+}
+
 void FRenderer::Release()
 {
 	ViewportCompositor.Release();
@@ -527,15 +737,26 @@ void FRenderer::Release()
 	if (TextFeature) TextFeature->Release();
 	if (SubUVFeature) SubUVFeature->Release();
 	if (BillboardFeature) BillboardFeature->Release();
+	if (DecalFeature) DecalFeature->Release();
 	OutlineFeature.reset();
 	DebugLineFeature.reset();
 	FogFeature.reset();
 	TextFeature.reset();
 	SubUVFeature.reset();
 	BillboardFeature.reset();
+	DecalFeature.reset();
 	ShaderManager.Release(); FShaderMap::Get().Clear(); FMaterialManager::Get().Clear();
 	if (NormalSampler) { NormalSampler->Release(); NormalSampler = nullptr; }
 	DefaultMaterial.reset();
+	for (auto& Entry : DecalBaseColorTextureCache)
+	{
+		if (Entry.second)
+		{
+			Entry.second->Release();
+		}
+	}
+	DecalBaseColorTextureCache.clear();
+	if (DecalFallbackBaseColorSRV) { DecalFallbackBaseColorSRV->Release(); DecalFallbackBaseColorSRV = nullptr; }
 	if (FolderIconSRV) { FolderIconSRV->Release(); FolderIconSRV = nullptr; }
 	if (FileIconSRV) { FileIconSRV->Release(); FileIconSRV = nullptr; }
 	if (FrameConstantBuffer) { FrameConstantBuffer->Release(); FrameConstantBuffer = nullptr; }

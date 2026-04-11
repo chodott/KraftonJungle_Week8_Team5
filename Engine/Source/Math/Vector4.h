@@ -2,6 +2,8 @@
 
 #include "EngineAPI.h"
 #include <cmath>
+#include "Vector.h"
+
 struct ENGINE_API FVector4
 {
     float X = 0.0f;
@@ -12,6 +14,9 @@ struct ENGINE_API FVector4
     FVector4() = default;
     FVector4(float InX, float InY, float InZ, float InW)
         : X(InX), Y(InY), Z(InZ), W(InW) {}
+	FVector4(FVector V, float InW)
+		: X(V.X), Y(V.Y), Z(V.Z), W(InW) {
+	}
 	float Dot(const FVector4& other)
 	{
 		return {X*other.X+Y*other.Y+ Z * other.Z + W * other.W };

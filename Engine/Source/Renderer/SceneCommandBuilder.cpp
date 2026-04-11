@@ -1,4 +1,4 @@
-﻿#include "Renderer/SceneCommandBuilder.h"
+#include "Renderer/SceneCommandBuilder.h"
 
 #include <algorithm>
 

@@ -43,6 +43,8 @@ public:
 	float GetOrthoWidth() const;
 	float GetOrthoHeight() const;
 	void SetOrthoWidth(float InOrthoWidth);
+	float GetNearPlane() const { return NearPlane; }
+	float GetFarPlane() const { return FarPlane; }
 
 private:
 	FVector Position = { -5.0f, 0.0f, 2.0f };

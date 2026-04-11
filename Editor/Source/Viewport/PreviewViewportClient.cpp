@@ -82,6 +82,8 @@ void FPreviewViewportClient::Render(FEngine* Engine, FRenderer* Renderer)
 			Frustum.ExtractFromVP(FrameRequest.SceneView.ViewMatrix * FrameRequest.SceneView.ProjectionMatrix);
 
 			FrameRequest.SceneView.CameraPosition = FrameRequest.SceneView.ViewMatrix.GetInverse().GetTranslation();
+			FrameRequest.SceneView.NearZ = ActiveCamera->GetNearPlane();
+			FrameRequest.SceneView.FarZ = ActiveCamera->GetFarPlane();
 			FrameRequest.SceneView.TotalTimeSeconds = Engine ? static_cast<float>(Engine->GetTimer().GetTotalTime()) : 0.0f;
 			BuildSceneRenderPacket(Engine, ActiveWorld, Frustum, FShowFlags{}, ScenePacket);
 			FrameRequest.ScenePacket = std::move(ScenePacket);

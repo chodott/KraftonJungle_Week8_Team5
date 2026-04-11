@@ -13,5 +13,5 @@ cbuffer MaterialData : register(b2)
 float4 main(VS_OUTPUT Input) : SV_TARGET
 {
 	float4 Color = Texture.Sample(Sampler, Input.UV);
-	return Color;
+	return ApplyBaseColorDecals(Input, Color, Sampler);
 }

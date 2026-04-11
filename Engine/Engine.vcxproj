@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Actor\BillboardActor.h" />
+    <ClInclude Include="Source\Actor\DecalActor.h" />
     <ClInclude Include="Source\Actor\HeightFogActor.h" />
     <ClInclude Include="Source\Component\BillboardComponent.h" />
     <ClInclude Include="Source\Component\DecalComponent.h" />
@@ -92,6 +93,7 @@
     <ClInclude Include="Source\Primitive\PrimitiveGizmo.h" />
     <ClInclude Include="Source\Primitive\UnrealEditorStyledGizmo.h" />
     <ClInclude Include="Source\Renderer\Feature\DebugLineRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Feature\DecalRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\FogRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\OutlineRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\SubUVRenderFeature.h" />
@@ -243,6 +245,7 @@
   <ItemGroup>
     <ClCompile Include="Source\Actor\Actor.cpp" />
     <ClCompile Include="Source\Actor\BillboardActor.cpp" />
+    <ClCompile Include="Source\Actor\DecalActor.cpp" />
     <ClCompile Include="Source\Actor\CubeActor.cpp" />
     <ClCompile Include="Source\Actor\HeightFogActor.cpp" />
     <ClCompile Include="Source\Actor\PlaneActor.cpp" />
@@ -303,6 +306,7 @@
     <ClCompile Include="Source\Primitive\PrimitiveGizmo.cpp" />
     <ClCompile Include="Source\Primitive\UnrealEditorStyledGizmo.cpp" />
     <ClCompile Include="Source\Renderer\Feature\DebugLineRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Feature\DecalRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\FogRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\OutlineRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\SubUVRenderFeature.cpp" />

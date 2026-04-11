@@ -1,4 +1,4 @@
-﻿#include "Renderer/SceneRenderer.h"
+#include "Renderer/SceneRenderer.h"
 
 #include <algorithm>
 
@@ -157,7 +157,15 @@ void FSceneRenderer::ExecuteCommands(FRenderer& Renderer, const FFogRenderReques
 	Renderer.UpdateFrameConstantBuffer();
 
 	SortRenderPass(DefaultCommandList, ERenderLayer::Default);
+	if (Renderer.DecalFeature)
+	{
+		Renderer.DecalFeature->BindForForwardPass(Renderer);
+	}
 	ExecuteRenderPass(Renderer, DefaultCommandList);
+	if (Renderer.DecalFeature)
+	{
+		Renderer.DecalFeature->Unbind(Renderer);
+	}
 
 	SortRenderPass(TransparentCommandList, ERenderLayer::Transparent);
 	ExecuteRenderPass(Renderer, TransparentCommandList);
