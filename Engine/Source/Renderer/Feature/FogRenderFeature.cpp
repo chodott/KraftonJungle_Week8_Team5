@@ -1,6 +1,7 @@
 #include "Renderer/Feature/FogRenderFeature.h"
 
 #include "Core/Paths.h"
+#include "Renderer/FullscreenPass.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/ShaderResource.h"
 
@@ -122,7 +123,7 @@ bool FFogRenderFeature::Initialize(FRenderer& Renderer)
 	return true;
 }
 
-void FFogRenderFeature::UpdateFogConstantBuffer(FRenderer& Renderer, const FFogRenderRequest& Request, const FFogRenderItem& Item)
+void FFogRenderFeature::UpdateFogConstantBuffer(FRenderer& Renderer, const FViewContext& View, const FFogRenderItem& Item)
 {
 	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
 	if (!FogConstantBuffer || !DeviceContext)
@@ -131,8 +132,8 @@ void FFogRenderFeature::UpdateFogConstantBuffer(FRenderer& Renderer, const FFogR
 	}
 
 	FFogConstantBuffer CBData = {};
-	CBData.InverseViewProjection = Request.InverseViewProjection.GetTransposed();
-	CBData.CameraPosition = FVector4(Request.CameraPosition.X, Request.CameraPosition.Y, Request.CameraPosition.Z, 0.0f);
+	CBData.InverseViewProjection = View.InverseViewProjection.GetTransposed();
+	CBData.CameraPosition = FVector4(View.CameraPosition.X, View.CameraPosition.Y, View.CameraPosition.Z, 0.0f);
 	CBData.FogOrigin = FVector4(Item.FogOrigin.X, Item.FogOrigin.Y, Item.FogOrigin.Z, 0.0f);
 	CBData.FogColor = Item.FogInscatteringColor.ToVector4();
 	CBData.FogParams = FVector4(
@@ -148,14 +149,16 @@ void FFogRenderFeature::UpdateFogConstantBuffer(FRenderer& Renderer, const FFogR
 		memcpy(Mapped.pData, &CBData, sizeof(CBData));
 		DeviceContext->Unmap(FogConstantBuffer, 0);
 	}
-
-	ID3D11Buffer* Buffer = FogConstantBuffer;
-	DeviceContext->PSSetConstantBuffers(0, 1, &Buffer);
 }
 
-bool FFogRenderFeature::Render(FRenderer& Renderer, const FFogRenderRequest& Request)
+bool FFogRenderFeature::Render(
+	FRenderer& Renderer,
+	const FFrameContext& Frame,
+	const FViewContext& View,
+	const FSceneRenderTargets& Targets,
+	const TArray<FFogRenderItem>& Items)
 {
-	if (Request.IsEmpty() || !Initialize(Renderer))
+	if (Items.empty() || !Targets.SceneColorRTV || !Targets.SceneDepthSRV || !Initialize(Renderer))
 	{
 		return true;
 	}
@@ -166,58 +169,54 @@ bool FFogRenderFeature::Render(FRenderer& Renderer, const FFogRenderRequest& Req
 		return false;
 	}
 
-	ID3D11RenderTargetView* BoundRTV = nullptr;
-	ID3D11DepthStencilView* BoundDSV = nullptr;
-	DeviceContext->OMGetRenderTargets(1, &BoundRTV, &BoundDSV);
-	if (!BoundRTV)
-	{
-		if (BoundDSV)
-		{
-			BoundDSV->Release();
-		}
-		return false;
-	}
-
 	constexpr float BlendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	ID3D11ShaderResourceView* DepthSRV = Request.DepthTextureSRV;
-	ID3D11ShaderResourceView* NullSRV = nullptr;
-	ID3D11Buffer* NullCB = nullptr;
 
-	DeviceContext->OMSetRenderTargets(1, &BoundRTV, nullptr);
-	DeviceContext->OMSetBlendState(FogBlendState, BlendFactor, 0xFFFFFFFF);
-	DeviceContext->OMSetDepthStencilState(NoDepthState, 0);
-	DeviceContext->RSSetState(FogRasterizerState);
-	DeviceContext->IASetInputLayout(nullptr);
-	DeviceContext->IASetIndexBuffer(nullptr, DXGI_FORMAT_UNKNOWN, 0);
-	DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	DeviceContext->VSSetShader(FogPostVS, nullptr, 0);
-	DeviceContext->PSSetShader(FogPostPS, nullptr, 0);
-	DeviceContext->PSSetSamplers(0, 1, &DepthSampler);
-	DeviceContext->PSSetShaderResources(0, 1, &DepthSRV);
+	FFullscreenPassPipelineState PipelineState;
+	PipelineState.BlendState = FogBlendState;
+	PipelineState.BlendFactor = BlendFactor;
+	PipelineState.DepthStencilState = NoDepthState;
+	PipelineState.RasterizerState = FogRasterizerState;
 
-	for (const FFogRenderItem& Item : Request.Items)
+	const FFullscreenPassConstantBufferBinding ConstantBuffers[] =
 	{
-		UpdateFogConstantBuffer(Renderer, Request, Item);
-		DeviceContext->Draw(6, 0);
-	}
-
-	DeviceContext->PSSetShaderResources(0, 1, &NullSRV);
-	DeviceContext->PSSetConstantBuffers(0, 1, &NullCB);
-	DeviceContext->OMSetBlendState(nullptr, BlendFactor, 0xFFFFFFFF);
-	DeviceContext->OMSetDepthStencilState(nullptr, 0);
-	DeviceContext->RSSetState(nullptr);
-	DeviceContext->OMSetRenderTargets(1, &BoundRTV, BoundDSV);
-
-	Renderer.ShaderManager.Bind(DeviceContext);
-	Renderer.SetConstantBuffers();
-	Renderer.GetRenderStateManager()->RebindState();
-
-	BoundRTV->Release();
-	if (BoundDSV)
+		{ 0, FogConstantBuffer },
+	};
+	const FFullscreenPassShaderResourceBinding ShaderResources[] =
 	{
-		BoundDSV->Release();
-	}
-	return true;
+		{ 0, Targets.SceneDepthSRV },
+	};
+	const FFullscreenPassSamplerBinding Samplers[] =
+	{
+		{ 0, DepthSampler },
+	};
+	const FFullscreenPassBindings Bindings
+	{
+		ConstantBuffers,
+		static_cast<uint32>(sizeof(ConstantBuffers) / sizeof(ConstantBuffers[0])),
+		ShaderResources,
+		static_cast<uint32>(sizeof(ShaderResources) / sizeof(ShaderResources[0])),
+		Samplers,
+		static_cast<uint32>(sizeof(Samplers) / sizeof(Samplers[0]))
+	};
+
+	return ExecuteFullscreenPass(
+		Renderer,
+		Frame,
+		View,
+		Targets.SceneColorRTV,
+		nullptr,
+		View.Viewport,
+		{ FogPostVS, FogPostPS },
+		PipelineState,
+		Bindings,
+		[&](ID3D11DeviceContext& Context)
+		{
+			for (const FFogRenderItem& Item : Items)
+			{
+				UpdateFogConstantBuffer(Renderer, View, Item);
+				Context.Draw(3, 0);
+			}
+		});
 }
 
 void FFogRenderFeature::Release()

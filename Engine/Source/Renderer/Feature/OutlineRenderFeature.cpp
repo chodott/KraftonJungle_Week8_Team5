@@ -1,6 +1,7 @@
 #include "Renderer/Feature/OutlineRenderFeature.h"
 
 #include "Core/Paths.h"
+#include "Renderer/FullscreenPass.h"
 #include "Renderer/RenderMesh.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/ShaderResource.h"
@@ -14,37 +15,6 @@ namespace
 		float OutlineThreshold = 0.1f;
 		float Padding[2] = {};
 	};
-
-	bool GetRenderTargetSize(ID3D11RenderTargetView* RenderTargetView, uint32& OutWidth, uint32& OutHeight)
-	{
-		if (!RenderTargetView)
-		{
-			return false;
-		}
-
-		ID3D11Resource* Resource = nullptr;
-		RenderTargetView->GetResource(&Resource);
-		if (!Resource)
-		{
-			return false;
-		}
-
-		ID3D11Texture2D* Texture = nullptr;
-		const HRESULT Hr = Resource->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&Texture));
-		Resource->Release();
-		if (FAILED(Hr) || !Texture)
-		{
-			return false;
-		}
-
-		D3D11_TEXTURE2D_DESC Desc = {};
-		Texture->GetDesc(&Desc);
-		Texture->Release();
-
-		OutWidth = Desc.Width;
-		OutHeight = Desc.Height;
-		return true;
-	}
 }
 
 FOutlineRenderFeature::~FOutlineRenderFeature()
@@ -181,7 +151,7 @@ bool FOutlineRenderFeature::Initialize(FRenderer& Renderer)
 	const std::wstring ShaderDir = FPaths::ShaderDir();
 	if (!OutlinePostVS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"OutlinePostVertexShader.hlsl").c_str(), "main", "vs_5_0");
+		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"BlitVertexShader.hlsl").c_str(), "main", "vs_5_0");
 		if (!Resource || FAILED(Device->CreateVertexShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &OutlinePostVS)))
 		{
 			return false;
@@ -209,77 +179,6 @@ bool FOutlineRenderFeature::Initialize(FRenderer& Renderer)
 	return true;
 }
 
-bool FOutlineRenderFeature::EnsureOutlineMaskResources(FRenderer& Renderer, uint32 Width, uint32 Height)
-{
-	if (OutlineMaskTexture && OutlineMaskRTV && OutlineMaskSRV &&
-		OutlineMaskWidth == Width && OutlineMaskHeight == Height)
-	{
-		return true;
-	}
-
-	ReleaseOutlineMaskResources();
-
-	ID3D11Device* Device = Renderer.GetDevice();
-	if (!Device)
-	{
-		return false;
-	}
-
-	D3D11_TEXTURE2D_DESC Desc = {};
-	Desc.Width = Width;
-	Desc.Height = Height;
-	Desc.MipLevels = 1;
-	Desc.ArraySize = 1;
-	Desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	Desc.SampleDesc.Count = 1;
-	Desc.Usage = D3D11_USAGE_DEFAULT;
-	Desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-
-	if (FAILED(Device->CreateTexture2D(&Desc, nullptr, &OutlineMaskTexture)))
-	{
-		ReleaseOutlineMaskResources();
-		return false;
-	}
-
-	if (FAILED(Device->CreateRenderTargetView(OutlineMaskTexture, nullptr, &OutlineMaskRTV)))
-	{
-		ReleaseOutlineMaskResources();
-		return false;
-	}
-
-	if (FAILED(Device->CreateShaderResourceView(OutlineMaskTexture, nullptr, &OutlineMaskSRV)))
-	{
-		ReleaseOutlineMaskResources();
-		return false;
-	}
-
-	OutlineMaskWidth = Width;
-	OutlineMaskHeight = Height;
-	return true;
-}
-
-void FOutlineRenderFeature::ReleaseOutlineMaskResources()
-{
-	if (OutlineMaskSRV)
-	{
-		OutlineMaskSRV->Release();
-		OutlineMaskSRV = nullptr;
-	}
-	if (OutlineMaskRTV)
-	{
-		OutlineMaskRTV->Release();
-		OutlineMaskRTV = nullptr;
-	}
-	if (OutlineMaskTexture)
-	{
-		OutlineMaskTexture->Release();
-		OutlineMaskTexture = nullptr;
-	}
-
-	OutlineMaskWidth = 0;
-	OutlineMaskHeight = 0;
-}
-
 void FOutlineRenderFeature::UpdateOutlinePostConstantBuffer(
 	FRenderer& Renderer,
 	const FVector4& OutlineColor,
@@ -303,56 +202,48 @@ void FOutlineRenderFeature::UpdateOutlinePostConstantBuffer(
 		memcpy(Mapped.pData, &CBData, sizeof(CBData));
 		DeviceContext->Unmap(OutlinePostConstantBuffer, 0);
 	}
-
-	ID3D11Buffer* Buffer = OutlinePostConstantBuffer;
-	DeviceContext->PSSetConstantBuffers(0, 1, &Buffer);
 }
 
-bool FOutlineRenderFeature::Render(FRenderer& Renderer, const FOutlineRenderRequest& Request)
+bool FOutlineRenderFeature::Render(
+	FRenderer& Renderer,
+	const FFrameContext& Frame,
+	const FViewContext& View,
+	FSceneRenderTargets& Targets,
+	const FOutlineRenderRequest& Request)
 {
-	if (!Request.bEnabled || Request.Items.empty() || !Initialize(Renderer))
+	if (!RenderMaskPass(Renderer, Frame, View, Targets, Request))
+	{
+		return false;
+	}
+
+	return RenderCompositePass(Renderer, Frame, View, Targets, Request);
+}
+
+bool FOutlineRenderFeature::RenderMaskPass(
+	FRenderer& Renderer,
+	const FFrameContext& Frame,
+	const FViewContext& View,
+	FSceneRenderTargets& Targets,
+	const FOutlineRenderRequest& Request)
+{
+	if (!Request.bEnabled || Request.Items.empty() || !Targets.OutlineMaskRTV || !Targets.OutlineMaskSRV || !Initialize(Renderer))
 	{
 		return true;
 	}
 
 	ID3D11Device* Device = Renderer.GetDevice();
 	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
-	if (!Device || !DeviceContext)
+	if (!Device || !DeviceContext || !Targets.SceneColorRTV || !Targets.SceneDepthDSV)
 	{
-		return false;
-	}
-
-	ID3D11RenderTargetView* BoundRTV = nullptr;
-	ID3D11DepthStencilView* BoundDSV = nullptr;
-	DeviceContext->OMGetRenderTargets(1, &BoundRTV, &BoundDSV);
-	if (!BoundRTV || !BoundDSV)
-	{
-		if (BoundRTV) BoundRTV->Release();
-		if (BoundDSV) BoundDSV->Release();
-		return false;
-	}
-
-	uint32 TargetWidth = 0;
-	uint32 TargetHeight = 0;
-	if (!GetRenderTargetSize(BoundRTV, TargetWidth, TargetHeight) || !EnsureOutlineMaskResources(Renderer, TargetWidth, TargetHeight))
-	{
-		BoundRTV->Release();
-		BoundDSV->Release();
 		return false;
 	}
 
 	constexpr float ClearColor[4] = { 0.f, 0.f, 0.f, 0.f };
 	constexpr float BlendFactor[4] = { 0.f, 0.f, 0.f, 0.f };
-	ID3D11ShaderResourceView* NullSRV = nullptr;
-	ID3D11Buffer* NullCB = nullptr;
 
-	DeviceContext->ClearDepthStencilView(BoundDSV, D3D11_CLEAR_STENCIL, 1.0f, 0);
-	Renderer.SetConstantBuffers();
-	Renderer.ShaderManager.Bind(DeviceContext);
-	DeviceContext->PSSetShader(nullptr, nullptr, 0);
+	DeviceContext->ClearDepthStencilView(Targets.SceneDepthDSV, D3D11_CLEAR_STENCIL, 1.0f, 0);
+	BeginPass(Renderer, 0, nullptr, Targets.SceneDepthDSV, View.Viewport, Frame, View);
 	DeviceContext->OMSetBlendState(nullptr, BlendFactor, 0xFFFFFFFF);
-	DeviceContext->RSSetState(nullptr);
-	DeviceContext->OMSetRenderTargets(0, nullptr, BoundDSV);
 	DeviceContext->OMSetDepthStencilState(StencilWriteState, 1);
 
 	for (const FOutlineRenderItem& Item : Request.Items)
@@ -360,6 +251,31 @@ bool FOutlineRenderFeature::Render(FRenderer& Renderer, const FOutlineRenderRequ
 		if (!Item.Mesh || !Item.Mesh->UpdateVertexAndIndexBuffer(Device, DeviceContext))
 		{
 			continue;
+		}
+
+		FMaterial* Material = Item.Material ? Item.Material : Renderer.GetDefaultMaterial();
+		if (!Material)
+		{
+			continue;
+		}
+
+		Material->Bind(DeviceContext, EMaterialPassType::OutlineMask);
+		if (!Material->HasPixelTextureBinding())
+		{
+			ID3D11SamplerState* DefaultSampler = Renderer.GetDefaultSampler();
+			DeviceContext->PSSetSamplers(0, 1, &DefaultSampler);
+		}
+
+		if (Item.bDisableCulling)
+		{
+			FRasterizerStateOption RasterOpt = Material->GetRasterizerOption();
+			RasterOpt.CullMode = D3D11_CULL_NONE;
+			Renderer.GetRenderStateManager()->BindState(
+				Renderer.GetRenderStateManager()->GetOrCreateRasterizerState(RasterOpt));
+		}
+		else
+		{
+			Renderer.GetRenderStateManager()->BindState(Material->GetRasterizerState());
 		}
 
 		Item.Mesh->Bind(DeviceContext);
@@ -371,7 +287,8 @@ bool FOutlineRenderFeature::Render(FRenderer& Renderer, const FOutlineRenderRequ
 		Renderer.UpdateObjectConstantBuffer(Item.WorldMatrix);
 		if (!Item.Mesh->Indices.empty())
 		{
-			DeviceContext->DrawIndexed(static_cast<UINT>(Item.Mesh->Indices.size()), 0, 0);
+			const UINT DrawCount = (Item.IndexCount > 0u) ? Item.IndexCount : static_cast<UINT>(Item.Mesh->Indices.size());
+			DeviceContext->DrawIndexed(DrawCount, Item.IndexStart, 0);
 		}
 		else
 		{
@@ -379,41 +296,94 @@ bool FOutlineRenderFeature::Render(FRenderer& Renderer, const FOutlineRenderRequ
 		}
 	}
 
-	DeviceContext->PSSetShaderResources(0, 1, &NullSRV);
-	DeviceContext->OMSetRenderTargets(1, &OutlineMaskRTV, BoundDSV);
-	DeviceContext->ClearRenderTargetView(OutlineMaskRTV, ClearColor);
-	DeviceContext->OMSetDepthStencilState(StencilEqualState, 1);
-	DeviceContext->RSSetState(OutlineRasterizerState);
-	DeviceContext->IASetInputLayout(nullptr);
-	DeviceContext->IASetIndexBuffer(nullptr, DXGI_FORMAT_UNKNOWN, 0);
-	DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	DeviceContext->VSSetShader(OutlinePostVS, nullptr, 0);
-	DeviceContext->PSSetShader(OutlineMaskPS, nullptr, 0);
-	DeviceContext->Draw(3, 0);
+	EndPass(Renderer, Targets.SceneColorRTV, Targets.SceneDepthDSV, View.Viewport, Frame, View);
+	DeviceContext->ClearRenderTargetView(Targets.OutlineMaskRTV, ClearColor);
+	FFullscreenPassPipelineState MaskPipelineState;
+	MaskPipelineState.DepthStencilState = StencilEqualState;
+	MaskPipelineState.StencilRef = 1;
+	MaskPipelineState.RasterizerState = OutlineRasterizerState;
+	return ExecuteFullscreenPass(
+		Renderer,
+		Frame,
+		View,
+		Targets.OutlineMaskRTV,
+		Targets.SceneDepthDSV,
+		View.Viewport,
+		{ OutlinePostVS, OutlineMaskPS },
+		MaskPipelineState,
+		{},
+		[](ID3D11DeviceContext& Context)
+		{
+			Context.Draw(3, 0);
+		});
+}
 
-	DeviceContext->OMSetRenderTargets(1, &BoundRTV, BoundDSV);
-	DeviceContext->OMSetDepthStencilState(StencilNotEqualState, 1);
-	DeviceContext->OMSetBlendState(OutlineBlendState, BlendFactor, 0xFFFFFFFF);
-	DeviceContext->VSSetShader(OutlinePostVS, nullptr, 0);
-	DeviceContext->PSSetShader(OutlineSobelPS, nullptr, 0);
+bool FOutlineRenderFeature::RenderCompositePass(
+	FRenderer& Renderer,
+	const FFrameContext& Frame,
+	const FViewContext& View,
+	FSceneRenderTargets& Targets,
+	const FOutlineRenderRequest& Request)
+{
+	if (!Request.bEnabled || Request.Items.empty() || !Targets.OutlineMaskSRV || !Initialize(Renderer))
+	{
+		return true;
+	}
+
+	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
+	if (!DeviceContext || !Targets.SceneColorRTV || !Targets.SceneDepthDSV)
+	{
+		return false;
+	}
+
+	constexpr float BlendFactor[4] = { 0.f, 0.f, 0.f, 0.f };
+
+	FFullscreenPassPipelineState CompositePipelineState;
+	CompositePipelineState.BlendState = OutlineBlendState;
+	CompositePipelineState.BlendFactor = BlendFactor;
+	CompositePipelineState.DepthStencilState = StencilNotEqualState;
+	CompositePipelineState.StencilRef = 1;
 	UpdateOutlinePostConstantBuffer(Renderer, FVector4(1.0f, 0.5f, 0.0f, 1.0f), 2.0f, 0.1f);
-	DeviceContext->PSSetShaderResources(0, 1, &OutlineMaskSRV);
-	DeviceContext->PSSetSamplers(0, 1, &OutlineSampler);
-	DeviceContext->Draw(3, 0);
 
-	DeviceContext->PSSetShaderResources(0, 1, &NullSRV);
-	DeviceContext->PSSetConstantBuffers(0, 1, &NullCB);
-	DeviceContext->ClearDepthStencilView(BoundDSV, D3D11_CLEAR_STENCIL, 1.0f, 0);
-	DeviceContext->OMSetBlendState(nullptr, BlendFactor, 0xFFFFFFFF);
-	DeviceContext->OMSetDepthStencilState(nullptr, 0);
-	DeviceContext->RSSetState(nullptr);
-	Renderer.ShaderManager.Bind(DeviceContext);
-	Renderer.SetConstantBuffers();
-	Renderer.GetRenderStateManager()->RebindState();
+	const FFullscreenPassConstantBufferBinding ConstantBuffers[] =
+	{
+		{ 0, OutlinePostConstantBuffer },
+	};
+	const FFullscreenPassShaderResourceBinding ShaderResources[] =
+	{
+		{ 0, Targets.OutlineMaskSRV },
+	};
+	const FFullscreenPassSamplerBinding Samplers[] =
+	{
+		{ 0, OutlineSampler },
+	};
+	const FFullscreenPassBindings Bindings
+	{
+		ConstantBuffers,
+		static_cast<uint32>(sizeof(ConstantBuffers) / sizeof(ConstantBuffers[0])),
+		ShaderResources,
+		static_cast<uint32>(sizeof(ShaderResources) / sizeof(ShaderResources[0])),
+		Samplers,
+		static_cast<uint32>(sizeof(Samplers) / sizeof(Samplers[0]))
+	};
 
-	BoundRTV->Release();
-	BoundDSV->Release();
-	return true;
+	const bool bSucceeded = ExecuteFullscreenPass(
+		Renderer,
+		Frame,
+		View,
+		Targets.SceneColorRTV,
+		Targets.SceneDepthDSV,
+		View.Viewport,
+		{ OutlinePostVS, OutlineSobelPS },
+		CompositePipelineState,
+		Bindings,
+		[](ID3D11DeviceContext& Context)
+		{
+			Context.Draw(3, 0);
+		});
+
+	DeviceContext->ClearDepthStencilView(Targets.SceneDepthDSV, D3D11_CLEAR_STENCIL, 1.0f, 0);
+	return bSucceeded;
 }
 
 void FOutlineRenderFeature::Release()
@@ -468,6 +438,4 @@ void FOutlineRenderFeature::Release()
 		OutlineSobelPS->Release();
 		OutlineSobelPS = nullptr;
 	}
-
-	ReleaseOutlineMaskResources();
 }

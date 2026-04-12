@@ -1,23 +1,12 @@
 #include "Renderer/SceneRenderer.h"
 
-#include <algorithm>
-
-#include "Renderer/Feature/FogRenderFeature.h"
 #include "Renderer/Material.h"
-#include "Renderer/RenderMesh.h"
 #include "Renderer/Renderer.h"
 
 void FSceneRenderer::BeginFrame()
 {
 	PrevCommandCount = (std::max)(PrevCommandCount, CurrentFramePeakCommandCount);
 	CurrentFramePeakCommandCount = 0;
-	DefaultCommandList.clear();
-	OverlayCommandList.clear();
-	TransparentCommandList.clear();
-	DefaultCommandList.reserve(PrevCommandCount);
-	OverlayCommandList.reserve((PrevCommandCount / 4) + 1);
-	TransparentCommandList.reserve((PrevCommandCount / 4) + 1);
-	NextSubmissionOrder = 0;
 }
 
 size_t FSceneRenderer::GetPrevCommandCount() const
@@ -25,353 +14,114 @@ size_t FSceneRenderer::GetPrevCommandCount() const
 	return (std::max)(PrevCommandCount, CurrentFramePeakCommandCount);
 }
 
-void FSceneRenderer::BuildQueue(
+void FSceneRenderer::BuildSceneViewData(
 	FRenderer& Renderer,
 	const FSceneRenderPacket& Packet,
-	const FSceneViewRenderRequest& SceneView,
-	FRenderCommandQueue& OutQueue)
+	const FFrameContext& Frame,
+	const FViewContext& View,
+	const TArray<FMeshBatch>& AdditionalMeshBatches,
+	FSceneViewData& OutSceneViewData)
 {
-	OutQueue.Clear();
-	OutQueue.Reserve(Renderer.GetPrevCommandCount());
-	OutQueue.ViewMatrix = SceneView.ViewMatrix;
-	OutQueue.ProjectionMatrix = SceneView.ProjectionMatrix;
+	OutSceneViewData.MeshInputs.Batches.reserve(Packet.MeshPrimitives.size() + AdditionalMeshBatches.size());
+	OutSceneViewData.PostProcessInputs.Clear();
+	OutSceneViewData.DebugInputs.Clear();
 
 	FSceneCommandBuildContext BuildContext;
 	BuildContext.DefaultMaterial = Renderer.GetDefaultMaterial();
 	BuildContext.TextFeature = Renderer.GetSceneTextFeature();
 	BuildContext.SubUVFeature = Renderer.GetSceneSubUVFeature();
 	BuildContext.BillboardFeature = Renderer.GetSceneBillboardFeature();
-	BuildContext.TotalTimeSeconds = SceneView.TotalTimeSeconds;
+	BuildContext.ResourceCache = &SceneCommandResourceCache;
+	BuildContext.TotalTimeSeconds = Frame.TotalTimeSeconds;
 
-	SceneCommandBuilder.BuildQueue(BuildContext, Packet, SceneView.CameraPosition, OutQueue);
+	SceneCommandBuilder.BuildSceneViewData(BuildContext, Packet, Frame, View, OutSceneViewData);
+	AppendAdditionalMeshBatches(Renderer, AdditionalMeshBatches, OutSceneViewData);
+
+	CurrentFramePeakCommandCount = (std::max)(CurrentFramePeakCommandCount, OutSceneViewData.MeshInputs.Batches.size());
 }
 
-void FSceneRenderer::AddCommand(FRenderer& Renderer, TArray<FRenderCommand>& TargetList, const FRenderCommand& Command)
+bool FSceneRenderer::RenderSceneView(
+	FRenderer& Renderer,
+	FSceneRenderTargets& Targets,
+	FSceneViewData& SceneViewData,
+	const float ClearColor[4],
+	bool bForceWireframe,
+	FMaterial* WireframeMaterial)
 {
-	TargetList.push_back(Command);
-	FRenderCommand& Added = TargetList.back();
-	if (!Added.Material)
+	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
+	if (!Context || !Targets.IsValid())
 	{
-		Added.Material = Renderer.GetDefaultMaterial();
+		return false;
 	}
 
-	Added.SortKey = FRenderCommand::MakeSortKey(Added.Material, Added.RenderMesh);
-	Added.SubmissionOrder = NextSubmissionOrder++;
-}
-
-void FSceneRenderer::ClearCommandLists()
-{
-	const size_t PrevDefaultCount = DefaultCommandList.size();
-	const size_t PrevOverlayCount = OverlayCommandList.size();
-	const size_t PrevTransparentCount = TransparentCommandList.size();
-	const size_t ExecutedCommandCount = PrevDefaultCount + PrevOverlayCount + PrevTransparentCount;
-	CurrentFramePeakCommandCount = (std::max)(CurrentFramePeakCommandCount, ExecutedCommandCount);
-
-	DefaultCommandList.clear();
-	OverlayCommandList.clear();
-	TransparentCommandList.clear();
-
-	DefaultCommandList.reserve(PrevDefaultCount);
-	OverlayCommandList.reserve(PrevOverlayCount);
-	TransparentCommandList.reserve(PrevTransparentCount);
-	NextSubmissionOrder = 0;
-}
-
-void FSceneRenderer::SubmitCommands(FRenderer& Renderer, const FRenderCommandQueue& Queue)
-{
-	ID3D11Device* Device = Renderer.GetDevice();
-	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
-	if (!Device || !DeviceContext)
+	if (bForceWireframe)
 	{
-		return;
+		ApplyWireframeOverride(SceneViewData, WireframeMaterial);
 	}
 
-	Renderer.ViewMatrix = Queue.ViewMatrix;
-	Renderer.ProjectionMatrix = Queue.ProjectionMatrix;
-
-	auto SubmitBucket = [&](const TArray<FRenderCommand>& SourceCommands, TArray<FRenderCommand>& TargetList)
+	FPassContext PassContext
 	{
-		for (const FRenderCommand& Command : SourceCommands)
-		{
-			if (Command.RenderMesh)
-			{
-				Command.RenderMesh->UpdateVertexAndIndexBuffer(Device, DeviceContext);
-			}
-
-			AddCommand(Renderer, TargetList, Command);
-		}
+		Renderer,
+		Targets,
+		SceneViewData,
+		FVector4(ClearColor[0], ClearColor[1], ClearColor[2], ClearColor[3])
 	};
 
-	SubmitBucket(Queue.DefaultCommands, DefaultCommandList);
-	SubmitBucket(Queue.OverlayCommands, OverlayCommandList);
-	SubmitBucket(Queue.TransparentCommands, TransparentCommandList);
+	FRenderPipeline Pipeline;
+	BuildRenderPipeline(Pipeline);
+	return Pipeline.Execute(PassContext);
 }
 
-void FSceneRenderer::SortRenderPass(TArray<FRenderCommand>& Commands, ERenderLayer RenderLayer)
+void FSceneRenderer::AppendAdditionalMeshBatches(
+	FRenderer& Renderer,
+	const TArray<FMeshBatch>& AdditionalMeshBatches,
+	FSceneViewData& InOutSceneViewData)
 {
-	if (Commands.size() < 2)
+	for (const FMeshBatch& SourceBatch : AdditionalMeshBatches)
 	{
-		return;
-	}
-
-	switch (RenderLayer)
-	{
-	case ERenderLayer::Default:
-		std::sort(
-			Commands.begin(),
-			Commands.end(),
-			[](const FRenderCommand& A, const FRenderCommand& B)
-			{
-				if (A.SortKey != B.SortKey)
-				{
-					return A.SortKey < B.SortKey;
-				}
-				return A.SubmissionOrder < B.SubmissionOrder;
-			});
-		break;
-
-	case ERenderLayer::Transparent:
-		std::sort(
-			Commands.begin(),
-			Commands.end(),
-			[](const FRenderCommand& A, const FRenderCommand& B)
-			{
-				if (A.TransparentSortDistanceSq != B.TransparentSortDistanceSq)
-				{
-					return A.TransparentSortDistanceSq > B.TransparentSortDistanceSq;
-				}
-				return A.SubmissionOrder < B.SubmissionOrder;
-			});
-		break;
-
-	case ERenderLayer::Overlay:
-	default:
-		// Overlay는 제출 순서를 유지해 기즈모/디버그 출력 순서를 보존한다.
-		break;
-	}
-}
-
-void FSceneRenderer::ExecuteCommands(FRenderer& Renderer, const FFogRenderRequest* FogRequest)
-{
-	Renderer.SetConstantBuffers();
-	Renderer.UpdateFrameConstantBuffer();
-
-	SortRenderPass(DefaultCommandList, ERenderLayer::Default);
-	if (Renderer.DecalFeature)
-	{
-		Renderer.DecalFeature->BindForForwardPass(Renderer);
-	}
-	ExecuteRenderPass(Renderer, DefaultCommandList);
-	if (Renderer.DecalFeature)
-	{
-		Renderer.DecalFeature->Unbind(Renderer);
-	}
-
-	SortRenderPass(TransparentCommandList, ERenderLayer::Transparent);
-	ExecuteRenderPass(Renderer, TransparentCommandList);
-
-	if (FogRequest && !FogRequest->IsEmpty() && Renderer.FogFeature)
-	{
-		Renderer.FogFeature->Render(Renderer, *FogRequest);
-	}
-
-	Renderer.ClearDepthBuffer();
-
-	SortRenderPass(OverlayCommandList, ERenderLayer::Overlay);
-	ExecuteRenderPass(Renderer, OverlayCommandList);
-
-	ClearCommandLists();
-}
-
-void FSceneRenderer::ExecuteRenderPass(FRenderer& Renderer, const TArray<FRenderCommand>& Commands)
-{
-	if (Commands.empty())
-	{
-		return;
-	}
-
-	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
-	if (!DeviceContext)
-	{
-		return;
-	}
-
-	FMaterial* CurrentMaterial = nullptr;
-	FRenderMesh* CurrentMesh = nullptr;
-	D3D11_PRIMITIVE_TOPOLOGY CurrentTopology = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
-
-	Renderer.GetRenderStateManager()->RebindState();
-	for (const FRenderCommand& Command : Commands)
-	{
-		if (!Command.RenderMesh)
+		if (!SourceBatch.Mesh)
 		{
 			continue;
 		}
 
-		if (Command.Material != CurrentMaterial)
-		{
-			Command.Material->Bind(DeviceContext);
-
-			Renderer.GetRenderStateManager()->BindState(Command.Material->GetRasterizerState());
-			Renderer.GetRenderStateManager()->BindState(Command.Material->GetDepthStencilState());
-			Renderer.GetRenderStateManager()->BindState(Command.Material->GetBlendState());
-
-			CurrentMaterial = Command.Material;
-
-			if (!CurrentMaterial->HasPixelTextureBinding())
-			{
-				DeviceContext->PSSetSamplers(0, 1, &Renderer.NormalSampler);
-			}
-		}
-
-		if (Command.Material)
-		{
-			if (Command.bDisableCulling)
-			{
-				FRasterizerStateOption RasterOpt = Command.Material->GetRasterizerOption();
-				RasterOpt.CullMode = D3D11_CULL_NONE;
-				auto OverrideRS = Renderer.GetRenderStateManager()->GetOrCreateRasterizerState(RasterOpt);
-				Renderer.GetRenderStateManager()->BindState(OverrideRS);
-			}
-			else
-			{
-				Renderer.GetRenderStateManager()->BindState(Command.Material->GetRasterizerState());
-			}
-
-			if (Command.bDisableDepthTest || Command.bDisableDepthWrite)
-			{
-				FDepthStencilStateOption DepthOpt = Command.Material->GetDepthStencilOption();
-				if (Command.bDisableDepthTest)
-				{
-					DepthOpt.DepthEnable = false;
-				}
-				if (Command.bDisableDepthWrite)
-				{
-					DepthOpt.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-				}
-
-				auto OverrideDSS = Renderer.GetRenderStateManager()->GetOrCreateDepthStencilState(DepthOpt);
-				Renderer.GetRenderStateManager()->BindState(OverrideDSS);
-			}
-			else
-			{
-				Renderer.GetRenderStateManager()->BindState(Command.Material->GetDepthStencilState());
-			}
-		}
-
-		if (Command.RenderMesh->Vertices.empty() && Command.RenderMesh->Indices.empty())
-		{
-			continue;
-		}
-
-		if (Command.RenderMesh != CurrentMesh)
-		{
-			Command.RenderMesh->Bind(DeviceContext);
-			CurrentMesh = Command.RenderMesh;
-		}
-
-		const D3D11_PRIMITIVE_TOPOLOGY DesiredTopology = static_cast<D3D11_PRIMITIVE_TOPOLOGY>(Command.RenderMesh->Topology);
-		if (DesiredTopology != CurrentTopology)
-		{
-			DeviceContext->IASetPrimitiveTopology(DesiredTopology);
-			CurrentTopology = DesiredTopology;
-		}
-
-		Renderer.UpdateObjectConstantBuffer(Command.WorldMatrix);
-
-		if (!Command.RenderMesh->Indices.empty())
-		{
-			const UINT DrawCount = (Command.IndexCount > 0) ? Command.IndexCount : static_cast<UINT>(Command.RenderMesh->Indices.size());
-			DeviceContext->DrawIndexed(DrawCount, Command.IndexStart, 0);
-		}
-		else
-		{
-			DeviceContext->Draw(static_cast<UINT>(Command.RenderMesh->Vertices.size()), 0);
-		}
+		FMeshBatch Batch = SourceBatch;
+		Batch.Material = Batch.Material ? Batch.Material : Renderer.GetDefaultMaterial();
+		Batch.SubmissionOrder = static_cast<uint64>(InOutSceneViewData.MeshInputs.Batches.size());
+		InOutSceneViewData.MeshInputs.Batches.push_back(std::move(Batch));
 	}
 }
 
-void FSceneRenderer::ApplyWireframeOverride(FRenderCommandQueue& InOutQueue, FMaterial* WireframeMaterial)
+void FSceneRenderer::BuildRenderPipeline(FRenderPipeline& OutPipeline) const
+{
+	OutPipeline.Reset();
+	OutPipeline.AddPass(std::make_unique<FClearSceneTargetsPass>());
+	OutPipeline.AddPass(std::make_unique<FUploadMeshBuffersPass>(MeshPassProcessor));
+	OutPipeline.AddPass(std::make_unique<FDepthPrepass>(MeshPassProcessor));
+	OutPipeline.AddPass(std::make_unique<FGBufferPass>(MeshPassProcessor));
+	OutPipeline.AddPass(std::make_unique<FForwardOpaquePass>(MeshPassProcessor));
+	OutPipeline.AddPass(std::make_unique<FDecalCompositePass>());
+	OutPipeline.AddPass(std::make_unique<FForwardTransparentPass>(MeshPassProcessor));
+	OutPipeline.AddPass(std::make_unique<FFogPostPass>());
+	OutPipeline.AddPass(std::make_unique<FOutlineMaskPass>());
+	OutPipeline.AddPass(std::make_unique<FOutlineCompositePass>());
+	OutPipeline.AddPass(std::make_unique<FOverlayPass>(MeshPassProcessor));
+	OutPipeline.AddPass(std::make_unique<FDebugLinePass>());
+}
+
+void FSceneRenderer::ApplyWireframeOverride(FSceneViewData& SceneViewData, FMaterial* WireframeMaterial)
 {
 	if (!WireframeMaterial)
 	{
 		return;
 	}
 
-	for (FRenderCommand& Command : InOutQueue.DefaultCommands)
+	for (FMeshBatch& Batch : SceneViewData.MeshInputs.Batches)
 	{
-		Command.Material = WireframeMaterial;
-	}
-
-	for (FRenderCommand& Command : InOutQueue.TransparentCommands)
-	{
-		Command.Material = WireframeMaterial;
-	}
-}
-
-bool FSceneRenderer::RenderPacketToTarget(
-	FRenderer& Renderer,
-	ID3D11RenderTargetView* RenderTargetView,
-	ID3D11DepthStencilView* DepthStencilView,
-	const D3D11_VIEWPORT& Viewport,
-	const FSceneRenderPacket& Packet,
-	const FSceneViewRenderRequest& SceneView,
-	const FRenderCommandQueue& AdditionalCommands,
-	bool bForceWireframe,
-	FMaterial* WireframeMaterial,
-	const float ClearColor[4],
-	const FFogRenderRequest* FogRequest)
-{
-	FRenderCommandQueue SceneQueue;
-	BuildQueue(Renderer, Packet, SceneView, SceneQueue);
-
-	if (bForceWireframe)
-	{
-		ApplyWireframeOverride(SceneQueue, WireframeMaterial);
-	}
-
-	// 추가 커맨드를 같은 프레임 큐에 합쳐 깊이 버퍼 연속성을 유지한다.
-	SceneQueue.Append(AdditionalCommands);
-
-	return RenderQueueToTarget(Renderer, RenderTargetView, DepthStencilView, Viewport, SceneQueue, ClearColor, true, FogRequest);
-}
-
-bool FSceneRenderer::RenderQueueToTarget(
-	FRenderer& Renderer,
-	ID3D11RenderTargetView* RenderTargetView,
-	ID3D11DepthStencilView* DepthStencilView,
-	const D3D11_VIEWPORT& Viewport,
-	const FRenderCommandQueue& Queue,
-	const float ClearColor[4],
-	bool bClearTarget,
-	const FFogRenderRequest* FogRequest)
-{
-	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
-	if (!Context || !RenderTargetView || !DepthStencilView)
-	{
-		return false;
-	}
-
-	if (bClearTarget)
-	{
-		Context->ClearRenderTargetView(RenderTargetView, ClearColor);
-		Context->ClearDepthStencilView(DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
-	}
-
-	Context->OMSetRenderTargets(1, &RenderTargetView, DepthStencilView);
-	Context->RSSetViewports(1, &Viewport);
-
-	if (Queue.IsEmpty())
-	{
-		// 씬 오브젝트가 없어도 fog는 post-process이므로 독립적으로 렌더한다.
-		if (FogRequest && !FogRequest->IsEmpty() && Renderer.FogFeature)
+		if (Batch.Domain == EMaterialDomain::Overlay)
 		{
-			Renderer.FogFeature->Render(Renderer, *FogRequest);
+			continue;
 		}
-		return true;
-	}
 
-	SubmitCommands(Renderer, Queue);
-	ExecuteCommands(Renderer, FogRequest);
-	return true;
+		Batch.Material = WireframeMaterial;
+	}
 }

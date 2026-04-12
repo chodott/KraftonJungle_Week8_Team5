@@ -14,6 +14,7 @@
 #include "World/World.h"
 #include "World/WorldContext.h"
 #include "Component/PrimitiveComponent.h"
+#include "Component/MeshComponent.h"
 #include "Component/BillboardComponent.h"
 #include "Component/SkyComponent.h"
 #include "Component/SubUVComponent.h"
@@ -22,9 +23,9 @@
 
 namespace
 {
-	void BuildGridVectors(const FRenderCommandQueue& Queue, const FViewportLocalState& LocalState, FVector& OutGridAxisU, FVector& OutGridAxisV, FVector& OutViewForward)
+	void BuildGridVectors(const FMatrix& ViewMatrix, const FViewportLocalState& LocalState, FVector& OutGridAxisU, FVector& OutGridAxisV, FVector& OutViewForward)
 	{
-		const FMatrix ViewInverse = Queue.ViewMatrix.GetInverse();
+		const FMatrix ViewInverse = ViewMatrix.GetInverse();
 		OutViewForward = ViewInverse.GetForwardVector().GetSafeNormal();
 
 		if (LocalState.ProjectionType == EViewportType::Perspective)
@@ -72,15 +73,46 @@ namespace
 				continue;
 			}
 
+			UMeshComponent* MeshComponent =
+				Component->IsA(UMeshComponent::StaticClass())
+				? static_cast<UMeshComponent*>(Component)
+				: nullptr;
+			const int32 SectionCount = RenderMesh->GetNumSection();
+
+			if (SectionCount > 0)
+			{
+				for (int32 SectionIndex = 0; SectionIndex < SectionCount; ++SectionIndex)
+				{
+					const FMeshSection& Section = RenderMesh->Sections[SectionIndex];
+					FOutlineRenderItem& Item = OutlineItems.emplace_back();
+					Item.Mesh = RenderMesh;
+					Item.Material = MeshComponent ? MeshComponent->GetMaterial(Section.MaterialIndex).get() : nullptr;
+					Item.WorldMatrix = PrimitiveComponent->GetWorldTransform();
+					Item.IndexStart = Section.StartIndex;
+					Item.IndexCount = Section.IndexCount;
+				}
+				continue;
+			}
+
 			FOutlineRenderItem& Item = OutlineItems.emplace_back();
 			Item.Mesh = RenderMesh;
+			Item.Material = MeshComponent ? MeshComponent->GetMaterial(0).get() : nullptr;
 			Item.WorldMatrix = PrimitiveComponent->GetWorldTransform();
 		}
 
 		return OutlineItems;
 	}
-}
 
+	static EViewportCompositeMode ResolveViewportCompositeMode(const FShowFlags& ShowFlags)
+	{
+		if (ShowFlags.HasFlag(EEngineShowFlags::SF_DepthView))
+		{
+			return EViewportCompositeMode::DepthView;
+		}
+
+		return EViewportCompositeMode::SceneColor;
+	}
+}
 
 void FEditorViewportRenderService::RenderAll(
 	FEngine* Engine,
@@ -148,19 +180,19 @@ void FEditorViewportRenderService::RenderAll(
 
 		FSceneRenderPacket ScenePacket;
 		// 씬 패킷과 별도로, 그리드/기즈모 같은 추가 씬 커맨드는 별도 큐로 유지한다.
-		FRenderCommandQueue AdditionalQueue;
-		AdditionalQueue.Reserve(Renderer->GetPrevCommandCount());
-		AdditionalQueue.ProjectionMatrix = Entry.LocalState.BuildProjMatrix(AspectRatio);
-		AdditionalQueue.ViewMatrix = Entry.LocalState.BuildViewMatrix();
+		TArray<FMeshBatch> AdditionalMeshBatches;
+		AdditionalMeshBatches.reserve(Renderer->GetPrevCommandCount());
+		const FMatrix ViewMatrix = Entry.LocalState.BuildViewMatrix();
+		const FMatrix ProjectionMatrix = Entry.LocalState.BuildProjMatrix(AspectRatio);
 
 		FFrustum Frustum;
-		Frustum.ExtractFromVP(AdditionalQueue.ViewMatrix * AdditionalQueue.ProjectionMatrix);
-		const FVector CameraPosition = AdditionalQueue.ViewMatrix.GetInverse().GetTranslation();
+		Frustum.ExtractFromVP(ViewMatrix * ProjectionMatrix);
+		const FVector CameraPosition = ViewMatrix.GetInverse().GetTranslation();
 		BuildSceneRenderPacket(Engine, EntryWorld, Frustum, Entry.LocalState.ShowFlags, ScenePacket);
 
 		if (bCanShowEditorSelection && SelectedActor->GetComponentByClass<USkyComponent>() == nullptr)
 		{
-			Gizmo.BuildRenderCommands(SelectedActor, &Entry, AdditionalQueue);
+			Gizmo.BuildMeshBatches(SelectedActor, &Entry, AdditionalMeshBatches);
 		}
 
 		FMaterial* EntryGridMaterial = (CurrentEntryIndex < MAX_VIEWPORTS) ? GridMaterials[CurrentEntryIndex] : nullptr;
@@ -169,7 +201,7 @@ void FEditorViewportRenderService::RenderAll(
 			FVector GridAxisU = FVector::ForwardVector;
 			FVector GridAxisV = FVector::RightVector;
 			FVector ViewForward = FVector::ForwardVector;
-			BuildGridVectors(AdditionalQueue, Entry.LocalState, GridAxisU, GridAxisV, ViewForward);
+			BuildGridVectors(ViewMatrix, Entry.LocalState, GridAxisU, GridAxisV, ViewForward);
 
 			EntryGridMaterial->SetParameterData("GridSize", &Entry.LocalState.GridSize, 4);
 			EntryGridMaterial->SetParameterData("LineThickness", &Entry.LocalState.LineThickness, 4);
@@ -177,27 +209,29 @@ void FEditorViewportRenderService::RenderAll(
 			EntryGridMaterial->SetParameterData("GridAxisV", &GridAxisV, sizeof(FVector));
 			EntryGridMaterial->SetParameterData("ViewForward", &ViewForward, sizeof(FVector));
 
-			FRenderCommand GridCommand;
-			GridCommand.RenderMesh = GridMesh;
-			GridCommand.Material = EntryGridMaterial;
-			GridCommand.WorldMatrix = FMatrix::Identity;
-			GridCommand.RenderLayer = ERenderLayer::Default;
-			AdditionalQueue.AddCommand(GridCommand);
+			FMeshBatch GridBatch;
+			GridBatch.Mesh = GridMesh;
+			GridBatch.Material = EntryGridMaterial;
+			GridBatch.World = FMatrix::Identity;
+			GridBatch.Domain = EMaterialDomain::Opaque;
+			GridBatch.PassMask = static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+			AdditionalMeshBatches.push_back(GridBatch);
 		}
 
 		FViewportScenePassRequest ScenePass;
 		ScenePass.RenderTargetView = RTV;
+		ScenePass.RenderTargetShaderResourceView = Entry.Viewport->GetSRV();
 		ScenePass.DepthStencilView = DSV;
 		ScenePass.DepthShaderResourceView = Entry.Viewport->GetDepthSRV();
 		ScenePass.Viewport = Viewport;
 		ScenePass.ScenePacket = std::move(ScenePacket);
-		ScenePass.SceneView.ViewMatrix = AdditionalQueue.ViewMatrix;
-		ScenePass.SceneView.ProjectionMatrix = AdditionalQueue.ProjectionMatrix;
+		ScenePass.SceneView.ViewMatrix = ViewMatrix;
+		ScenePass.SceneView.ProjectionMatrix = ProjectionMatrix;
 		ScenePass.SceneView.CameraPosition = CameraPosition;
 		ScenePass.SceneView.NearZ = Entry.LocalState.NearPlane;
 		ScenePass.SceneView.FarZ = Entry.LocalState.FarPlane;
 		ScenePass.SceneView.TotalTimeSeconds = Engine ? static_cast<float>(Engine->GetTimer().GetTotalTime()) : 0.0f;
-		ScenePass.AdditionalCommands = std::move(AdditionalQueue);
+		ScenePass.AdditionalMeshBatches = std::move(AdditionalMeshBatches);
 		ScenePass.bForceWireframe = (Entry.LocalState.ViewMode == ERenderMode::Wireframe && WireFrameMaterial != nullptr);
 		ScenePass.WireframeMaterial = WireFrameMaterial.get();
 		ScenePass.OutlineRequest.bEnabled =
@@ -207,10 +241,10 @@ void FEditorViewportRenderService::RenderAll(
 		{
 			ScenePass.OutlineRequest.Items = BuildSelectionOutlineItems(SelectedActor);
 		}
-		if (bIsEditorWorld)
-		{
-			EditorEngine->BuildDebugLineRenderRequest(Entry.LocalState.ShowFlags, ScenePass.DebugLineRequest);
-		}
+		ScenePass.DebugInputs.DrawManager = &Engine->GetDebugDrawManager();
+		ScenePass.DebugInputs.World = EntryWorld;
+		ScenePass.DebugInputs.ShowFlags = Entry.LocalState.ShowFlags;
+		ScenePass.DebugInputs.BoundsActor = bCanShowEditorSelection ? SelectedActor : nullptr;
 
 		FrameRequest.ScenePasses.push_back(std::move(ScenePass));
 	}
@@ -225,7 +259,12 @@ void FEditorViewportRenderService::RenderAll(
 
 		const FRect& Rect = Entry.Viewport->GetRect();
 		FViewportCompositeItem Item;
+		Item.Mode = ResolveViewportCompositeMode(Entry.LocalState.ShowFlags);
 		Item.SceneColorSRV = Entry.Viewport->GetSRV();
+		Item.SceneDepthSRV = Entry.Viewport->GetDepthSRV();
+		Item.VisualizationParams.NearZ = Entry.LocalState.NearPlane;
+		Item.VisualizationParams.FarZ = Entry.LocalState.FarPlane;
+		Item.VisualizationParams.bOrthographic = (Entry.LocalState.ProjectionType == EViewportType::Perspective) ? 0u : 1u;
 		Item.Rect.X = Rect.X;
 		Item.Rect.Y = Rect.Y;
 		Item.Rect.Width = Rect.Width;

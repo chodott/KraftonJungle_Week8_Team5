@@ -1,6 +1,8 @@
 #include "Renderer/ViewportCompositor.h"
 
 #include "Core/Paths.h"
+#include "Renderer/FullscreenPass.h"
+#include "Renderer/Renderer.h"
 #include "Renderer/ShaderResource.h"
 
 FViewportCompositor::~FViewportCompositor()
@@ -31,6 +33,13 @@ bool FViewportCompositor::Initialize(ID3D11Device* Device)
 
 	auto BlitPSResource = FShaderResource::GetOrCompile((ShaderDir + L"BlitPixelShader.hlsl").c_str(), "main", "ps_5_0");
 	if (!BlitPSResource || FAILED(Device->CreatePixelShader(BlitPSResource->GetBufferPointer(), BlitPSResource->GetBufferSize(), nullptr, &BlitPixelShader)))
+	{
+		Release();
+		return false;
+	}
+
+	auto DepthPSResource = FShaderResource::GetOrCompile((ShaderDir + L"DepthViewPixelShader.hlsl").c_str(), "main", "ps_5_0");
+	if (!DepthPSResource || FAILED(Device->CreatePixelShader(DepthPSResource->GetBufferPointer(), DepthPSResource->GetBufferSize(), nullptr, &DepthViewPixelShader)))
 	{
 		Release();
 		return false;
@@ -71,6 +80,18 @@ bool FViewportCompositor::Initialize(ID3D11Device* Device)
 		return false;
 	}
 
+	D3D11_BUFFER_DESC CBDesc = {};
+	CBDesc.ByteWidth = sizeof(FViewportVisualizationParams);
+	CBDesc.Usage = D3D11_USAGE_DYNAMIC;
+	CBDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	CBDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+	if (FAILED(Device->CreateBuffer(&CBDesc, nullptr, &VisualizationConstantBuffer)))
+	{
+		Release();
+		return false;
+	}
+
 	bInitialized = true;
 	return true;
 }
@@ -103,27 +124,50 @@ void FViewportCompositor::Release()
 		ScissorRasterizerState = nullptr;
 	}
 
+	if (DepthViewPixelShader)
+	{
+		DepthViewPixelShader->Release();
+		DepthViewPixelShader = nullptr;
+	}
+
+	if (VisualizationConstantBuffer)
+	{
+		VisualizationConstantBuffer->Release();
+		VisualizationConstantBuffer = nullptr;
+	}
+
 	bInitialized = false;
 }
 
-bool FViewportCompositor::Compose(ID3D11DeviceContext* Context, const TArray<FViewportCompositeItem>& Items) const
+bool FViewportCompositor::Compose(
+	FRenderer& Renderer,
+	const FFrameContext& Frame,
+	const FViewContext& View,
+	ID3D11RenderTargetView* RenderTargetView,
+	ID3D11DepthStencilView* DepthStencilView,
+	const FViewportCompositePassInputs& Inputs) const
 {
-	if (!bInitialized || !Context)
+	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
+	if (!bInitialized || !Context || Inputs.IsEmpty())
 	{
-		return false;
+		return bInitialized && Context != nullptr;
 	}
 
-	Context->VSSetShader(BlitVertexShader, nullptr, 0);
-	Context->PSSetShader(BlitPixelShader, nullptr, 0);
-	Context->IASetInputLayout(nullptr);
-	Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	Context->PSSetSamplers(0, 1, &PointSampler);
-	Context->OMSetDepthStencilState(NoDepthState, 0);
-	Context->RSSetState(ScissorRasterizerState);
+	FFullscreenPassPipelineState PipelineState;
+	PipelineState.DepthStencilState = NoDepthState;
+	PipelineState.RasterizerState = ScissorRasterizerState;
 
-	for (const FViewportCompositeItem& Item : Items)
+	for (const FViewportCompositeItem& Item : *Inputs.Items)
 	{
-		if (!Item.bVisible || !Item.SceneColorSRV || !Item.Rect.IsValid())
+		if (!Item.bVisible || !Item.Rect.IsValid())
+		{
+			continue;
+		}
+
+		ID3D11ShaderResourceView* SourceSRV = ResolveSourceSRV(Item);
+		ID3D11PixelShader* PixelShader = ResolvePixelShader(Item);
+
+		if (!SourceSRV || !PixelShader)
 		{
 			continue;
 		}
@@ -142,14 +186,84 @@ bool FViewportCompositor::Compose(ID3D11DeviceContext* Context, const TArray<FVi
 		ScissorRect.top = Item.Rect.Y;
 		ScissorRect.right = Item.Rect.X + Item.Rect.Width;
 		ScissorRect.bottom = Item.Rect.Y + Item.Rect.Height;
-		Context->RSSetScissorRects(1, &ScissorRect);
+		const FFullscreenPassShaderResourceBinding ShaderResources[] =
+		{
+			{ 0, SourceSRV },
+		};
+		const FFullscreenPassSamplerBinding Samplers[] =
+		{
+			{ 0, PointSampler },
+		};
 
-		ID3D11ShaderResourceView* SRV = Item.SceneColorSRV;
-		Context->PSSetShaderResources(0, 1, &SRV);
-		Context->Draw(6, 0);
+		if (Item.Mode == EViewportCompositeMode::DepthView)
+		{
+			D3D11_MAPPED_SUBRESOURCE Mapped = {};
+			if (FAILED(Context->Map(VisualizationConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
+			{
+				continue;
+			}
+
+			*reinterpret_cast<FViewportVisualizationParams*>(Mapped.pData) = Item.VisualizationParams;
+			Context->Unmap(VisualizationConstantBuffer, 0);
+		}
+
+		const FFullscreenPassConstantBufferBinding ConstantBuffers[] =
+		{
+			{ 0, Item.Mode == EViewportCompositeMode::DepthView ? VisualizationConstantBuffer : nullptr },
+		};
+		const FFullscreenPassBindings Bindings
+		{
+			Item.Mode == EViewportCompositeMode::DepthView ? ConstantBuffers : nullptr,
+			Item.Mode == EViewportCompositeMode::DepthView ? 1u : 0u,
+			ShaderResources,
+			static_cast<uint32>(sizeof(ShaderResources) / sizeof(ShaderResources[0])),
+			Samplers,
+			static_cast<uint32>(sizeof(Samplers) / sizeof(Samplers[0]))
+		};
+
+		if (!ExecuteFullscreenPass(
+			Renderer,
+			Frame,
+			View,
+			RenderTargetView,
+			DepthStencilView,
+			Viewport,
+			{ BlitVertexShader, PixelShader },
+			PipelineState,
+			Bindings,
+			[&](ID3D11DeviceContext& DrawContext)
+			{
+				DrawContext.RSSetScissorRects(1, &ScissorRect);
+				DrawContext.Draw(3, 0);
+			}))
+		{
+			return false;
+		}
 	}
 
-	ID3D11ShaderResourceView* NullSRV = nullptr;
-	Context->PSSetShaderResources(0, 1, &NullSRV);
 	return true;
+}
+
+ID3D11PixelShader* FViewportCompositor::ResolvePixelShader(const FViewportCompositeItem& Item) const
+{
+	switch (Item.Mode)
+	{
+	case EViewportCompositeMode::DepthView:
+		return DepthViewPixelShader;
+	case EViewportCompositeMode::SceneColor:
+	default:
+		return BlitPixelShader;
+	}
+}
+
+ID3D11ShaderResourceView* FViewportCompositor::ResolveSourceSRV(const FViewportCompositeItem& Item) const
+{
+	switch (Item.Mode)
+	{
+	case EViewportCompositeMode::DepthView:
+		return Item.SceneDepthSRV;
+	case EViewportCompositeMode::SceneColor:
+	default:
+		return Item.SceneColorSRV;
+	}
 }

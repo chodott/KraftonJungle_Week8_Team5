@@ -1,13 +1,11 @@
 #pragma once
 
 #include "EngineAPI.h"
+#include "Shader.h"
 #include <d3d11.h>
 #include <string>
 #include <unordered_map>
 #include <memory>
-
-class FVertexShader;
-class FPixelShader;
 
 class ENGINE_API FShaderMap
 {
@@ -15,6 +13,12 @@ public:
 	std::shared_ptr<FVertexShader> GetOrCreateVertexShader(
 		ID3D11Device* Device,
 		const wchar_t* FilePath
+	);
+
+	std::shared_ptr<FVertexShader> GetOrCreateVertexShader(
+		ID3D11Device* Device,
+		const wchar_t* FilePath,
+		EVertexLayoutType LayoutType
 	);
 
 	std::shared_ptr<FPixelShader> GetOrCreatePixelShader(

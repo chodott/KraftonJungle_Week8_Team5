@@ -12,7 +12,6 @@ class FCamera;
 class FFrustum;
 class UCameraComponent;
 class UPrimitiveComponent;
-struct FRenderCommandQueue;
 
 // 씬 -> 레벨로 이름 변경.
 class ENGINE_API ULevel : public UObject

@@ -1,24 +1,27 @@
 #include "Renderer/Feature/DebugLineRenderFeature.h"
 
+#include "Renderer/FullscreenPass.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/Vertex.h"
 
 FDebugLineRenderFeature::~FDebugLineRenderFeature()
 {
 	Release();
 }
 
-void FDebugLineRenderFeature::AddLine(
-	FDebugLineRenderRequest& Request,
+void FDebugLineRenderFeature::AppendLine(
+	FDebugLinePassInputs& PassInputs,
 	const FVector& Start,
 	const FVector& End,
 	const FVector4& Color)
 {
-	Request.Lines.push_back({ Start, End, Color });
+	FDynamicMesh& LineMesh = PassInputs.GetOrCreateLineMesh();
+	LineMesh.Vertices.push_back({ Start, Color, FVector::ZeroVector });
+	LineMesh.Vertices.push_back({ End, Color, FVector::ZeroVector });
+	LineMesh.bIsDirty = true;
 }
 
-void FDebugLineRenderFeature::AddCube(
-	FDebugLineRenderRequest& Request,
+void FDebugLineRenderFeature::AppendCube(
+	FDebugLinePassInputs& PassInputs,
 	const FVector& Center,
 	const FVector& BoxExtent,
 	const FVector4& Color)
@@ -34,96 +37,65 @@ void FDebugLineRenderFeature::AddCube(
 		Center + FVector(BoxExtent.X, BoxExtent.Y, BoxExtent.Z)
 	};
 
-	AddLine(Request, Vertices[0], Vertices[4], Color);
-	AddLine(Request, Vertices[4], Vertices[6], Color);
-	AddLine(Request, Vertices[6], Vertices[2], Color);
-	AddLine(Request, Vertices[2], Vertices[0], Color);
-	AddLine(Request, Vertices[1], Vertices[5], Color);
-	AddLine(Request, Vertices[5], Vertices[7], Color);
-	AddLine(Request, Vertices[7], Vertices[3], Color);
-	AddLine(Request, Vertices[3], Vertices[1], Color);
-	AddLine(Request, Vertices[0], Vertices[1], Color);
-	AddLine(Request, Vertices[4], Vertices[5], Color);
-	AddLine(Request, Vertices[6], Vertices[7], Color);
-	AddLine(Request, Vertices[2], Vertices[3], Color);
+	AppendLine(PassInputs, Vertices[0], Vertices[4], Color);
+	AppendLine(PassInputs, Vertices[4], Vertices[6], Color);
+	AppendLine(PassInputs, Vertices[6], Vertices[2], Color);
+	AppendLine(PassInputs, Vertices[2], Vertices[0], Color);
+	AppendLine(PassInputs, Vertices[1], Vertices[5], Color);
+	AppendLine(PassInputs, Vertices[5], Vertices[7], Color);
+	AppendLine(PassInputs, Vertices[7], Vertices[3], Color);
+	AppendLine(PassInputs, Vertices[3], Vertices[1], Color);
+	AppendLine(PassInputs, Vertices[0], Vertices[1], Color);
+	AppendLine(PassInputs, Vertices[4], Vertices[5], Color);
+	AppendLine(PassInputs, Vertices[6], Vertices[7], Color);
+	AppendLine(PassInputs, Vertices[2], Vertices[3], Color);
 }
 
-bool FDebugLineRenderFeature::Render(FRenderer& Renderer, const FDebugLineRenderRequest& Request)
+bool FDebugLineRenderFeature::Render(
+	FRenderer& Renderer,
+	const FFrameContext& Frame,
+	const FViewContext& View,
+	const FSceneRenderTargets& Targets,
+	FDebugLinePassInputs& PassInputs)
 {
-	if (Request.IsEmpty())
+	if (PassInputs.IsEmpty())
 	{
 		return true;
 	}
 
 	ID3D11Device* Device = Renderer.GetDevice();
 	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
-	FMaterial* DefaultMaterial = Renderer.GetDefaultMaterial();
-	if (!Device || !DeviceContext || !DefaultMaterial)
+	FMaterial* Material = PassInputs.Material ? PassInputs.Material : Renderer.GetDefaultMaterial();
+	FDynamicMesh* LineMesh = PassInputs.LineMesh.get();
+	if (!Device || !DeviceContext || !Material || !LineMesh || !Targets.SceneColorRTV || !Targets.SceneDepthDSV)
 	{
 		return false;
 	}
 
-	TArray<FVertex> LineVertices;
-	LineVertices.reserve(Request.Lines.size() * 2);
-	for (const FDebugLineRenderItem& Item : Request.Lines)
-	{
-		LineVertices.push_back({ Item.Start, Item.Color, FVector::ZeroVector });
-		LineVertices.push_back({ Item.End, Item.Color, FVector::ZeroVector });
-	}
-
-	const UINT Size = static_cast<UINT>(LineVertices.size() * sizeof(FVertex));
-	if (LineVertexBuffer && LineVertexBufferSize < Size)
-	{
-		LineVertexBuffer->Release();
-		LineVertexBuffer = nullptr;
-		LineVertexBufferSize = 0;
-	}
-
-	if (!LineVertexBuffer)
-	{
-		D3D11_BUFFER_DESC Desc = {};
-		Desc.ByteWidth = Size;
-		Desc.Usage = D3D11_USAGE_DYNAMIC;
-		Desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		Desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		if (FAILED(Device->CreateBuffer(&Desc, nullptr, &LineVertexBuffer)))
-		{
-			return false;
-		}
-
-		LineVertexBufferSize = Size;
-	}
-
-	D3D11_MAPPED_SUBRESOURCE Mapped = {};
-	if (FAILED(DeviceContext->Map(LineVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
+	if (!LineMesh->UpdateVertexAndIndexBuffer(Device, DeviceContext))
 	{
 		return false;
 	}
 
-	memcpy(Mapped.pData, LineVertices.data(), Size);
-	DeviceContext->Unmap(LineVertexBuffer, 0);
+	BeginPass(Renderer, Targets.SceneColorRTV, Targets.SceneDepthDSV, View.Viewport, Frame, View);
+	Material->Bind(DeviceContext, EMaterialPassType::ForwardOpaque);
+	Renderer.GetRenderStateManager()->BindState(Material->GetRasterizerState());
+	Renderer.GetRenderStateManager()->BindState(Material->GetDepthStencilState());
+	Renderer.GetRenderStateManager()->BindState(Material->GetBlendState());
+	if (!Material->HasPixelTextureBinding())
+	{
+		ID3D11SamplerState* DefaultSampler = Renderer.GetDefaultSampler();
+		DeviceContext->PSSetSamplers(0, 1, &DefaultSampler);
+	}
 
-	Renderer.ShaderManager.Bind(DeviceContext);
-	Renderer.SetConstantBuffers();
-	DefaultMaterial->Bind(DeviceContext);
-
-	UINT Stride = sizeof(FVertex);
-	UINT Offset = 0;
-	DeviceContext->IASetVertexBuffers(0, 1, &LineVertexBuffer, &Stride, &Offset);
-	DeviceContext->IASetIndexBuffer(nullptr, DXGI_FORMAT_UNKNOWN, 0);
+	LineMesh->Bind(DeviceContext);
 	DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
 	Renderer.UpdateObjectConstantBuffer(FMatrix::Identity);
-	DeviceContext->Draw(static_cast<UINT>(LineVertices.size()), 0);
+	DeviceContext->Draw(static_cast<UINT>(LineMesh->Vertices.size()), 0);
+	EndPass(Renderer, Targets.SceneColorRTV, Targets.SceneDepthDSV, View.Viewport, Frame, View);
 	return true;
 }
 
 void FDebugLineRenderFeature::Release()
 {
-	if (LineVertexBuffer)
-	{
-		LineVertexBuffer->Release();
-		LineVertexBuffer = nullptr;
-	}
-
-	LineVertexBufferSize = 0;
 }

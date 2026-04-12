@@ -9,7 +9,6 @@ class AActor;
 class UCameraComponent;
 class FCamera;
 class FFrustum;
-struct FRenderCommandQueue;
 struct ID3D11Device;
 
 class ENGINE_API UWorld : public UObject

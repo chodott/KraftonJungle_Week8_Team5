@@ -8,6 +8,13 @@
 
 class FArchive;
 
+enum class EDecalFadeState : uint8
+{
+	None,
+	FadeIn,
+	FadeOut,
+};
+
 class ENGINE_API UDecalComponent : public UPrimitiveComponent
 {
 public:
@@ -17,9 +24,22 @@ public:
 	FBoxSphereBounds GetLocalBounds() const override;
 	void Serialize(FArchive& Ar) override;
 	void DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
+	void Tick(float DeltaTime) override;
 
 	void SetEnabled(bool bInEnabled) { bEnabled = bInEnabled; }
 	bool IsEnabled() const { return bEnabled; }
+	virtual bool IsPickable() const { return false; }
+
+	// Fade In/Out
+	void FadeIn(float Duration);
+	void FadeOut(float Duration, bool bDisableOnComplete = true);
+	EDecalFadeState GetFadeState() const { return FadeState; }
+
+	void SetFadeInDuration(float Duration) { FadeInDuration = (std::max)(0.05f, Duration); }
+	float GetFadeInDuration() const { return FadeInDuration; }
+
+	void SetFadeOutDuration(float Duration) { FadeOutDuration = (std::max)(0.05f, Duration); }
+	float GetFadeOutDuration() const { return FadeOutDuration; }
 
 	void SetSize(const FVector2& InSize)
 	{
@@ -114,8 +134,15 @@ public:
 private:
 	bool bEnabled = true;
 
-	FVector2 Size = FVector2(100.0f, 100.0f);
-	float ProjectionDepth = 100.0f;
+	EDecalFadeState FadeState = EDecalFadeState::None;
+	float FadeInDuration = 1.0f;
+	float FadeOutDuration = 1.0f;
+	float FadeDuration = 1.0f;
+	float FadeElapsed = 0.0f;
+	bool bDisableOnFadeOutComplete = true;
+
+	FVector2 Size = FVector2(10.0f, 10.0f);
+	float ProjectionDepth = 10.0f;
 
 	FVector2 UVMin = FVector2(0.f, 0.f);
 	FVector2 UVMax = FVector2(1.f, 1.f);

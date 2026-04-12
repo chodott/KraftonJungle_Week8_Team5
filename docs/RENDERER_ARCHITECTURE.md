@@ -1,506 +1,600 @@
-﻿# 렌더러 구조 안내서
+# 렌더러 구조 안내서
 
 ## 1. 이 문서는 무엇을 설명하나
 
-이 문서는 현재 코드베이스의 렌더러 구조를 처음 보는 사람 기준으로 설명하기 위한 문서입니다.
+이 문서는 현재 코드베이스의 실제 렌더러 구조를 코드 기준으로 설명한다.
 
-예전 구조에서는 `FRenderer` 하나가 너무 많은 일을 직접 처리했습니다.
-지금 구조에서는 프레임 진입점, 씬 수집, 씬 렌더링, 뷰포트 합성, 화면 UI 렌더링, 특수 기능이 서로 다른 클래스로 나뉘어 있습니다.
+예전 문서에는 이미 제거된 개념이 섞여 있었다.
+대표적으로:
 
-이 문서는 다음 질문에 순서대로 답하도록 구성되어 있습니다.
+1. `FRenderCommandQueue`
+2. callback 기반 outline/debug/UI 연결
+3. `FSceneRenderer`가 버킷형 command queue를 직접 실행한다는 설명
 
-1. 한 프레임은 어디서 시작되는가
-2. 월드는 어디서 씬 데이터로 바뀌는가
-3. 씬 데이터는 어디서 GPU 드로우 커맨드로 바뀌는가
-4. 여러 뷰포트 결과는 어디서 백버퍼에 합성되는가
-5. 화면 UI는 어디서 기록되고 어디서 그려지는가
-6. 이번 리팩토링에서 책임은 어떻게 이동했는가
+현재 구조의 핵심은 다르다.
 
-## 2. 먼저 한 줄로 요약하면
+1. 월드 수집은 `FSceneRenderPacket`에서 멈춘다.
+2. 렌더러는 `FSceneViewData`를 만든 뒤 scene/frame pass pipeline으로 실행한다.
+3. debug/UI/outline/decal/fog는 각각 명시적 pass input 또는 feature request로 편입된다.
 
-현재 구조의 핵심은 이 문장 하나입니다.
+## 2. 한 줄 요약
 
-`FRenderer`는 프레임 오케스트레이터이고, 실제 작업은 각 전용 서브시스템이 맡는다.
+현재 렌더러는 아래처럼 이해하면 된다.
 
-조금 더 풀면 이렇게 이해하면 됩니다.
+`FRenderer`가 프레임을 조립하고, `FSceneRenderer`가 scene pipeline을 실행하고, `FViewportCompositor`와 `FScreenUIRenderer`가 frame pipeline을 마무리한다.
 
-1. `FScenePacketBuilder`는 무엇을 그릴지 모은다.
-2. `FSceneRenderer`는 그것을 어떻게 그릴지 결정하고 실행한다.
-3. `FViewportCompositor`는 렌더 결과를 어디에 놓을지 결정한다.
-4. `FScreenUIRenderer`는 마지막 화면 UI를 그린다.
-5. 텍스트, SubUV, 아웃라인, 디버그 라인은 전용 feature가 처리한다.
+즉 지금 구조는 "거대한 단일 렌더러"가 아니라:
 
-## 3. 왜 이런 리팩토링을 했나
+1. 프레임 오케스트레이션
+2. scene view 데이터 준비
+3. scene pass 실행
+4. frame pass 실행
 
-예전 구조의 가장 큰 문제는 `FRenderer`가 너무 많은 책임을 한 번에 들고 있었다는 점입니다.
+으로 나뉜 pass 기반 구조다.
 
-예전 `FRenderer`는 아래 성격의 일을 한 클래스 안에서 같이 처리했습니다.
+## 3. 가장 중요한 설계 원칙
 
-1. D3D11 디바이스와 스왑체인 관리
-2. 프레임 시작과 종료
-3. 씬 패스 실행
-4. 렌더 커맨드 제출과 실행
-5. UI 관련 callback host 역할
-6. selection outline 후처리
-7. 디버그 라인 버퍼 관리
-8. 텍스트/SubUV 특수 렌더링
-9. 뷰포트 합성
+현재 구조를 읽을 때는 아래 원칙을 기준으로 보면 된다.
 
-이 구조는 세 가지 문제를 만들었습니다.
+1. 월드/에디터 수집 계층은 renderer feature 타입이나 D3D11 세부를 몰라야 한다.
+2. `FSceneRenderPacket`은 "무엇이 보이는가"만 담고 "어떻게 그리는가"는 담지 않는다.
+3. `FSceneViewData`는 실제 렌더 실행 직전의 frame-local 입력이다.
+4. scene pass와 frame pass는 서로 다른 context를 쓰지만 같은 pass-sequence 철학을 공유한다.
+5. UI와 debug는 더 이상 독립 미니 렌더러처럼 움직이지 않고 pass input으로 정리된다.
 
-1. 씬 수집 계층이 렌더러 구현을 알아야 했다.
-2. 에디터가 렌더러 내부 패스 순서를 직접 제어했다.
-3. 새 기능을 추가할수록 `FRenderer`가 계속 비대해졌다.
+## 4. 큰 그림의 주요 객체
 
-이번 리팩토링의 목적은 보기 좋은 분리 자체가 아니라, 책임 경계를 다시 세워서 구조가 다시 무너지지 않게 만드는 것입니다.
-
-## 4. 가장 중요한 설계 원칙
-
-이 구조를 이해할 때는 아래 규칙만 기억해도 절반은 끝납니다.
-
-1. 월드 수집 계층은 D3D11 타입을 몰라야 한다.
-2. `ViewportClient`는 씬 패킷을 만들 수는 있지만 렌더 실행 세부는 몰라야 한다.
-3. `FRenderer`는 프레임을 시작하고 각 서브시스템을 호출하지만, 세부 기능을 직접 구현하지 않는다.
-4. UI는 먼저 기록하고 나중에 렌더링한다.
-5. 에디터는 callback을 주입하지 않고 데이터 요청 구조를 만들어 전달한다.
-
-## 5. 큰 그림에서 어떤 객체들이 있나
-
-### 5-1. 프레임 진입점
+### 4-1. `FRenderer`
 
 파일: `Engine/Source/Renderer/Renderer.h`
 
-`FRenderer`는 렌더러의 얼굴입니다.
+`FRenderer`는 여전히 렌더러의 진입점이지만, 직접 모든 드로우를 구현하지는 않는다.
 
-이 클래스가 하는 일은 아래와 같습니다.
+현재 역할은 아래와 같다.
 
-1. 프레임 시작과 종료를 관리한다.
-2. 게임 프레임 요청과 에디터 프레임 요청을 받는다.
-3. 내부 서브시스템을 적절한 순서로 호출한다.
-4. 공용 디바이스/컨텍스트 접근 지점을 제공한다.
+1. `FRenderDevice`와 공용 GPU 자원 owner
+2. game/editor frame request 진입점
+3. scene targets 준비
+4. `FSceneRenderer` 호출
+5. decal texture array 같은 frame preparation helper 실행
+6. frame pipeline용 viewport composite / screen UI 실행 연결
 
-중요한 점은, `FRenderer`가 더 이상 씬 수집기나 UI callback host가 아니라는 점입니다.
+즉 "프레임을 설명된 순서대로 돌리는 오케스트레이터"에 가깝다.
 
-### 5-2. 디바이스와 스왑체인
+### 4-2. `FRenderDevice`
 
 파일: `Engine/Source/Renderer/RenderDevice.h`
 
-`FRenderDevice`는 D3D11 디바이스 관련 책임만 담당합니다.
+`FRenderDevice`는 D3D11 디바이스와 swap chain, 백버퍼, resize/present 책임을 맡는다.
 
-이 클래스의 책임은 아래와 같습니다.
+핵심 역할:
 
-1. 디바이스/컨텍스트/스왑체인 생성
-2. 백버퍼 RTV/DSV 생성
-3. 리사이즈 처리
-4. Present
-5. 기본 백버퍼 바인딩
+1. device/context/swap chain 생성
+2. backbuffer RTV/DSV 관리
+3. viewport 관리
+4. frame begin/end
+5. resize / occlusion 처리
 
-즉, 화면에 출력하는 기반 자원은 여기 있습니다.
-
-### 5-3. 씬 렌더러
+### 4-3. `FSceneRenderer`
 
 파일: `Engine/Source/Renderer/SceneRenderer.h`
 
-`FSceneRenderer`는 현재 씬 렌더 경로의 핵심 실행기입니다.
+`FSceneRenderer`는 scene view 하나를 그리는 실행기다.
 
-이 클래스의 책임은 아래와 같습니다.
+핵심 역할:
 
-1. `FSceneRenderPacket`을 버킷 기반 `FRenderCommandQueue`로 변환
-2. Default / Overlay / Transparent 버킷별 정렬 정책 적용
-3. 씬 큐와 추가 큐를 섞지 않고 순차 실행
-4. 와이어프레임 override 적용
-5. 버킷별 패스 실행
-6. 예전 `FRenderer` 내부에 있던 마지막 씬 실행 seam 관리
+1. `FSceneRenderPacket` + 추가 배치 입력을 `FSceneViewData`로 변환
+2. 와이어프레임 override 적용
+3. scene pass pipeline 구성
+4. pass 순서대로 실행
 
-즉, `SubmitCommands`, `ExecuteCommands`, `ExecuteRenderPass`는 이제 `FRenderer`가 아니라 `FSceneRenderer`의 책임입니다.
+중요한 점은 `FSceneRenderer`가 더 이상 "render command queue executor"가 아니라는 점이다.
+지금은 `FSceneViewData`와 `FMeshPassProcessor`를 중심으로 scene pipeline을 수행한다.
 
-### 5-4. 뷰포트 합성기
+### 4-4. `FViewportCompositor`
 
 파일: `Engine/Source/Renderer/ViewportCompositor.h`
 
-`FViewportCompositor`는 에디터 멀티 뷰포트 결과를 백버퍼에 배치하는 역할을 맡습니다.
+`FViewportCompositor`는 scene 결과를 최종 render target에 배치하는 frame pass 성격의 컴포넌트다.
 
-이 클래스의 책임은 아래와 같습니다.
+핵심 역할:
 
-1. 뷰포트 장면 텍스처를 백버퍼 특정 영역에 배치
-2. 합성용 셰이더와 상태 관리
-3. 에디터 화면에서 최종 viewport layout 반영
+1. `FViewportCompositePassInputs` 해석
+2. scene color / depth view 합성
+3. scissor + fullscreen triangle 기반 viewport 배치
 
-예전 `BlitRenderer`보다 더 큰 의미의 정식 프레임 단계라고 이해하면 됩니다.
-
-### 5-5. 화면 UI 렌더러
+### 4-5. `FScreenUIRenderer`
 
 파일: `Engine/Source/Renderer/ScreenUIRenderer.h`
 
-`FScreenUIRenderer`는 `FUIDrawList`를 실제 GPU 작업으로 바꾸는 렌더러입니다.
+`FScreenUIRenderer`는 화면 UI를 2단계로 처리한다.
 
-이 클래스의 책임은 아래와 같습니다.
+1. `BuildPassInputs(...)`
+2. `Render(...)`
 
-1. UI draw list를 임시 메시로 변환
-2. 텍스트 색상별 폰트 머티리얼 관리
-3. 직교 투영 적용
-4. 화면 UI를 백버퍼 위에 렌더링
+즉 예전처럼 draw list를 바로 GPU에 그리는 흐름이 아니라:
 
-즉 UI는 더 이상 씬 커맨드 큐에 섞여서 그려지지 않습니다.
+1. `FUIDrawList`
+2. `FScreenUIPassInputs`
+3. frame pass 실행
 
-## 6. 씬 프런트엔드는 어떻게 바뀌었나
+순서로 분리된다.
 
-### 6-1. 씬 패킷
+### 4-6. feature 계층
+
+파일: `Engine/Source/Renderer/Feature/*`
+
+feature는 공통 mesh pass에 바로 녹지 않는 특수 경로를 담당한다.
+
+현재 주요 feature:
+
+1. `FTextRenderFeature`
+2. `FSubUVRenderFeature`
+3. `FBillboardRenderFeature`
+4. `FFogRenderFeature`
+5. `FOutlineRenderFeature`
+6. `FDebugLineRenderFeature`
+7. `FDecalRenderFeature`
+
+이 중 fog / outline / decal / viewport composition은 공통 fullscreen pass 실행 모델 위에 올라가 있다.
+
+## 5. scene 프런트엔드: 월드에서 packet까지
+
+### 5-1. `FSceneRenderPacket`
 
 파일: `Engine/Source/Level/SceneRenderPacket.h`
 
-`FSceneRenderPacket`은 렌더러 비의존적인 씬 설명 데이터입니다.
+현재 `FSceneRenderPacket`은 renderer-neutral한 scene 설명 구조다.
 
-이 구조는 “무엇이 보이는가”를 담고, “어떻게 그릴 것인가”는 담지 않습니다.
+포함하는 primitive 그룹:
 
-현재는 크게 세 종류의 프리미티브 버킷을 가집니다.
+1. `MeshPrimitives`
+2. `TextPrimitives`
+3. `SubUVPrimitives`
+4. `BillboardPrimitives`
+5. `FogPrimitives`
+6. `DecalPrimitives`
 
-1. 메시 프리미티브
-2. 텍스트 프리미티브
-3. SubUV 프리미티브
+즉 예전 문서처럼 메시/텍스트/SubUV만 있는 구조가 아니다.
 
-중요한 점은 여기에는 `ID3D11*` 같은 타입이 없다는 점입니다.
-
-### 6-2. 씬 패킷 빌더
+### 5-2. `FScenePacketBuilder`
 
 파일: `Engine/Source/Level/ScenePacketBuilder.h`
 
-예전의 `RenderCollector`는 이름은 수집기였지만 실제로는 렌더러 구현을 너무 많이 알고 있었습니다.
+이 계층은 월드와 show flag, 가시성 정보를 바탕으로 packet만 채운다.
 
-지금의 `FScenePacketBuilder`는 아래 일만 합니다.
+여기서 멈춰야 하는 이유는 명확하다.
 
-1. 액터와 컴포넌트를 순회
-2. ShowFlag 확인
-3. 프러스텀 컬링
-4. 프리미티브 분류
-5. `FSceneRenderPacket` 채우기
+1. 수집 계층은 GPU 타입을 몰라야 한다.
+2. sorting/material binding/pass scheduling은 renderer 책임이다.
+3. debug/UI/outline 같은 feature-specific 실행 모델과 분리되어야 한다.
 
-즉, “보이는 것을 분류해서 담는 일”까지만 하고 멈춥니다.
+## 6. packet에서 scene view 데이터로
 
-## 7. 씬 패킷은 어디서 실제 드로우 커맨드가 되나
+### 6-1. `FSceneCommandBuilder`
 
 파일: `Engine/Source/Renderer/SceneCommandBuilder.h`
 
-`FSceneCommandBuilder`는 패킷 안의 프리미티브를 실제 렌더 커맨드로 바꾸는 단계입니다.
+`FSceneCommandBuilder`는 packet을 renderer가 바로 소비할 `FSceneViewData`로 확장한다.
 
-이 단계에서 일어나는 일은 아래와 같습니다.
+현재 역할:
 
-1. 메시 프리미티브를 실제 draw command로 확장
-2. 텍스트 프리미티브를 text feature를 통해 메시로 변환
-3. SubUV 프리미티브를 SubUV feature를 통해 메시로 변환
-4. 레이어, 머티리얼, 정렬 키에 필요한 데이터를 채움
+1. mesh primitive -> `FMeshBatch`
+2. text primitive -> text mesh + material
+3. subUV primitive -> sprite mesh + material
+4. billboard primitive -> billboard mesh + material
+5. fog primitive -> `FFogRenderItem`
+6. decal primitive -> `FDecalRenderItem`
 
-즉 씬 수집과 GPU 실행 사이의 중간 계층이라고 보면 됩니다.
+즉 "packet -> pass input" 변환기다.
 
-### 7-1. 현재 씬 큐는 하나가 아니라 버킷 구조다
+### 6-2. `FSceneCommandResourceCache`
 
-파일: `Engine/Source/Renderer/RenderCommand.h`
+파일: `Engine/Source/Renderer/SceneCommandBuilder.h`
 
-예전처럼 씬 커맨드를 한 배열에 모두 모아 한 번에 정렬하는 구조는 줄였습니다.
+최근 구조에서 중요한 변화는 cache 책임 분리다.
 
-현재 `FRenderCommandQueue`는 아래 버킷으로 나뉩니다.
+이 클래스는 아래 캐시를 관리한다.
 
-1. `DefaultCommands`
-2. `OverlayCommands`
-3. `TransparentCommands`
+1. 텍스트 색상별 dynamic material
+2. `USubUVComponent*` 기반 dynamic material
 
-이렇게 나눈 이유는 아래와 같습니다.
+즉 `FSceneCommandBuilder`는 extraction 중심이고, resource/cache는 `FSceneCommandResourceCache`로 빠졌다.
 
-1. 일반 메시와 기즈모/그리드를 같은 정렬 정책으로 처리할 필요가 없다.
-2. 오버레이는 제출 순서를 유지하는 편이 자연스러운 경우가 많다.
-3. 투명체는 이후 별도 정렬 정책을 넣을 자리가 필요하다.
+## 7. `FSceneViewData`가 의미하는 것
 
-즉, 지금 구조의 핵심은 “씬 큐 1개 타입”이 아니라 “씬 커맨드 버킷을 가진 큐 구조”입니다.
+파일: `Engine/Source/Renderer/SceneViewData.h`
 
-## 8. 특수 기능은 어디로 갔나
+`FSceneViewData`는 한 scene view를 그리기 직전의 frame-local 렌더 입력이다.
 
-현재 특수 기능은 `Renderer/Feature` 아래 전용 클래스로 분리되어 있습니다.
+현재는 세 덩어리로 나뉜다.
 
-### 8-1. `FTextRenderFeature`
+1. `MeshInputs`
+2. `PostProcessInputs`
+3. `DebugInputs`
 
-파일: `Engine/Source/Renderer/Feature/TextRenderFeature.h`
+### 7-1. `MeshInputs`
 
-책임:
+`FMeshBatch` 배열을 가진다.
+scene geometry와 추가 editor 배치가 여기로 모인다.
 
-1. 폰트 아틀라스 준비
-2. 기본 텍스트 머티리얼 접근
-3. 문자열을 글리프 메시로 변환
+### 7-2. `PostProcessInputs`
 
-### 8-2. `FSubUVRenderFeature`
+후처리성 데이터가 들어간다.
 
-파일: `Engine/Source/Renderer/Feature/SubUVRenderFeature.h`
+1. fog items
+2. decal items
+3. decal texture array SRV
+4. outline items
+5. outline enabled flag
 
-책임:
+### 7-3. `DebugInputs`
 
-1. SubUV 머티리얼과 텍스처 초기화
-2. billboard quad 메시 생성
-3. SubUV 스프라이트 렌더 지원
+현재는 `FDebugLinePassInputs`를 가진다.
 
-### 8-3. `FOutlineRenderFeature`
+중요한 점은 debug가 더 이상 engine 쪽에서 `FDebugLineRenderFeature`를 직접 호출하지 않는다는 점이다.
+engine/debug 계층은 먼저 renderer-neutral primitive를 모으고, renderer가 그것을 debug line pass input으로 바꾼다.
 
-파일: `Engine/Source/Renderer/Feature/OutlineRenderFeature.h`
+## 8. scene pipeline
 
-책임:
+### 8-1. 공통 기반
 
-1. outline mask 생성
-2. 후처리 합성
-3. outline 전용 셰이더와 리소스 관리
+파일:
 
-selection outline은 더 이상 callback으로 주입되지 않고, 요청 데이터로 전달됩니다.
+1. `Engine/Source/Renderer/PassPipeline.h`
+2. `Engine/Source/Renderer/RenderPipeline.h`
+3. `Engine/Source/Renderer/PassContext.h`
 
-### 8-4. `FDebugLineRenderFeature`
+scene pipeline은 `TPassPipeline<IRenderPass, FPassContext>` 위에서 동작한다.
+
+`FPassContext`는 아래를 묶는다.
+
+1. `FRenderer`
+2. `FSceneRenderTargets`
+3. `FSceneViewData`
+4. clear color
+
+### 8-2. 실제 scene pass 순서
+
+파일: `Engine/Source/Renderer/SceneRenderer.cpp`
+
+현재 pass 순서는 아래와 같다.
+
+1. `FClearSceneTargetsPass`
+2. `FUploadMeshBuffersPass`
+3. `FDepthPrepass`
+4. `FGBufferPass`
+5. `FForwardOpaquePass`
+6. `FDecalCompositePass`
+7. `FForwardTransparentPass`
+8. `FFogPostPass`
+9. `FOutlineMaskPass`
+10. `FOutlineCompositePass`
+11. `FOverlayPass`
+12. `FDebugLinePass`
+
+즉 현재 렌더러는 명시적인 ordered pass list다.
+
+### 8-3. `FMeshPassProcessor`
+
+파일: `Engine/Source/Renderer/MeshPassProcessor.h`
+
+mesh pass 공통 실행은 `FMeshPassProcessor`가 맡는다.
+
+핵심 역할:
+
+1. mesh buffer upload
+2. pass별 필터링
+3. pass별 정렬
+4. material pass type 선택
+5. draw submission
+
+정리하면:
+
+1. `FSceneCommandBuilder`는 batch를 준비하고
+2. `FMeshPassProcessor`는 batch를 pass별로 실제 draw로 실행한다
+
+## 9. frame pipeline
+
+### 9-1. 공통 기반
+
+파일:
+
+1. `Engine/Source/Renderer/PassPipeline.h`
+2. `Engine/Source/Renderer/FramePipeline.h`
+3. `Engine/Source/Renderer/FramePassContext.h`
+
+frame pipeline도 scene pipeline과 같은 `TPassPipeline`을 쓴다.
+
+차이는 context다.
+
+`FFramePassContext`는 아래를 담는다.
+
+1. `FRenderer`
+2. `FFrameContext`
+3. `FViewContext`
+4. 최종 render target/depth target
+5. `FViewportCompositePassInputs`
+6. `FScreenUIPassInputs`
+
+즉 frame pipeline은 scene 결과를 최종 화면에 배치하는 단계다.
+
+### 9-2. 실제 frame pass
+
+파일: `Engine/Source/Renderer/FramePasses.cpp`
+
+현재 frame pass는 아래 두 개다.
+
+1. `FViewportCompositePass`
+2. `FScreenUIPass`
+
+게임 프레임은 보통 viewport composite까지만 사용하고,
+에디터 프레임은 composite 뒤에 screen UI pass를 이어서 사용한다.
+
+## 10. debug 경로
+
+### 10-1. engine 쪽 수집
+
+파일: `Engine/Source/Debug/DebugDrawManager.h`
+
+`FDebugDrawManager`는 이제 renderer-neutral collector다.
+
+현재는:
+
+1. `FDebugLine`
+2. `FDebugCube`
+3. `FDebugPrimitiveList`
+
+를 다루고, `BuildPrimitiveList(...)`에서 멈춘다.
+
+즉 engine 계층은 `FDebugLineRenderFeature::*`를 더 이상 직접 호출하지 않는다.
+
+### 10-2. renderer 쪽 변환
+
+파일: `Engine/Source/Renderer/Renderer.cpp`
+
+renderer 내부 helper가:
+
+1. `FDebugPrimitiveList`
+2. actor mesh BVH debug primitive
+3. `FDebugLinePassInputs`
+
+를 연결한다.
+
+### 10-3. feature 실행
 
 파일: `Engine/Source/Renderer/Feature/DebugLineRenderFeature.h`
 
-책임:
+`FDebugLineRenderFeature`는 이제 prepared input 소비자다.
 
-1. 디버그 라인 요청 축적
-2. 선분/AABB를 실제 라인 데이터로 확장
-3. 임시 버텍스 버퍼 업로드
-4. 디버그 라인 렌더링
+현재 역할:
 
-즉 예전 `FRenderer::DrawLine`, `DrawCube`, `ExecuteLineCommands` 역할이 여기로 이동했습니다.
+1. `FDebugLinePassInputs`의 line mesh 소비
+2. material/state bind
+3. scene color/depth 위 line draw
 
-## 9. UI는 어떻게 바뀌었나
+즉 feature-local "요청 축적기"가 아니라 pass executor 쪽에 가깝다.
 
-### 9-1. UI는 먼저 기록한다
+## 11. UI 경로
 
-파일: `Editor/Source/Slate/Widget/Painter.h`
+### 11-1. 기록 단계
 
-예전 `FPainter`는 renderer를 직접 들고 있으면서 즉시 렌더링에 가까운 흐름을 가지고 있었습니다.
+파일:
 
-현재 `FSlatePaintContext`는 recorder입니다.
+1. `Editor/Source/Slate/Widget/Painter.h`
+2. `Engine/Source/Renderer/UIDrawList.h`
 
-이 객체가 하는 일은 아래와 같습니다.
+Slate 계층은 여전히 `FUIDrawList`를 기록한다.
+여기서는 "무엇을 그릴지"만 정리한다.
 
-1. 채워진 사각형 기록
-2. 외곽선 기록
-3. 텍스트 기록
-4. 클립 정보 기록
-5. 순서 정보 기록
-
-즉 “그린다”가 아니라 “그릴 내용을 적는다”가 핵심입니다.
-
-### 9-2. Slate는 draw list만 만든다
-
-파일: `Editor/Source/Slate/SlateApplication.h`
-
-`FSlateApplication`은 현재 아래 역할에 집중합니다.
-
-1. 위젯 트리 구성
-2. 레이아웃 계산
-3. 위젯 paint 순서 계산
-4. `FSlatePaintContext`에 draw list 기록
-
-이 계층은 렌더러 포인터를 몰라도 됩니다.
-
-### 9-3. 실제 GPU UI 드로우는 별도 렌더러가 한다
+### 11-2. pass input 준비
 
 파일: `Engine/Source/Renderer/ScreenUIRenderer.h`
 
-기록된 `FUIDrawList`는 마지막에 `FScreenUIRenderer`가 GPU 드로우로 바꿉니다.
+`FScreenUIRenderer::BuildPassInputs(...)`가 `FUIDrawList`를 `FScreenUIPassInputs`로 바꾼다.
 
-이 분리가 중요한 이유는 아래와 같습니다.
+여기서 하는 일:
 
-1. UI 계층이 렌더러 내부 상태를 몰라도 된다.
-2. UI 기록과 GPU 실행 시점을 분리할 수 있다.
-3. 화면 UI를 씬 커맨드 큐와 분리할 수 있다.
+1. orthographic view/projection 준비
+2. filled rect / outline / text를 dynamic mesh로 변환
+3. batching
+4. font/color material 준비
 
-## 10. 게임 프레임은 실제로 어떤 순서로 흐르나
+즉 UI도 이제 "기록 -> prepared input -> pass 실행" 3단계다.
 
-가장 단순한 진입 경로는 게임 프레임입니다.
+### 11-3. frame pass 실행
 
-### 10-1. 흐름 요약
+`FScreenUIPass`는 prepared input만 소비해서 최종 target 위에 UI를 그린다.
 
-1. `FEngine::RenderFrame()`가 렌더 구간을 시작한다.
-2. 활성 `ViewportClient`가 현재 월드 기준으로 씬 패킷을 준비한다.
-3. `IViewportClient::BuildSceneRenderPacket()`가 `FScenePacketBuilder`를 호출한다.
-4. `ViewportClient`가 `FGameFrameRequest`를 채운다.
-5. `FRenderer::RenderGameFrame()`이 요청을 받는다.
-6. `FSceneRenderer::RenderPacketToTarget()`이 패킷을 씬 커맨드로 바꾼다.
-7. `FSceneRenderer`가 Default / Transparent / Overlay 버킷을 필요한 방식으로만 실행한다.
-8. 필요하면 `FDebugLineRenderFeature`가 디버그 라인을 그린다.
-9. `FRenderDevice`가 Present한다.
+이 구조 덕분에:
 
-### 10-2. 흐름 도식
+1. frame pass context가 필요한 정보를 직접 갖고
+2. UI 업로드와 draw 경계가 명확해지고
+3. UI가 독립 렌더러처럼 보이지 않게 되었다
+
+## 12. fullscreen pass 공통화
+
+파일: `Engine/Source/Renderer/FullscreenPass.h`
+
+fullscreen/post 계열은 공통 helper 위에 올라간다.
+
+핵심 요소:
+
+1. `FFullscreenPassShaderSet`
+2. `FFullscreenPassPipelineState`
+3. `FFullscreenPassBindings`
+4. `ExecuteFullscreenPass(...)`
+
+현재 이 모델을 쓰는 대표 경로:
+
+1. fog
+2. outline mask/composite
+3. decal composite
+4. viewport compositor
+
+즉 raw D3D11 boilerplate가 feature마다 따로 흩어지지 않는다.
+
+## 13. game frame 흐름
+
+가장 단순한 흐름은 아래와 같다.
+
+1. `ViewportClient`가 `FSceneRenderPacket`을 만든다.
+2. `FRenderer::RenderGameFrame()`이 scene targets를 확보한다.
+3. `BuildFrameContext` / `BuildViewContext`를 만든다.
+4. `FSceneRenderer::BuildSceneViewData()`가 `FSceneViewData`를 만든다.
+5. renderer가 decal texture array와 debug line pass input을 보강한다.
+6. `FSceneRenderer::RenderSceneView()`가 scene pipeline을 실행한다.
+7. `FViewportCompositePassInputs`를 만든다.
+8. `FFrameRenderPipeline`이 viewport composite pass를 실행한다.
+9. `FRenderDevice`가 present한다.
+
+도식으로 보면:
 
 ```text
 World
- -> ViewportClient
  -> ScenePacketBuilder
  -> FSceneRenderPacket
- -> FGameFrameRequest
- -> FRenderer
- -> FSceneRenderer
- -> GPU Scene Pass
- -> DebugLineFeature
+ -> FRenderer::RenderGameFrame
+ -> FSceneViewData
+ -> Scene Pass Pipeline
+ -> Viewport Composite Pass
  -> Present
 ```
 
-## 11. 에디터 프레임은 어떤 점이 다르나
+## 14. editor frame 흐름
 
-에디터 프레임은 게임 프레임보다 단계가 더 많습니다.
-여러 뷰포트, outline, debug overlay, viewport 합성, 화면 UI가 모두 들어가기 때문입니다.
+에디터는 여러 scene view와 final frame composition이 있다.
 
-### 11-1. 흐름 요약
+흐름은 아래와 같다.
 
-1. `FEditorEngine::RenderFrame()`이 프레임을 시작한다.
-2. `FEditorViewportRenderService::RenderAll()`이 에디터 프레임에 필요한 데이터를 모은다.
-3. 활성 뷰포트마다 `FSceneRenderPacket`을 만든다.
-4. 활성 뷰포트마다 `FOutlineRenderRequest`를 만든다.
-5. 활성 뷰포트마다 `FDebugLineRenderRequest`를 만든다.
-6. 뷰포트마다 `FViewportScenePassRequest`를 구성한다.
-7. `FSlateApplication::BuildDrawList()`가 화면 UI draw list를 만든다.
-8. 이 모든 것을 `FEditorFrameRequest`로 묶는다.
-9. `FRenderer::RenderEditorFrame()`이 각 뷰포트의 씬 큐와 추가 큐를 분리된 경로로 렌더링한다.
-10. 필요하면 outline/debug line feature를 실행한다.
-11. `FViewportCompositor`가 뷰포트 결과를 백버퍼에 합성한다.
-12. `FScreenUIRenderer`가 최종 UI를 그린다.
-13. `FRenderDevice`가 Present한다.
+1. editor 서비스가 viewport별 `FViewportScenePassRequest`를 만든다.
+2. 각 viewport request는:
+   - `FSceneRenderPacket`
+   - `FOutlineRenderRequest`
+   - `FDebugSceneBuildInputs`
+   - 추가 mesh batch
+   를 담는다.
+3. `FRenderer::RenderEditorFrame()`이 viewport별로 scene pipeline을 실행한다.
+4. 모든 viewport scene 결과가 준비되면 `FViewportCompositePassInputs`를 만든다.
+5. `FScreenUIRenderer::BuildPassInputs()`로 최종 screen UI pass input을 만든다.
+6. `FFrameRenderPipeline`이:
+   - `FViewportCompositePass`
+   - `FScreenUIPass`
+   순서로 실행한다.
+7. present한다.
 
-### 11-2. 흐름 도식
+도식:
 
 ```text
 EditorViewportRenderService
- -> Viewport Scene Packets
- -> Outline Requests
- -> Debug Line Requests
- -> Slate Draw List
- -> FEditorFrameRequest
- -> FRenderer::RenderEditorFrame
- -> SceneRenderer per Viewport
- -> OutlineFeature
- -> DebugLineFeature
- -> ViewportCompositor
- -> ScreenUIRenderer
+ -> ViewportScenePassRequest[]
+ -> per-viewport Scene Pass Pipeline
+ -> ViewportCompositePassInputs
+ -> ScreenUIPassInputs
+ -> Frame Pass Pipeline
  -> Present
 ```
 
-## 12. 이번 리팩토링에서 책임은 어떻게 이동했나
+## 15. `FRenderer`가 아직 소유하는 것
 
-이 섹션이 이번 변경을 이해하는 핵심입니다.
+현재 `FRenderer`는 여전히 많은 영구 owner다.
+다만 예전처럼 모든 실행 구현을 품고 있지는 않다.
 
-### 12-1. 예전에는 `FRenderer`에 있던 책임
+현재 permanent owner에 가까운 것들:
 
-예전에는 아래 책임이 `FRenderer` 안에 섞여 있었습니다.
+1. `FRenderDevice`
+2. `FRenderStateManager`
+3. default material / default texture material / samplers
+4. text, subUV, billboard, fog, outline, debug line, decal feature
+5. `FViewportCompositor`
+6. `FScreenUIRenderer`
+7. scene core targets
+8. supplemental targets
 
-1. 디바이스/스왑체인
-2. 씬 커맨드 제출
-3. 씬 커맨드 실행
-4. render pass 실행
-5. 디버그 라인
-6. outline 리소스
-7. text/SubUV 기능 접근
-8. GUI callback host
-9. 포스트 렌더 callback
-10. viewport 합성
+### 15-1. target ownership
 
-### 12-2. 지금은 어디로 옮겨졌나
+현재 targets는 크게 두 그룹으로 볼 수 있다.
 
-현재는 아래처럼 이동했습니다.
+1. scene core targets
+   - scene color
+   - scene depth
+2. supplemental targets
+   - GBuffer A/B/C
+   - scene color scratch
+   - outline mask
 
-1. 디바이스/스왑체인 -> `FRenderDevice`
-2. 씬 커맨드 제출/실행/패스 실행 -> `FSceneRenderer`
-3. viewport 합성 -> `FViewportCompositor`
-4. 화면 UI 렌더링 -> `FScreenUIRenderer`
-5. text 메시 생성 -> `FTextRenderFeature`
-6. SubUV 메시 생성 -> `FSubUVRenderFeature`
-7. outline 리소스와 실행 -> `FOutlineRenderFeature`
-8. 디버그 라인 버퍼와 실행 -> `FDebugLineRenderFeature`
-9. UI callback 기반 연결 -> 제거
-10. selection outline callback 주입 -> request 데이터 방식으로 교체
+현재는 여전히 `FRenderer`가 소유하지만, 구조적으로는 이미 구분된 상태다.
 
-추가로 최근 변경으로 아래도 달라졌습니다.
+## 16. 예전 문서와 달라진 점
 
-1. 씬 커맨드 전체 정렬 -> 버킷별 정렬로 축소
-2. `AdditionalCommands`와 메인 씬 큐 병합 -> 별도 큐 유지 후 순차 실행
-3. 화면 UI -> 씬 레이어가 아니라 완전 별도 렌더 경로
+이번 갱신에서 특히 바로잡은 내용은 아래와 같다.
 
-### 12-3. `RenderCollector`는 무엇이 달라졌나
+1. `FRenderCommandQueue` / `RenderCommand.h` 기반 설명 제거
+2. `FSceneRenderer`가 command bucket을 직접 실행한다는 설명 제거
+3. `FSceneRenderPacket` primitive 종류를 최신 코드 기준으로 확장
+4. `FSceneViewData`의 `MeshInputs` / `PostProcessInputs` / `DebugInputs` 구조 반영
+5. debug path의 `FDebugPrimitiveList -> FDebugLinePassInputs` 흐름 반영
+6. UI path의 `FUIDrawList -> FScreenUIPassInputs -> FScreenUIPass` 흐름 반영
+7. scene/frame pipeline의 공통 `TPassPipeline` 기반 반영
+8. fullscreen pass 공통 executor 반영
 
-예전 `RenderCollector`는 수집기처럼 보였지만 실제로는 렌더러 구현과 특수 기능까지 너무 많이 알고 있었습니다.
+## 17. 새 기능을 넣을 때 어디를 수정해야 하나
 
-지금은 아래처럼 나뉩니다.
+기능 종류별로 보는 게 가장 빠르다.
 
-1. `FScenePacketBuilder`는 월드에서 무엇이 보이는지만 모은다.
-2. `FSceneCommandBuilder`는 그것을 실제 씬 드로우 커맨드로 확장한다.
-3. feature 클래스는 텍스트/SubUV 같은 특수 확장을 담당한다.
+### 17-1. 새 scene primitive
 
-즉 “수집”과 “렌더 명령 조립”이 분리되었습니다.
+예: 새 world-space component
 
-### 12-4. 에디터는 무엇이 달라졌나
+보통 순서는 아래다.
 
-예전 에디터 코드는 renderer 내부 패스 실행 순서를 직접 많이 알고 있었습니다.
+1. `FSceneRenderPacket`에 primitive bucket 추가
+2. `FScenePacketBuilder`에 수집 추가
+3. `FSceneCommandBuilder`에 `FSceneViewData` 변환 추가
+4. mesh pass로 처리 가능하면 `FMeshBatch`로 편입
+5. 별도 GPU 경로가 필요하면 feature 추가
 
-현재 에디터는 아래 역할만 합니다.
+### 17-2. 새 post/fullscreen effect
 
-1. 뷰포트별 scene request를 만든다.
-2. outline/debug line request를 만든다.
-3. Slate draw list를 만든다.
-4. 프레임 요청을 `FRenderer`에 넘긴다.
+예: 색보정, 디버그 depth overlay, custom composite
 
-즉, 에디터는 “실행기”가 아니라 “프레임 설명자 생성기”가 되었습니다.
+보통 순서는 아래다.
 
-## 13. 새 기능을 추가할 때 어디에 넣어야 하나
+1. 필요한 view/post input을 `FSceneViewData` 또는 frame pass input에 추가
+2. feature 또는 pass 클래스 추가
+3. 가능하면 `ExecuteFullscreenPass(...)` 재사용
+4. `SceneRenderer::BuildRenderPipeline()` 또는 frame pipeline에 pass 삽입
 
-새 기능을 넣을 때 가장 먼저 해야 할 질문은 이것입니다.
+### 17-3. 새 screen UI 요소
 
-“이 기능은 무엇을 그릴지 설명하는 데이터인가, 아니면 실제 렌더링 기능인가?”
+보통 순서는 아래다.
 
-### 13-1. 씬에 보일 프리미티브 종류를 추가하는 경우
+1. `FUIDrawList` element 타입 추가
+2. Slate/Painter 기록 단계 추가
+3. `FScreenUIRenderer::BuildPassInputs(...)` 변환 추가
 
-예: decal, custom sprite, world marker
+## 18. 디버깅은 어디부터 보면 되나
 
-순서는 보통 아래와 같습니다.
+문제가 생기면 아래 순서가 가장 빠르다.
 
-1. `FSceneRenderPacket`에 새 프리미티브 버킷을 추가한다.
-2. `FScenePacketBuilder`에 수집 로직을 추가한다.
-3. `FSceneCommandBuilder`에 드로우 커맨드 변환 로직을 추가한다.
-4. 별도 GPU 리소스가 필요하면 `Renderer/Feature` 아래 새 feature 클래스를 만든다.
+1. `ScenePacketBuilder`가 packet을 제대로 만들었는가
+2. `SceneCommandBuilder`가 `FSceneViewData`를 제대로 채웠는가
+3. `SceneViewData`의 어느 input 그룹에 있어야 하는 데이터인지 맞는가
+4. scene/frame pipeline에 해당 pass가 실제로 들어갔는가
+5. feature request 또는 pass input이 비어 있지 않은가
+6. compositor 또는 screen UI pass에서 최종 target으로 올라갔는가
 
-### 13-2. 후처리나 디버그 기능을 추가하는 경우
+즉 지금 구조는:
 
-예: selection highlight, debug normals, picking overlay
+`수집 -> scene view 데이터 준비 -> pass 실행 -> frame 합성`
 
-이 경우는 보통 씬 패킷보다 frame request 쪽이 더 맞습니다.
+순서로 좁혀가면 된다.
 
-1. 새 request struct를 만든다.
-2. 에디터나 게임 쪽에서 요청 데이터를 채운다.
-3. `FRenderer`가 적절한 시점에 전용 feature를 호출하게 만든다.
+## 19. 함께 봐야 할 문서
 
-중요한 점은 callback을 다시 들여오지 않는 것입니다.
+더 짧은 구조 변경 메모는 아래 문서를 같이 보면 된다.
 
-## 14. 디버깅할 때는 어디부터 보면 되나
+파일: `docs/RendererRefactorNotes.md`
 
-무언가 화면에 안 나오면 아래 순서로 보는 것이 가장 빠릅니다.
-
-1. `ViewportClient`가 올바른 씬 패킷을 만들었는가
-2. `FScenePacketBuilder`가 그 프리미티브를 실제로 수집했는가
-3. `FSceneCommandBuilder`가 원하는 커맨드를 만들었는가
-4. `FSceneRenderer`가 해당 레이어를 실행했는가
-5. 에디터라면 `FViewportCompositor`가 결과를 백버퍼에 올렸는가
-6. 화면 UI라면 `FSlatePaintContext`가 draw list를 기록했는가
-7. `FScreenUIRenderer`가 그 draw list를 실제로 그렸는가
-
-즉, “수집 -> 변환 -> 실행 -> 합성 -> UI” 순으로 좁혀가면 됩니다.
-
-## 15. 파일 지도로 다시 보면
-
-가장 자주 보는 파일만 다시 정리하면 아래와 같습니다.
-
-1. 프레임 진입점: `Engine/Source/Renderer/Renderer.h`
-2. 디바이스와 Present: `Engine/Source/Renderer/RenderDevice.h`
-3. 씬 실행: `Engine/Source/Renderer/SceneRenderer.h`
-4. 뷰포트 합성: `Engine/Source/Renderer/ViewportCompositor.h`
-5. 화면 UI 렌더링: `Engine/Source/Renderer/ScreenUIRenderer.h`
-6. 씬 수집: `Engine/Source/Level/ScenePacketBuilder.h`
-7. 씬 패킷 데이터: `Engine/Source/Level/SceneRenderPacket.h`
-8. UI 기록기: `Editor/Source/Slate/Widget/Painter.h`
-9. UI draw list 생성: `Editor/Source/Slate/SlateApplication.h`
-10. 에디터 프레임 조립: `Editor/Source/Viewport/Services/EditorViewportRenderService.h`
-
-## 16. 마지막으로 머릿속 모델 하나만 남긴다면
-
-이 구조는 이렇게 기억하면 됩니다.
-
-`ScenePacketBuilder`가 무엇을 그릴지 정리하고, `SceneRenderer`가 그것을 실제로 그리며, `ViewportCompositor`가 결과를 배치하고, `ScreenUIRenderer`가 마지막 UI를 덮는다.
+이 문서는 설계 판단과 ownership 메모 중심이고,
+현재 문서는 실제 코드 구조 walkthrough 중심이다.

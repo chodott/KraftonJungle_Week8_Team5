@@ -1,10 +1,10 @@
 #include "PreviewViewportClient.h"
 #include "Core/ShowFlags.h"
 
+#include "Core/Engine.h"
 #include "UI/EditorUI.h"
 #include "EditorEngine.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/RenderCommand.h"
 #include "Component/CameraComponent.h"
 #include "Math/Frustum.h"
 #include "World/World.h"
@@ -85,8 +85,12 @@ void FPreviewViewportClient::Render(FEngine* Engine, FRenderer* Renderer)
 			FrameRequest.SceneView.NearZ = ActiveCamera->GetNearPlane();
 			FrameRequest.SceneView.FarZ = ActiveCamera->GetFarPlane();
 			FrameRequest.SceneView.TotalTimeSeconds = Engine ? static_cast<float>(Engine->GetTimer().GetTotalTime()) : 0.0f;
-			BuildSceneRenderPacket(Engine, ActiveWorld, Frustum, FShowFlags{}, ScenePacket);
+			const FShowFlags ShowFlags = {};
+			BuildSceneRenderPacket(Engine, ActiveWorld, Frustum, ShowFlags, ScenePacket);
 			FrameRequest.ScenePacket = std::move(ScenePacket);
+			FrameRequest.DebugInputs.DrawManager = &Engine->GetDebugDrawManager();
+			FrameRequest.DebugInputs.World = ActiveWorld;
+			FrameRequest.DebugInputs.ShowFlags = ShowFlags;
 			Renderer->RenderGameFrame(FrameRequest);
 		}
 	}

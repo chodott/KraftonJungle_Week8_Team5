@@ -1,4 +1,4 @@
-﻿#include "EditorViewportClient.h"
+#include "EditorViewportClient.h"
 
 #include "EditorEngine.h"
 #include "EditorViewportRegistry.h"
@@ -8,7 +8,8 @@
 #include "Renderer/MaterialManager.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/RenderStateManager.h"
-#include "Renderer/ShaderMap.h"
+#include "Renderer/Shader.h"
+#include "Renderer/ShaderResource.h"
 #include "imgui.h"
 #include "Viewport.h"
 
@@ -60,8 +61,10 @@ void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
 		std::wstring ShaderDirW = FPaths::ShaderDir();
 		std::wstring VSPath = ShaderDirW + L"AxisVertexShader.hlsl";
 		std::wstring PSPath = ShaderDirW + L"AxisPixelShader.hlsl";
-		auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
-		auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, PSPath.c_str());
+		auto VSResource = FShaderResource::GetOrCompile(VSPath.c_str(), "main", "vs_5_0");
+		auto PSResource = FShaderResource::GetOrCompile(PSPath.c_str(), "main", "ps_5_0");
+		auto VS = FVertexShader::Create(Device, VSResource, EVertexLayoutType::MeshVertex);
+		auto PS = FPixelShader::Create(Device, PSResource);
 
 		GridMaterial = std::make_shared<FMaterial>();
 		GridMaterial->SetOriginName("M_EditorGrid");

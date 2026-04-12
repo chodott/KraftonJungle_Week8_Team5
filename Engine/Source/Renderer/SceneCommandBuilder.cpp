@@ -3,13 +3,14 @@
 #include <algorithm>
 
 #include "Component/BillboardComponent.h"
+#include "Component/DecalComponent.h"
+#include "Component/HeightFogComponent.h"
 #include "Component/StaticMeshComponent.h"
 #include "Component/SubUVComponent.h"
 #include "Component/TextComponent.h"
 #include "Component/UUIDBillboardComponent.h"
 #include "Renderer/Material.h"
 #include "Renderer/MeshData.h"
-#include "Renderer/RenderCommand.h"
 
 namespace
 {
@@ -20,7 +21,7 @@ namespace
 	}
 }
 
-uint32 FSceneCommandBuilder::ToColorKey(const FVector4& Color)
+uint32 FSceneCommandResourceCache::ToColorKey(const FVector4& Color)
 {
 	const uint32 A = static_cast<uint32>(ToColorChannel(Color.W));
 	const uint32 R = static_cast<uint32>(ToColorChannel(Color.X));
@@ -29,7 +30,7 @@ uint32 FSceneCommandBuilder::ToColorKey(const FVector4& Color)
 	return (A << 24) | (R << 16) | (G << 8) | B;
 }
 
-void FSceneCommandBuilder::UpdateSubUVMaterialParams(
+void FSceneCommandResourceCache::UpdateSubUVMaterialParams(
 	FMaterial& Material,
 	int32 Columns,
 	int32 Rows,
@@ -55,7 +56,7 @@ void FSceneCommandBuilder::UpdateSubUVMaterialParams(
 	Material.SetParameterData("UVOffset", &UVOffset, sizeof(FVector2));
 }
 
-FMaterial* FSceneCommandBuilder::GetOrCreateTextMaterial(const FSceneCommandBuildContext& BuildContext, const FVector4& TextColor)
+FMaterial* FSceneCommandResourceCache::GetOrCreateTextMaterial(const FSceneCommandBuildContext& BuildContext, const FVector4& TextColor)
 {
 	if (!BuildContext.TextFeature)
 	{
@@ -89,7 +90,7 @@ FMaterial* FSceneCommandBuilder::GetOrCreateTextMaterial(const FSceneCommandBuil
 	return RawMaterial;
 }
 
-FMaterial* FSceneCommandBuilder::GetOrCreateSubUVMaterial(
+FMaterial* FSceneCommandResourceCache::GetOrCreateSubUVMaterial(
 	const FSceneCommandBuildContext& BuildContext,
 	const USubUVComponent* Component)
 {
@@ -132,7 +133,7 @@ FMaterial* FSceneCommandBuilder::GetOrCreateSubUVMaterial(
 	return Material;
 }
 
-void FSceneCommandBuilder::PruneStaleSubUVMaterials(const TArray<const USubUVComponent*>& ActiveComponents)
+void FSceneCommandResourceCache::PruneStaleSubUVMaterials(const TArray<const USubUVComponent*>& ActiveComponents)
 {
 	for (auto It = SubUVMaterialsByComponent.begin(); It != SubUVMaterialsByComponent.end();)
 	{
@@ -146,12 +147,41 @@ void FSceneCommandBuilder::PruneStaleSubUVMaterials(const TArray<const USubUVCom
 	}
 }
 
-void FSceneCommandBuilder::BuildQueue(
+void FSceneCommandBuilder::FinalizeBatchMaterial(const FSceneCommandBuildContext& BuildContext, FMeshBatch& Batch)
+{
+	if (!Batch.Material)
+	{
+		Batch.Material = BuildContext.DefaultMaterial;
+	}
+}
+
+void FSceneCommandBuilder::BuildSceneViewData(
 	const FSceneCommandBuildContext& BuildContext,
 	const FSceneRenderPacket& Packet,
-	const FVector& CameraPosition,
-	FRenderCommandQueue& OutQueue)
+	const FFrameContext& Frame,
+	const FViewContext& View,
+	FSceneViewData& OutSceneViewData)
 {
+	OutSceneViewData.Frame = Frame;
+	OutSceneViewData.View = View;
+	OutSceneViewData.MeshInputs.Clear();
+	OutSceneViewData.PostProcessInputs.Clear();
+	OutSceneViewData.DebugInputs.Clear();
+
+	const FVector& CameraPosition = View.CameraPosition;
+
+	const auto AddBatch = [&](FMeshBatch&& Batch)
+	{
+		FinalizeBatchMaterial(BuildContext, Batch);
+		if (!Batch.Mesh || !Batch.Material)
+		{
+			return;
+		}
+
+		Batch.SubmissionOrder = static_cast<uint64>(OutSceneViewData.MeshInputs.Batches.size());
+		OutSceneViewData.MeshInputs.Batches.push_back(std::move(Batch));
+	};
+
 	for (const FSceneMeshPrimitive& Primitive : Packet.MeshPrimitives)
 	{
 		UStaticMeshComponent* MeshComponent = Primitive.Component;
@@ -169,12 +199,17 @@ void FSceneCommandBuilder::BuildQueue(
 		const int32 SectionCount = TargetMesh->GetNumSection();
 		if (SectionCount <= 0)
 		{
-			FRenderCommand Command;
-			Command.RenderMesh = TargetMesh;
-			Command.WorldMatrix = MeshComponent->GetWorldTransform();
+			FMeshBatch Batch;
+			Batch.Mesh = TargetMesh;
+			Batch.World = MeshComponent->GetWorldTransform();
 			std::shared_ptr<FMaterial> Material = MeshComponent->GetMaterial(0);
-			Command.Material = Material ? Material.get() : BuildContext.DefaultMaterial;
-			OutQueue.AddCommand(Command);
+			Batch.Material = Material ? Material.get() : BuildContext.DefaultMaterial;
+			Batch.Domain = EMaterialDomain::Opaque;
+			Batch.PassMask =
+				static_cast<uint32>(EMeshPassMask::DepthPrepass) |
+				static_cast<uint32>(EMeshPassMask::GBuffer) |
+				static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+			AddBatch(std::move(Batch));
 			continue;
 		}
 
@@ -182,15 +217,21 @@ void FSceneCommandBuilder::BuildQueue(
 		{
 			const FMeshSection& Section = TargetMesh->Sections[SectionIndex];
 
-			FRenderCommand Command;
-			Command.RenderMesh = TargetMesh;
-			Command.WorldMatrix = MeshComponent->GetWorldTransform();
-			Command.IndexStart = Section.StartIndex;
-			Command.IndexCount = Section.IndexCount;
+			FMeshBatch Batch;
+			Batch.Mesh = TargetMesh;
+			Batch.World = MeshComponent->GetWorldTransform();
+			Batch.SectionIndex = static_cast<uint32>(SectionIndex);
+			Batch.IndexStart = Section.StartIndex;
+			Batch.IndexCount = Section.IndexCount;
 
 			std::shared_ptr<FMaterial> Material = MeshComponent->GetMaterial(SectionIndex);
-			Command.Material = Material ? Material.get() : BuildContext.DefaultMaterial;
-			OutQueue.AddCommand(Command);
+			Batch.Material = Material ? Material.get() : BuildContext.DefaultMaterial;
+			Batch.Domain = EMaterialDomain::Opaque;
+			Batch.PassMask =
+				static_cast<uint32>(EMeshPassMask::DepthPrepass) |
+				static_cast<uint32>(EMeshPassMask::GBuffer) |
+				static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+			AddBatch(std::move(Batch));
 		}
 	}
 
@@ -227,7 +268,9 @@ void FSceneCommandBuilder::BuildQueue(
 			continue;
 		}
 
-		FMaterial* TextMaterial = GetOrCreateTextMaterial(BuildContext, TextComponent->GetTextColor());
+		FMaterial* TextMaterial = BuildContext.ResourceCache
+			? BuildContext.ResourceCache->GetOrCreateTextMaterial(BuildContext, TextComponent->GetTextColor())
+			: nullptr;
 		if (!TextMaterial && BuildContext.TextFeature)
 		{
 			TextMaterial = BuildContext.TextFeature->GetBaseMaterial();
@@ -237,24 +280,32 @@ void FSceneCommandBuilder::BuildQueue(
 			continue;
 		}
 
-		FRenderCommand Command;
-		Command.RenderMesh = TextMesh;
-		Command.Material = TextMaterial;
-		Command.RenderLayer = TextComponent->IsA(UUUIDBillboardComponent::StaticClass()) ? ERenderLayer::Overlay : ERenderLayer::Default;
+		FMeshBatch Batch;
+		Batch.Mesh = TextMesh;
+		Batch.Material = TextMaterial;
+		Batch.Domain = TextComponent->IsA(UUUIDBillboardComponent::StaticClass()) ? EMaterialDomain::Overlay : EMaterialDomain::Opaque;
+		Batch.PassMask = Batch.Domain == EMaterialDomain::Overlay
+			? static_cast<uint32>(EMeshPassMask::Overlay)
+			: static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+		if (Batch.Domain == EMaterialDomain::Overlay)
+		{
+			Batch.bDisableDepthTest = true;
+			Batch.bDisableDepthWrite = true;
+		}
 
 		const FVector WorldPosition = TextComponent->GetRenderWorldPosition();
 		const FVector WorldScale = TextComponent->GetRenderWorldScale();
 		if (TextComponent->IsBillboard())
 		{
-			Command.WorldMatrix = FMatrix::MakeScale(WorldScale) * FMatrix::MakeBillboard(WorldPosition, CameraPosition);
+			Batch.World = FMatrix::MakeScale(WorldScale) * FMatrix::MakeBillboard(WorldPosition, CameraPosition);
 		}
 		else
 		{
 			const float TextScale = TextComponent->GetTextScale();
-			Command.WorldMatrix = FMatrix::MakeScale(FVector(TextScale, TextScale, TextScale)) * TextComponent->GetWorldTransform();
+			Batch.World = FMatrix::MakeScale(FVector(TextScale, TextScale, TextScale)) * TextComponent->GetWorldTransform();
 		}
 
-		OutQueue.AddCommand(Command);
+		AddBatch(std::move(Batch));
 	}
 
 	TArray<const USubUVComponent*> ActiveSubUVComponents;
@@ -285,7 +336,9 @@ void FSceneCommandBuilder::BuildQueue(
 			SubUVComponent->ClearSubUVMeshDirty();
 		}
 
-		FMaterial* SubUVMaterial = GetOrCreateSubUVMaterial(BuildContext, SubUVComponent);
+		FMaterial* SubUVMaterial = BuildContext.ResourceCache
+			? BuildContext.ResourceCache->GetOrCreateSubUVMaterial(BuildContext, SubUVComponent)
+			: nullptr;
 		if (!SubUVMaterial && BuildContext.SubUVFeature)
 		{
 			SubUVMaterial = BuildContext.SubUVFeature->GetBaseMaterial();
@@ -295,28 +348,32 @@ void FSceneCommandBuilder::BuildQueue(
 			continue;
 		}
 
-		FRenderCommand Command;
-		Command.RenderMesh = SubUVMesh;
-		Command.Material = SubUVMaterial;
-		Command.RenderLayer = ERenderLayer::Transparent;
-		Command.bDisableDepthWrite = true;
-		Command.WorldMatrix = SubUVComponent->GetWorldTransform();
+		FMeshBatch Batch;
+		Batch.Mesh = SubUVMesh;
+		Batch.Material = SubUVMaterial;
+		Batch.Domain = EMaterialDomain::Transparent;
+		Batch.PassMask = static_cast<uint32>(EMeshPassMask::ForwardTransparent);
+		Batch.bDisableDepthWrite = true;
+		Batch.World = SubUVComponent->GetWorldTransform();
 
 		if (SubUVComponent->IsBillboard())
 		{
-			const FVector WorldPosition = Command.WorldMatrix.GetTranslation();
-			const FVector Scale = Command.WorldMatrix.GetScaleVector();
-			Command.WorldMatrix = FMatrix::MakeScale(Scale) * FMatrix::MakeBillboard(WorldPosition, CameraPosition);
+			const FVector WorldPosition = Batch.World.GetTranslation();
+			const FVector Scale = Batch.World.GetScaleVector();
+			Batch.World = FMatrix::MakeScale(Scale) * FMatrix::MakeBillboard(WorldPosition, CameraPosition);
 		}
 
-		const FVector WorldPosition = Command.WorldMatrix.GetTranslation();
-		Command.TransparentSortDistanceSq = (WorldPosition - CameraPosition).SizeSquared();
+		const FVector WorldPosition = Batch.World.GetTranslation();
+		Batch.DistanceSqToCamera = (WorldPosition - CameraPosition).SizeSquared();
 
-		OutQueue.AddCommand(Command);
+		AddBatch(std::move(Batch));
 		ActiveSubUVComponents.push_back(SubUVComponent);
 	}
 
-	PruneStaleSubUVMaterials(ActiveSubUVComponents);
+	if (BuildContext.ResourceCache)
+	{
+		BuildContext.ResourceCache->PruneStaleSubUVMaterials(ActiveSubUVComponents);
+	}
 
 	TArray<const UBillboardComponent*> ActiveBillboardComponents;
 	ActiveBillboardComponents.reserve(Packet.BillboardPrimitives.size());
@@ -352,23 +409,70 @@ void FSceneCommandBuilder::BuildQueue(
 			continue;
 		}
 
-		FRenderCommand Command;
-		Command.RenderMesh = BillboardMesh;
-		Command.Material = BillboardMaterial;
-		Command.RenderLayer = ERenderLayer::Transparent;
-		Command.bDisableDepthWrite = true;
+		FMeshBatch Batch;
+		Batch.Mesh = BillboardMesh;
+		Batch.Material = BillboardMaterial;
+		Batch.Domain = EMaterialDomain::Transparent;
+		Batch.PassMask = static_cast<uint32>(EMeshPassMask::ForwardTransparent);
+		Batch.bDisableDepthWrite = true;
 
 		const FVector WorldPosition = BillboardComponent->GetWorldTransform().GetTranslation();
 		const FVector Scale = BillboardComponent->GetWorldTransform().GetScaleVector();
-		Command.WorldMatrix = FMatrix::MakeScale(Scale) * FMatrix::MakeBillboard(WorldPosition, CameraPosition);
-		Command.TransparentSortDistanceSq = (WorldPosition - CameraPosition).SizeSquared();
+		Batch.World = FMatrix::MakeScale(Scale) * FMatrix::MakeBillboard(WorldPosition, CameraPosition);
+		Batch.DistanceSqToCamera = (WorldPosition - CameraPosition).SizeSquared();
 
-		OutQueue.AddCommand(Command);
+		AddBatch(std::move(Batch));
 		ActiveBillboardComponents.push_back(BillboardComponent);
 	}
 
 	if (BuildContext.BillboardFeature)
 	{
 		BuildContext.BillboardFeature->PruneMaterials(ActiveBillboardComponents);
+	}
+
+	OutSceneViewData.PostProcessInputs.FogItems.reserve(Packet.FogPrimitives.size());
+	for (const FSceneFogPrimitive& Primitive : Packet.FogPrimitives)
+	{
+		const UHeightFogComponent* FogComponent = Primitive.Component;
+		if (!FogComponent)
+		{
+			continue;
+		}
+
+		FFogRenderItem& Item = OutSceneViewData.PostProcessInputs.FogItems.emplace_back();
+		Item.FogOrigin = FogComponent->GetWorldLocation();
+		Item.FogDensity = FogComponent->FogDensity;
+		Item.FogHeightFalloff = FogComponent->FogHeightFalloff;
+		Item.StartDistance = FogComponent->StartDistance;
+		Item.FogCutoffDistance = FogComponent->FogCutoffDistance;
+		Item.FogMaxOpacity = FogComponent->FogMaxOpacity;
+		Item.FogInscatteringColor = FogComponent->FogInscatteringColor;
+		Item.AllowBackground = FogComponent->AllowBackground;
+	}
+
+	OutSceneViewData.PostProcessInputs.DecalItems.reserve(Packet.DecalPrimitives.size());
+	for (const FSceneDecalPrimitive& Primitive : Packet.DecalPrimitives)
+	{
+		const UDecalComponent* DecalComponent = Primitive.Component;
+		if (!DecalComponent || !DecalComponent->IsEnabled())
+		{
+			continue;
+		}
+
+		FDecalRenderItem& Item = OutSceneViewData.PostProcessInputs.DecalItems.emplace_back();
+		Item.AtlasScaleBias = DecalComponent->GetAtlasScaleBias();
+		Item.BaseColorTint = DecalComponent->GetBaseColorTint();
+		Item.DecalWorld = DecalComponent->GetWorldTransform();
+		Item.EdgeFade = DecalComponent->GetEdgeFade();
+		Item.EmissiveBlend = DecalComponent->GetEmissiveBlend();
+		Item.Extents = DecalComponent->GetExtents();
+		Item.Flags = DecalComponent->GetRenderFlags();
+		Item.NormalBlend = DecalComponent->GetNormalBlend();
+		Item.Priority = DecalComponent->GetPriority();
+		Item.ReceiverLayerMask = DecalComponent->GetReceiverLayerMask();
+		Item.RoughnessBlend = DecalComponent->GetRoughnessBlend();
+		Item.TexturePath = DecalComponent->GetTexturePath();
+		Item.TextureIndex = 0;
+		Item.WorldToDecal = Item.DecalWorld.GetInverse();
 	}
 }

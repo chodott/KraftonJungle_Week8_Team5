@@ -3,18 +3,14 @@
 #include "RenderState.h"
 #include "Types/CoreTypes.h"
 #include "Types/Map.h"
-#include <wrl/client.h>
+
 #include <memory>
 
-using Microsoft::WRL::ComPtr;
-
-/// RasterizerState, BlendState, DepthStencilState 등의 Renderer state 담당
-/// 현재 RasterizerState만 적용된 상태
 class ENGINE_API FRenderStateManager
 {
 private:
-	ID3D11Device* Device;
-	ID3D11DeviceContext* DeviceContext;
+	ID3D11Device* Device = nullptr;
+	ID3D11DeviceContext* DeviceContext = nullptr;
 	TMap<uint32, std::shared_ptr<FRasterizerState>> RasterizerStateMap;
 	TMap<uint32, std::shared_ptr<FDepthStencilState>> DepthStencilStateMap;
 	TMap<uint32, std::shared_ptr<FBlendState>> BlendStateMap;
@@ -23,23 +19,31 @@ private:
 	std::shared_ptr<FDepthStencilState> CurrentDepthStencilState = nullptr;
 	std::shared_ptr<FBlendState> CurrentBlendState = nullptr;
 
+	uint32 CurrentStencilRef = 0;
+	float CurrentBlendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	uint32 CurrentSampleMask = 0xFFFFFFFF;
+
 public:
 	FRenderStateManager(ID3D11Device* InDevice, ID3D11DeviceContext* InDeviceContext)
 		: Device(InDevice)
 		, DeviceContext(InDeviceContext)
-	{}
+	{
+	}
 
-	// 자주 사용되는 상태들을 미리 생성
 	void PrepareCommonStates();
 
-	// 옵션에 따른 상태 반환 (없으면 생성)
 	std::shared_ptr<FRasterizerState> GetOrCreateRasterizerState(const FRasterizerStateOption& opt);
 	std::shared_ptr<FDepthStencilState> GetOrCreateDepthStencilState(const FDepthStencilStateOption& opt);
 	std::shared_ptr<FBlendState> GetOrCreateBlendState(const FBlendStateOption& opt);
 
-	// 실제 상태 적용
 	void BindState(std::shared_ptr<FRasterizerState> InRS);
 	void BindState(std::shared_ptr<FDepthStencilState> InDSS);
 	void BindState(std::shared_ptr<FBlendState> InBS);
+
+	void BindDepthStencilState(std::shared_ptr<FDepthStencilState> InDSS, uint32 StencilRef);
+	void BindBlendState(std::shared_ptr<FBlendState> InBS, const float BlendFactor[4], uint32 SampleMask);
+	void SetRenderTargets(uint32 NumRTs, ID3D11RenderTargetView* const* RTVs, ID3D11DepthStencilView* DSV);
+	void ClearShaderResourcesPS(uint32 StartSlot, uint32 Count);
+
 	void RebindState();
 };

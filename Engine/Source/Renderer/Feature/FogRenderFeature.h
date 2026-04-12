@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Renderer/LinearColor.h"
+#include "Renderer/RenderFrameContext.h"
+#include "Renderer/SceneRenderTargets.h"
 
 #include <d3d11.h>
 
@@ -38,12 +40,17 @@ class ENGINE_API FFogRenderFeature
 public:
 	~FFogRenderFeature();
 
-	bool Render(FRenderer& Renderer, const FFogRenderRequest& Request);
+	bool Render(
+		FRenderer& Renderer,
+		const FFrameContext& Frame,
+		const FViewContext& View,
+		const FSceneRenderTargets& Targets,
+		const TArray<FFogRenderItem>& Items);
 	void Release();
 
 private:
 	bool Initialize(FRenderer& Renderer);
-	void UpdateFogConstantBuffer(FRenderer& Renderer, const FFogRenderRequest& Request, const FFogRenderItem& Item);
+	void UpdateFogConstantBuffer(FRenderer& Renderer, const FViewContext& View, const FFogRenderItem& Item);
 
 private:
 	ID3D11Buffer* FogConstantBuffer = nullptr;

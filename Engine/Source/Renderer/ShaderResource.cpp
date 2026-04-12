@@ -1,12 +1,60 @@
 #include "ShaderResource.h"
 #include "Core/Paths.h"
 #include <d3dcompiler.h>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <cwchar>
 
 #pragma comment(lib, "d3dcompiler.lib")
 
 namespace fs = std::filesystem;
+namespace
+{
+	std::wstring NarrowToWide(const char* Text)
+	{
+		if (!Text)
+		{
+			return {};
+		}
+
+		return std::wstring(Text, Text + std::strlen(Text));
+	}
+
+	std::wstring NormalizeShaderPath(const wchar_t* HlslPath)
+	{
+		if (!HlslPath)
+		{
+			return {};
+		}
+
+		fs::path Path(HlslPath);
+		std::error_code Error;
+		const fs::path WeaklyCanonicalPath = fs::weakly_canonical(Path, Error);
+		if (!Error)
+		{
+			return WeaklyCanonicalPath.wstring();
+		}
+
+		return Path.lexically_normal().wstring();
+	}
+
+	std::wstring SanitizeFilenameToken(std::wstring Token)
+	{
+		for (wchar_t& Character : Token)
+		{
+			const bool bAlphaNumeric = (Character >= L'0' && Character <= L'9')
+				|| (Character >= L'A' && Character <= L'Z')
+				|| (Character >= L'a' && Character <= L'z');
+			if (!bAlphaNumeric)
+			{
+				Character = L'_';
+			}
+		}
+
+		return Token;
+	}
+}
 
 std::unordered_map<std::wstring, std::shared_ptr<FShaderResource>> FShaderResource::Cache;
 std::wstring FShaderResource::ContentDir;
@@ -47,12 +95,36 @@ void FShaderResource::SetContentDir(const wchar_t* Dir)
 	}
 }
 
-std::wstring FShaderResource::MakeCsoPath(const wchar_t* HlslPath, const char* EntryPoint)
+std::wstring FShaderResource::MakeCacheKey(const wchar_t* HlslPath, const char* EntryPoint, const char* Target)
 {
-	fs::path HlslFile(HlslPath);
-	std::wstring Stem = HlslFile.stem().wstring();
-	std::wstring Entry(EntryPoint, EntryPoint + strlen(EntryPoint));
-	return ContentDir + Stem + L"_" + Entry + L".cso";
+	return NormalizeShaderPath(HlslPath)
+		+ L"|"
+		+ NarrowToWide(EntryPoint)
+		+ L"|"
+		+ NarrowToWide(Target);
+}
+
+std::wstring FShaderResource::MakeCsoPath(const wchar_t* HlslPath, const char* EntryPoint, const char* Target)
+{
+	const fs::path HlslFile(HlslPath ? HlslPath : L"");
+	const std::wstring Stem = HlslFile.stem().wstring();
+	const std::wstring Entry = SanitizeFilenameToken(NarrowToWide(EntryPoint));
+	const std::wstring Profile = SanitizeFilenameToken(NarrowToWide(Target));
+	const std::wstring NormalizedPath = NormalizeShaderPath(HlslPath);
+	const uint64 PathHash = static_cast<uint64>(std::hash<std::wstring>{}(NormalizedPath));
+
+	wchar_t HashBuffer[17] = {};
+	swprintf_s(HashBuffer, L"%016llx", static_cast<unsigned long long>(PathHash));
+
+	return ContentDir
+		+ Stem
+		+ L"_"
+		+ Entry
+		+ L"_"
+		+ Profile
+		+ L"_"
+		+ HashBuffer
+		+ L".cso";
 }
 
 bool FShaderResource::IsHlslNewer(const wchar_t* HlslPath, const wchar_t* CsoPath)
@@ -135,7 +207,7 @@ std::shared_ptr<FShaderResource> FShaderResource::GetOrCompile(
 		SetContentDir(Temp.c_str());
 	}
 
-	std::wstring Key = std::wstring(FilePath) + L"|" + std::wstring(EntryPoint, EntryPoint + strlen(EntryPoint));
+	const std::wstring Key = MakeCacheKey(FilePath, EntryPoint, Target);
 
 	auto It = Cache.find(Key);
 	if (It != Cache.end())
@@ -143,7 +215,7 @@ std::shared_ptr<FShaderResource> FShaderResource::GetOrCompile(
 		return It->second;
 	}
 
-	std::wstring CsoPath = MakeCsoPath(FilePath, EntryPoint);
+	const std::wstring CsoPath = MakeCsoPath(FilePath, EntryPoint, Target);
 
 	// .cso가 존재하고 hlsl보다 최신이면 cso에서 로드
 	if (!IsHlslNewer(FilePath, CsoPath.c_str()))

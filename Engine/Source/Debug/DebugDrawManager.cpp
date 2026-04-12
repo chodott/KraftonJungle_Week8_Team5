@@ -6,28 +6,56 @@
 #include "Object/Class.h"
 #include "World/World.h"
 
-void FDebugDrawManager::DrawLine(const FVector& Start, const FVector& End, const FVector4& Color)
+FWorldDebugDrawBucket* FDebugDrawManager::FindOrAddBucket(UWorld* World)
 {
-	Lines.push_back({ Start, End, Color });
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	return &WorldBuckets[World];
 }
 
-void FDebugDrawManager::DrawCube(const FVector& Center, const FVector& Extent, const FVector4& Color)
+const FWorldDebugDrawBucket* FDebugDrawManager::FindBucket(UWorld* World) const
 {
-	Cubes.push_back({ Center, Extent, Color });
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	const auto Found = WorldBuckets.find(World);
+	return (Found != WorldBuckets.end()) ? &Found->second : nullptr;
 }
 
-void FDebugDrawManager::DrawWorldAxis(float Length)
+void FDebugDrawManager::AppendWorldAxis(FDebugPrimitiveList& OutPrimitives, float AxisLength)
 {
-	(void)Length;
-	bDrawWorldAxis = true;
+	OutPrimitives.Lines.push_back({ { 0, 0, 0 }, { AxisLength, 0, 0 }, { 1, 0, 0, 1 } });
+	OutPrimitives.Lines.push_back({ { 0, 0, 0 }, { 0, AxisLength, 0 }, { 0, 1, 0, 1 } });
+	OutPrimitives.Lines.push_back({ { 0, 0, 0 }, { 0, 0, AxisLength }, { 0, 0, 1, 1 } });
 }
 
-void FDebugDrawManager::BuildRenderRequest(
+void FDebugDrawManager::DrawLine(UWorld* World, const FVector& Start, const FVector& End, const FVector4& Color)
+{
+	if (FWorldDebugDrawBucket* Bucket = FindOrAddBucket(World))
+	{
+		Bucket->Lines.push_back({ Start, End, Color });
+	}
+}
+
+void FDebugDrawManager::DrawCube(UWorld* World, const FVector& Center, const FVector& Extent, const FVector4& Color)
+{
+	if (FWorldDebugDrawBucket* Bucket = FindOrAddBucket(World))
+	{
+		Bucket->Cubes.push_back({ Center, Extent, Color });
+	}
+}
+
+void FDebugDrawManager::BuildPrimitiveList(
 	const FShowFlags& ShowFlags,
 	UWorld* World,
-	FDebugLineRenderRequest& OutRequest) const
+	FDebugPrimitiveList& OutPrimitives) const
 {
-	// 엔진 쪽 수집 데이터는 여기서만 feature가 이해하는 request 형식으로 변환한다.
+	OutPrimitives.Clear();
 	if (!ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw))
 	{
 		return;
@@ -35,35 +63,37 @@ void FDebugDrawManager::BuildRenderRequest(
 
 	if (ShowFlags.HasFlag(EEngineShowFlags::SF_Collision) && World)
 	{
-		DrawAllCollisionBounds(World, OutRequest);
+		DrawAllCollisionBounds(World, OutPrimitives);
 	}
 
-	for (const FDebugCube& Cube : Cubes)
+	if (const FWorldDebugDrawBucket* Bucket = FindBucket(World))
 	{
-		FDebugLineRenderFeature::AddCube(OutRequest, Cube.Center, Cube.Extent, Cube.Color);
-	}
-
-	for (const FDebugLine& Line : Lines)
-	{
-		FDebugLineRenderFeature::AddLine(OutRequest, Line.Start, Line.End, Line.Color);
+		OutPrimitives.Cubes.insert(OutPrimitives.Cubes.end(), Bucket->Cubes.begin(), Bucket->Cubes.end());
+		OutPrimitives.Lines.insert(OutPrimitives.Lines.end(), Bucket->Lines.begin(), Bucket->Lines.end());
 	}
 
 	if (ShowFlags.HasFlag(EEngineShowFlags::SF_WorldAxis))
 	{
-		FDebugLineRenderFeature::AddLine(OutRequest, { 0, 0, 0 }, { 1000, 0, 0 }, { 1, 0, 0, 1 });
-		FDebugLineRenderFeature::AddLine(OutRequest, { 0, 0, 0 }, { 0, 1000, 0 }, { 0, 1, 0, 1 });
-		FDebugLineRenderFeature::AddLine(OutRequest, { 0, 0, 0 }, { 0, 0, 1000 }, { 0, 0, 1, 1 });
+		AppendWorldAxis(OutPrimitives, 1000.0f);
 	}
+}
+
+void FDebugDrawManager::ReleaseWorld(UWorld* World)
+{
+	if (!World)
+	{
+		return;
+	}
+
+	WorldBuckets.erase(World);
 }
 
 void FDebugDrawManager::Clear()
 {
-	Lines.clear();
-	Cubes.clear();
-	bDrawWorldAxis = false;
+	WorldBuckets.clear();
 }
 
-void FDebugDrawManager::DrawAllCollisionBounds(UWorld* World, FDebugLineRenderRequest& OutRequest) const
+void FDebugDrawManager::DrawAllCollisionBounds(UWorld* World, FDebugPrimitiveList& OutPrimitives) const
 {
 	// 충돌 디버그 가시화는 월드의 프리미티브 컴포넌트를 순회하며 바운드를 선분으로 바꾼다.
 	TArray<AActor*> AllActors = World->GetAllActors();
@@ -90,7 +120,7 @@ void FDebugDrawManager::DrawAllCollisionBounds(UWorld* World, FDebugLineRenderRe
 			const FBoxSphereBounds Bounds = PrimitiveComponent->GetWorldBounds();
 			if (Bounds.BoxExtent.SizeSquared() > 0.0f)
 			{
-				FDebugLineRenderFeature::AddCube(OutRequest, Bounds.Center, Bounds.BoxExtent, FVector4(1.0f, 0.0f, 0.0f, 1.0f));
+				OutPrimitives.Cubes.push_back({ Bounds.Center, Bounds.BoxExtent, FVector4(1.0f, 0.0f, 0.0f, 1.0f) });
 			}
 		}
 	}

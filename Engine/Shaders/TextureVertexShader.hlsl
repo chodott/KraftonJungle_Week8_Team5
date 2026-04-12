@@ -1,4 +1,6 @@
-#include "ShaderCommon.hlsli"
+#include "FrameCommon.hlsli"
+#include "ObjectCommon.hlsli"
+#include "MeshVertexCommon.hlsli"
 
 // Material 상수 버퍼 (b2) — VS에서 사용
 cbuffer MaterialData : register(b2)

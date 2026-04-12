@@ -92,8 +92,8 @@ struct FViewportLocalState
 	FVector Position = FVector(0, 0, -5);
 	FRotator Rotation = FRotator::ZeroRotator;
 	float FovY = 60.f;
-	float NearPlane = 0.001f;
-	float FarPlane = 10000.f;
+	float NearPlane = 0.1f;
+	float FarPlane = 1000.f;
 
 	FVector OrthoTarget = FVector::ZeroVector;
 	float OrthoZoom = 1000.f;

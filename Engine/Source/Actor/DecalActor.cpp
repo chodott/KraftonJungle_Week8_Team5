@@ -8,6 +8,8 @@ IMPLEMENT_RTTI(ADecalActor, AActor)
 
 void ADecalActor::PostSpawnInitialize()
 {
+	bTickInEditor = true;
+
 	DecalComponent = FObjectFactory::ConstructObject<UDecalComponent>(this, "DecalComponent");
 	AddOwnedComponent(DecalComponent);
 

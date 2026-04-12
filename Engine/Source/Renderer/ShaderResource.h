@@ -5,6 +5,7 @@
 #include <string>
 #include <unordered_map>
 #include <memory>
+#include <vector>
 
 class ENGINE_API FShaderResource
 {
@@ -29,7 +30,8 @@ private:
 	FShaderResource() = default;
 
 	// .cso 파일 경로 생성 (Content/Shaders/VertexShader_main.cso)
-	static std::wstring MakeCsoPath(const wchar_t* HlslPath, const char* EntryPoint);
+	static std::wstring MakeCacheKey(const wchar_t* HlslPath, const char* EntryPoint, const char* Target);
+	static std::wstring MakeCsoPath(const wchar_t* HlslPath, const char* EntryPoint, const char* Target);
 
 	// hlsl이 cso보다 최신인지 확인
 	static bool IsHlslNewer(const wchar_t* HlslPath, const wchar_t* CsoPath);

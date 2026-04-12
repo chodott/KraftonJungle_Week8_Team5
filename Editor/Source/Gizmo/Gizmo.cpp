@@ -7,7 +7,7 @@
 #include "Picking/Picker.h"
 #include "Primitive/PrimitiveGizmo.h"
 #include "Primitive/UnrealEditorStyledGizmo.h"
-#include "Renderer/RenderCommand.h"
+#include "Renderer/MeshBatch.h"
 #include "Renderer/Material.h"
 #include "Renderer/MaterialManager.h"
 #include "Level/Level.h"
@@ -227,7 +227,7 @@ void FGizmo::CycleMode()
 	EndDrag();
 }
 
-void FGizmo::BuildRenderCommands(AActor* SelectedActor, const FViewportEntry* Entry, FRenderCommandQueue& OutQueue) const
+void FGizmo::BuildMeshBatches(AActor* SelectedActor, const FViewportEntry* Entry, TArray<FMeshBatch>& OutBatches) const
 {
 	if (!SelectedActor || SelectedActor->IsPendingDestroy() || !Entry)
 	{
@@ -240,9 +240,10 @@ void FGizmo::BuildRenderCommands(AActor* SelectedActor, const FViewportEntry* En
 	const FQuat GizmoRotation = GetGizmoRotation(SelectedActor);
 	const FMatrix AxisGizmoWorld = FTransform(GizmoRotation, WorldLocation, FVector(RenderGizmoScale, RenderGizmoScale, RenderGizmoScale)).ToMatrixWithScale();
 	const FMatrix ScreenGizmoWorld = FTransform(FQuat::Identity, WorldLocation, FVector(RenderGizmoScale, RenderGizmoScale, RenderGizmoScale)).ToMatrixWithScale();
-	FRenderCommand Command;
-	Command.WorldMatrix = AxisGizmoWorld;
-	Command.RenderLayer = ERenderLayer::Overlay;
+	FMeshBatch Command;
+	Command.World = AxisGizmoWorld;
+	Command.Domain = EMaterialDomain::Overlay;
+	Command.PassMask = static_cast<uint32>(EMeshPassMask::Overlay);
 	Command.Material = Material.get();
 	Command.bDisableDepthTest = true;
 	Command.bDisableDepthWrite = true;
@@ -256,9 +257,9 @@ void FGizmo::BuildRenderCommands(AActor* SelectedActor, const FViewportEntry* En
 		{
 			return;
 		}
-		Command.RenderMesh = FTranslationGizmo->GetRenderMesh();
-		Command.RenderMeshOwner.reset();
-		OutQueue.AddCommand(Command);
+		Command.Mesh = FTranslationGizmo->GetRenderMesh();
+		Command.MeshOwner.reset();
+		OutBatches.push_back(Command);
 		break;
 
 	case EGizmoMode::Rotation:
@@ -273,18 +274,18 @@ void FGizmo::BuildRenderCommands(AActor* SelectedActor, const FViewportEntry* En
 				continue;
 			}
 
-			Command.WorldMatrix = AxisGizmoWorld;
-			Command.RenderMesh = AxisMesh.get();
-			Command.RenderMeshOwner = AxisMesh;
-			OutQueue.AddCommand(Command);
+			Command.World = AxisGizmoWorld;
+			Command.Mesh = AxisMesh.get();
+			Command.MeshOwner = AxisMesh;
+			OutBatches.push_back(Command);
 		}
 
 		if (RotationScreenMesh)
 		{
-			Command.WorldMatrix = ScreenGizmoWorld;
-			Command.RenderMesh = RotationScreenMesh.get();
-			Command.RenderMeshOwner = RotationScreenMesh;
-			OutQueue.AddCommand(Command);
+			Command.World = ScreenGizmoWorld;
+			Command.Mesh = RotationScreenMesh.get();
+			Command.MeshOwner = RotationScreenMesh;
+			OutBatches.push_back(Command);
 		}
 		break;
 
@@ -293,9 +294,9 @@ void FGizmo::BuildRenderCommands(AActor* SelectedActor, const FViewportEntry* En
 		{
 			return;
 		}
-		Command.RenderMesh = FScaleGizmo->GetRenderMesh();
-		Command.RenderMeshOwner.reset();
-		OutQueue.AddCommand(Command);
+		Command.Mesh = FScaleGizmo->GetRenderMesh();
+		Command.MeshOwner.reset();
+		OutBatches.push_back(Command);
 		break;
 
 	default:
@@ -314,11 +315,11 @@ void FGizmo::BuildRenderCommands(AActor* SelectedActor, const FViewportEntry* En
 
 			if (HighlightMeshSlot)
 			{
-				FRenderCommand HighlightCommand = Command;
-				HighlightCommand.WorldMatrix = HighlightWorldMatrix;
-				HighlightCommand.RenderMesh = HighlightMeshSlot.get();
-				HighlightCommand.RenderMeshOwner = HighlightMeshSlot;
-				OutQueue.AddCommand(HighlightCommand);
+				FMeshBatch HighlightCommand = Command;
+				HighlightCommand.World = HighlightWorldMatrix;
+				HighlightCommand.Mesh = HighlightMeshSlot.get();
+				HighlightCommand.MeshOwner = HighlightMeshSlot;
+				OutBatches.push_back(HighlightCommand);
 			}
 		};
 

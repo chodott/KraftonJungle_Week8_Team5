@@ -1,4 +1,6 @@
-#include "ShaderCommon.hlsli"
+#include "FrameCommon.hlsli"
+#include "ObjectCommon.hlsli"
+#include "MeshVertexCommon.hlsli"
 
 VS_OUTPUT main(VS_INPUT Input)
 {

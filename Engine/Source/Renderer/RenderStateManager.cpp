@@ -1,75 +1,82 @@
 #include "RenderStateManager.h"
-#include "RenderState.h"
+
+#include <vector>
 
 void FRenderStateManager::PrepareCommonStates()
 {
-	// 예: Solid/Wireframe x Cull None/Back/Front
-	D3D11_FILL_MODE fills[] = { D3D11_FILL_SOLID, D3D11_FILL_WIREFRAME };
-	D3D11_CULL_MODE culls[] = { D3D11_CULL_NONE, D3D11_CULL_FRONT, D3D11_CULL_BACK };
+	const D3D11_FILL_MODE FillModes[] = { D3D11_FILL_SOLID, D3D11_FILL_WIREFRAME };
+	const D3D11_CULL_MODE CullModes[] = { D3D11_CULL_NONE, D3D11_CULL_FRONT, D3D11_CULL_BACK };
 
-	for (auto f : fills) {
-		for (auto c : culls) {
-			FRasterizerStateOption opt;
-			opt.FillMode = f;
-			opt.CullMode = c;
-			GetOrCreateRasterizerState(opt);
+	for (const D3D11_FILL_MODE FillMode : FillModes)
+	{
+		for (const D3D11_CULL_MODE CullMode : CullModes)
+		{
+			FRasterizerStateOption RasterOpt;
+			RasterOpt.FillMode = FillMode;
+			RasterOpt.CullMode = CullMode;
+			GetOrCreateRasterizerState(RasterOpt);
 		}
 	}
 
-	// 기본 블렌드 상태 (No Blend)
-	FBlendStateOption blendOpt;
-	GetOrCreateBlendState(blendOpt);
+	FBlendStateOption OpaqueBlendOpt;
+	GetOrCreateBlendState(OpaqueBlendOpt);
 
-	// 알파 블렌드 상태
-	blendOpt.BlendEnable = true;
-	blendOpt.SrcBlend = D3D11_BLEND_SRC_ALPHA;
-	blendOpt.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-	blendOpt.BlendOp = D3D11_BLEND_OP_ADD;
-	blendOpt.SrcBlendAlpha = D3D11_BLEND_ONE;
-	blendOpt.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-	blendOpt.BlendOpAlpha = D3D11_BLEND_OP_ADD;
-	GetOrCreateBlendState(blendOpt);
+	FBlendStateOption AlphaBlendOpt;
+	AlphaBlendOpt.BlendEnable = true;
+	AlphaBlendOpt.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	AlphaBlendOpt.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	AlphaBlendOpt.BlendOp = D3D11_BLEND_OP_ADD;
+	AlphaBlendOpt.SrcBlendAlpha = D3D11_BLEND_ONE;
+	AlphaBlendOpt.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	AlphaBlendOpt.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	GetOrCreateBlendState(AlphaBlendOpt);
 }
 
 std::shared_ptr<FRasterizerState> FRenderStateManager::GetOrCreateRasterizerState(const FRasterizerStateOption& opt)
 {
-	uint32 key = opt.ToKey();
-	auto it = RasterizerStateMap.find(key);
-	if (it != RasterizerStateMap.end()) {
-		return it->second;
+	const uint32 Key = opt.ToKey();
+	auto It = RasterizerStateMap.find(Key);
+	if (It != RasterizerStateMap.end())
+	{
+		return It->second;
 	}
-	auto state = FRasterizerState::Create(Device, opt);
-	RasterizerStateMap[key] = state;
-	return state;
+
+	std::shared_ptr<FRasterizerState> State = FRasterizerState::Create(Device, opt);
+	RasterizerStateMap[Key] = State;
+	return State;
 }
 
 std::shared_ptr<FDepthStencilState> FRenderStateManager::GetOrCreateDepthStencilState(const FDepthStencilStateOption& opt)
 {
-	uint32 key = opt.ToKey();
-	auto it = DepthStencilStateMap.find(key);
-	if (it != DepthStencilStateMap.end()) {
-		return it->second;
+	const uint32 Key = opt.ToKey();
+	auto It = DepthStencilStateMap.find(Key);
+	if (It != DepthStencilStateMap.end())
+	{
+		return It->second;
 	}
-	auto state = FDepthStencilState::Create(Device, opt);
-	DepthStencilStateMap[key] = state;
-	return state;
+
+	std::shared_ptr<FDepthStencilState> State = FDepthStencilState::Create(Device, opt);
+	DepthStencilStateMap[Key] = State;
+	return State;
 }
 
 std::shared_ptr<FBlendState> FRenderStateManager::GetOrCreateBlendState(const FBlendStateOption& opt)
 {
-	uint32 key = opt.ToKey();
-	auto it = BlendStateMap.find(key);
-	if (it != BlendStateMap.end()) {
-		return it->second;
+	const uint32 Key = opt.ToKey();
+	auto It = BlendStateMap.find(Key);
+	if (It != BlendStateMap.end())
+	{
+		return It->second;
 	}
-	auto state = FBlendState::Create(Device, opt);
-	BlendStateMap[key] = state;
-	return state;
+
+	std::shared_ptr<FBlendState> State = FBlendState::Create(Device, opt);
+	BlendStateMap[Key] = State;
+	return State;
 }
 
 void FRenderStateManager::BindState(std::shared_ptr<FRasterizerState> InRS)
 {
-	if (InRS != nullptr && CurrentRasterizerState != InRS)
+	if (InRS && CurrentRasterizerState != InRS)
 	{
 		InRS->Bind(DeviceContext);
 		CurrentRasterizerState = InRS;
@@ -78,25 +85,90 @@ void FRenderStateManager::BindState(std::shared_ptr<FRasterizerState> InRS)
 
 void FRenderStateManager::BindState(std::shared_ptr<FDepthStencilState> InDSS)
 {
-	if (InDSS != nullptr && CurrentDepthStencilState != InDSS)
-	{
-		InDSS->Bind(DeviceContext);
-		CurrentDepthStencilState = InDSS;
-	}
+	BindDepthStencilState(InDSS, CurrentStencilRef);
 }
 
 void FRenderStateManager::BindState(std::shared_ptr<FBlendState> InBS)
 {
-	if (InBS != nullptr && CurrentBlendState != InBS)
+	BindBlendState(InBS, CurrentBlendFactor, CurrentSampleMask);
+}
+
+void FRenderStateManager::BindDepthStencilState(std::shared_ptr<FDepthStencilState> InDSS, uint32 StencilRef)
+{
+	const bool bStencilRefChanged = CurrentStencilRef != StencilRef;
+	CurrentStencilRef = StencilRef;
+	if (!InDSS)
 	{
-		InBS->Bind(DeviceContext);
+		return;
+	}
+
+	if (CurrentDepthStencilState == InDSS && !bStencilRefChanged)
+	{
+		return;
+	}
+
+	InDSS->Bind(DeviceContext, StencilRef);
+	CurrentDepthStencilState = InDSS;
+}
+
+void FRenderStateManager::BindBlendState(std::shared_ptr<FBlendState> InBS, const float BlendFactor[4], uint32 SampleMask)
+{
+	const bool bSampleMaskChanged = CurrentSampleMask != SampleMask;
+	bool bBlendFactorChanged = false;
+	float ResolvedBlendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	CurrentSampleMask = SampleMask;
+	if (BlendFactor)
+	{
+		for (int32 Index = 0; Index < 4; ++Index)
+		{
+			ResolvedBlendFactor[Index] = BlendFactor[Index];
+			bBlendFactorChanged = bBlendFactorChanged || CurrentBlendFactor[Index] != BlendFactor[Index];
+			CurrentBlendFactor[Index] = BlendFactor[Index];
+		}
+	}
+	else
+	{
+		for (int32 Index = 0; Index < 4; ++Index)
+		{
+			ResolvedBlendFactor[Index] = CurrentBlendFactor[Index];
+		}
+	}
+
+	if (InBS && (CurrentBlendState != InBS || bSampleMaskChanged || bBlendFactorChanged))
+	{
+		InBS->Bind(DeviceContext, ResolvedBlendFactor, CurrentSampleMask);
 		CurrentBlendState = InBS;
 	}
 }
 
+void FRenderStateManager::SetRenderTargets(uint32 NumRTs, ID3D11RenderTargetView* const* RTVs, ID3D11DepthStencilView* DSV)
+{
+	DeviceContext->OMSetRenderTargets(NumRTs, RTVs, DSV);
+}
+
+void FRenderStateManager::ClearShaderResourcesPS(uint32 StartSlot, uint32 Count)
+{
+	if (Count == 0)
+	{
+		return;
+	}
+
+	std::vector<ID3D11ShaderResourceView*> NullSRVs(Count, nullptr);
+	DeviceContext->PSSetShaderResources(StartSlot, Count, NullSRVs.data());
+}
+
 void FRenderStateManager::RebindState()
 {
-	if (CurrentRasterizerState) CurrentRasterizerState->Bind(DeviceContext);
-	if (CurrentDepthStencilState) CurrentDepthStencilState->Bind(DeviceContext);
-	if (CurrentBlendState) CurrentBlendState->Bind(DeviceContext);
+	if (CurrentRasterizerState)
+	{
+		CurrentRasterizerState->Bind(DeviceContext);
+	}
+	if (CurrentDepthStencilState)
+	{
+		CurrentDepthStencilState->Bind(DeviceContext, CurrentStencilRef);
+	}
+	if (CurrentBlendState)
+	{
+		CurrentBlendState->Bind(DeviceContext, CurrentBlendFactor, CurrentSampleMask);
+	}
 }

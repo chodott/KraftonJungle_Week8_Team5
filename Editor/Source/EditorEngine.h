@@ -78,7 +78,6 @@ public:
 	FSlateApplication* GetSlateApplication() const { return SlateApplication.get(); }
 	FWindowsWindow* GetMainWindow() const { return MainWindow; }
 	// 현재 에디터 show flag와 선택 상태를 반영한 디버그 라인 요청을 만든다.
-	void BuildDebugLineRenderRequest(const FShowFlags& ShowFlags, FDebugLineRenderRequest& OutRequest);
 	// 프레임 동안 누적된 디버그 드로우 데이터를 비운다.
 	void ClearDebugDrawForFrame();
 	// 초기 에디터 오버레이 UI를 생성한다.
@@ -163,7 +162,6 @@ private:
 	// 활성 월드 종류에 따라 Editor/Preview ViewportClient를 전환한다.
 	void SyncViewportClient();
 	// 선택된 액터의 BVH를 디버그 라인 요청에 추가한다.
-	void AppendSelectedBVH(FDebugLineRenderRequest& InOutRequest) const;
 
 	FEditorUI EditorUI;
 	std::unique_ptr<FPreviewViewportClient> PreviewViewportClient;

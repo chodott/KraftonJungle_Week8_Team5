@@ -14,7 +14,6 @@
 #include "Physics/PhysicsManager.h"
 #include "Renderer/MaterialManager.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/RenderCommand.h"
 #include "Level/Level.h"
 #include "ViewportClient.h"
 #include "World/World.h"
@@ -393,6 +392,7 @@ void FEngine::DestroyWorldContext(FWorldContext* Context)
 
 	if (Context->World)
 	{
+		DebugDrawManager.ReleaseWorld(Context->World);
 		Context->World->EndPlay();
 		Context->World->CleanupWorld();
 		Context->World->MarkPendingKill();
@@ -464,9 +464,6 @@ void FEngine::RenderFrame()
 		ActiveViewportClient->Render(this, Renderer.get());
 	}
 
-	FDebugLineRenderRequest DebugLineRequest;
-	DebugDrawManager.BuildRenderRequest(FShowFlags{}, GetActiveWorld(), DebugLineRequest);
-	Renderer->RenderDebugLines(DebugLineRequest);
 	DebugDrawManager.Clear();
 	Renderer->EndFrame();
 }

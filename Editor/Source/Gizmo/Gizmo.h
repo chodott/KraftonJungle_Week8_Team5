@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Primitive/PrimitiveGizmo.h"
 #include "EngineAPI.h"
+#include "Renderer/MeshBatch.h"
 #include <memory>
 
 class AActor;
@@ -12,7 +13,6 @@ struct FRotationGizmoDesc;
 struct FDynamicMesh;
 class FMaterial;
 class FMaterialManager;
-struct FRenderCommandQueue;
 struct FRay;
 struct FViewportEntry;
 
@@ -53,7 +53,7 @@ public:
 	EGizmoCoordinateSpace GetCoordinateSpace() const { return CoordinateSpace; }
 	void ToggleCoordinateSpace();
 
-	void BuildRenderCommands(AActor* SelectedActor, const FViewportEntry* Entry, FRenderCommandQueue& OutQueue) const;
+	void BuildMeshBatches(AActor* SelectedActor, const FViewportEntry* Entry, TArray<FMeshBatch>& OutBatches) const;
 	bool BeginDrag(AActor* SelectedActor, const FViewportEntry* Entry, const FPicker& Picker, int32 ScreenX, int32 ScreenY);
 	bool UpdateDrag(AActor* SelectedActor, const FViewportEntry* Entry, const FPicker& Picker, int32 ScreenX, int32 ScreenY);
 	void UpdateHover(AActor* SelectedActor, const FViewportEntry* Entry, const FPicker& Picker, int32 ScreenX, int32 ScreenY);

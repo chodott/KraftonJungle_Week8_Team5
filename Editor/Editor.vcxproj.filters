@@ -75,10 +75,19 @@
     <ClCompile Include="Source\Slate\FpsStatWidget.cpp">
       <Filter>Source\Slate</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Slate\LayoutToolbarWidget.cpp">
+      <Filter>Source\Slate</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Slate\SlateApplication.cpp">
       <Filter>Source\Slate</Filter>
     </ClCompile>
     <ClCompile Include="Source\Slate\TransformWidget.cpp">
+      <Filter>Source\Slate</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Slate\ViewportChromeWidget.cpp">
+      <Filter>Source\Slate</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Slate\ViewportHost.cpp">
       <Filter>Source\Slate</Filter>
     </ClCompile>
     <ClCompile Include="Source\Slate\ViewportToolbar.cpp">
@@ -109,6 +118,9 @@
       <Filter>Source\Slate\Widget</Filter>
     </ClCompile>
     <ClCompile Include="Source\Slate\Widget\TextBlock.cpp">
+      <Filter>Source\Slate\Widget</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Slate\Widget\Toolbar.cpp">
       <Filter>Source\Slate\Widget</Filter>
     </ClCompile>
     <ClCompile Include="Source\Slate\Widget\VerticalBox.cpp">
@@ -189,10 +201,6 @@
     <ClCompile Include="ThirdParty\imgui\imgui_widgets.cpp">
       <Filter>ThirdParty\imgui</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Slate\Widget\Toolbar.cpp" />
-    <ClCompile Include="Source\Slate\LayoutToolbarWidget.cpp" />
-    <ClCompile Include="Source\Slate\ViewportChromeWidget.cpp" />
-    <ClCompile Include="Source\Slate\ViewportHost.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\EditorEngine.h">
@@ -222,10 +230,19 @@
     <ClInclude Include="Source\Slate\FpsStatWidget.h">
       <Filter>Source\Slate</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Slate\LayoutToolbarWidget.h">
+      <Filter>Source\Slate</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Slate\SlateApplication.h">
       <Filter>Source\Slate</Filter>
     </ClInclude>
     <ClInclude Include="Source\Slate\TransformWidget.h">
+      <Filter>Source\Slate</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Slate\ViewportChromeWidget.h">
+      <Filter>Source\Slate</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Slate\ViewportHost.h">
       <Filter>Source\Slate</Filter>
     </ClInclude>
     <ClInclude Include="Source\Slate\ViewportToolbar.h">
@@ -258,6 +275,9 @@
     <ClInclude Include="Source\Slate\Widget\Slot.h">
       <Filter>Source\Slate\Widget</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Slate\Widget\Spacer.h">
+      <Filter>Source\Slate\Widget</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Slate\Widget\Splitter.h">
       <Filter>Source\Slate\Widget</Filter>
     </ClInclude>
@@ -270,10 +290,19 @@
     <ClInclude Include="Source\Slate\Widget\TextBlock.h">
       <Filter>Source\Slate\Widget</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Slate\Widget\TextMetrics.h">
+      <Filter>Source\Slate\Widget</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Slate\Widget\Toolbar.h">
+      <Filter>Source\Slate\Widget</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Slate\Widget\VerticalBox.h">
       <Filter>Source\Slate\Widget</Filter>
     </ClInclude>
     <ClInclude Include="Source\Slate\Widget\Widget.h">
+      <Filter>Source\Slate\Widget</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Slate\Widget\WidgetHelpers.h">
       <Filter>Source\Slate\Widget</Filter>
     </ClInclude>
     <ClInclude Include="Source\Slate\Widget\Window.h">
@@ -357,13 +386,6 @@
     <ClInclude Include="ThirdParty\imgui\imstb_truetype.h">
       <Filter>ThirdParty\imgui</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Slate\Widget\Spacer.h" />
-    <ClInclude Include="Source\Slate\Widget\Toolbar.h" />
-    <ClInclude Include="Source\Slate\LayoutToolbarWidget.h" />
-    <ClInclude Include="Source\Slate\ViewportChromeWidget.h" />
-    <ClInclude Include="Source\Slate\ViewportHost.h" />
-    <ClInclude Include="Source\Slate\Widget\WidgetHelpers.h" />
-    <ClInclude Include="Source\Slate\Widget\TextMetrics.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ThirdParty\imgui\imgui.natstepfilter">

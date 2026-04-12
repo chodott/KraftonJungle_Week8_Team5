@@ -66,10 +66,10 @@ struct FDepthStencilState {
 	public:
 		~FDepthStencilState() = default;
 
-		static std::shared_ptr<FDepthStencilState> Create(
+	static std::shared_ptr<FDepthStencilState> Create(
 			ID3D11Device* InDevice, const FDepthStencilStateOption& InOption);
 
-		void Bind(ID3D11DeviceContext* InDeviceContext) const;
+		void Bind(ID3D11DeviceContext* InDeviceContext, uint32 StencilRef = 0) const;
 		void Release();
 
 	private:
@@ -109,7 +109,10 @@ public:
 	static std::shared_ptr<FBlendState> Create(
 		ID3D11Device* InDevice, const FBlendStateOption& InOption);
 
-	void Bind(ID3D11DeviceContext* InDeviceContext) const;
+	void Bind(
+		ID3D11DeviceContext* InDeviceContext,
+		const float* BlendFactor = nullptr,
+		uint32 SampleMask = 0xFFFFFFFF) const;
 	void Release();
 
 private:

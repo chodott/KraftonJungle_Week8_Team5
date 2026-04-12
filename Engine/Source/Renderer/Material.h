@@ -3,10 +3,33 @@
 #include "CoreMinimal.h"
 #include "RenderState.h"
 #include <d3d11.h>
+#include <array>
 #include <memory>
 
 class FVertexShader;
 class FPixelShader;
+
+enum class EMaterialPassType : uint8
+{
+	DepthOnly = 0,
+	GBuffer,
+	OutlineMask,
+	ForwardOpaque,
+	ForwardTransparent,
+	Overlay,
+	Count,
+};
+
+struct FMaterialPassShaders
+{
+	std::shared_ptr<FVertexShader> VS = nullptr;
+	std::shared_ptr<FPixelShader> PS = nullptr;
+
+	bool IsValid() const
+	{
+		return VS != nullptr || PS != nullptr;
+	}
+};
 
 struct FMaterialTexture
 {
@@ -122,6 +145,7 @@ public:
 
 	void SetVertexShader(const std::shared_ptr<FVertexShader>& InVS) { VertexShader = InVS; }
 	void SetPixelShader(const std::shared_ptr<FPixelShader>& InPS) { PixelShader = InPS; }
+	void SetPassShaders(EMaterialPassType PassType, const FMaterialPassShaders& InShaders);
 	void SetRasterizerOption(const FRasterizerStateOption InOption) { RasterizerOption = InOption; }
 	void SetRasterizerState(const std::shared_ptr<FRasterizerState> InState) { RasterizerState = InState; }
 	void SetDepthStencilOption(const FDepthStencilStateOption InOption) { DepthStencilOption = InOption; }
@@ -134,6 +158,7 @@ public:
 
 	FVertexShader* GetVertexShader() const { return VertexShader.get(); }
 	FPixelShader* GetPixelShader() const { return PixelShader.get(); }
+	const FMaterialPassShaders* GetPassShaders(EMaterialPassType PassType) const;
 	const FRasterizerStateOption& GetRasterizerOption() const { return RasterizerOption; }
 	const FDepthStencilStateOption& GetDepthStencilOption() const { return DepthStencilOption; }
 	const FBlendStateOption& GetBlendOption() const { return BlendOption; }
@@ -161,7 +186,7 @@ public:
 	std::unique_ptr<class FDynamicMaterial> CreateDynamicMaterial() const;
 
 	// 셰이더 바인딩 + Dirty 상수 버퍼 업로드 + 바인딩
-	void Bind(ID3D11DeviceContext* DeviceContext);
+	void Bind(ID3D11DeviceContext* DeviceContext, EMaterialPassType PassType = EMaterialPassType::ForwardOpaque);
 
 	void Release();
 
@@ -187,6 +212,8 @@ protected:
 	// Texture
 	std::shared_ptr<FMaterialTexture> MaterialTexture = nullptr;
 	FMaterialPixelTextureBinding PixelTextureBinding = {};
+	std::array<FMaterialPassShaders, static_cast<size_t>(EMaterialPassType::Count)> PassShaderMap = {};
+	std::array<bool, static_cast<size_t>(EMaterialPassType::Count)> bHasPassShaderMap = {};
 
 	TArray<FMaterialConstantBuffer> ConstantBuffers;
 	TMap<FString, FMaterialParameterInfo> ParameterMap;

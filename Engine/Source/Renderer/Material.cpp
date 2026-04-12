@@ -1,5 +1,6 @@
 #include "Material.h"
 #include "Shader.h"
+#include <cstdint>
 #include <cstring>
 
 
@@ -114,7 +115,37 @@ FMaterial::~FMaterial()
 
 uint64 FMaterial::GetSortId() const
 {
-	return ShaderId;
+	const uintptr_t VSKey = reinterpret_cast<uintptr_t>(VertexShader.get());
+	const uintptr_t PSKey = reinterpret_cast<uintptr_t>(PixelShader.get());
+	const uint64 ShaderKey = static_cast<uint64>((VSKey >> 4) ^ (PSKey >> 4));
+	const uint64 StateKey =
+		(static_cast<uint64>(RasterizerOption.ToKey()) << 32) ^
+		(static_cast<uint64>(DepthStencilOption.ToKey()) << 8) ^
+		static_cast<uint64>(BlendOption.ToKey());
+	return ShaderKey ^ StateKey ^ static_cast<uint64>(ShaderId);
+}
+
+void FMaterial::SetPassShaders(EMaterialPassType PassType, const FMaterialPassShaders& InShaders)
+{
+	const size_t PassIndex = static_cast<size_t>(PassType);
+	if (PassIndex >= PassShaderMap.size())
+	{
+		return;
+	}
+
+	PassShaderMap[PassIndex] = InShaders;
+	bHasPassShaderMap[PassIndex] = InShaders.IsValid();
+}
+
+const FMaterialPassShaders* FMaterial::GetPassShaders(EMaterialPassType PassType) const
+{
+	const size_t PassIndex = static_cast<size_t>(PassType);
+	if (PassIndex >= PassShaderMap.size() || !bHasPassShaderMap[PassIndex])
+	{
+		return nullptr;
+	}
+
+	return &PassShaderMap[PassIndex];
 }
 
 int32 FMaterial::CreateConstantBuffer(ID3D11Device* Device, uint32 InSize)
@@ -237,6 +268,8 @@ std::unique_ptr<FDynamicMaterial> FMaterial::CreateDynamicMaterial() const
 	Dynamic->BlendState = BlendState;
 	Dynamic->SetMaterialTexture(MaterialTexture);
 	Dynamic->PixelTextureBinding = PixelTextureBinding;
+	Dynamic->PassShaderMap = PassShaderMap;
+	Dynamic->bHasPassShaderMap = bHasPassShaderMap;
 
 	for (const auto& CB : ConstantBuffers)
 	{
@@ -275,10 +308,25 @@ bool FDynamicMaterial::SetVector3Parameter(const FString& ParamName, const FVect
 	return SetParameterData(ParamName, Data, sizeof(Data));
 }
 
-void FMaterial::Bind(ID3D11DeviceContext* DeviceContext)
+void FMaterial::Bind(ID3D11DeviceContext* DeviceContext, EMaterialPassType PassType)
 {
-	if (VertexShader) VertexShader->Bind(DeviceContext);
-	if (PixelShader) PixelShader->Bind(DeviceContext);
+	const FMaterialPassShaders* PassShaders = GetPassShaders(PassType);
+	const std::shared_ptr<FVertexShader>& BoundVS = PassShaders ? PassShaders->VS : VertexShader;
+	const std::shared_ptr<FPixelShader>& BoundPS = PassShaders ? PassShaders->PS : PixelShader;
+
+	if (BoundVS)
+	{
+		BoundVS->Bind(DeviceContext);
+	}
+	if (BoundPS)
+	{
+		BoundPS->Bind(DeviceContext);
+	}
+	else
+	{
+		DeviceContext->PSSetShader(nullptr, nullptr, 0);
+	}
+
 	if (MaterialTexture) MaterialTexture->Bind(DeviceContext);
 	if (PixelTextureBinding.IsValid())
 	{
@@ -308,6 +356,11 @@ void FMaterial::Release()
 	BlendState.reset();
 	PixelTextureBinding = {};
 	MaterialTexture.reset();
+	for (size_t PassIndex = 0; PassIndex < PassShaderMap.size(); ++PassIndex)
+	{
+		PassShaderMap[PassIndex] = {};
+		bHasPassShaderMap[PassIndex] = false;
+	}
 	for (auto& CB : ConstantBuffers)
 	{
 		CB.Release();

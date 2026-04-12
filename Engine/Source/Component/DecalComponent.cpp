@@ -10,8 +10,65 @@ IMPLEMENT_RTTI(UDecalComponent, UPrimitiveComponent)
 
 void UDecalComponent::PostConstruct()
 {
+	bCanEverTick = true;
+	bTickInEditor = true;
 	bDrawDebugBounds = false;
 	UpdateBounds();
+	FadeIn(FadeInDuration);
+}
+
+void UDecalComponent::Tick(float DeltaTime)
+{
+	UPrimitiveComponent::Tick(DeltaTime);
+
+	if (FadeState == EDecalFadeState::None)
+	{
+		return;
+	}
+
+	FadeElapsed += DeltaTime;
+	const float T = (FadeDuration > 0.0f)
+		? std::clamp(FadeElapsed / FadeDuration, 0.0f, 1.0f)
+		: 1.0f;
+
+	if (FadeState == EDecalFadeState::FadeIn)
+	{
+		BaseColorTint.A = T;
+		if (T >= 1.0f)
+		{
+			FadeState = EDecalFadeState::None;
+		}
+	}
+	else // FadeOut
+	{
+		BaseColorTint.A = 1.0f - T;
+		if (T >= 1.0f)
+		{
+			FadeState = EDecalFadeState::None;
+			if (bDisableOnFadeOutComplete)
+			{
+				bEnabled = false;
+			}
+		}
+	}
+}
+
+void UDecalComponent::FadeIn(float Duration)
+{
+	bEnabled = true;
+	FadeState = EDecalFadeState::FadeIn;
+	FadeDuration = Duration;
+	FadeElapsed = 0.0f;
+	BaseColorTint.A = 0.0f;
+}
+
+void UDecalComponent::FadeOut(float Duration, bool bDisableOnComplete)
+{
+	FadeState = EDecalFadeState::FadeOut;
+	FadeDuration = Duration;
+	FadeElapsed = 0.0f;
+	bDisableOnFadeOutComplete = bDisableOnComplete;
+	BaseColorTint.A = 1.0f;
 }
 
 FBoxSphereBounds UDecalComponent::GetLocalBounds() const
@@ -38,7 +95,6 @@ void UDecalComponent::Serialize(FArchive& Ar)
 	Ar.Serialize("UVMin", UVMin);
 	Ar.Serialize("UVMax", UVMax);
 	Ar.Serialize("TexturePath", TexturePathString);
-	Ar.Serialize("TextureIndex", TextureIndex);
 	Ar.Serialize("RenderFlags", RenderFlags);
 	Ar.Serialize("Priority", Priority);
 	Ar.Serialize("ReceiverLayerMask", ReceiverLayerMask);
@@ -67,6 +123,8 @@ void UDecalComponent::Serialize(FArchive& Ar)
 			? std::wstring()
 			: FPaths::ToWide(FPaths::ToAbsolutePath(TexturePathString));
 
+		TextureIndex = 0;
+
 		BaseColorTint = FLinearColor(
 			BaseColorTintVector.X,
 			BaseColorTintVector.Y,
@@ -92,7 +150,7 @@ void UDecalComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateCont
 	DuplicatedDecalComponent->UVMin = UVMin;
 	DuplicatedDecalComponent->UVMax = UVMax;
 	DuplicatedDecalComponent->TexturePath = TexturePath;
-	DuplicatedDecalComponent->TextureIndex = TextureIndex;
+	DuplicatedDecalComponent->TextureIndex = 0;
 	DuplicatedDecalComponent->RenderFlags = RenderFlags;
 	DuplicatedDecalComponent->Priority = Priority;
 	DuplicatedDecalComponent->ReceiverLayerMask = ReceiverLayerMask;

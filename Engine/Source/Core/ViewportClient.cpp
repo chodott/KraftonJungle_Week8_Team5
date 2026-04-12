@@ -1,4 +1,4 @@
-﻿#include "ViewportClient.h"
+#include "ViewportClient.h"
 #include "World/World.h"
 #include "Input/InputManager.h"
 #include "Camera/Camera.h"
@@ -12,6 +12,7 @@
 #include "Component/HeightFogComponent.h"
 #include "Math/Frustum.h"
 #include "Component/PrimitiveComponent.h"
+#include "ShowFlags.h"
 
 namespace
 {
@@ -188,8 +189,12 @@ void FGameViewportClient::Render(FEngine* Engine, FRenderer* Renderer)
 	FrameRequest.SceneView.NearZ = ActiveCamera->GetNearPlane();
 	FrameRequest.SceneView.FarZ = ActiveCamera->GetFarPlane();
 	FrameRequest.SceneView.TotalTimeSeconds = Engine ? static_cast<float>(Engine->GetTimer().GetTotalTime()) : 0.0f;
-	BuildSceneRenderPacket(Engine, ActiveWorld, Frustum, FShowFlags{}, ScenePacket);
+	const FShowFlags ShowFlags = {};
+	BuildSceneRenderPacket(Engine, ActiveWorld, Frustum, ShowFlags, ScenePacket);
 	FrameRequest.ScenePacket = std::move(ScenePacket);
+	FrameRequest.DebugInputs.DrawManager = &Engine->GetDebugDrawManager();
+	FrameRequest.DebugInputs.World = ActiveWorld;
+	FrameRequest.DebugInputs.ShowFlags = ShowFlags;
 
 	// 실제 씬 실행과 프레임 순서는 FRenderer 내부 서브시스템이 담당한다.
 	Renderer->RenderGameFrame(FrameRequest);

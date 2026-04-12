@@ -8,8 +8,8 @@ FViewportLocalState FViewportLocalState::CreateDefault(EViewportType Type)
 	FViewportLocalState State;
 	State.ProjectionType = Type;
 
-	State.NearPlane = 0.001f;
-	State.FarPlane = 10000.0f;
+	State.NearPlane = 0.1f;
+	State.FarPlane = 1000.0f;
 	State.FovY = 60.0f;
 
 	State.OrthoTarget = FVector::ZeroVector + FVector(0.0f, 0.0f, 1.0f);

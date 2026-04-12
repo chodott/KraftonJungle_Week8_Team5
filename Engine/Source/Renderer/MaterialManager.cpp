@@ -112,6 +112,7 @@ std::shared_ptr<FMaterial> FMaterialManager::LoadFromFile(
 
 	// Material 객체를 생성한다.
 	auto Mat = std::make_shared<FMaterial>();
+	bool bTexturedMaterial = false;
 
 	// 셰이더 경로를 읽어 필요한 버텍스/픽셀 셰이더를 연결한다.
 	if (Json.contains("VertexShader"))
@@ -209,6 +210,7 @@ std::shared_ptr<FMaterial> FMaterialManager::LoadFromFile(
 		// "Diffuse" 슬롯에 지정된 텍스처를 머티리얼 텍스처로 로드한다.
 		if (TexturesJson.contains("Diffuse"))
 		{
+			bTexturedMaterial = true;
 			FString TexRelPath = TexturesJson["Diffuse"].get<FString>();
 			std::filesystem::path FullTexPath = FPaths::AssetDir() / FPaths::ToPath(TexRelPath);
 
@@ -353,6 +355,10 @@ std::shared_ptr<FMaterial> FMaterialManager::LoadFromFile(
 	}
 
 	// 경로 캐시에 등록한다.
+	if (GEngine && GEngine->GetRenderer())
+	{
+		GEngine->GetRenderer()->ConfigureMaterialPasses(*Mat, bTexturedMaterial);
+	}
 	PathCache[InFilePath] = Mat;
 
 	if (Json.contains("Name"))

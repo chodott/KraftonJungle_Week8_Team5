@@ -1,14 +1,14 @@
 #include "Renderer/ScreenUIRenderer.h"
 
+#include "Renderer/FullscreenPass.h"
 #include "Renderer/Material.h"
-#include "Renderer/MeshData.h"
-#include "Renderer/RenderMesh.h"
+#include "Renderer/RenderFeatureInterfaces.h"
 #include "Renderer/RenderStateManager.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/RenderFeatureInterfaces.h"
+
 #include <algorithm>
-#include <cmath>
 #include <cfloat>
+#include <cmath>
 #include <limits>
 
 namespace
@@ -243,25 +243,14 @@ bool FScreenUIRenderer::DrawBatchCommand(FRenderer& Renderer, const FUIBatchComm
 	return true;
 }
 
-FScreenUIRenderer::~FScreenUIRenderer()
-{
-	ResetFrame();
-}
-
-void FScreenUIRenderer::ResetFrame()
-{
-	UIBatch.Clear();
-	FrameMeshes.clear();
-}
-
-FDynamicMesh* FScreenUIRenderer::CreateFrameMesh(EMeshTopology Topology)
+FDynamicMesh* FScreenUIRenderer::CreateFrameMesh(FScreenUIPassInputs& PassInputs, EMeshTopology Topology)
 {
 	auto Mesh = std::make_unique<FDynamicMesh>();
 	Mesh->Topology = Topology;
 	Mesh->bIsDirty = true;
 
 	FDynamicMesh* RawMesh = Mesh.get();
-	FrameMeshes.push_back(std::move(Mesh));
+	PassInputs.MeshStorage.push_back(std::move(Mesh));
 	return RawMesh;
 }
 
@@ -335,7 +324,7 @@ FDynamicMaterial* FScreenUIRenderer::GetOrCreateFontMaterial(FRenderer& Renderer
 	return Raw;
 }
 
-void FScreenUIRenderer::EnqueueMesh(FDynamicMesh* Mesh, FMaterial* Material, int32 Layer, float Depth)
+void FScreenUIRenderer::EnqueueMesh(FScreenUIPassInputs& PassInputs, FDynamicMesh* Mesh, FMaterial* Material, int32 Layer, float Depth)
 {
 	if (!Mesh || !Material || Mesh->Vertices.empty())
 	{
@@ -344,9 +333,9 @@ void FScreenUIRenderer::EnqueueMesh(FDynamicMesh* Mesh, FMaterial* Material, int
 
 	const int32 DepthSortKey = MakeDepthSortKey(Depth);
 
-	if (!UIBatch.Commands.empty())
+	if (!PassInputs.Batch.Commands.empty())
 	{
-		FUIBatchCommand& Last = UIBatch.Commands.back();
+		FUIBatchCommand& Last = PassInputs.Batch.Commands.back();
 		if (Last.Mesh && Last.Material == Material
 			&& Last.Layer == Layer
 			&& Last.DepthSortKey == DepthSortKey
@@ -378,10 +367,10 @@ void FScreenUIRenderer::EnqueueMesh(FDynamicMesh* Mesh, FMaterial* Material, int
 	Command.Layer = Layer;
 	Command.Depth = Depth;
 	Command.DepthSortKey = DepthSortKey;
-	UIBatch.Commands.push_back(Command);
+	PassInputs.Batch.Commands.push_back(Command);
 }
 
-void FScreenUIRenderer::AppendFilledRect(const FUIDrawElement& Element)
+void FScreenUIRenderer::AppendFilledRect(FScreenUIPassInputs& PassInputs, const FUIDrawElement& Element)
 {
 	FUIRect DrawRect;
 	if (!ResolveClippedRect(Element, DrawRect))
@@ -389,7 +378,7 @@ void FScreenUIRenderer::AppendFilledRect(const FUIDrawElement& Element)
 		return;
 	}
 
-	FDynamicMesh* Mesh = CreateFrameMesh(EMeshTopology::EMT_TriangleList);
+	FDynamicMesh* Mesh = CreateFrameMesh(PassInputs, EMeshTopology::EMT_TriangleList);
 	if (!Mesh)
 	{
 		return;
@@ -411,14 +400,14 @@ void FScreenUIRenderer::AppendFilledRect(const FUIDrawElement& Element)
 	Mesh->bIsDirty = true;
 }
 
-void FScreenUIRenderer::AppendRectOutline(const FUIDrawElement& Element)
+void FScreenUIRenderer::AppendRectOutline(FScreenUIPassInputs& PassInputs, const FUIDrawElement& Element)
 {
 	if (!Element.Rect.IsValid())
 	{
 		return;
 	}
 
-	FDynamicMesh* Mesh = CreateFrameMesh(EMeshTopology::EMT_TriangleList);
+	FDynamicMesh* Mesh = CreateFrameMesh(PassInputs, EMeshTopology::EMT_TriangleList);
 	if (!Mesh)
 	{
 		return;
@@ -440,7 +429,7 @@ void FScreenUIRenderer::AppendRectOutline(const FUIDrawElement& Element)
 	Mesh->bIsDirty = true;
 }
 
-void FScreenUIRenderer::AppendText(FRenderer& Renderer, const FUIDrawElement& Element)
+void FScreenUIRenderer::AppendText(FRenderer& Renderer, FScreenUIPassInputs& PassInputs, const FUIDrawElement& Element)
 {
 	if (Element.Text.empty())
 	{
@@ -482,7 +471,7 @@ void FScreenUIRenderer::AppendText(FRenderer& Renderer, const FUIDrawElement& El
 		}
 	}
 
-	FDynamicMesh* Mesh = CreateFrameMesh(EMeshTopology::EMT_TriangleList);
+	FDynamicMesh* Mesh = CreateFrameMesh(PassInputs, EMeshTopology::EMT_TriangleList);
 	if (!Mesh)
 	{
 		return;
@@ -491,13 +480,10 @@ void FScreenUIRenderer::AppendText(FRenderer& Renderer, const FUIDrawElement& El
 	const FUIRect* Clip = HasClip(Element) ? &Element.ClipRect : nullptr;
 	const FVector4 White(1.0f, 1.0f, 1.0f, 1.0f);
 
-	// TextMeshBuilder는 글자당 4 vertices / 6 indices 쿼드를 만든다.
 	for (size_t VertexBase = 0; VertexBase + 3 < SourceMesh.Vertices.size(); VertexBase += 4)
 	{
 		const FVertex& SV0 = SourceMesh.Vertices[VertexBase + 0];
-		const FVertex& SV1 = SourceMesh.Vertices[VertexBase + 1];
 		const FVertex& SV2 = SourceMesh.Vertices[VertexBase + 2];
-		const FVertex& SV3 = SourceMesh.Vertices[VertexBase + 3];
 
 		const float X0 = Element.Point.X + SV0.Position.X * Element.FontSize;
 		const float Y0 = Element.Point.Y + SV0.Position.Y * Element.FontSize;
@@ -524,28 +510,50 @@ void FScreenUIRenderer::AppendText(FRenderer& Renderer, const FUIDrawElement& El
 	}
 
 	Mesh->bIsDirty = true;
-	EnqueueMesh(Mesh, FontMaterial, Element.Layer, Element.Depth);
+	EnqueueMesh(PassInputs, Mesh, FontMaterial, Element.Layer, Element.Depth);
 }
 
-void FScreenUIRenderer::ApplyOrthoProjection(int32 Width, int32 Height)
+void FScreenUIRenderer::ApplyOrthoProjection(
+	int32 Width,
+	int32 Height,
+	const D3D11_VIEWPORT& OutputViewport,
+	FScreenUIPassInputs& OutPassInputs)
 {
 	if (Width <= 0 || Height <= 0)
 	{
-		OrthoProjection = FMatrix::Identity;
+		OutPassInputs.Batch.ViewMatrix = FMatrix::Identity;
+		OutPassInputs.Batch.ProjectionMatrix = FMatrix::Identity;
+		OutPassInputs.View = {};
+		OutPassInputs.View.Viewport = OutputViewport;
 		return;
 	}
 
-	OrthoProjection = FMatrix(
+	const FMatrix OrthoProjection(
 		2.0f / Width, 0, 0, 0,
 		0, -2.0f / Height, 0, 0,
 		0, 0, 1, 0,
 		-1, 1, 0, 1
 	);
+
+	OutPassInputs.Batch.ViewMatrix = FMatrix::Identity;
+	OutPassInputs.Batch.ProjectionMatrix = OrthoProjection;
+	OutPassInputs.View.View = OutPassInputs.Batch.ViewMatrix;
+	OutPassInputs.View.Projection = OutPassInputs.Batch.ProjectionMatrix;
+	OutPassInputs.View.ViewProjection = OutPassInputs.View.View * OutPassInputs.View.Projection;
+	OutPassInputs.View.InverseView = OutPassInputs.View.View.GetInverse();
+	OutPassInputs.View.InverseProjection = OutPassInputs.View.Projection.GetInverse();
+	OutPassInputs.View.InverseViewProjection = OutPassInputs.View.ViewProjection.GetInverse();
+	OutPassInputs.View.Viewport = OutputViewport;
 }
 
-bool FScreenUIRenderer::RenderBatch(FRenderer& Renderer)
+bool FScreenUIRenderer::RenderBatch(
+	FRenderer& Renderer,
+	const FFrameContext& Frame,
+	const FScreenUIPassInputs& PassInputs,
+	ID3D11RenderTargetView* RenderTargetView,
+	ID3D11DepthStencilView* DepthStencilView)
 {
-	if (UIBatch.Commands.empty())
+	if (PassInputs.Batch.Commands.empty())
 	{
 		return true;
 	}
@@ -556,15 +564,9 @@ bool FScreenUIRenderer::RenderBatch(FRenderer& Renderer)
 		return false;
 	}
 
-	Renderer.RenderDevice.BindSwapChainRTV();
-	Renderer.ViewMatrix = UIBatch.ViewMatrix;
-	Renderer.ProjectionMatrix = UIBatch.ProjectionMatrix;
-	Renderer.ShaderManager.Bind(DeviceContext);
-	Renderer.SetConstantBuffers();
-	Renderer.UpdateFrameConstantBuffer();
-	Renderer.GetRenderStateManager()->RebindState();
+	BeginPass(Renderer, RenderTargetView, DepthStencilView, PassInputs.View.Viewport, Frame, PassInputs.View);
 
-	for (const FUIBatchCommand& BatchCommand : UIBatch.Commands)
+	for (const FUIBatchCommand& BatchCommand : PassInputs.Batch.Commands)
 	{
 		if (!DrawBatchCommand(Renderer, BatchCommand))
 		{
@@ -572,26 +574,29 @@ bool FScreenUIRenderer::RenderBatch(FRenderer& Renderer)
 		}
 	}
 
+	EndPass(Renderer, RenderTargetView, DepthStencilView, PassInputs.View.Viewport, Frame, PassInputs.View);
 	return true;
 }
 
-bool FScreenUIRenderer::Render(FRenderer& Renderer, const FUIDrawList& DrawList)
+bool FScreenUIRenderer::BuildPassInputs(
+	FRenderer& Renderer,
+	const FUIDrawList& DrawList,
+	const D3D11_VIEWPORT& OutputViewport,
+	FScreenUIPassInputs& OutPassInputs)
 {
-	ResetFrame();
+	OutPassInputs.Clear();
 	if (DrawList.Elements.empty() || DrawList.ScreenWidth <= 0 || DrawList.ScreenHeight <= 0)
 	{
 		return true;
 	}
 
-	ApplyOrthoProjection(DrawList.ScreenWidth, DrawList.ScreenHeight);
-	UIBatch.ViewMatrix = FMatrix::Identity;
-	UIBatch.ProjectionMatrix = OrthoProjection;
-	UIBatch.Reserve(DrawList.Elements.size());
+	ApplyOrthoProjection(DrawList.ScreenWidth, DrawList.ScreenHeight, OutputViewport, OutPassInputs);
+	OutPassInputs.Reserve(DrawList.Elements.size());
 
 	FDynamicMaterial* ColorMaterial = GetOrCreateColorMaterial(Renderer);
 	if (!ColorMaterial)
 	{
-		ResetFrame();
+		OutPassInputs.Clear();
 		return false;
 	}
 
@@ -611,12 +616,14 @@ bool FScreenUIRenderer::Render(FRenderer& Renderer, const FUIDrawList& DrawList)
 			{
 				return A->Layer < B->Layer;
 			}
+
 			const int32 ADepthKey = MakeDepthSortKey(A->Depth);
 			const int32 BDepthKey = MakeDepthSortKey(B->Depth);
 			if (ADepthKey != BDepthKey)
 			{
 				return ADepthKey < BDepthKey;
 			}
+
 			return A->Order < B->Order;
 		});
 
@@ -628,39 +635,46 @@ bool FScreenUIRenderer::Render(FRenderer& Renderer, const FUIDrawList& DrawList)
 		}
 
 		const FUIDrawElement& Element = *ElementPtr;
-		const size_t PrevMeshCount = FrameMeshes.size();
+		const size_t PrevMeshCount = OutPassInputs.MeshStorage.size();
 
 		switch (Element.Type)
 		{
 		case EUIDrawElementType::FilledRect:
-			AppendFilledRect(Element);
-			if (FrameMeshes.size() > PrevMeshCount)
+			AppendFilledRect(OutPassInputs, Element);
+			if (OutPassInputs.MeshStorage.size() > PrevMeshCount)
 			{
-				EnqueueMesh(FrameMeshes.back().get(), ColorMaterial, Element.Layer, Element.Depth);
+				EnqueueMesh(OutPassInputs, OutPassInputs.MeshStorage.back().get(), ColorMaterial, Element.Layer, Element.Depth);
 			}
 			break;
 
 		case EUIDrawElementType::RectOutline:
-			AppendRectOutline(Element);
-			if (FrameMeshes.size() > PrevMeshCount)
+			AppendRectOutline(OutPassInputs, Element);
+			if (OutPassInputs.MeshStorage.size() > PrevMeshCount)
 			{
-				EnqueueMesh(FrameMeshes.back().get(), ColorMaterial, Element.Layer, Element.Depth);
+				EnqueueMesh(OutPassInputs, OutPassInputs.MeshStorage.back().get(), ColorMaterial, Element.Layer, Element.Depth);
 			}
 			break;
 
 		case EUIDrawElementType::Text:
-			AppendText(Renderer, Element);
+			AppendText(Renderer, OutPassInputs, Element);
 			break;
 		}
 	}
 
-	if (UIBatch.Commands.empty())
+	return true;
+}
+
+bool FScreenUIRenderer::Render(
+	FRenderer& Renderer,
+	const FFrameContext& Frame,
+	const FScreenUIPassInputs& PassInputs,
+	ID3D11RenderTargetView* RenderTargetView,
+	ID3D11DepthStencilView* DepthStencilView)
+{
+	if (PassInputs.IsEmpty())
 	{
-		ResetFrame();
 		return true;
 	}
 
-	const bool bRendered = RenderBatch(Renderer);
-	ResetFrame();
-	return bRendered;
+	return RenderBatch(Renderer, Frame, PassInputs, RenderTargetView, DepthStencilView);
 }

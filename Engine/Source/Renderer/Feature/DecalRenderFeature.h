@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Renderer/LinearColor.h"
+#include "Renderer/RenderFrameContext.h"
+#include "Renderer/SceneRenderTargets.h"
 
 #include <d3d11.h>
 #include <chrono>
@@ -30,6 +32,7 @@ struct ENGINE_API FDecalRenderItem
 
 	// Texture array / atlas index
 	uint32 TextureIndex = 0;
+	std::wstring TexturePath;
 
 	// EDecalRenderFlags bitmask
 	uint32 Flags = DECAL_RENDER_FLAG_BaseColor;
@@ -107,8 +110,8 @@ struct ENGINE_API FDecalRenderRequest
 	uint32 ViewportHeight = 0;
 
 	// Projection range
-	float NearZ = 1.0f;
-	float FarZ = 10000.0f;
+	float NearZ = 0.1f;
+	float FarZ = 1000.0f;
 
 	// Cluster resolution
 	uint32 ClusterCountX = 16;
@@ -120,8 +123,6 @@ struct ENGINE_API FDecalRenderRequest
 
 	// Shared decal resources for the frame
 	ID3D11ShaderResourceView* BaseColorTextureArraySRV = nullptr;
-	ID3D11ShaderResourceView* NormalTextureArraySRV = nullptr;
-	ID3D11ShaderResourceView* ORMTextureArraySRV = nullptr;
 
 	bool bEnabled = true;
 	bool bSortByPriority = true;
@@ -166,71 +167,71 @@ struct ENGINE_API FDecalFrameStats
 	double UploadClusterIndexBufferTimeMs = 0.0;
 };
 
-class ENGINE_API FDecalRenderFeature
+struct ENGINE_API FDecalPreparedViewData
 {
-public:
-	~FDecalRenderFeature();
-
-	// Build per-frame clustered decal data and upload GPU buffers.
-	bool Prepare(FRenderer& Renderer, const FDecalRenderRequest& Request);
-
-	// Bind SRVs / constant buffer for the forward opaque pass.
-	void BindForForwardPass(FRenderer& Renderer);
-
-	// Optional explicit unbind for safety when another pass reuses the same slots.
-	void Unbind(FRenderer& Renderer);
-
-	void Release();
-
-	const FDecalClusterBuildStats& GetBuildStats() const
-	{
-		return BuildStats;
-	}
-
-	const FDecalFrameStats& GetFrameStats() const
-	{
-		return FrameStats;
-	}
-
-	bool IsReady() const
-	{
-		return bInitialized && bFramePrepared;
-	}
-
-	bool Initialize(FRenderer& Renderer);
-private:
-
-	bool BuildFrameData(const FDecalRenderRequest& Request);
-	bool BuildVisibleDecalData(const FDecalRenderRequest& Request);
-	bool BuildClusterLists(const FDecalRenderRequest& Request);
-
-	bool UpdateClusterGlobalsConstantBuffer(FRenderer& Renderer, const FDecalRenderRequest& Request);
-	bool UploadDecalStructuredBuffer(FRenderer& Renderer);
-	bool UploadClusterHeaderStructuredBuffer(FRenderer& Renderer);
-	bool UploadClusterIndexStructuredBuffer(FRenderer& Renderer);
-
-	void ResetFrameData();
-
-private:
-	bool bInitialized = false;
-	bool bFramePrepared = false;
-
-	// CPU-side per-frame data
 	TArray<FDecalGPUData> DecalGPUItems;
 	TArray<FDecalClusterHeaderGPU> ClusterHeaders;
 	TArray<uint32> ClusterIndexList;
 	TArray<const FDecalRenderItem*> VisibleSourceItems;
 
 	FDecalClusterBuildStats BuildStats;
-	FDecalFrameStats FrameStats;
 
-	// Cached frame request data needed for binding
 	ID3D11ShaderResourceView* BaseColorTextureArraySRV = nullptr;
-	ID3D11ShaderResourceView* NormalTextureArraySRV = nullptr;
-	ID3D11ShaderResourceView* ORMTextureArraySRV = nullptr;
+};
+
+class ENGINE_API FDecalRenderFeature
+{
+public:
+	~FDecalRenderFeature();
+
+	bool Render(
+		FRenderer& Renderer,
+		const FDecalRenderRequest& Request,
+		const FSceneRenderTargets& Targets);
+
+	void Release();
+
+	const FDecalClusterBuildStats& GetBuildStats() const
+	{
+		return LastBuildStats;
+	}
+
+	const FDecalFrameStats& GetFrameStats() const
+	{
+		return LastFrameStats;
+	}
+
+	bool Initialize(FRenderer& Renderer);
+private:
+
+	bool BuildFrameData(
+		const FDecalRenderRequest& Request,
+		FDecalPreparedViewData& OutPreparedData,
+		FDecalFrameStats& OutFrameStats);
+	bool BuildVisibleDecalData(
+		const FDecalRenderRequest& Request,
+		FDecalPreparedViewData& InOutPreparedData);
+	bool BuildClusterLists(
+		const FDecalRenderRequest& Request,
+		FDecalPreparedViewData& InOutPreparedData);
+
+	bool UpdateClusterGlobalsConstantBuffer(
+		FRenderer& Renderer,
+		const FDecalRenderRequest& Request,
+		const FDecalPreparedViewData& PreparedData);
+	bool UpdateCompositeConstantBuffer(FRenderer& Renderer, const FViewContext& View);
+	bool UploadDecalStructuredBuffer(FRenderer& Renderer, const FDecalPreparedViewData& PreparedData);
+	bool UploadClusterHeaderStructuredBuffer(FRenderer& Renderer, const FDecalPreparedViewData& PreparedData);
+	bool UploadClusterIndexStructuredBuffer(FRenderer& Renderer, const FDecalPreparedViewData& PreparedData);
+
+private:
+	bool bInitialized = false;
+	FDecalClusterBuildStats LastBuildStats;
+	FDecalFrameStats LastFrameStats;
 
 	// GPU resources
 	ID3D11Buffer* ClusterGlobalsConstantBuffer = nullptr;
+	ID3D11Buffer* CompositeConstantBuffer = nullptr;
 
 	ID3D11Buffer* DecalStructuredBuffer = nullptr;
 	ID3D11ShaderResourceView* DecalStructuredBufferSRV = nullptr;
@@ -240,4 +241,12 @@ private:
 
 	ID3D11Buffer* ClusterIndexStructuredBuffer = nullptr;
 	ID3D11ShaderResourceView* ClusterIndexStructuredBufferSRV = nullptr;
+
+	ID3D11BlendState* CompositeBlendState = nullptr;
+	ID3D11DepthStencilState* CompositeDepthState = nullptr;
+	ID3D11RasterizerState* CompositeRasterizerState = nullptr;
+	ID3D11SamplerState* LinearSampler = nullptr;
+	ID3D11SamplerState* PointSampler = nullptr;
+	ID3D11VertexShader* CompositeVS = nullptr;
+	ID3D11PixelShader* CompositePS = nullptr;
 };

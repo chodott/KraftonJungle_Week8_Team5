@@ -225,9 +225,9 @@
     <ClInclude Include="Source\Slate\Widget\Overlay.h" />
     <ClInclude Include="Source\Slate\Widget\Painter.h" />
     <ClInclude Include="Source\Slate\Widget\Panel.h" />
-    <ClInclude Include="Source\Slate\Widget\Spacer.h" />
     <ClInclude Include="Source\Slate\Widget\SViewport.h" />
     <ClInclude Include="Source\Slate\Widget\Slot.h" />
+    <ClInclude Include="Source\Slate\Widget\Spacer.h" />
     <ClInclude Include="Source\Slate\Widget\Splitter.h" />
     <ClInclude Include="Source\Slate\Widget\SplitterH.h" />
     <ClInclude Include="Source\Slate\Widget\SplitterV.h" />

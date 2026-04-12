@@ -167,7 +167,12 @@ void FContentBrowserWindow::DrawFileGrid()
 
 		if (Entry.is_regular_file())
 		{
-			if (!(Ext == ".json" || Ext == ".scene" || Ext == ".obj" || Ext == ".model"))
+			const bool bIsSupportedAsset =
+				(Ext == ".json" || Ext == ".scene" || Ext == ".obj" || Ext == ".model" ||
+					Ext == ".png" || Ext == ".dds" || Ext == ".jpg" || Ext == ".jpeg" ||
+					Ext == ".tga" || Ext == ".bmp");
+
+			if (!bIsSupportedAsset)
 			{
 				continue;
 			}

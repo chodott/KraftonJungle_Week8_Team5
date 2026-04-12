@@ -4,30 +4,10 @@ struct VSOutput
     float2 UV       : TEXCOORD0;
 };
 
-static const float2 QuadPos[6] =
-{
-    float2(-1.0,  1.0),
-    float2( 1.0,  1.0),
-    float2(-1.0, -1.0),
-    float2( 1.0,  1.0),
-    float2( 1.0, -1.0),
-    float2(-1.0, -1.0),
-};
-
-static const float2 QuadUV[6] =
-{
-    float2(0.0, 0.0),
-    float2(1.0, 0.0),
-    float2(0.0, 1.0),
-    float2(1.0, 0.0),
-    float2(1.0, 1.0),
-    float2(0.0, 1.0),
-};
-
 VSOutput main(uint VertexID : SV_VertexID)
 {
     VSOutput Output;
-    Output.Position = float4(QuadPos[VertexID], 0.0, 1.0);
-    Output.UV       = QuadUV[VertexID];
+    Output.UV = float2((VertexID << 1) & 2, VertexID & 2);
+    Output.Position = float4(Output.UV * float2(2.0f, -2.0f) + float2(-1.0f, 1.0f), 0.0f, 1.0f);
     return Output;
 }

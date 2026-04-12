@@ -12,7 +12,17 @@ std::shared_ptr<FVertexShader> FShaderMap::GetOrCreateVertexShader(
 	ID3D11Device* Device,
 	const wchar_t* FilePath)
 {
+	return GetOrCreateVertexShader(Device, FilePath, EVertexLayoutType::MeshVertex);
+}
+
+std::shared_ptr<FVertexShader> FShaderMap::GetOrCreateVertexShader(
+	ID3D11Device* Device,
+	const wchar_t* FilePath,
+	EVertexLayoutType LayoutType)
+{
 	std::wstring Key(FilePath);
+	Key += L"#";
+	Key += std::to_wstring(static_cast<unsigned int>(LayoutType));
 
 	auto It = VertexShaders.find(Key);
 	if (It != VertexShaders.end())
@@ -26,7 +36,7 @@ std::shared_ptr<FVertexShader> FShaderMap::GetOrCreateVertexShader(
 		return nullptr;
 	}
 
-	auto VS = FVertexShader::Create(Device, Resource);
+	auto VS = FVertexShader::Create(Device, Resource, LayoutType);
 	if (!VS)
 	{
 		return nullptr;

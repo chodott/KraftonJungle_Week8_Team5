@@ -1,6 +1,9 @@
 #include "DecalRenderFeature.h"
 
+#include "Core/Paths.h"
+#include "Renderer/FullscreenPass.h"
 #include "Renderer/Renderer.h"
+#include "Renderer/ShaderResource.h"
 #include <algorithm>
 
 namespace
@@ -17,8 +20,12 @@ namespace
 	static constexpr UINT DECAL_CLUSTER_INDICES_SRV_SLOT = 11;
 	static constexpr UINT DECAL_DATA_SRV_SLOT = 12;
 	static constexpr UINT DECAL_BASECOLOR_TEX_SRV_SLOT = 13;
-	static constexpr UINT DECAL_NORMAL_TEX_SRV_SLOT = 14;
-	static constexpr UINT DECAL_ORM_TEX_SRV_SLOT = 15;
+	static constexpr UINT DECAL_SCENECOLOR_SRV_SLOT = 0;
+	static constexpr UINT DECAL_DEPTH_SRV_SLOT = 1;
+	static constexpr UINT DECAL_COMPOSITE_CB_SLOT = 4;
+	static constexpr UINT DECAL_SCENECOLOR_SAMPLER_SLOT = 0;
+	static constexpr UINT DECAL_DEPTH_SAMPLER_SLOT = 1;
+	static constexpr UINT DECAL_TEXTURE_SAMPLER_SLOT = 2;
 
 	static uint32 Align16(uint32 Size)
 	{
@@ -41,6 +48,12 @@ namespace
 		float LogZBias = 0.0f;
 		float TileWidth = 0.0f;
 		float TileHeight = 0.0f;
+	};
+
+	struct FCompositeCB
+	{
+		FMatrix View = FMatrix::Identity;
+		FMatrix InverseViewProjection = FMatrix::Identity;
 	};
 
 	struct FClusterRange
@@ -195,8 +208,7 @@ namespace
 			OutRange.MaxTileY = Request.ClusterCountY - 1;
 			OutRange.bValid = true;
 			return true;
-		}
-
+}
 		if (MaxScreenX < 0.0f || MaxScreenY < 0.0f ||
 			MinScreenX >= static_cast<float>(Request.ViewportWidth) ||
 			MinScreenY >= static_cast<float>(Request.ViewportHeight))
@@ -226,179 +238,207 @@ FDecalRenderFeature::~FDecalRenderFeature()
 	Release();
 }
 
-bool FDecalRenderFeature::Prepare(FRenderer& Renderer, const FDecalRenderRequest& Request)
+bool FDecalRenderFeature::UpdateCompositeConstantBuffer(FRenderer& Renderer, const FViewContext& View)
+{
+	if (!CompositeConstantBuffer)
+	{
+		return false;
+	}
+
+	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
+	if (!Context)
+	{
+		return false;
+	}
+
+	FCompositeCB CBData = {};
+	CBData.View = View.View.GetTransposed();
+	CBData.InverseViewProjection = View.InverseViewProjection.GetTransposed();
+
+	D3D11_MAPPED_SUBRESOURCE Mapped = {};
+	if (FAILED(Context->Map(CompositeConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
+	{
+		return false;
+	}
+
+	std::memcpy(Mapped.pData, &CBData, sizeof(FCompositeCB));
+	Context->Unmap(CompositeConstantBuffer, 0);
+	return true;
+}
+
+bool FDecalRenderFeature::Render(
+	FRenderer& Renderer,
+	const FDecalRenderRequest& Request,
+	const FSceneRenderTargets& Targets)
 {
 	const FDecalClock::time_point PrepareStartTime = FDecalClock::now();
-
 	if (!Initialize(Renderer))
 	{
 		return false;
 	}
 
-	ResetFrameData();
-	FrameStats.InputItemCount = static_cast<uint32>(Request.Items.size());
+	FDecalPreparedViewData PreparedData;
+	PreparedData.BaseColorTextureArraySRV = Request.BaseColorTextureArraySRV;
 
-	BaseColorTextureArraySRV = Request.BaseColorTextureArraySRV;
-	NormalTextureArraySRV = Request.NormalTextureArraySRV;
-	ORMTextureArraySRV = Request.ORMTextureArraySRV;
+	FDecalFrameStats FrameStats;
+	FrameStats.InputItemCount = static_cast<uint32>(Request.Items.size());
 
 	if (Request.IsEmpty())
 	{
-		bFramePrepared = false;
+		LastBuildStats = {};
+		LastFrameStats = FrameStats;
+		return true;
+	}
+
+	if (!Targets.SceneColorRTV || !Targets.SceneDepthSRV || !Targets.SceneColorScratchTexture || !Targets.SceneColorScratchSRV)
+	{
 		return false;
 	}
 
-	if (!BuildFrameData(Request))
+	if (!BuildFrameData(Request, PreparedData, FrameStats))
 	{
-		bFramePrepared = false;
 		return false;
+	}
+
+	if (PreparedData.DecalGPUItems.empty() || PreparedData.ClusterIndexList.empty())
+	{
+		FrameStats.PrepareTimeMs = ToMilliseconds(FDecalClock::now() - PrepareStartTime);
+		LastBuildStats = PreparedData.BuildStats;
+		LastFrameStats = FrameStats;
+		return true;
 	}
 
 	const FDecalClock::time_point ConstantBufferStartTime = FDecalClock::now();
-	if (!UpdateClusterGlobalsConstantBuffer(Renderer, Request))
+	if (!UpdateClusterGlobalsConstantBuffer(Renderer, Request, PreparedData))
 	{
-		bFramePrepared = false;
 		return false;
 	}
 	FrameStats.ConstantBufferUpdateTimeMs = ToMilliseconds(FDecalClock::now() - ConstantBufferStartTime);
 
 	const FDecalClock::time_point UploadDecalStartTime = FDecalClock::now();
-	if (!UploadDecalStructuredBuffer(Renderer))
+	if (!UploadDecalStructuredBuffer(Renderer, PreparedData))
 	{
-		bFramePrepared = false;
 		return false;
 	}
 	FrameStats.UploadDecalBufferTimeMs = ToMilliseconds(FDecalClock::now() - UploadDecalStartTime);
-	FrameStats.UploadedDecalCount = static_cast<uint32>(DecalGPUItems.size());
+	FrameStats.UploadedDecalCount = static_cast<uint32>(PreparedData.DecalGPUItems.size());
 
 	const FDecalClock::time_point UploadClusterHeaderStartTime = FDecalClock::now();
-	if (!UploadClusterHeaderStructuredBuffer(Renderer))
+	if (!UploadClusterHeaderStructuredBuffer(Renderer, PreparedData))
 	{
-		bFramePrepared = false;
 		return false;
 	}
 	FrameStats.UploadClusterHeaderBufferTimeMs = ToMilliseconds(FDecalClock::now() - UploadClusterHeaderStartTime);
-	FrameStats.UploadedClusterHeaderCount = static_cast<uint32>(ClusterHeaders.size());
+	FrameStats.UploadedClusterHeaderCount = static_cast<uint32>(PreparedData.ClusterHeaders.size());
 
 	const FDecalClock::time_point UploadClusterIndexStartTime = FDecalClock::now();
-	if (!UploadClusterIndexStructuredBuffer(Renderer))
+	if (!UploadClusterIndexStructuredBuffer(Renderer, PreparedData))
 	{
-		bFramePrepared = false;
 		return false;
 	}
 	FrameStats.UploadClusterIndexBufferTimeMs = ToMilliseconds(FDecalClock::now() - UploadClusterIndexStartTime);
-	FrameStats.UploadedClusterIndexCount = static_cast<uint32>(ClusterIndexList.size());
-
-	bFramePrepared = true;
+	FrameStats.UploadedClusterIndexCount = static_cast<uint32>(PreparedData.ClusterIndexList.size());
 	FrameStats.PrepareTimeMs = ToMilliseconds(FDecalClock::now() - PrepareStartTime);
-	return true;
-}
 
-void FDecalRenderFeature::BindForForwardPass(FRenderer& Renderer)
-{
-	if (!bInitialized || !bFramePrepared)
-	{
-		return;
-	}
+	FViewContext View;
+	View.View = Request.View;
+	View.Projection = Request.Projection;
+	View.ViewProjection = Request.ViewProjection;
+	View.InverseViewProjection = Request.InverseViewProjection;
+	View.CameraPosition = Request.CameraPosition;
+	View.NearZ = Request.NearZ;
+	View.FarZ = Request.FarZ;
+	View.Viewport.Width = static_cast<float>(Request.ViewportWidth);
+	View.Viewport.Height = static_cast<float>(Request.ViewportHeight);
+	View.Viewport.MinDepth = 0.0f;
+	View.Viewport.MaxDepth = 1.0f;
+	const FFrameContext Frame = {};
 
 	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
-	if (!Context)
+	if (!Context || !UpdateCompositeConstantBuffer(Renderer, View))
 	{
-		return;
+		return false;
 	}
 
-	// Constant buffer
-	Context->PSSetConstantBuffers(
-		DECAL_CLUSTER_CB_SLOT,
-		1,
-		&ClusterGlobalsConstantBuffer);
-
-	// Structured buffers
-	ID3D11ShaderResourceView* ClusterHeaderSRV = ClusterHeaderStructuredBufferSRV;
-	ID3D11ShaderResourceView* ClusterIndexSRV = ClusterIndexStructuredBufferSRV;
-	ID3D11ShaderResourceView* DecalDataSRV = DecalStructuredBufferSRV;
-
-	Context->PSSetShaderResources(
-		DECAL_CLUSTER_HEADERS_SRV_SLOT,
-		1,
-		&ClusterHeaderSRV);
-
-	Context->PSSetShaderResources(
-		DECAL_CLUSTER_INDICES_SRV_SLOT,
-		1,
-		&ClusterIndexSRV);
-
-	Context->PSSetShaderResources(
-		DECAL_DATA_SRV_SLOT,
-		1,
-		&DecalDataSRV);
-
-	// Decal texture arrays / atlas SRVs
-	ID3D11ShaderResourceView* BaseColorSRV = BaseColorTextureArraySRV;
-	ID3D11ShaderResourceView* NormalSRV = NormalTextureArraySRV;
-	ID3D11ShaderResourceView* ORMSRV = ORMTextureArraySRV;
-
-	Context->PSSetShaderResources(
-		DECAL_BASECOLOR_TEX_SRV_SLOT,
-		1,
-		&BaseColorSRV);
-
-	Context->PSSetShaderResources(
-		DECAL_NORMAL_TEX_SRV_SLOT,
-		1,
-		&NormalSRV);
-
-	Context->PSSetShaderResources(
-		DECAL_ORM_TEX_SRV_SLOT,
-		1,
-		&ORMSRV);
-}
-
-void FDecalRenderFeature::Unbind(FRenderer& Renderer)
-{
-	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
-	if (!Context)
+	ID3D11Resource* SourceResource = nullptr;
+	bool bReleaseSourceResource = false;
+	if (Targets.SceneColorTexture)
 	{
-		return;
+		SourceResource = Targets.SceneColorTexture;
+	}
+	else if (Targets.SceneColorRTV)
+	{
+		Targets.SceneColorRTV->GetResource(&SourceResource);
+		bReleaseSourceResource = true;
 	}
 
-	ID3D11Buffer* NullCB = nullptr;
-	Context->PSSetConstantBuffers(
-		DECAL_CLUSTER_CB_SLOT,
-		1,
-		&NullCB);
+	if (!SourceResource)
+	{
+		return false;
+	}
 
-	ID3D11ShaderResourceView* NullSRV = nullptr;
+	Context->OMSetRenderTargets(0, nullptr, nullptr);
+	Context->CopyResource(Targets.SceneColorScratchTexture, SourceResource);
 
-	Context->PSSetShaderResources(
-		DECAL_CLUSTER_HEADERS_SRV_SLOT,
-		1,
-		&NullSRV);
+	if (bReleaseSourceResource)
+	{
+		SourceResource->Release();
+	}
 
-	Context->PSSetShaderResources(
-		DECAL_CLUSTER_INDICES_SRV_SLOT,
-		1,
-		&NullSRV);
+	constexpr float BlendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	const FFullscreenPassConstantBufferBinding ConstantBuffers[] =
+	{
+		{ DECAL_CLUSTER_CB_SLOT, ClusterGlobalsConstantBuffer },
+		{ DECAL_COMPOSITE_CB_SLOT, CompositeConstantBuffer },
+	};
+	const FFullscreenPassShaderResourceBinding ShaderResources[] =
+	{
+		{ DECAL_SCENECOLOR_SRV_SLOT, Targets.SceneColorScratchSRV },
+		{ DECAL_DEPTH_SRV_SLOT, Targets.SceneDepthSRV },
+		{ DECAL_CLUSTER_HEADERS_SRV_SLOT, ClusterHeaderStructuredBufferSRV },
+		{ DECAL_CLUSTER_INDICES_SRV_SLOT, ClusterIndexStructuredBufferSRV },
+		{ DECAL_DATA_SRV_SLOT, DecalStructuredBufferSRV },
+		{ DECAL_BASECOLOR_TEX_SRV_SLOT, PreparedData.BaseColorTextureArraySRV },
+	};
+	const FFullscreenPassSamplerBinding Samplers[] =
+	{
+		{ DECAL_SCENECOLOR_SAMPLER_SLOT, LinearSampler },
+		{ DECAL_DEPTH_SAMPLER_SLOT, PointSampler },
+		{ DECAL_TEXTURE_SAMPLER_SLOT, LinearSampler },
+	};
+	const FFullscreenPassBindings Bindings
+	{
+		ConstantBuffers,
+		static_cast<uint32>(sizeof(ConstantBuffers) / sizeof(ConstantBuffers[0])),
+		ShaderResources,
+		static_cast<uint32>(sizeof(ShaderResources) / sizeof(ShaderResources[0])),
+		Samplers,
+		static_cast<uint32>(sizeof(Samplers) / sizeof(Samplers[0]))
+	};
 
-	Context->PSSetShaderResources(
-		DECAL_DATA_SRV_SLOT,
-		1,
-		&NullSRV);
+	FFullscreenPassPipelineState PipelineState;
+	PipelineState.BlendState = CompositeBlendState;
+	PipelineState.BlendFactor = BlendFactor;
+	PipelineState.DepthStencilState = CompositeDepthState;
+	PipelineState.RasterizerState = CompositeRasterizerState;
+	const bool bRendered = ExecuteFullscreenPass(
+		Renderer,
+		Frame,
+		View,
+		Targets.SceneColorRTV,
+		nullptr,
+		View.Viewport,
+		{ CompositeVS, CompositePS },
+		PipelineState,
+		Bindings,
+		[](ID3D11DeviceContext& DrawContext)
+		{
+			DrawContext.Draw(3, 0);
+		});
 
-	Context->PSSetShaderResources(
-		DECAL_BASECOLOR_TEX_SRV_SLOT,
-		1,
-		&NullSRV);
-
-	Context->PSSetShaderResources(
-		DECAL_NORMAL_TEX_SRV_SLOT,
-		1,
-		&NullSRV);
-
-	Context->PSSetShaderResources(
-		DECAL_ORM_TEX_SRV_SLOT,
-		1,
-		&NullSRV);
+	LastBuildStats = PreparedData.BuildStats;
+	LastFrameStats = FrameStats;
+	return bRendered;
 }
 
 bool FDecalRenderFeature::Initialize(FRenderer& Renderer)
@@ -423,37 +463,146 @@ bool FDecalRenderFeature::Initialize(FRenderer& Renderer)
 		}
 	}
 
+	if (!CompositeConstantBuffer)
+	{
+		D3D11_BUFFER_DESC Desc = {};
+		Desc.Usage = D3D11_USAGE_DYNAMIC;
+		Desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+		Desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+		Desc.ByteWidth = Align16(static_cast<uint32>(sizeof(FCompositeCB)));
+
+		if (FAILED(Device->CreateBuffer(&Desc, nullptr, &CompositeConstantBuffer)))
+		{
+			return false;
+		}
+	}
+
+	if (!CompositeBlendState)
+	{
+		D3D11_BLEND_DESC BlendDesc = {};
+		BlendDesc.RenderTarget[0].BlendEnable = FALSE;
+		BlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+		if (FAILED(Device->CreateBlendState(&BlendDesc, &CompositeBlendState)))
+		{
+			return false;
+		}
+	}
+
+	if (!CompositeDepthState)
+	{
+		D3D11_DEPTH_STENCIL_DESC DepthDesc = {};
+		DepthDesc.DepthEnable = FALSE;
+		DepthDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+		DepthDesc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+		if (FAILED(Device->CreateDepthStencilState(&DepthDesc, &CompositeDepthState)))
+		{
+			return false;
+		}
+	}
+
+	if (!CompositeRasterizerState)
+	{
+		D3D11_RASTERIZER_DESC RasterDesc = {};
+		RasterDesc.FillMode = D3D11_FILL_SOLID;
+		RasterDesc.CullMode = D3D11_CULL_NONE;
+		RasterDesc.DepthClipEnable = TRUE;
+		if (FAILED(Device->CreateRasterizerState(&RasterDesc, &CompositeRasterizerState)))
+		{
+			return false;
+		}
+	}
+
+	if (!LinearSampler)
+	{
+		D3D11_SAMPLER_DESC SamplerDesc = {};
+		SamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+		SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+		SamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+		SamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+		SamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+		SamplerDesc.MinLOD = 0.0f;
+		SamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+		if (FAILED(Device->CreateSamplerState(&SamplerDesc, &LinearSampler)))
+		{
+			return false;
+		}
+	}
+
+	if (!PointSampler)
+	{
+		D3D11_SAMPLER_DESC SamplerDesc = {};
+		SamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+		SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+		SamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+		SamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+		SamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+		SamplerDesc.MinLOD = 0.0f;
+		SamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+		if (FAILED(Device->CreateSamplerState(&SamplerDesc, &PointSampler)))
+		{
+			return false;
+		}
+	}
+
+	const std::wstring ShaderDir = FPaths::ShaderDir();
+	if (!CompositeVS)
+	{
+		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"BlitVertexShader.hlsl").c_str(), "main", "vs_5_0");
+		if (!Resource || FAILED(Device->CreateVertexShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &CompositeVS)))
+		{
+			return false;
+		}
+	}
+
+	if (!CompositePS)
+	{
+		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"DecalCompositePixelShader.hlsl").c_str(), "main", "ps_5_0");
+		if (!Resource || FAILED(Device->CreatePixelShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &CompositePS)))
+		{
+			return false;
+		}
+	}
+
 	bInitialized = true;
 	return true;
 }
 
-bool FDecalRenderFeature::BuildFrameData(const FDecalRenderRequest& Request)
+bool FDecalRenderFeature::BuildFrameData(
+	const FDecalRenderRequest& Request,
+	FDecalPreparedViewData& OutPreparedData,
+	FDecalFrameStats& OutFrameStats)
 {
-	ResetFrameData();
+	OutPreparedData.DecalGPUItems.clear();
+	OutPreparedData.ClusterHeaders.clear();
+	OutPreparedData.ClusterIndexList.clear();
+	OutPreparedData.VisibleSourceItems.clear();
+	OutPreparedData.BuildStats = {};
 
 	const FDecalClock::time_point VisibleBuildStartTime = FDecalClock::now();
-	if (!BuildVisibleDecalData(Request)) return false;
-	FrameStats.VisibleBuildTimeMs = ToMilliseconds(FDecalClock::now() - VisibleBuildStartTime);
+	if (!BuildVisibleDecalData(Request, OutPreparedData)) return false;
+	OutFrameStats.VisibleBuildTimeMs = ToMilliseconds(FDecalClock::now() - VisibleBuildStartTime);
 
 	const FDecalClock::time_point ClusterBuildStartTime = FDecalClock::now();
-	if (!BuildClusterLists(Request)) return false;
-	FrameStats.ClusterBuildTimeMs = ToMilliseconds(FDecalClock::now() - ClusterBuildStartTime);
+	if (!BuildClusterLists(Request, OutPreparedData)) return false;
+	OutFrameStats.ClusterBuildTimeMs = ToMilliseconds(FDecalClock::now() - ClusterBuildStartTime);
 
-	FrameStats.InputItemCount = BuildStats.InputItemCount;
-	FrameStats.VisibleItemCount = BuildStats.ValidItemCount;
-	FrameStats.ClusterCount = BuildStats.ClusterCount;
-	FrameStats.TotalClusterIndices = BuildStats.TotalClusterIndices;
-	FrameStats.MaxItemsPerCluster = BuildStats.MaxItemsPerCluster;
+	OutFrameStats.InputItemCount = OutPreparedData.BuildStats.InputItemCount;
+	OutFrameStats.VisibleItemCount = OutPreparedData.BuildStats.ValidItemCount;
+	OutFrameStats.ClusterCount = OutPreparedData.BuildStats.ClusterCount;
+	OutFrameStats.TotalClusterIndices = OutPreparedData.BuildStats.TotalClusterIndices;
+	OutFrameStats.MaxItemsPerCluster = OutPreparedData.BuildStats.MaxItemsPerCluster;
 	return true;
 }
 
-bool FDecalRenderFeature::BuildVisibleDecalData(const FDecalRenderRequest& Request)
+bool FDecalRenderFeature::BuildVisibleDecalData(
+	const FDecalRenderRequest& Request,
+	FDecalPreparedViewData& InOutPreparedData)
 {
-	VisibleSourceItems.clear();
-	DecalGPUItems.clear();
+	InOutPreparedData.VisibleSourceItems.clear();
+	InOutPreparedData.DecalGPUItems.clear();
 
-	BuildStats.InputItemCount = static_cast<uint32>(Request.Items.size());
-	BuildStats.ValidItemCount = 0;
+	InOutPreparedData.BuildStats.InputItemCount = static_cast<uint32>(Request.Items.size());
+	InOutPreparedData.BuildStats.ValidItemCount = 0;
 
 	TArray<const FDecalRenderItem*> FilteredItems;
 	FilteredItems.reserve(Request.Items.size());
@@ -488,12 +637,12 @@ bool FDecalRenderFeature::BuildVisibleDecalData(const FDecalRenderRequest& Reque
 			});
 	}
 
-	VisibleSourceItems.reserve(FilteredItems.size());
-	DecalGPUItems.reserve(FilteredItems.size());
+	InOutPreparedData.VisibleSourceItems.reserve(FilteredItems.size());
+	InOutPreparedData.DecalGPUItems.reserve(FilteredItems.size());
 
 	for (const FDecalRenderItem* Item : FilteredItems)
 	{
-		VisibleSourceItems.push_back(Item);
+		InOutPreparedData.VisibleSourceItems.push_back(Item);
 
 		FDecalGPUData GPUItem{};
 		GPUItem.WorldToDecal = Item->WorldToDecal.GetTransposed();
@@ -522,47 +671,49 @@ bool FDecalRenderFeature::BuildVisibleDecalData(const FDecalRenderRequest& Reque
 			Item->DecalWorld.M[2][1],
 			Item->DecalWorld.M[2][2]).GetSafeNormal();
 
-		DecalGPUItems.push_back(GPUItem);
+		InOutPreparedData.DecalGPUItems.push_back(GPUItem);
 	}
 
-	BuildStats.ValidItemCount = static_cast<uint32>(DecalGPUItems.size());
-	return !DecalGPUItems.empty();
+	InOutPreparedData.BuildStats.ValidItemCount = static_cast<uint32>(InOutPreparedData.DecalGPUItems.size());
+	return true;
 }
 
-bool FDecalRenderFeature::BuildClusterLists(const FDecalRenderRequest& Request)
+bool FDecalRenderFeature::BuildClusterLists(
+	const FDecalRenderRequest& Request,
+	FDecalPreparedViewData& InOutPreparedData)
 {
-	ClusterHeaders.clear();
-	ClusterIndexList.clear();
+	InOutPreparedData.ClusterHeaders.clear();
+	InOutPreparedData.ClusterIndexList.clear();
 
 	const uint32 ClusterCount =
 		Request.ClusterCountX * Request.ClusterCountY * Request.ClusterCountZ;
 
-	BuildStats.ClusterCount = ClusterCount;
-	BuildStats.TotalClusterIndices = 0;
-	BuildStats.MaxItemsPerCluster = 0;
+	InOutPreparedData.BuildStats.ClusterCount = ClusterCount;
+	InOutPreparedData.BuildStats.TotalClusterIndices = 0;
+	InOutPreparedData.BuildStats.MaxItemsPerCluster = 0;
 
-	if (ClusterCount == 0 || DecalGPUItems.empty() || VisibleSourceItems.empty())
+	if (ClusterCount == 0 || InOutPreparedData.DecalGPUItems.empty() || InOutPreparedData.VisibleSourceItems.empty())
+	{
+		return true;
+	}
+
+	if (InOutPreparedData.DecalGPUItems.size() != InOutPreparedData.VisibleSourceItems.size())
 	{
 		return false;
 	}
 
-	if (DecalGPUItems.size() != VisibleSourceItems.size())
-	{
-		return false;
-	}
-
-	ClusterHeaders.resize(ClusterCount);
+	InOutPreparedData.ClusterHeaders.resize(ClusterCount);
 
 	TArray<FClusterRange> Ranges;
-	Ranges.resize(VisibleSourceItems.size());
+	Ranges.resize(InOutPreparedData.VisibleSourceItems.size());
 
 	TArray<uint32> Counts;
 	Counts.resize(ClusterCount, 0);
 
-	for (int32 DecalIndex = 0; DecalIndex < static_cast<int32>(VisibleSourceItems.size()); ++DecalIndex)
+	for (int32 DecalIndex = 0; DecalIndex < static_cast<int32>(InOutPreparedData.VisibleSourceItems.size()); ++DecalIndex)
 	{
 		FClusterRange Range;
-		if (!ComputeDecalClusterRange(Request, *VisibleSourceItems[DecalIndex], Range))
+		if (!ComputeDecalClusterRange(Request, *InOutPreparedData.VisibleSourceItems[DecalIndex], Range))
 		{
 			continue;
 		}
@@ -592,25 +743,25 @@ bool FDecalRenderFeature::BuildClusterLists(const FDecalRenderRequest& Request)
 	{
 		const uint32 Count = Counts[ClusterId];
 
-		ClusterHeaders[ClusterId].Offset = RunningOffset;
-		ClusterHeaders[ClusterId].Count = Count;
-		ClusterHeaders[ClusterId].Pad0 = 0;
-		ClusterHeaders[ClusterId].Pad1 = 0;
+		InOutPreparedData.ClusterHeaders[ClusterId].Offset = RunningOffset;
+		InOutPreparedData.ClusterHeaders[ClusterId].Count = Count;
+		InOutPreparedData.ClusterHeaders[ClusterId].Pad0 = 0;
+		InOutPreparedData.ClusterHeaders[ClusterId].Pad1 = 0;
 
-		if (Count > BuildStats.MaxItemsPerCluster)
+		if (Count > InOutPreparedData.BuildStats.MaxItemsPerCluster)
 		{
-			BuildStats.MaxItemsPerCluster = Count;
+			InOutPreparedData.BuildStats.MaxItemsPerCluster = Count;
 		}
 
 		RunningOffset += Count;
 	}
 
-	ClusterIndexList.resize(RunningOffset);
-	BuildStats.TotalClusterIndices = RunningOffset;
+	InOutPreparedData.ClusterIndexList.resize(RunningOffset);
+	InOutPreparedData.BuildStats.TotalClusterIndices = RunningOffset;
 
 	if (RunningOffset == 0)
 	{
-		return false;
+		return true;
 	}
 
 	TArray<uint32> WriteCursor;
@@ -618,10 +769,10 @@ bool FDecalRenderFeature::BuildClusterLists(const FDecalRenderRequest& Request)
 
 	for (uint32 ClusterId = 0; ClusterId < ClusterCount; ++ClusterId)
 	{
-		WriteCursor[ClusterId] = ClusterHeaders[ClusterId].Offset;
+		WriteCursor[ClusterId] = InOutPreparedData.ClusterHeaders[ClusterId].Offset;
 	}
 
-	for (int32 DecalIndex = 0; DecalIndex < static_cast<int32>(VisibleSourceItems.size()); ++DecalIndex)
+	for (int32 DecalIndex = 0; DecalIndex < static_cast<int32>(InOutPreparedData.VisibleSourceItems.size()); ++DecalIndex)
 	{
 		const FClusterRange& Range = Ranges[DecalIndex];
 		if (!Range.bValid)
@@ -640,7 +791,7 @@ bool FDecalRenderFeature::BuildClusterLists(const FDecalRenderRequest& Request)
 					if (Request.bClampClusterItemCount)
 					{
 						const uint32 LocalWritten =
-							WriteCursor[ClusterId] - ClusterHeaders[ClusterId].Offset;
+							WriteCursor[ClusterId] - InOutPreparedData.ClusterHeaders[ClusterId].Offset;
 
 						if (LocalWritten >= Request.MaxClusterItems)
 						{
@@ -649,7 +800,7 @@ bool FDecalRenderFeature::BuildClusterLists(const FDecalRenderRequest& Request)
 					}
 
 					const uint32 WriteIndex = WriteCursor[ClusterId]++;
-					ClusterIndexList[WriteIndex] = static_cast<uint32>(DecalIndex);
+					InOutPreparedData.ClusterIndexList[WriteIndex] = static_cast<uint32>(DecalIndex);
 				}
 			}
 		}
@@ -659,40 +810,28 @@ bool FDecalRenderFeature::BuildClusterLists(const FDecalRenderRequest& Request)
 	{
 		for (uint32 ClusterId = 0; ClusterId < ClusterCount; ++ClusterId)
 		{
-			const uint32 WrittenCount = WriteCursor[ClusterId] - ClusterHeaders[ClusterId].Offset;
-			ClusterHeaders[ClusterId].Count = WrittenCount;
+			const uint32 WrittenCount = WriteCursor[ClusterId] - InOutPreparedData.ClusterHeaders[ClusterId].Offset;
+			InOutPreparedData.ClusterHeaders[ClusterId].Count = WrittenCount;
 		}
 
 		uint32 ValidTotalIndexCount = 0;
 		for (uint32 ClusterId = 0; ClusterId < ClusterCount; ++ClusterId)
 		{
-			ValidTotalIndexCount += ClusterHeaders[ClusterId].Count;
+			ValidTotalIndexCount += InOutPreparedData.ClusterHeaders[ClusterId].Count;
 		}
 
-		BuildStats.TotalClusterIndices = ValidTotalIndexCount;
+		InOutPreparedData.BuildStats.TotalClusterIndices = ValidTotalIndexCount;
 	}
 
-	return BuildStats.TotalClusterIndices > 0;
+	return true;
 }
 
 void FDecalRenderFeature::Release()
 {
 	// 슬롯에 남아 있을 수 있는 프레임 준비 상태 해제
-	bFramePrepared = false;
 	bInitialized = false;
-
-	// CPU-side frame data 정리
-	DecalGPUItems.clear();
-	VisibleSourceItems.clear();
-	ClusterHeaders.clear();
-	ClusterIndexList.clear();
-	BuildStats = {};
-	FrameStats = {};
-
-	// Cached external SRVs는 소유하지 않는다고 가정하고 null만 처리
-	BaseColorTextureArraySRV = nullptr;
-	NormalTextureArraySRV = nullptr;
-	ORMTextureArraySRV = nullptr;
+	LastBuildStats = {};
+	LastFrameStats = {};
 
 	if (ClusterIndexStructuredBufferSRV)
 	{
@@ -735,9 +874,60 @@ void FDecalRenderFeature::Release()
 		ClusterGlobalsConstantBuffer->Release();
 		ClusterGlobalsConstantBuffer = nullptr;
 	}
+
+	if (CompositeConstantBuffer)
+	{
+		CompositeConstantBuffer->Release();
+		CompositeConstantBuffer = nullptr;
+	}
+
+	if (CompositeBlendState)
+	{
+		CompositeBlendState->Release();
+		CompositeBlendState = nullptr;
+	}
+
+	if (CompositeDepthState)
+	{
+		CompositeDepthState->Release();
+		CompositeDepthState = nullptr;
+	}
+
+	if (CompositeRasterizerState)
+	{
+		CompositeRasterizerState->Release();
+		CompositeRasterizerState = nullptr;
+	}
+
+	if (LinearSampler)
+	{
+		LinearSampler->Release();
+		LinearSampler = nullptr;
+	}
+
+	if (PointSampler)
+	{
+		PointSampler->Release();
+		PointSampler = nullptr;
+	}
+
+	if (CompositeVS)
+	{
+		CompositeVS->Release();
+		CompositeVS = nullptr;
+	}
+
+	if (CompositePS)
+	{
+		CompositePS->Release();
+		CompositePS = nullptr;
+	}
 }
 
-bool FDecalRenderFeature::UpdateClusterGlobalsConstantBuffer(FRenderer& Renderer, const FDecalRenderRequest& Request)
+bool FDecalRenderFeature::UpdateClusterGlobalsConstantBuffer(
+	FRenderer& Renderer,
+	const FDecalRenderRequest& Request,
+	const FDecalPreparedViewData& PreparedData)
 {
 	if (!ClusterGlobalsConstantBuffer)
 	{
@@ -779,7 +969,7 @@ bool FDecalRenderFeature::UpdateClusterGlobalsConstantBuffer(FRenderer& Renderer
 	ClusterGlobalsCB.TileHeight = static_cast<float>(Request.ViewportHeight) / static_cast<float>(Request.ClusterCountY);
 	ClusterGlobalsCB.LogZScale = static_cast<float>(Request.ClusterCountZ) / std::log(Request.FarZ / Request.NearZ);
 	ClusterGlobalsCB.LogZBias = -std::log(Request.NearZ) * ClusterGlobalsCB.LogZScale;
-	ClusterGlobalsCB.MaxClusterItems = Request.bClampClusterItemCount ? Request.MaxClusterItems : BuildStats.MaxItemsPerCluster;
+	ClusterGlobalsCB.MaxClusterItems = Request.bClampClusterItemCount ? Request.MaxClusterItems : PreparedData.BuildStats.MaxItemsPerCluster;
 
 	D3D11_MAPPED_SUBRESOURCE Mapped{};
 	if (FAILED(Context->Map(ClusterGlobalsConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
@@ -793,16 +983,16 @@ bool FDecalRenderFeature::UpdateClusterGlobalsConstantBuffer(FRenderer& Renderer
 	return true;
 }
 
-bool FDecalRenderFeature::UploadDecalStructuredBuffer(FRenderer& Renderer)
+bool FDecalRenderFeature::UploadDecalStructuredBuffer(FRenderer& Renderer, const FDecalPreparedViewData& PreparedData)
 {
 	ID3D11Device* Device = Renderer.GetDevice();
 	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
 
 	if (!Device || !Context) return false;
 
-	if (DecalGPUItems.empty()) return false;
+	if (PreparedData.DecalGPUItems.empty()) return false;
 
-	const uint32 ElementCount = static_cast<uint32>(DecalGPUItems.size());
+	const uint32 ElementCount = static_cast<uint32>(PreparedData.DecalGPUItems.size());
 	const uint32 ElementSize = static_cast<uint32>(sizeof(FDecalGPUData));
 	const uint32 RequiredByteWidth = ElementCount * ElementSize;
 
@@ -872,13 +1062,13 @@ bool FDecalRenderFeature::UploadDecalStructuredBuffer(FRenderer& Renderer)
 		return false;
 	}
 
-	std::memcpy(Mapped.pData, DecalGPUItems.data(), RequiredByteWidth);
+	std::memcpy(Mapped.pData, PreparedData.DecalGPUItems.data(), RequiredByteWidth);
 	Context->Unmap(DecalStructuredBuffer, 0);
 
 	return true;
 }
 
-bool FDecalRenderFeature::UploadClusterHeaderStructuredBuffer(FRenderer& Renderer)
+bool FDecalRenderFeature::UploadClusterHeaderStructuredBuffer(FRenderer& Renderer, const FDecalPreparedViewData& PreparedData)
 {
 	ID3D11Device* Device = Renderer.GetDevice();
 	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
@@ -888,12 +1078,12 @@ bool FDecalRenderFeature::UploadClusterHeaderStructuredBuffer(FRenderer& Rendere
 		return false;
 	}
 
-	if (ClusterHeaders.empty())
+	if (PreparedData.ClusterHeaders.empty())
 	{
 		return false;
 	}
 
-	const uint32 ElementCount = static_cast<uint32>(ClusterHeaders.size());
+	const uint32 ElementCount = static_cast<uint32>(PreparedData.ClusterHeaders.size());
 	const uint32 ElementSize = static_cast<uint32>(sizeof(FDecalClusterHeaderGPU));
 	const uint32 RequiredByteWidth = ElementCount * ElementSize;
 
@@ -974,13 +1164,13 @@ bool FDecalRenderFeature::UploadClusterHeaderStructuredBuffer(FRenderer& Rendere
 		return false;
 	}
 
-	std::memcpy(Mapped.pData, ClusterHeaders.data(), RequiredByteWidth);
+	std::memcpy(Mapped.pData, PreparedData.ClusterHeaders.data(), RequiredByteWidth);
 	Context->Unmap(ClusterHeaderStructuredBuffer, 0);
 
 	return true;
 }
 
-bool FDecalRenderFeature::UploadClusterIndexStructuredBuffer(FRenderer& Renderer)
+bool FDecalRenderFeature::UploadClusterIndexStructuredBuffer(FRenderer& Renderer, const FDecalPreparedViewData& PreparedData)
 {
 	ID3D11Device* Device = Renderer.GetDevice();
 	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
@@ -990,12 +1180,12 @@ bool FDecalRenderFeature::UploadClusterIndexStructuredBuffer(FRenderer& Renderer
 		return false;
 	}
 
-	if (ClusterIndexList.empty())
+	if (PreparedData.ClusterIndexList.empty())
 	{
 		return false;
 	}
 
-	const uint32 ElementCount = static_cast<uint32>(ClusterIndexList.size());
+	const uint32 ElementCount = static_cast<uint32>(PreparedData.ClusterIndexList.size());
 	const uint32 ElementSize = static_cast<uint32>(sizeof(uint32));
 	const uint32 RequiredByteWidth = ElementCount * ElementSize;
 
@@ -1076,21 +1266,7 @@ bool FDecalRenderFeature::UploadClusterIndexStructuredBuffer(FRenderer& Renderer
 		return false;
 	}
 
-	std::memcpy(Mapped.pData, ClusterIndexList.data(), RequiredByteWidth);
+	std::memcpy(Mapped.pData, PreparedData.ClusterIndexList.data(), RequiredByteWidth);
 	Context->Unmap(ClusterIndexStructuredBuffer, 0);
-
 	return true;
-}
-
-void FDecalRenderFeature::ResetFrameData()
-{
-	bFramePrepared = false;
-
-	DecalGPUItems.clear();
-	VisibleSourceItems.clear();
-	ClusterHeaders.clear();
-	ClusterIndexList.clear();
-
-	BuildStats = {};
-	FrameStats = {};
 }

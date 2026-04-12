@@ -67,6 +67,7 @@ public:
 	const FTimer& GetTimer() const;
 	// 현재 프레임 델타 타임을 반환한다.
 	float GetDeltaTime() const;
+	FDebugDrawManager& GetDebugDrawManager() { return DebugDrawManager; }
 	const TArray<std::unique_ptr<FWorldContext>>& GetWorldContexts() const { return WorldContexts; }
 	void CollectGarbage();
 
@@ -125,7 +126,6 @@ protected:
 	// 물리 매니저 접근자다.
 	FPhysicsManager* GetPhysicsManager() const { return PhysicsManager.get(); }
 	// 디버그 드로우 매니저 접근자다.
-	FDebugDrawManager& GetDebugDrawManager() { return DebugDrawManager; }
 	float GetWindowAspectRatio() const { return (WindowHeight > 0) ? (static_cast<float>(WindowWidth) / static_cast<float>(WindowHeight)) : 1.0f; }
 
 private:

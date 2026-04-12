@@ -470,6 +470,7 @@ namespace
 			Material->GetConstantBuffer(SlotIndex)->SetData(DefaultScroll, sizeof(DefaultScroll), 16);
 		}
 
+		GEngine->GetRenderer()->ConfigureMaterialPasses(*Material, false);
 		return Material;
 	}
 
@@ -509,6 +510,7 @@ namespace
 
 		std::wstring TexVSPath = FPaths::ShaderDir() / L"TextureVertexShader.hlsl";
 		Material->SetVertexShader(FShaderMap::Get().GetOrCreateVertexShader(GEngine->GetRenderer()->GetDevice(), TexVSPath.c_str()));
+		GEngine->GetRenderer()->ConfigureMaterialPasses(*Material, true);
 		UE_LOG("%s %s", LogPrefix, WideToUtf8(TexturePath.wstring()).c_str());
 		return true;
 	}

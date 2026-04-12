@@ -1,10 +1,19 @@
 #pragma once
 
 #include "EngineAPI.h"
+#include <cstdint>
 #include <d3d11.h>
 #include <memory>
 
 class FShaderResource;
+
+enum class EVertexLayoutType : uint8_t
+{
+	MeshVertex = 0,
+	FullscreenNone,
+	UIVertex,
+	LineVertex,
+};
 
 class ENGINE_API FVertexShader
 {
@@ -14,6 +23,12 @@ public:
 	static std::shared_ptr<FVertexShader> Create(
 		ID3D11Device* Device,
 		const std::shared_ptr<FShaderResource>& Resource
+	);
+
+	static std::shared_ptr<FVertexShader> Create(
+		ID3D11Device* Device,
+		const std::shared_ptr<FShaderResource>& Resource,
+		EVertexLayoutType LayoutType
 	);
 
 	static std::shared_ptr<FVertexShader> CreateWithLayout(

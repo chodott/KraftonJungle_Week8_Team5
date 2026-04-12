@@ -13,6 +13,7 @@
 #include "Component/BillboardComponent.h"
 #include "Component/HeightFogComponent.h"
 #include "Component/MoveComponent.h"
+#include "Component/DecalComponent.h"
 #include "Level/Level.h"
 #include "Object/Class.h"
 #include "Object/ObjectFactory.h"
@@ -21,6 +22,7 @@
 #include "Renderer/RenderMesh.h"
 #include "Renderer/Material.h"
 #include "Renderer/MaterialManager.h"
+#include "Core/Paths.h"
 
 #include <algorithm>
 
@@ -90,6 +92,38 @@ namespace
 		{
 			RefreshSceneComponentHierarchy(Child);
 		}
+	}
+
+	bool IsSupportedTextureFile(const std::filesystem::path& Path)
+	{
+		std::wstring Ext = Path.extension().wstring();
+		std::transform(Ext.begin(), Ext.end(), Ext.begin(), towlower);
+		return Ext == L".png" || Ext == L".dds" || Ext == L".jpg" ||
+			Ext == L".jpeg" || Ext == L".tga" || Ext == L".bmp";
+	}
+
+	void CollectTextureFiles(const std::filesystem::path& Root, TArray<std::filesystem::path>& OutFiles)
+	{
+		OutFiles.clear();
+		if (!std::filesystem::exists(Root))
+		{
+			return;
+		}
+
+		for (const auto& Entry : std::filesystem::recursive_directory_iterator(Root))
+		{
+			if (!Entry.is_regular_file())
+			{
+				continue;
+			}
+
+			if (IsSupportedTextureFile(Entry.path()))
+			{
+				OutFiles.push_back(Entry.path());
+			}
+		}
+
+		std::sort(OutFiles.begin(), OutFiles.end());
 	}
 }
 
@@ -554,6 +588,123 @@ void FPropertyWindow::DrawBillboardComponentDetials(UBillboardComponent* Billboa
 	BillboardComponent->SetUVMax(FVector2(UL, VL));
 }
 
+void FPropertyWindow::DrawDecalComponentDetails(UDecalComponent* DecalComponent, FEditorEngine* Engine)
+{
+	bool bEnabled = DecalComponent->IsEnabled();
+	if (ImGui::Checkbox("Enabled", &bEnabled))
+	{
+		DecalComponent->SetEnabled(bEnabled);
+	}
+
+	float Size[2] = { DecalComponent->GetSize().X, DecalComponent->GetSize().Y };
+	if (ImGui::DragFloat2("Size", Size, 1.0f, 0.0f, 10000.0f, "%.2f"))
+	{
+		DecalComponent->SetSize(FVector2(Size[0], Size[1]));
+	}
+
+	float ProjectionDepth = DecalComponent->GetProjectionDepth();
+	if (ImGui::DragFloat("Projection Depth", &ProjectionDepth, 1.0f, 0.0f, 10000.0f, "%.2f"))
+	{
+		DecalComponent->SetProjectionDepth(ProjectionDepth);
+	}
+
+	FVector2 UVMin = DecalComponent->GetUVMin();
+	FVector2 UVMax = DecalComponent->GetUVMax();
+	if (ImGui::DragFloat2("UV Min", &UVMin.X, 0.01f, 0.0f, 1.0f, "%.3f"))
+	{
+		DecalComponent->SetUVMin(UVMin);
+	}
+	if (ImGui::DragFloat2("UV Max", &UVMax.X, 0.01f, 0.0f, 1.0f, "%.3f"))
+	{
+		DecalComponent->SetUVMax(UVMax);
+	}
+
+	TArray<std::filesystem::path> TextureFiles;
+	CollectTextureFiles(FPaths::ContentDir() / "Textures", TextureFiles);
+
+	std::wstring CurrentPath = DecalComponent->GetTexturePath();
+	std::string CurrentLabel = CurrentPath.empty()
+		? std::string("(None)")
+		: std::filesystem::path(CurrentPath).filename().string();
+
+	if (ImGui::BeginCombo("Decal Texture", CurrentLabel.c_str()))
+	{
+		bool bNoneSelected = CurrentPath.empty();
+		if (ImGui::Selectable("(None)", bNoneSelected))
+		{
+			DecalComponent->SetTexturePath(L"");
+		}
+
+		for (const auto& Path : TextureFiles)
+		{
+			const std::string Label = Path.filename().string();
+			const std::wstring FullPath = Path.wstring();
+			const bool bSelected = (FullPath == CurrentPath);
+			if (ImGui::Selectable(Label.c_str(), bSelected))
+			{
+				DecalComponent->SetTexturePath(FullPath);
+			}
+			if (bSelected)
+			{
+				ImGui::SetItemDefaultFocus();
+			}
+		}
+		ImGui::EndCombo();
+	}
+
+	float Tint[4] =
+	{
+		DecalComponent->GetBaseColorTint().R,
+		DecalComponent->GetBaseColorTint().G,
+		DecalComponent->GetBaseColorTint().B,
+		DecalComponent->GetBaseColorTint().A
+	};
+	if (ImGui::ColorEdit4("Base Color Tint", Tint))
+	{
+		DecalComponent->SetBaseColorTint(FLinearColor(Tint));
+	}
+
+	float EdgeFade = DecalComponent->GetEdgeFade();
+	if (ImGui::DragFloat("Edge Fade", &EdgeFade, 0.05f, 0.0f, 32.0f, "%.2f"))
+	{
+		DecalComponent->SetEdgeFade(EdgeFade);
+	}
+
+	ImGui::Separator();
+	ImGui::Text("Fade Preview");
+
+	float FadeInDuration = DecalComponent->GetFadeInDuration();
+	float FadeOutDuration = DecalComponent->GetFadeOutDuration();
+
+	if (ImGui::DragFloat("Fade In Duration", &FadeInDuration, 0.05f, 0.05f, 10.0f, "%.2f s"))
+	{
+		DecalComponent->SetFadeInDuration(FadeInDuration);
+	}
+	if (ImGui::DragFloat("Fade Out Duration", &FadeOutDuration, 0.05f, 0.05f, 10.0f, "%.2f s"))
+	{
+		DecalComponent->SetFadeOutDuration(FadeOutDuration);
+	}
+
+	if (ImGui::Button("Fade In"))
+	{
+		DecalComponent->FadeIn(FadeInDuration);
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Fade Out"))
+	{
+		DecalComponent->FadeOut(FadeOutDuration, true);
+	}
+
+	EDecalFadeState FadeState = DecalComponent->GetFadeState();
+	const char* FadeStateLabel = "None";
+	if (FadeState == EDecalFadeState::FadeIn)  FadeStateLabel = "Fading In";
+	if (FadeState == EDecalFadeState::FadeOut) FadeStateLabel = "Fading Out";
+	ImGui::Text("State: %s", FadeStateLabel);
+
+	float CurrentAlpha = DecalComponent->GetBaseColorTint().A;
+	ImGui::ProgressBar(CurrentAlpha, ImVec2(-1.0f, 0.0f), "Alpha");
+}
+
 void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngine* Engine)
 {
 	if (!Component)
@@ -645,6 +796,11 @@ void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngi
 	if (Component->IsA(UBillboardComponent::StaticClass()))
 	{
 		DrawBillboardComponentDetials(static_cast<UBillboardComponent*>(Component), Engine);
+	}
+
+	if (Component->IsA(UDecalComponent::StaticClass()))
+	{
+		DrawDecalComponentDetails(static_cast<UDecalComponent*>(Component), Engine);
 	}
 }
 

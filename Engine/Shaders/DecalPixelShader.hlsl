@@ -33,6 +33,8 @@ float4 main(DECAL_VS_OUTPUT Input) : SV_TARGET
 	}
 
 	float4 DecalColor = DecalTexture.Sample(DecalSampler, Input.ProjectedUV) * Input.Color;
-	DecalColor.a *= ComputeDecalFade(Input.LocalPosition, DecalExtents, DecalEdgeFade);
+	//DecalColor.a *= ComputeDecalFade(Input.LocalPosition, DecalExtents, DecalEdgeFade);
+
+	DecalColor.a = saturate(DecalColor.a);
 	return DecalColor;
 }

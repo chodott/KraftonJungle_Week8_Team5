@@ -25,6 +25,9 @@
     <Filter Include="Source\Input">
       <UniqueIdentifier>{3932e845-853d-348b-2ac8-4c8557fcaed4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\Level">
+      <UniqueIdentifier>{211c501e-b9aa-a772-d953-ef04b2e6d2ee}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source\Math">
       <UniqueIdentifier>{c5a7a384-b882-719b-feb1-81b7a8866df9}</UniqueIdentifier>
     </Filter>
@@ -50,10 +53,7 @@
       <UniqueIdentifier>{b4935566-c566-3c8c-ae88-5cc13eba9d31}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\Renderer\Feature">
-      <UniqueIdentifier>{3f10fb4d-7d63-4e08-bb3a-9e9114d8a2b1}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Scene">
-      <UniqueIdentifier>{f9c008c1-5b68-14f2-ea56-7006fc09bfab}</UniqueIdentifier>
+      <UniqueIdentifier>{208c9b4c-a04e-6a5d-fda9-d05f3dd4f4e0}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\Serializer">
       <UniqueIdentifier>{31714189-31bf-1cc6-f130-c789ef837eee}</UniqueIdentifier>
@@ -87,10 +87,22 @@
     <ClCompile Include="Source\Actor\Actor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Actor\BillboardActor.cpp">
+      <Filter>Source\Actor</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Actor\CubeActor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Actor\DecalActor.cpp">
+      <Filter>Source\Actor</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Actor\HeightFogActor.cpp">
+      <Filter>Source\Actor</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Actor\PlaneActor.cpp">
+      <Filter>Source\Actor</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Actor\PlayerCameraActor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
     <ClCompile Include="Source\Actor\SkySphereActor.cpp">
@@ -117,13 +129,25 @@
     <ClCompile Include="Source\Component\ActorComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Component\BillboardComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Component\CameraComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Component\DecalComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Component\HeightFogComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
     <ClCompile Include="Source\Component\LineBatchComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
     <ClCompile Include="Source\Component\MeshComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Component\MoveComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
     <ClCompile Include="Source\Component\PrimitiveComponent.cpp">
@@ -189,6 +213,18 @@
     <ClCompile Include="Source\Input\InputMappingContext.cpp">
       <Filter>Source\Input</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Level\BVH.cpp">
+      <Filter>Source\Level</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Level\Level.cpp">
+      <Filter>Source\Level</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Level\MeshBVH.cpp">
+      <Filter>Source\Level</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Level\ScenePacketBuilder.cpp">
+      <Filter>Source\Level</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Math\Frustum.cpp">
       <Filter>Source\Math</Filter>
     </ClCompile>
@@ -246,7 +282,19 @@
     <ClCompile Include="Source\Primitive\UnrealEditorStyledGizmo.cpp">
       <Filter>Source\Primitive</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Renderer\BillboardRenderer.cpp">
+      <Filter>Source\Renderer</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Renderer\FontAtlas.cpp">
+      <Filter>Source\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\FramePasses.cpp">
+      <Filter>Source\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\FramePipeline.cpp">
+      <Filter>Source\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\LinearColor.cpp">
       <Filter>Source\Renderer</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Material.cpp">
@@ -258,10 +306,13 @@
     <ClCompile Include="Source\Renderer\MeshData.cpp">
       <Filter>Source\Renderer</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Renderer\RenderCommand.cpp">
+    <ClCompile Include="Source\Renderer\MeshPassProcessor.cpp">
       <Filter>Source\Renderer</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\RenderMesh.cpp">
+      <Filter>Source\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\RenderPipeline.cpp">
       <Filter>Source\Renderer</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\RenderState.cpp">
@@ -271,6 +322,18 @@
       <Filter>Source\Renderer</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Renderer.cpp">
+      <Filter>Source\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\SceneCommandBuilder.cpp">
+      <Filter>Source\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\ScenePasses.cpp">
+      <Filter>Source\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\SceneRenderer.cpp">
+      <Filter>Source\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\ScreenUIRenderer.cpp">
       <Filter>Source\Renderer</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Shader.cpp">
@@ -288,26 +351,32 @@
     <ClCompile Include="Source\Renderer\SubUVRenderer.cpp">
       <Filter>Source\Renderer</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Renderer\SceneRenderer.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\SceneCommandBuilder.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\ScreenUIRenderer.cpp">
+    <ClCompile Include="Source\Renderer\TextMeshBuilder.cpp">
       <Filter>Source\Renderer</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\ViewportCompositor.cpp">
       <Filter>Source\Renderer</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Renderer\TextMeshBuilder.cpp">
-      <Filter>Source\Renderer</Filter>
+    <ClCompile Include="Source\Renderer\Feature\BillboardRenderFeature.cpp">
+      <Filter>Source\Renderer\Feature</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Level\ScenePacketBuilder.cpp">
-      <Filter>Source\Scene</Filter>
+    <ClCompile Include="Source\Renderer\Feature\DebugLineRenderFeature.cpp">
+      <Filter>Source\Renderer\Feature</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Level\Level.cpp">
-      <Filter>Source\Scene</Filter>
+    <ClCompile Include="Source\Renderer\Feature\DecalRenderFeature.cpp">
+      <Filter>Source\Renderer\Feature</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Feature\FogRenderFeature.cpp">
+      <Filter>Source\Renderer\Feature</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Feature\OutlineRenderFeature.cpp">
+      <Filter>Source\Renderer\Feature</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Feature\SubUVRenderFeature.cpp">
+      <Filter>Source\Renderer\Feature</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Feature\TextRenderFeature.cpp">
+      <Filter>Source\Renderer\Feature</Filter>
     </ClCompile>
     <ClCompile Include="Source\Serializer\Archive.cpp">
       <Filter>Source\Serializer</Filter>
@@ -321,39 +390,6 @@
     <ClCompile Include="Source\World\World.cpp">
       <Filter>Source\World</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Level\BVH.cpp">
-      <Filter>Source\Scene</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Level\MeshBVH.cpp">
-      <Filter>Source\Scene</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Feature\DebugLineRenderFeature.cpp" />
-    <ClCompile Include="Source\Renderer\Feature\OutlineRenderFeature.cpp" />
-    <ClCompile Include="Source\Renderer\Feature\SubUVRenderFeature.cpp" />
-    <ClCompile Include="Source\Renderer\Feature\TextRenderFeature.cpp" />
-    <ClCompile Include="Source\Renderer\Feature\BillboardRenderFeature.cpp" />
-    <ClCompile Include="Source\Component\BillboardComponent.cpp">
-      <Filter>Source\Component</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\BillboardRenderer.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Actor\BillboardActor.cpp">
-      <Filter>Source\Actor</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Actor\DecalActor.cpp">
-      <Filter>Source\Actor</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Component\MoveComponent.cpp">
-      <Filter>Source\Component</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Actor\PlayerCameraActor.cpp" />
-    <ClCompile Include="Source\Component\DecalComponent.cpp" />
-    <ClCompile Include="Source\Component\HeightFogComponent.cpp" />
-    <ClCompile Include="Source\Renderer\LinearColor.cpp" />
-    <ClCompile Include="Source\Actor\HeightFogActor.cpp" />
-    <ClCompile Include="Source\Renderer\Feature\FogRenderFeature.cpp" />
-    <ClCompile Include="Source\Renderer\Feature\DecalRenderFeature.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\CoreMinimal.h">
@@ -365,10 +401,22 @@
     <ClInclude Include="Source\Actor\Actor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Actor\BillboardActor.h">
+      <Filter>Source\Actor</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Actor\CubeActor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Actor\DecalActor.h">
+      <Filter>Source\Actor</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Actor\HeightFogActor.h">
+      <Filter>Source\Actor</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Actor\PlaneActor.h">
+      <Filter>Source\Actor</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Actor\PlayerCameraActor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
     <ClInclude Include="Source\Actor\SkySphereActor.h">
@@ -395,13 +443,25 @@
     <ClInclude Include="Source\Component\ActorComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Component\BillboardComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Component\CameraComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Component\DecalComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Component\HeightFogComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\LineBatchComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\MeshComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Component\MoveComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\PrimitiveComponent.h">
@@ -476,6 +536,27 @@
     <ClInclude Include="Source\Input\inputTrigger.h">
       <Filter>Source\Input</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Level\BVH.h">
+      <Filter>Source\Level</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Level\Level.h">
+      <Filter>Source\Level</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Level\LevelContext.h">
+      <Filter>Source\Level</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Level\MeshBVH.h">
+      <Filter>Source\Level</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Level\ScenePacketBuilder.h">
+      <Filter>Source\Level</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Level\SceneRenderPacket.h">
+      <Filter>Source\Level</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Level\WorldTypes.h">
+      <Filter>Source\Level</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Math\Frustum.h">
       <Filter>Source\Math</Filter>
     </ClInclude>
@@ -518,6 +599,9 @@
     <ClInclude Include="Source\Object\ObjectGlobals.h">
       <Filter>Source\Object</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Object\ObjectIterator.h">
+      <Filter>Source\Object</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Object\ObjectManager.h">
       <Filter>Source\Object</Filter>
     </ClInclude>
@@ -548,7 +632,25 @@
     <ClInclude Include="Source\Primitive\UnrealEditorStyledGizmo.h">
       <Filter>Source\Primitive</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Renderer\BillboardRenderer.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Renderer\FontAtlas.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\FramePassContext.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\FramePasses.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\FramePipeline.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\FullscreenPass.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\LinearColor.h">
       <Filter>Source\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Material.h">
@@ -557,13 +659,31 @@
     <ClInclude Include="Source\Renderer\MaterialManager.h">
       <Filter>Source\Renderer</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Renderer\MeshBatch.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Renderer\MeshData.h">
       <Filter>Source\Renderer</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Renderer\RenderCommand.h">
+    <ClInclude Include="Source\Renderer\MeshPassProcessor.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\PassContext.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\RenderDevice.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\RenderFeatureInterfaces.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\RenderFrameContext.h">
       <Filter>Source\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\RenderMesh.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\RenderPipeline.h">
       <Filter>Source\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\RenderState.h">
@@ -572,7 +692,28 @@
     <ClInclude Include="Source\Renderer\RenderStateManager.h">
       <Filter>Source\Renderer</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Renderer\RenderType.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Renderer\Renderer.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\SceneCommandBuilder.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\ScenePasses.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\SceneRenderTargets.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\SceneRenderer.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\SceneViewData.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\ScreenUIRenderer.h">
       <Filter>Source\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Shader.h">
@@ -593,44 +734,41 @@
     <ClInclude Include="Source\Renderer\SubUVRenderer.h">
       <Filter>Source\Renderer</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Renderer\UIDrawList.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\SceneRenderer.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\SceneCommandBuilder.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\ScreenUIRenderer.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\ViewportCompositor.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Renderer\TextMeshBuilder.h">
       <Filter>Source\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\TextureVertex.h">
       <Filter>Source\Renderer</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Renderer\UIDrawList.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Renderer\Vertex.h">
       <Filter>Source\Renderer</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Level\SceneRenderPacket.h">
-      <Filter>Source\Scene</Filter>
+    <ClInclude Include="Source\Renderer\ViewportCompositor.h">
+      <Filter>Source\Renderer</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Level\ScenePacketBuilder.h">
-      <Filter>Source\Scene</Filter>
+    <ClInclude Include="Source\Renderer\Feature\BillboardRenderFeature.h">
+      <Filter>Source\Renderer\Feature</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Level\Level.h">
-      <Filter>Source\Scene</Filter>
+    <ClInclude Include="Source\Renderer\Feature\DebugLineRenderFeature.h">
+      <Filter>Source\Renderer\Feature</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Level\LevelContext.h">
-      <Filter>Source\Scene</Filter>
+    <ClInclude Include="Source\Renderer\Feature\DecalRenderFeature.h">
+      <Filter>Source\Renderer\Feature</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Level\WorldTypes.h">
-      <Filter>Source\Scene</Filter>
+    <ClInclude Include="Source\Renderer\Feature\FogRenderFeature.h">
+      <Filter>Source\Renderer\Feature</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Feature\OutlineRenderFeature.h">
+      <Filter>Source\Renderer\Feature</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Feature\SubUVRenderFeature.h">
+      <Filter>Source\Renderer\Feature</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Feature\TextRenderFeature.h">
+      <Filter>Source\Renderer\Feature</Filter>
     </ClInclude>
     <ClInclude Include="Source\Serializer\Archive.h">
       <Filter>Source\Serializer</Filter>
@@ -953,45 +1091,6 @@
     <ClInclude Include="ThirdParty\nlohmann\json.hpp">
       <Filter>ThirdParty\nlohmann</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Object\ObjectIterator.h" />
-    <ClInclude Include="Source\Level\BVH.h">
-      <Filter>Source\Scene</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Level\MeshBVH.h">
-      <Filter>Source\Scene</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\RenderDevice.h" />
-    <ClInclude Include="Source\Renderer\RenderFeatureInterfaces.h" />
-    <ClInclude Include="Source\Renderer\Feature\DebugLineRenderFeature.h" />
-    <ClInclude Include="Source\Renderer\Feature\OutlineRenderFeature.h" />
-    <ClInclude Include="Source\Renderer\Feature\SubUVRenderFeature.h" />
-    <ClInclude Include="Source\Renderer\Feature\TextRenderFeature.h" />
-    <ClInclude Include="Source\Renderer\Feature\BillboardRenderFeature.h" />
-    <ClInclude Include="Source\Renderer\RenderType.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Component\BillboardComponent.h">
-      <Filter>Source\Component</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\BillboardRenderer.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Actor\BillboardActor.h">
-      <Filter>Source\Actor</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Actor\DecalActor.h">
-      <Filter>Source\Actor</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Component\MoveComponent.h">
-      <Filter>Source\Component</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Actor\PlayerCameraActor.h" />
-    <ClInclude Include="Source\Component\DecalComponent.h" />
-    <ClInclude Include="Source\Component\HeightFogComponent.h" />
-    <ClInclude Include="Source\Renderer\LinearColor.h" />
-    <ClInclude Include="Source\Actor\HeightFogActor.h" />
-    <ClInclude Include="Source\Renderer\Feature\FogRenderFeature.h" />
-    <ClInclude Include="Source\Renderer\Feature\DecalRenderFeature.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
