@@ -6,6 +6,7 @@
 #include "Renderer/Feature/DecalRenderFeature.h"
 #include "Renderer/Feature/FogRenderFeature.h"
 #include "Renderer/Feature/OutlineRenderFeature.h"
+#include "Renderer/Feature/FXAARenderFeature.h"
 #include "Renderer/Renderer.h"
 
 namespace
@@ -317,4 +318,24 @@ bool FFireBallPass::Execute(FPassContext& Context)
 		Context.Targets,
 		Context.SceneViewData.PostProcessInputs.FireBallItems	
 	);
+}
+
+bool FFXAAPass::Execute(FPassContext& Context)
+{
+	if (!Context.SceneViewData.PostProcessInputs.bApplyFXAA)
+	{
+		return true;
+	}
+
+	FFXAARenderFeature* Feature = Context.Renderer.GetFXAAFeature();
+	if (!Feature)
+	{
+		return true;
+	}
+
+	return Feature->Render(
+		Context.Renderer,
+		Context.SceneViewData.Frame,
+		Context.SceneViewData.View,
+		Context.Targets);
 }

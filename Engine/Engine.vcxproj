@@ -144,6 +144,7 @@
     <ClInclude Include="Source\Renderer\Feature\DebugLineRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\DecalRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\FireBallRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Feature\FXAARenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\FogRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\OutlineRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\SubUVRenderFeature.h" />
@@ -353,6 +354,7 @@
     <ClCompile Include="Source\Renderer\Feature\DebugLineRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\DecalRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\FireBallRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Feature\FXAARenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\FogRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\OutlineRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\SubUVRenderFeature.cpp" />

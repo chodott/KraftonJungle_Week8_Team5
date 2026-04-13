@@ -107,6 +107,7 @@ void FSceneRenderer::BuildRenderPipeline(FRenderPipeline& OutPipeline) const
 	OutPipeline.AddPass(std::make_unique<FOutlineCompositePass>());
 	OutPipeline.AddPass(std::make_unique<FOverlayPass>(MeshPassProcessor));
 	OutPipeline.AddPass(std::make_unique<FDebugLinePass>());
+	OutPipeline.AddPass(std::make_unique<FFXAAPass>());  // FXAA는 모든 오버레이/디버그 이후 마지막에
 }
 
 void FSceneRenderer::ApplyWireframeOverride(FSceneViewData& SceneViewData, FMaterial* WireframeMaterial)

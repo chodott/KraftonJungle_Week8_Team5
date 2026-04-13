@@ -14,6 +14,7 @@ enum class EEngineShowFlags : uint64
 	SF_Fog			= 1ull << 8,
 	SF_Decal		= 1ull << 9,
 	SF_DepthView	= 1ull << 10,
+	SF_FXAA			= 1ull << 11,
 };
 class ENGINE_API FShowFlags
 {

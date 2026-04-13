@@ -125,6 +125,12 @@ public:
 
 class ENGINE_API FFireBallPass : public IRenderPass
 {
-	public:
+public:
+	bool Execute(FPassContext& Context) override;
+};
+
+class ENGINE_API FFXAAPass : public IRenderPass
+{
+public:
 	bool Execute(FPassContext& Context) override;
 };

@@ -9,6 +9,7 @@
 #include "Renderer/Feature/TextRenderFeature.h"
 #include "Renderer/Feature/BillboardRenderFeature.h"
 #include "Renderer/Feature/DecalRenderFeature.h"
+#include "Renderer/Feature/FXAARenderFeature.h"
 #include "Renderer/MeshBatch.h"
 #include "Renderer/RenderDevice.h"
 #include "Renderer/RenderFeatureInterfaces.h"
@@ -155,6 +156,7 @@ public:
 	FDebugLineRenderFeature* GetDebugLineFeature() const { return DebugLineFeature.get(); }
 	FDecalRenderFeature* GetDecalFeature() const { return DecalFeature.get(); }
 	FFireBallRenderFeature* GetFireBallFeature() const { return FireBallFeature.get(); }
+	FFXAARenderFeature* GetFXAAFeature() const { return FXAAFeature.get(); }
 	FSceneRenderer& GetSceneRenderer() { return SceneRenderer; }
 	FScreenUIRenderer& GetScreenUIRenderer() { return ScreenUIRenderer; }
 	FRenderDevice& GetRenderDevice() { return RenderDevice; }
@@ -226,6 +228,7 @@ private:
 	std::unique_ptr<FDebugLineRenderFeature> DebugLineFeature;
 	std::unique_ptr<FDecalRenderFeature> DecalFeature;
 	std::unique_ptr<FFireBallRenderFeature> FireBallFeature;
+	std::unique_ptr<FFXAARenderFeature> FXAAFeature;
 
 	ID3D11ShaderResourceView* FolderIconSRV = nullptr;
 	ID3D11ShaderResourceView* FileIconSRV = nullptr;

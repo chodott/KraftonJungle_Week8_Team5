@@ -68,6 +68,8 @@ struct ENGINE_API FSceneRenderPacket
 	TArray<FSceneDecalPrimitive> DecalPrimitives;
 	// 파이어볼 컴포넌트 목록이다.
 	TArray<FSceneFireBallPrimitive> FireBAllPrimitives;
+	// FXAA 적용 여부이다.
+	bool bApplyFXAA = false;
 
 
 	// 각 프리미티브 버킷에 같은 reserve 힌트를 적용한다.
@@ -92,5 +94,6 @@ struct ENGINE_API FSceneRenderPacket
 		FogPrimitives.clear();
 		DecalPrimitives.clear();
 		FireBAllPrimitives.clear();
+		bApplyFXAA = false;
 	}
 };

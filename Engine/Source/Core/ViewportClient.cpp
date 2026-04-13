@@ -160,6 +160,7 @@ void IViewportClient::BuildSceneRenderPacket(
 	ScenePacketBuilder.BuildScenePacket(VisiblePrimitives, Flags, OutPacket);
 	AppendHeightFogPrimitives(Level, Flags, OutPacket);
 	AppendFireBallPrimitives(Level, OutPacket);
+	OutPacket.bApplyFXAA = Flags.HasFlag(EEngineShowFlags::SF_FXAA);
 }
 
 void IViewportClient::HandleFileDoubleClick(const FString& FilePath)

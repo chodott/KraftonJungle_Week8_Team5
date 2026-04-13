@@ -29,6 +29,7 @@ struct ENGINE_API FScenePostProcessInputs
 	TArray<FOutlineRenderItem> OutlineItems;
 	TArray<FFireBallRenderItem> FireBallItems;
 	bool bOutlineEnabled = false;
+	bool bApplyFXAA = false;
 
 	void Clear()
 	{
@@ -38,6 +39,7 @@ struct ENGINE_API FScenePostProcessInputs
 		OutlineItems.clear();
 		FireBallItems.clear();
 		bOutlineEnabled = false;
+		bApplyFXAA = false;
 	}
 };
 

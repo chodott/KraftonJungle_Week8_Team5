@@ -494,4 +494,5 @@ void FSceneCommandBuilder::BuildSceneViewData(
 		Item.TextureIndex = 0;
 		Item.WorldToDecal = Item.DecalWorld.GetInverse();
 	}
+	OutSceneViewData.PostProcessInputs.bApplyFXAA = Packet.bApplyFXAA;
 }

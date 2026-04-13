@@ -587,6 +587,8 @@ void FEditorUI::SaveEditorSettings()
 			S.ShowFlags.HasFlag(EEngineShowFlags::SF_Fog) ? L"1" : L"0", Path.c_str());
 		WritePrivateProfileStringW(Sec, L"SF.DepthView",
 			S.ShowFlags.HasFlag(EEngineShowFlags::SF_DepthView) ? L"1" : L"0", Path.c_str());
+		WritePrivateProfileStringW(Sec, L"SF.FXAA", 
+			S.ShowFlags.HasFlag(EEngineShowFlags::SF_FXAA) ? L"1" : L"0", Path.c_str());
 	}
 
 	FSlateApplication* Slate = Engine->GetSlateApplication();
@@ -882,6 +884,7 @@ void FEditorUI::Render()
 				ShowFlagCheckbox("UUID", EEngineShowFlags::SF_UUID);
 				ShowFlagCheckbox("Fog", EEngineShowFlags::SF_Fog);
 				ShowFlagCheckbox("Decal", EEngineShowFlags::SF_Decal);
+				ShowFlagCheckbox("FXAA", EEngineShowFlags::SF_FXAA);
 				ShowFlagCheckbox("Depth View", EEngineShowFlags::SF_DepthView);
 				ShowFlagCheckbox("Debug Draw", EEngineShowFlags::SF_DebugDraw);
 				ShowFlagCheckbox("Collision", EEngineShowFlags::SF_Collision);
