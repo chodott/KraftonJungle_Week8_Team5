@@ -276,6 +276,8 @@ void FPropertyWindow::DrawSceneComponentDetails(USceneComponent* SceneComponent)
 	bool bChangedTransform = false;
 
 	FVector NewLocation = RelativeTransform.GetTranslation();
+	ImGui::Text("Location");
+	ImGui::NextColumn();
 	if (DrawVector3Control("Location", RelativeTransform.GetTranslation(), NewLocation, 0.1f, "%.2f"))
 	{
 		RelativeTransform.SetTranslation(NewLocation);
@@ -283,6 +285,8 @@ void FPropertyWindow::DrawSceneComponentDetails(USceneComponent* SceneComponent)
 	}
 
 	const FVector CurrentEuler = RelativeTransform.Rotator().Euler();
+	ImGui::Text("Rotation");
+	ImGui::NextColumn();
 	FVector NewEuler = CurrentEuler;
 	if (DrawVector3Control("Rotation", CurrentEuler, NewEuler, 0.5f, "%.1f"))
 	{
@@ -291,6 +295,8 @@ void FPropertyWindow::DrawSceneComponentDetails(USceneComponent* SceneComponent)
 	}
 
 	FVector NewScale = RelativeTransform.GetScale3D();
+	ImGui::Text("Scale");
+	ImGui::NextColumn();
 	if (DrawVector3Control("Scale", RelativeTransform.GetScale3D(), NewScale, 0.01f, "%.3f"))
 	{
 		RelativeTransform.SetScale3D(NewScale);
