@@ -874,6 +874,12 @@ void FPropertyWindow::DrawDecalComponentDetails(UDecalComponent* DecalComponent,
 	{
 		DecalComponent->SetUVMax(UVMax);
 	}
+	
+	float AllowAngle = DecalComponent->GetAllowAngle();
+	if (ImGui::DragFloat("Allow Angle", &AllowAngle, 1.0f, 0.0f, 180.0f, "%.1f"))
+	{
+		DecalComponent->SetAllowAngle(AllowAngle);
+	}
 
 	TArray<std::filesystem::path> TextureFiles;
 	CollectTextureFiles(FPaths::ContentDir() / "Textures", TextureFiles);

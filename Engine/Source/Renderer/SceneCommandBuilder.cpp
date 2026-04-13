@@ -494,6 +494,8 @@ void FSceneCommandBuilder::BuildSceneViewData(
 		Item.TextureIndex = 0;
 		Item.WorldToDecal = Item.DecalWorld.GetInverse();
 		Item.bIsFading = DecalComponent->GetFadeState() != EDecalFadeState::None;
+		const float AngleRad = DecalComponent->GetAllowAngle() * (3.14159265f / 180.0f);
+		Item.AllowAngle = std::cos(AngleRad);
 	}
 	OutSceneViewData.PostProcessInputs.bApplyFXAA = Packet.bApplyFXAA;
 }

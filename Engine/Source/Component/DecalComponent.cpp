@@ -103,6 +103,7 @@ void UDecalComponent::Serialize(FArchive& Ar)
 	Ar.Serialize("RoughnessBlend", RoughnessBlend);
 	Ar.Serialize("EmissiveBlend", EmissiveBlend);
 	Ar.Serialize("EdgeFade", EdgeFade);
+	Ar.Serialize("AllowAngle", AllowAngle);
 
 	if (Ar.IsLoading())
 	{
@@ -159,6 +160,7 @@ void UDecalComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateCont
 	DuplicatedDecalComponent->RoughnessBlend = RoughnessBlend;
 	DuplicatedDecalComponent->EmissiveBlend = EmissiveBlend;
 	DuplicatedDecalComponent->EdgeFade = EdgeFade;
+	DuplicatedDecalComponent->AllowAngle = AllowAngle;
 	DuplicatedDecalComponent->UpdateBounds();
 }
 

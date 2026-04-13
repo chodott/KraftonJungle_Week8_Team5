@@ -26,8 +26,8 @@ struct FDecalGPUData
 	float RoughnessBlend;
 	float EmissiveBlend;
 	float EdgeFade;
+	float AllowAngle;
 	uint PadA;
-	uint PadB;
 };
 
 cbuffer DecalClusterData : register(b3)
@@ -106,6 +106,7 @@ float4 ApplyBaseColorDecals(
 	float4 BaseColor,
 	SamplerState DecalSampler)
 {
+	const uint2 PixelCoord = (uint2) PixelPosition;
 	const uint ClusterId = ComputeDecalClusterId(PixelPosition, ViewDepth);
 	if (ClusterId == 0xFFFFFFFFu)
 	{
@@ -137,16 +138,16 @@ float4 ApplyBaseColorDecals(
 			continue;
 		}
 
-		// 데칼 전진 방향(-AxisXWS)과 표면 법선이 반대면(뒷면) 스킵
+		// 데칼 전진 방향(-AxisXWS)과 표면 법선이 AllowAngle(cos값) 미만이면 스킵
 		const float3 DecalForward = -normalize(Decal.AxisXWS);
-		if (dot(SurfaceNormal, DecalForward) < -0.1f)
+		if (dot(SurfaceNormal, DecalForward) < Decal.AllowAngle)
 		{
 			continue;
 		}
 
 		const float3 SafeExtents = max(Decal.Extents, float3(1.0e-4f, 1.0e-4f, 1.0e-4f));
 		const float3 LocalPosition = mul(float4(WorldPosition, 1.0f), Decal.WorldToDecal).xyz;
-		if (LocalPosition.x < 0.0f || LocalPosition.x > SafeExtents.x ||
+		if (abs(LocalPosition.x) > SafeExtents.x ||
 			abs(LocalPosition.y) > SafeExtents.y || abs(LocalPosition.z) > SafeExtents.z)
 		{
 			continue;

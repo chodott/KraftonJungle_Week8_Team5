@@ -72,8 +72,8 @@ public:
 			(std::max)(0.0f, InExtents.Y),
 			(std::max)(0.0f, InExtents.Z));
 
-		const FVector2 NewSize(Sanitized.X * 2.0f, Sanitized.Y * 2.0f);
-		const float NewProjectionDepth = Sanitized.Z * 2.0f;
+		const float NewProjectionDepth = Sanitized.X * 2.0f;
+		const FVector2 NewSize(Sanitized.Y * 2.0f, Sanitized.Z * 2.0f);
 		if (Size != NewSize || ProjectionDepth != NewProjectionDepth)
 		{
 			Size = NewSize;
@@ -83,7 +83,7 @@ public:
 	}
 	FVector GetExtents() const
 	{
-		return FVector(Size.X * 0.5f, Size.Y * 0.5f, ProjectionDepth * 0.5f);
+		return FVector(ProjectionDepth * 0.5f, Size.X * 0.5f, Size.Y * 0.5f);
 	}
 
 	void SetUVMin(const FVector2& InUVMin) { UVMin = InUVMin; }
@@ -115,6 +115,9 @@ public:
 
 	void SetReceiverLayerMask(uint32 InReceiverLayerMask) { ReceiverLayerMask = InReceiverLayerMask; }
 	uint32 GetReceiverLayerMask() const { return ReceiverLayerMask; }
+
+	void SetAllowAngle(float InDegrees) { AllowAngle = std::clamp(InDegrees, 0.0f, 180.0f); }
+	float GetAllowAngle() const { return AllowAngle; }
 
 	void SetBaseColorTint(const FLinearColor& InBaseColorTint) { BaseColorTint = InBaseColorTint; }
 	const FLinearColor& GetBaseColorTint() const { return BaseColorTint; }
@@ -152,6 +155,7 @@ private:
 	uint32 RenderFlags = DECAL_RENDER_FLAG_BaseColor;
 	uint32 Priority = 0;
 	uint32 ReceiverLayerMask = 0xFFFFFFFFu;
+	float AllowAngle = 90.0f;
 
 	FLinearColor BaseColorTint = FLinearColor::White;
 	float NormalBlend = 1.0f;

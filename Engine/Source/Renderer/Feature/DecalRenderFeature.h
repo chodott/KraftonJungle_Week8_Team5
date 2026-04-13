@@ -53,6 +53,7 @@ struct ENGINE_API FDecalRenderItem
 	float EmissiveBlend = 1.0f;
 	float EdgeFade = 2.0f;
 	bool bIsFading = false;
+	float AllowAngle = 0.0f;
 
 	bool IsValid() const
 	{
@@ -89,8 +90,7 @@ struct ENGINE_API FDecalGPUData
 
 	float EmissiveBlend = 1.0f;
 	float EdgeFade = 2.0f;
-	uint32 PadA = 0;
-	uint32 PadB = 0;
+	float AllowAngle = 0.0f;         // cos(허용각) — CPU에서 미리 변환
 };
 
 struct ENGINE_API FDecalRenderRequest

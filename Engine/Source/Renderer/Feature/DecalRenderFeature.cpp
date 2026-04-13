@@ -670,6 +670,7 @@ bool FDecalRenderFeature::BuildVisibleDecalData(
 		GPUItem.RoughnessBlend = Item->RoughnessBlend;
 		GPUItem.EmissiveBlend = Item->EmissiveBlend;
 		GPUItem.EdgeFade = Item->EdgeFade;
+		GPUItem.AllowAngle = Item->AllowAngle;
 
 		GPUItem.AxisXWS = FVector(
 			Item->DecalWorld.M[0][0],
