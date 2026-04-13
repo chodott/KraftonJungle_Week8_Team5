@@ -525,6 +525,15 @@ namespace
 		RawData->PathFileName = JustFileName;
 		RawData->UpdateLocalBound();
 
+		const FVector MeshCenter = RawData->GetCenterCoord();
+		for (FVertex& Vertex : RawData->Vertices)
+		{
+			Vertex.Position.X -= MeshCenter.X;
+			Vertex.Position.Y -= MeshCenter.Y;
+			Vertex.Position.Z -= MeshCenter.Z;
+		}
+		RawData->UpdateLocalBound(); // 재계산
+
 		UStaticMesh* NewAsset = FObjectFactory::ConstructObject<UStaticMesh>(nullptr, JustFileName);
 		NewAsset->SetStaticMeshAsset(RawData.release());
 
@@ -562,6 +571,15 @@ namespace
 		FString JustFileName = FPaths::FromPath(FPaths::ToPath(PathFileName).filename());
 
 		RawData->PathFileName = JustFileName;
+		RawData->UpdateLocalBound();
+
+		const FVector MeshCenter = RawData->GetCenterCoord();
+		for (FVertex& Vertex : RawData->Vertices)
+		{
+			Vertex.Position.X -= MeshCenter.X;
+			Vertex.Position.Y -= MeshCenter.Y;
+			Vertex.Position.Z -= MeshCenter.Z;
+		}
 		RawData->UpdateLocalBound();
 
 		UStaticMesh* NewAsset = FObjectFactory::ConstructObject<UStaticMesh>(nullptr, JustFileName);
