@@ -448,3 +448,4 @@ Doxyfile
 
 # Mesh files
 !Assets/**/*.obj
+/.idea/.idea.KraftonJungleEngine/.idea
