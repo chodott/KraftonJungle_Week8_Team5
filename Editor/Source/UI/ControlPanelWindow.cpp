@@ -314,6 +314,26 @@ void FControlPanelWindow::Render(FEditorEngine* Engine)
 		{
 			ImGui::EndDisabled();
 		}
+
+		ImGui::SeparatorText("Decal Projection Mode");
+
+		if (FRenderer* Renderer = Engine->GetRenderer())
+		{
+			const EDecalProjectionMode Mode = Renderer->GetDecalProjectionMode();
+			if (ImGui::RadioButton("Volume Draw", Mode == EDecalProjectionMode::VolumeDraw))
+			{
+				Renderer->SetDecalProjectionMode(EDecalProjectionMode::VolumeDraw);
+			}
+			if (ImGui::RadioButton("Clustered Lookup", Mode == EDecalProjectionMode::ClusteredLookup))
+			{
+				Renderer->SetDecalProjectionMode(EDecalProjectionMode::ClusteredLookup);
+			}
+		}
+		else
+		{
+			ImGui::TextDisabled("Renderer unavailable.");
+		}
+
 	}
 
 	ImGui::End();

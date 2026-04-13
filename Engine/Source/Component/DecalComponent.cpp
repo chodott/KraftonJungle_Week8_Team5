@@ -12,7 +12,7 @@ void UDecalComponent::PostConstruct()
 {
 	bCanEverTick = true;
 	bTickInEditor = true;
-	bDrawDebugBounds = false;
+	bDrawDebugBounds = true;
 	UpdateBounds();
 	FadeIn(FadeInDuration);
 }

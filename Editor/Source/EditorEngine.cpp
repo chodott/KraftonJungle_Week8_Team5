@@ -8,6 +8,8 @@
 #include "Object/Class.h"
 #include "Renderer/MeshData.h"
 #include "Renderer/Renderer.h"
+#include "Renderer/DecalProjectionMode.h"
+#include "Renderer/DecalStats.h"
 #include "Camera/Camera.h"
 #include "Component/CameraComponent.h"
 #include "Component/StaticMeshComponent.h"
@@ -24,6 +26,8 @@
 #include "Viewport/PreviewViewportClient.h"
 #include "World/World.h"
 #include "Slate/EditorViewportOverlay.h"
+
+#include <cstring>
 
 namespace
 {
@@ -622,13 +626,64 @@ bool FEditorEngine::InitEditorPreview()
 void FEditorEngine::InitEditorConsole()
 {
 	FConsoleVariableManager& CVM = FConsoleVariableManager::Get();
+	if (!CVM.Find("r.DecalProjectionMode"))
+	{
+		CVM.Register(
+			"r.DecalProjectionMode",
+			static_cast<int32>(EDecalProjectionMode::ClusteredLookup),
+			"Decal projection mode (0 = Clustered Lookup, 1 = Volume Draw)");
+	}
+
 	CVM.GetAllNames([this](const FString& Name)
 	{
 		EditorUI.GetConsole().RegisterCommand(Name.c_str());
 	});
 
-	EditorUI.GetConsole().SetCommandHandler([](const char* CommandLine)
+	EditorUI.GetConsole().SetCommandHandler([this](const char* CommandLine)
 	{
+		if (std::strcmp(CommandLine, "stat decal") == 0)
+		{
+			FRenderer* Renderer = GetRenderer();
+			if (!Renderer)
+			{
+				FEngineLog::Get().Log("[error] Renderer is not available.");
+				return;
+			}
+
+			const FDecalStats Stats = Renderer->GetDecalStats();
+			FEngineLog::Get().Log("[Decal Stat]");
+			FEngineLog::Get().Log("Mode: %s", GetDecalProjectionModeLabel(Stats.Common.Mode));
+			FEngineLog::Get().Log("");
+			FEngineLog::Get().Log("Total Decals: %u", Stats.Common.TotalDecals);
+			FEngineLog::Get().Log("Active Decals: %u", Stats.Common.ActiveDecals);
+			FEngineLog::Get().Log("Visible Decals: %u", Stats.Common.VisibleDecals);
+			FEngineLog::Get().Log("Rejected Decals: %u", Stats.Common.RejectedDecals);
+			FEngineLog::Get().Log("Fade In/Out Decals: %u", Stats.Common.FadeInOutDecals);
+			FEngineLog::Get().Log("");
+			FEngineLog::Get().Log("Build Time: %.2f ms", Stats.Common.BuildTimeMs);
+			FEngineLog::Get().Log("Cull / Intersection Time: %.2f ms", Stats.Common.CullIntersectionTimeMs);
+			FEngineLog::Get().Log("Shading Pass Time: %.2f ms", Stats.Common.ShadingPassTimeMs);
+			FEngineLog::Get().Log("Total Decal Time: %.2f ms", Stats.Common.TotalDecalTimeMs);
+			FEngineLog::Get().Log("");
+
+			if (Stats.Common.Mode == EDecalProjectionMode::VolumeDraw)
+			{
+				FEngineLog::Get().Log("[Volume Draw]");
+				FEngineLog::Get().Log("Candidate Objects: %u", Stats.Volume.CandidateObjects);
+				FEngineLog::Get().Log("Intersect Passed: %u", Stats.Volume.IntersectPassed);
+				FEngineLog::Get().Log("Decal Draw Calls: %u", Stats.Volume.DecalDrawCalls);
+			}
+			else
+			{
+				FEngineLog::Get().Log("[Clustered Lookup]");
+				FEngineLog::Get().Log("Clusters Built: %u", Stats.ClusteredLookup.ClustersBuilt);
+				FEngineLog::Get().Log("Decal-Cell Registrations: %u", Stats.ClusteredLookup.DecalCellRegistrations);
+				FEngineLog::Get().Log("Avg Decals Per Cell: %.1f", Stats.ClusteredLookup.AvgDecalsPerCell);
+				FEngineLog::Get().Log("Max Decals Per Cell: %u", Stats.ClusteredLookup.MaxDecalsPerCell);
+			}
+			return;
+		}
+
 		FString Result;
 		if (FConsoleVariableManager::Get().Execute(CommandLine, Result))
 		{

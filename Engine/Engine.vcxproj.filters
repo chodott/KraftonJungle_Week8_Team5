@@ -396,6 +396,7 @@
     <ClCompile Include="Source\World\World.cpp">
       <Filter>Source\World</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Renderer\Feature\VolumeDecalRenderFeature.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\CoreMinimal.h">
@@ -1106,6 +1107,7 @@
     <ClInclude Include="ThirdParty\nlohmann\json.hpp">
       <Filter>ThirdParty\nlohmann</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Renderer\Feature\VolumeDecalRenderFeature.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

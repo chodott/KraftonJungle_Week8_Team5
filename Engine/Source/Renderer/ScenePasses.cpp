@@ -4,6 +4,7 @@
 #include "Renderer/FullscreenPass.h"
 #include "Renderer/Feature/DebugLineRenderFeature.h"
 #include "Renderer/Feature/DecalRenderFeature.h"
+#include "Renderer/Feature/VolumeDecalRenderFeature.h"
 #include "Renderer/Feature/FogRenderFeature.h"
 #include "Renderer/Feature/OutlineRenderFeature.h"
 #include "Renderer/Feature/FXAARenderFeature.h"
@@ -29,6 +30,7 @@ namespace
 		Request.ClusterCountZ = 24;
 		Request.ReceiverLayerMask = 0xFFFFFFFFu;
 		Request.BaseColorTextureArraySRV = SceneViewData.PostProcessInputs.DecalBaseColorTextureArraySRV;
+		Request.CandidateReceiverObjectCount = static_cast<uint32>(SceneViewData.MeshInputs.Batches.size());
 		return Request;
 	}
 }
@@ -167,17 +169,24 @@ bool FForwardOpaquePass::Execute(FPassContext& Context)
 
 bool FDecalCompositePass::Execute(FPassContext& Context)
 {
-	FDecalRenderFeature* DecalFeature = Context.Renderer.GetDecalFeature();
-	if (!DecalFeature || Context.SceneViewData.PostProcessInputs.DecalItems.empty())
+	if (Context.SceneViewData.PostProcessInputs.DecalItems.empty())
 	{
 		return true;
 	}
 
 	const FDecalRenderRequest Request = BuildDecalPassRequest(Context.SceneViewData);
-	return DecalFeature->Render(
-		Context.Renderer,
-		Request,
-		Context.Targets);
+	if (Context.Renderer.GetDecalProjectionMode() == EDecalProjectionMode::VolumeDraw)
+	{
+		FVolumeDecalRenderFeature* VolumeDecalFeature = Context.Renderer.GetVolumeDecalFeature();
+		return VolumeDecalFeature
+			? VolumeDecalFeature->Render(Context.Renderer, Request, Context.Targets)
+			: true;
+	}
+
+	FDecalRenderFeature* DecalFeature = Context.Renderer.GetDecalFeature();
+	return DecalFeature
+		? DecalFeature->Render(Context.Renderer, Request, Context.Targets)
+		: true;
 }
 
 bool FForwardTransparentPass::Execute(FPassContext& Context)

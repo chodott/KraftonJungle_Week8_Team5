@@ -1034,14 +1034,26 @@ void FEditorUI::Render()
 	ControlPanel.Render(Engine);
 	Property.Render(Engine);
 	Console.Render();
-	if (DebugState.Memory)
+	if (DebugState.StatDisplayMode != EStatDisplayMode::None)
 	{
 		FRect StatArea;
 		if (!GetCentralDockRect(StatArea))
 		{
 			StatArea = { 0, 0, 0, 0 };
 		}
-		Stat.Render(StatArea);
+
+		FRenderer* Renderer = Engine ? Engine->GetRenderer() : nullptr;
+		switch (DebugState.StatDisplayMode)
+		{
+		case EStatDisplayMode::Memory:
+			Stat.Render(StatArea, EStatWindowMode::Memory, Renderer);
+			break;
+		case EStatDisplayMode::Decal:
+			Stat.Render(StatArea, EStatWindowMode::Decal, Renderer);
+			break;
+		default:
+			break;
+		}
 	}
 	Outliner.Render(Engine);
 	ContentBrowser.Render();

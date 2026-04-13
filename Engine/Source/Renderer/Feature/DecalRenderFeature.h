@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Renderer/DecalStats.h"
 #include "Renderer/LinearColor.h"
 #include "Renderer/RenderFrameContext.h"
 #include "Renderer/SceneRenderTargets.h"
@@ -51,6 +52,7 @@ struct ENGINE_API FDecalRenderItem
 	float RoughnessBlend = 1.0f;
 	float EmissiveBlend = 1.0f;
 	float EdgeFade = 2.0f;
+	bool bIsFading = false;
 
 	bool IsValid() const
 	{
@@ -123,6 +125,7 @@ struct ENGINE_API FDecalRenderRequest
 
 	// Shared decal resources for the frame
 	ID3D11ShaderResourceView* BaseColorTextureArraySRV = nullptr;
+	uint32 CandidateReceiverObjectCount = 0;
 
 	bool bEnabled = true;
 	bool bSortByPriority = true;
@@ -157,6 +160,7 @@ struct ENGINE_API FDecalFrameStats
 	uint32 UploadedDecalCount = 0;
 	uint32 UploadedClusterHeaderCount = 0;
 	uint32 UploadedClusterIndexCount = 0;
+	uint32 FadeInOutCount = 0;
 
 	double PrepareTimeMs = 0.0;
 	double VisibleBuildTimeMs = 0.0;
@@ -165,6 +169,8 @@ struct ENGINE_API FDecalFrameStats
 	double UploadDecalBufferTimeMs = 0.0;
 	double UploadClusterHeaderBufferTimeMs = 0.0;
 	double UploadClusterIndexBufferTimeMs = 0.0;
+	double ShadingPassTimeMs = 0.0;
+	double TotalDecalTimeMs = 0.0;
 };
 
 struct ENGINE_API FDecalPreparedViewData
@@ -200,6 +206,8 @@ public:
 	{
 		return LastFrameStats;
 	}
+
+	FClusteredLookupDecalStats GetClusteredStats() const;
 
 	bool Initialize(FRenderer& Renderer);
 private:

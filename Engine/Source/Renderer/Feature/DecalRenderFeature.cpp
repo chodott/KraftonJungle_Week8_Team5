@@ -421,6 +421,7 @@ bool FDecalRenderFeature::Render(
 	PipelineState.BlendFactor = BlendFactor;
 	PipelineState.DepthStencilState = CompositeDepthState;
 	PipelineState.RasterizerState = CompositeRasterizerState;
+	const FDecalClock::time_point ShadingPassStartTime = FDecalClock::now();
 	const bool bRendered = ExecuteFullscreenPass(
 		Renderer,
 		Frame,
@@ -436,9 +437,23 @@ bool FDecalRenderFeature::Render(
 			DrawContext.Draw(3, 0);
 		});
 
+	FrameStats.ShadingPassTimeMs = ToMilliseconds(FDecalClock::now() - ShadingPassStartTime);
+	FrameStats.TotalDecalTimeMs = ToMilliseconds(FDecalClock::now() - PrepareStartTime);
 	LastBuildStats = PreparedData.BuildStats;
 	LastFrameStats = FrameStats;
 	return bRendered;
+}
+
+FClusteredLookupDecalStats FDecalRenderFeature::GetClusteredStats() const
+{
+	FClusteredLookupDecalStats Stats;
+	Stats.ClustersBuilt = LastFrameStats.ClusterCount;
+	Stats.DecalCellRegistrations = LastFrameStats.TotalClusterIndices;
+	Stats.MaxDecalsPerCell = LastFrameStats.MaxItemsPerCluster;
+	Stats.AvgDecalsPerCell = LastFrameStats.ClusterCount > 0
+		? static_cast<double>(LastFrameStats.TotalClusterIndices) / static_cast<double>(LastFrameStats.ClusterCount)
+		: 0.0;
+	return Stats;
 }
 
 bool FDecalRenderFeature::Initialize(FRenderer& Renderer)
