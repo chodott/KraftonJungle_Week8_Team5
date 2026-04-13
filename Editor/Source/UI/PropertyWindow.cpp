@@ -15,6 +15,9 @@
 #include "Component/MoveComponent.h"
 #include "Component/DecalComponent.h"
 #include "Component/FireBallComponent.h"
+#include "Component/MovementComponent.h"
+#include "Component/RotatingMovementComponent.h"
+#include "Component/ProjectileMovementComponent.h"
 #include "Level/Level.h"
 #include "Object/Class.h"
 #include "Object/ObjectFactory.h"
@@ -46,6 +49,8 @@ namespace
 		{ "SubUV Component", "SubUVComponent", &USubUVComponent::StaticClass },
 		{ "BillboardComponent", "BillboardComponent", &UBillboardComponent::StaticClass},
 		{ "Move Component", "MoveComponent", &UMoveComponent::StaticClass},
+		{ "Rotating Movement Component", "RotatingMovementComponent", &URotatingMovementComponent::StaticClass },
+		{ "Projectile Movement Component", "ProjectileMovementComponent", &UProjectileMovementComponent::StaticClass },
 		{ "FireBall Component", "FireBallComponent", &UFireBallComponent::StaticClass}
 	};
 
@@ -104,6 +109,65 @@ namespace
 			Ext == L".jpeg" || Ext == L".tga" || Ext == L".bmp";
 	}
 
+	USceneComponent* GetComponentTreeParentSceneComponent(UActorComponent* Component)
+	{
+		if (!Component)
+		{
+			return nullptr;
+		}
+
+		if (Component->IsA(USceneComponent::StaticClass()))
+		{
+			return static_cast<USceneComponent*>(Component)->GetAttachParent();
+		}
+
+		if (Component->IsA(UMovementComponent::StaticClass()))
+		{
+			return static_cast<UMovementComponent*>(Component)->GetUpdatedComponent();
+		}
+
+		return nullptr;
+	}
+
+	bool ShouldDrawUnderSceneComponent(UActorComponent* Component, USceneComponent* SceneComponent)
+	{
+		if (!Component || !SceneComponent || Component->IsA(USceneComponent::StaticClass()))
+		{
+			return false;
+		}
+
+		if (Component->IsA(UMovementComponent::StaticClass()))
+		{
+			return static_cast<UMovementComponent*>(Component)->GetUpdatedComponent() == SceneComponent;
+		}
+
+		return false;
+	}
+
+	bool HasAttachedNonSceneChildren(USceneComponent* SceneComponent)
+	{
+		if (!SceneComponent)
+		{
+			return false;
+		}
+
+		AActor* OwnerActor = SceneComponent->GetOwner();
+		if (!OwnerActor)
+		{
+			return false;
+		}
+
+		for (UActorComponent* Component : OwnerActor->GetComponents())
+		{
+			if (ShouldDrawUnderSceneComponent(Component, SceneComponent))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	void CollectTextureFiles(const std::filesystem::path& Root, TArray<std::filesystem::path>& OutFiles)
 	{
 		OutFiles.clear();
@@ -156,6 +220,12 @@ USceneComponent* FPropertyWindow::GetSelectedSceneComponent(AActor* SelectedActo
 
 	if (!SelectedComponent->IsA(USceneComponent::StaticClass()))
 	{
+		if (SelectedComponent->IsA(UMovementComponent::StaticClass()))
+		{
+			USceneComponent* UpdatedComponent = static_cast<UMovementComponent*>(SelectedComponent)->GetUpdatedComponent();
+			return IsComponentOwnedByActor(SelectedActor, UpdatedComponent) ? UpdatedComponent : nullptr;
+		}
+
 		return nullptr;
 	}
 
@@ -163,7 +233,7 @@ USceneComponent* FPropertyWindow::GetSelectedSceneComponent(AActor* SelectedActo
 }
 
 void FPropertyWindow::SetTarget(const FVector& Location, const FVector& Rotation,
-                                const FVector& Scale, const char* ActorName)
+								const FVector& Scale, const char* ActorName)
 {
 	EditLocation = Location;
 	EditRotation = Rotation;
@@ -389,6 +459,147 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 		ImGui::PopID();
 	}
 }
+
+void FPropertyWindow::DrawMovementComponentDetails(UMovementComponent* MovementComponent)
+{
+	if (!MovementComponent)
+	{
+		return;
+	}
+
+	ImGui::Spacing();
+	ImGui::TextDisabled("Movement");
+
+	AActor* OwnerActor = MovementComponent->GetOwner();
+	const char* CurrentLabel = "None";
+	FString SelectedName;
+	if (USceneComponent* UpdatedComponent = MovementComponent->GetUpdatedComponent())
+	{
+		SelectedName = UpdatedComponent->GetName().empty() ? "SceneComponent" : UpdatedComponent->GetName();
+		CurrentLabel = SelectedName.c_str();
+	}
+
+	ImGui::PushItemWidth(-1.0f);
+	if (ImGui::BeginCombo("Updated Component", CurrentLabel))
+	{
+		bool bSelectedRootFallback = (MovementComponent->GetUpdatedComponent() == nullptr);
+		if (ImGui::Selectable("Root Component (Auto)", bSelectedRootFallback))
+		{
+			MovementComponent->SetUpdatedComponent(nullptr);
+		}
+		if (bSelectedRootFallback)
+		{
+			ImGui::SetItemDefaultFocus();
+		}
+
+		if (OwnerActor)
+		{
+			for (UActorComponent* Component : OwnerActor->GetComponents())
+			{
+				if (!Component || !Component->IsA(USceneComponent::StaticClass()))
+				{
+					continue;
+				}
+
+				USceneComponent* SceneComponent = static_cast<USceneComponent*>(Component);
+				const FString SceneComponentName = SceneComponent->GetName().empty()
+					? SceneComponent->GetClass()->GetName()
+					: SceneComponent->GetName();
+				const bool bSelected = (MovementComponent->GetUpdatedComponent() == SceneComponent);
+				if (ImGui::Selectable(SceneComponentName.c_str(), bSelected))
+				{
+					MovementComponent->SetUpdatedComponent(SceneComponent);
+				}
+				if (bSelected)
+				{
+					ImGui::SetItemDefaultFocus();
+				}
+			}
+		}
+
+		ImGui::EndCombo();
+	}
+	ImGui::PopItemWidth();
+}
+
+void FPropertyWindow::DrawRotatingMovementComponentDetails(URotatingMovementComponent* RotatingMovementComponent)
+{
+	if (!RotatingMovementComponent)
+	{
+		return;
+	}
+
+	ImGui::Spacing();
+	ImGui::TextDisabled("Rotating Movement");
+
+	const FRotator RotationRate = RotatingMovementComponent->GetRotationRate();
+	FVector NewRotationRate(RotationRate.Pitch, RotationRate.Yaw, RotationRate.Roll);
+	if (DrawVector3Control("Rotation Rate (Pitch/Yaw/Roll)", NewRotationRate, NewRotationRate, 0.5f, "%.2f"))
+	{
+		RotatingMovementComponent->SetRotationRate(
+			FRotator(NewRotationRate.X, NewRotationRate.Y, NewRotationRate.Z));
+	}
+}
+
+void FPropertyWindow::DrawProjectileMovementComponentDetails(UProjectileMovementComponent* ProjectileMovementComponent, FEditorEngine* Engine) 
+{
+	if (!ProjectileMovementComponent)
+	{
+		return;
+	}
+
+	ImGui::Spacing();
+	ImGui::TextDisabled("Projectile Movement");
+
+	FVector NewVelocity = ProjectileMovementComponent->GetVelocity();
+	if (DrawVector3Control("Velocity", ProjectileMovementComponent->GetVelocity(), NewVelocity, 1.0f, "%.2f"))
+	{
+		ProjectileMovementComponent->SetVelocity(NewVelocity);
+	}
+
+	float GravityScale = ProjectileMovementComponent->GetGravityScale();
+	if (ImGui::DragFloat("Gravity Scale", &GravityScale, 0.01f, -10.0f, 10.0f, "%.2f"))
+	{
+		ProjectileMovementComponent->SetGravityScale(GravityScale);
+	}
+
+	float MaxSpeed = ProjectileMovementComponent->GetMaxSpeed();
+	if (ImGui::DragFloat("Max Speed", &MaxSpeed, 1.0f, 0.0f, 100000.0f, "%.2f"))
+	{
+		ProjectileMovementComponent->SetMaxSpeed(MaxSpeed);
+	}
+
+	bool bAutoStartSimulation = ProjectileMovementComponent->IsAutoStartSimulationEnabled();
+	if (ImGui::Checkbox("Auto Start Simulation", &bAutoStartSimulation))
+	{
+		ProjectileMovementComponent->SetAutoStartSimulation(bAutoStartSimulation);
+		if (!bAutoStartSimulation)
+		{
+			ProjectileMovementComponent->StopSimulation();
+		}
+	}
+
+	ImGui::TextDisabled(
+		"Simulation: %s",
+		ProjectileMovementComponent->IsSimulationEnabled() ? "Running" : "Stopped");
+
+	if (!ProjectileMovementComponent->IsAutoStartSimulationEnabled())
+	{
+		const bool bIsPIEActive = Engine && Engine->IsPIEActive() && !Engine->IsPIEPaused();
+		ImGui::BeginDisabled(!bIsPIEActive);
+		if (ImGui::Button("Start Simulation In PIE"))
+		{
+			ProjectileMovementComponent->StartSimulation();
+		}
+		ImGui::EndDisabled();
+
+		if (!bIsPIEActive)
+		{
+			ImGui::TextDisabled("Manual start is available while PIE is running.");
+		}
+	}
+}
+
 
 void FPropertyWindow::DrawTextComponentDetails(UTextRenderComponent* TextComponent)
 {
@@ -764,11 +975,7 @@ void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngi
 		ImGui::BeginDisabled(!bCanDelete);
 		if (ImGui::Button("Delete Component"))
 		{
-			USceneComponent* ParentSceneComponent = nullptr;
-			if (Component->IsA(USceneComponent::StaticClass()))
-			{
-				ParentSceneComponent = static_cast<USceneComponent*>(Component)->GetAttachParent();
-			}
+			USceneComponent* ParentSceneComponent = GetComponentTreeParentSceneComponent(Component);
 
 			if (OwnerActor->DestroyInstanceComponent(Component))
 			{
@@ -809,6 +1016,21 @@ void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngi
 	if (Component->IsA(USceneComponent::StaticClass()))
 	{
 		DrawSceneComponentDetails(static_cast<USceneComponent*>(Component));
+	}
+
+	if (Component->IsA(UMovementComponent::StaticClass()))
+	{
+		DrawMovementComponentDetails(static_cast<UMovementComponent*>(Component));
+	}
+
+	if (Component->IsA(URotatingMovementComponent::StaticClass()))
+	{
+		DrawRotatingMovementComponentDetails(static_cast<URotatingMovementComponent*>(Component));
+	}
+
+	if (Component->IsA(UProjectileMovementComponent::StaticClass()))
+	{
+		DrawProjectileMovementComponentDetails(static_cast<UProjectileMovementComponent*>(Component), Engine);
 	}
 
 	if (Component->IsA(UStaticMeshComponent::StaticClass()))
@@ -886,6 +1108,10 @@ bool FPropertyWindow::AddComponentToActor(AActor* SelectedActor, UClass* Compone
 		{
 			SelectedActor->SetRootComponent(NewSceneComponent);
 		}
+	}
+	else if (NewComponent->IsA(UMovementComponent::StaticClass()) && SelectedSceneComponent)
+	{
+		static_cast<UMovementComponent*>(NewComponent)->SetUpdatedComponent(SelectedSceneComponent);
 	}
 
 	if (!NewComponent->IsRegistered())
@@ -988,12 +1214,14 @@ void FPropertyWindow::DrawSceneComponentNode(USceneComponent* Component, int32 D
 	const FString ComponentName = Component->GetName().empty() ? ClassName : Component->GetName();
 	const bool bIsRoot = (Component->GetAttachParent() == nullptr);
 	const TArray<USceneComponent*>& Children = Component->GetAttachChildren();
+	const bool bHasAttachedNonSceneChildren = HasAttachedNonSceneChildren(Component);
+	const bool bHasTreeChildren = !Children.empty() || bHasAttachedNonSceneChildren;
 	ImGuiTreeNodeFlags Flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
 	if (SelectedComponent == Component)
 	{
 		Flags |= ImGuiTreeNodeFlags_Selected;
 	}
-	if (Children.empty())
+	if (!bHasTreeChildren)
 	{
 		Flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 	}
@@ -1011,13 +1239,43 @@ void FPropertyWindow::DrawSceneComponentNode(USceneComponent* Component, int32 D
 		SelectedComponent = Component;
 	}
 
-	if (bOpen && !Children.empty())
+	if (bOpen)
 	{
 		for (USceneComponent* Child : Children)
 		{
 			DrawSceneComponentNode(Child, Depth + 1);
 		}
-		ImGui::TreePop();
+
+		DrawAttachedNonSceneComponentNodes(Component, Depth + 1);
+
+		if (bHasTreeChildren)
+		{
+			ImGui::TreePop();
+		}
+	}
+}
+
+void FPropertyWindow::DrawAttachedNonSceneComponentNodes(USceneComponent* SceneComponent, int32 Depth)
+{
+	if (!SceneComponent)
+	{
+		return;
+	}
+
+	AActor* OwnerActor = SceneComponent->GetOwner();
+	if (!OwnerActor)
+	{
+		return;
+	}
+
+	for (UActorComponent* Component : OwnerActor->GetComponents())
+	{
+		if (!ShouldDrawUnderSceneComponent(Component, SceneComponent))
+		{
+			continue;
+		}
+
+		DrawNonSceneComponentEntry(Component);
 	}
 }
 
@@ -1030,9 +1288,19 @@ void FPropertyWindow::DrawNonSceneComponentEntry(UActorComponent* Component)
 
 	const FString ClassName = Component->GetClass() ? Component->GetClass()->GetName() : "UActorComponent";
 	const FString ComponentName = Component->GetName().empty() ? ClassName : Component->GetName();
-	const FString Label = ComponentName + " (" + ClassName + ")";
+	ImGuiTreeNodeFlags Flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
+	if (SelectedComponent == Component)
+	{
+		Flags |= ImGuiTreeNodeFlags_Selected;
+	}
 
-	if (ImGui::Selectable(Label.c_str(), SelectedComponent == Component))
+	ImGui::TreeNodeEx(
+		Component,
+		Flags,
+		"%s (%s)",
+		ComponentName.c_str(),
+		ClassName.c_str());
+	if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) 
 	{
 		SelectedComponent = Component;
 	}
@@ -1059,6 +1327,11 @@ void FPropertyWindow::DrawComponentSection(AActor* SelectedActor)
 	for (UActorComponent* Component : SelectedActor->GetComponents())
 	{
 		if (!Component || Component->IsA(USceneComponent::StaticClass()))
+		{
+			continue;
+		}
+
+		if (GetComponentTreeParentSceneComponent(Component) != nullptr)
 		{
 			continue;
 		}

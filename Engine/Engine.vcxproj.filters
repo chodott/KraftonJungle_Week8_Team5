@@ -397,6 +397,10 @@
       <Filter>Source\World</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Feature\VolumeDecalRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Feature\FXAARenderFeature.cpp" />
+    <ClCompile Include="Source\Component\MovementComponent.cpp" />
+    <ClCompile Include="Source\Component\ProjectileMovementComponent.cpp" />
+    <ClCompile Include="Source\Component\RotatingMovementComponent.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\CoreMinimal.h">
@@ -1108,6 +1112,10 @@
       <Filter>ThirdParty\nlohmann</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Feature\VolumeDecalRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Feature\FXAARenderFeature.h" />
+    <ClInclude Include="Source\Component\MovementComponent.h" />
+    <ClInclude Include="Source\Component\ProjectileMovementComponent.h" />
+    <ClInclude Include="Source\Component\RotatingMovementComponent.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

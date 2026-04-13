@@ -28,10 +28,14 @@ private:
 	void DrawTransformSection();
 	void DrawComponentSection(AActor* SelectedActor);
 	void DrawSceneComponentNode(USceneComponent* Component, int32 Depth = 0);
+	void DrawAttachedNonSceneComponentNodes(USceneComponent* SceneComponent, int32 Depth = 0);
 	void DrawNonSceneComponentEntry(UActorComponent* Component);
 	void DrawDetailsSection(UActorComponent* Component, FEditorEngine* Engine);
 	void DrawSceneComponentDetails(USceneComponent* SceneComponent);
+	void DrawMovementComponentDetails(class UMovementComponent* MovementComponent);
 	void DrawStaticMeshComponentDetails(class UStaticMeshComponent* MeshComponent);
+	void DrawRotatingMovementComponentDetails(class URotatingMovementComponent* RotatingMovementComponent);
+	void DrawProjectileMovementComponentDetails(class UProjectileMovementComponent* ProjectileMovementComponent, FEditorEngine* Engine);
 	void DrawTextComponentDetails(class UTextRenderComponent* TextComponent);
 	void DrawSubUVComponentDetails(class USubUVComponent* SubUVComponent);
 	void DrawHeightFogComponentDetails(class UHeightFogComponent* HeightFogComponent);
