@@ -3,6 +3,7 @@
 #include "Actor/Actor.h"
 
 class UDecalComponent;
+class UBillboardComponent;
 
 class ENGINE_API ADecalActor : public AActor
 {
@@ -16,4 +17,5 @@ public:
 
 private:
 	UDecalComponent* DecalComponent = nullptr;
+	UBillboardComponent* BillboardComponent = nullptr;
 };
