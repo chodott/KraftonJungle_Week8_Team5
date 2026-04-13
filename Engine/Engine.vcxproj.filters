@@ -138,6 +138,9 @@
     <ClCompile Include="Source\Component\DecalComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Component\FireBallComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Component\HeightFogComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
@@ -366,6 +369,9 @@
     <ClCompile Include="Source\Renderer\Feature\DecalRenderFeature.cpp">
       <Filter>Source\Renderer\Feature</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Renderer\Feature\FireBallRenderFeature.cpp">
+      <Filter>Source\Renderer\Feature</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Renderer\Feature\FogRenderFeature.cpp">
       <Filter>Source\Renderer\Feature</Filter>
     </ClCompile>
@@ -450,6 +456,9 @@
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\DecalComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Component\FireBallComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\HeightFogComponent.h">
@@ -671,6 +680,9 @@
     <ClInclude Include="Source\Renderer\PassContext.h">
       <Filter>Source\Renderer</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Renderer\PassPipeline.h">
+      <Filter>Source\Renderer</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Renderer\RenderDevice.h">
       <Filter>Source\Renderer</Filter>
     </ClInclude>
@@ -756,6 +768,9 @@
       <Filter>Source\Renderer\Feature</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Feature\DecalRenderFeature.h">
+      <Filter>Source\Renderer\Feature</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Feature\FireBallRenderFeature.h">
       <Filter>Source\Renderer\Feature</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Feature\FogRenderFeature.h">

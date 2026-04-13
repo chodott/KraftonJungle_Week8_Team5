@@ -8,7 +8,9 @@
 #include "Component/StaticMeshComponent.h"
 #include "Component/SubUVComponent.h"
 #include "Component/TextComponent.h"
+#include "Component/FireBallComponent.h"
 #include "Component/UUIDBillboardComponent.h"
+#include "Feature/FireballRenderFeature.h"
 #include "Renderer/Material.h"
 #include "Renderer/MeshData.h"
 
@@ -448,6 +450,23 @@ void FSceneCommandBuilder::BuildSceneViewData(
 		Item.FogMaxOpacity = FogComponent->FogMaxOpacity;
 		Item.FogInscatteringColor = FogComponent->FogInscatteringColor;
 		Item.AllowBackground = FogComponent->AllowBackground;
+	}
+	
+	OutSceneViewData.PostProcessInputs.FireBallItems.reserve(Packet.FireBAllPrimitives.size());
+	for (const FSceneFireBallPrimitive& Primitive : Packet.FireBAllPrimitives)
+	{
+		const UFireBallComponent* FireballComponent = Primitive.Component;
+		if (!FireballComponent)
+		{
+			continue;
+		}
+		
+		FFireBallRenderItem& Item = OutSceneViewData.PostProcessInputs.FireBallItems.emplace_back();
+		Item.Color = FireballComponent->GetColor();
+		Item.FireballOrigin = FireballComponent->GetWorldLocation();
+		Item.Intensity = FireballComponent->GetIntensity();
+		Item.Radius = FireballComponent->GetRadius();
+		Item.RadiusFallOff = FireballComponent->GetRadiusFallOff();
 	}
 
 	OutSceneViewData.PostProcessInputs.DecalItems.reserve(Packet.DecalPrimitives.size());

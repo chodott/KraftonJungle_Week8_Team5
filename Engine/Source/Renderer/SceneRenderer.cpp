@@ -102,6 +102,7 @@ void FSceneRenderer::BuildRenderPipeline(FRenderPipeline& OutPipeline) const
 	OutPipeline.AddPass(std::make_unique<FDecalCompositePass>());
 	OutPipeline.AddPass(std::make_unique<FForwardTransparentPass>(MeshPassProcessor));
 	OutPipeline.AddPass(std::make_unique<FFogPostPass>());
+	OutPipeline.AddPass(std::make_unique<FFireBallPass>());
 	OutPipeline.AddPass(std::make_unique<FOutlineMaskPass>());
 	OutPipeline.AddPass(std::make_unique<FOutlineCompositePass>());
 	OutPipeline.AddPass(std::make_unique<FOverlayPass>(MeshPassProcessor));

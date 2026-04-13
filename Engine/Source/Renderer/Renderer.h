@@ -25,6 +25,8 @@
 #include <filesystem>
 #include <memory>
 
+#include "Feature/FireballRenderFeature.h"
+
 struct FVertex;
 struct FRenderMesh;
 class FPixelShader;
@@ -152,6 +154,7 @@ public:
 	FOutlineRenderFeature* GetOutlineFeature() const { return OutlineFeature.get(); }
 	FDebugLineRenderFeature* GetDebugLineFeature() const { return DebugLineFeature.get(); }
 	FDecalRenderFeature* GetDecalFeature() const { return DecalFeature.get(); }
+	FFireBallRenderFeature* GetFireBallFeature() const { return FireBallFeature.get(); }
 	FSceneRenderer& GetSceneRenderer() { return SceneRenderer; }
 	FScreenUIRenderer& GetScreenUIRenderer() { return ScreenUIRenderer; }
 	FRenderDevice& GetRenderDevice() { return RenderDevice; }
@@ -177,6 +180,7 @@ private:
 	friend class FDebugLineRenderFeature;
 	friend class FDecalRenderFeature;
 	friend class FScreenUIRenderer;
+	friend class FBillboardRenderFeature;
 	bool CreateConstantBuffers();
 	bool CreateSamplers();
 
@@ -221,6 +225,7 @@ private:
 	std::unique_ptr<FOutlineRenderFeature> OutlineFeature;
 	std::unique_ptr<FDebugLineRenderFeature> DebugLineFeature;
 	std::unique_ptr<FDecalRenderFeature> DecalFeature;
+	std::unique_ptr<FFireBallRenderFeature> FireBallFeature;
 
 	ID3D11ShaderResourceView* FolderIconSRV = nullptr;
 	ID3D11ShaderResourceView* FileIconSRV = nullptr;

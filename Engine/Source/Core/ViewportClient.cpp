@@ -12,7 +12,9 @@
 #include "Component/HeightFogComponent.h"
 #include "Math/Frustum.h"
 #include "Component/PrimitiveComponent.h"
+#include "Component/FireBallComponent.h"
 #include "ShowFlags.h"
+
 
 namespace
 {
@@ -41,6 +43,35 @@ namespace
 				}
 
 				OutPacket.FogPrimitives.push_back({ static_cast<UHeightFogComponent*>(Component) });
+			}
+		}
+	}
+	
+	void AppendFireBallPrimitives(ULevel* Level, FSceneRenderPacket& OutPacket)
+	{
+		if (!Level)
+		{
+			return;
+		}
+		
+		const TArray<AActor*> Actors = Level->GetActors();
+		OutPacket.FireBAllPrimitives.reserve(OutPacket.FireBAllPrimitives.size() + Actors.size());
+		
+		for (AActor* Actor : Actors)
+		{
+			if (!Actor || Actor->IsPendingDestroy() || !Actor->IsVisible())
+			{
+				continue;
+			}
+			
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				if (!Component || Component->IsPendingKill() || !Component->IsA(UFireBallComponent::StaticClass()))
+				{
+					continue;
+				}
+				
+				OutPacket.FireBAllPrimitives.push_back({ static_cast<UFireBallComponent*>(Component) });
 			}
 		}
 	}
@@ -128,6 +159,7 @@ void IViewportClient::BuildSceneRenderPacket(
 	Level->QueryPrimitivesByFrustum(Frustum, VisiblePrimitives);
 	ScenePacketBuilder.BuildScenePacket(VisiblePrimitives, Flags, OutPacket);
 	AppendHeightFogPrimitives(Level, Flags, OutPacket);
+	AppendFireBallPrimitives(Level, OutPacket);
 }
 
 void IViewportClient::HandleFileDoubleClick(const FString& FilePath)

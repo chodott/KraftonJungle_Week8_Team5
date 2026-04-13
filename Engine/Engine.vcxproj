@@ -39,6 +39,7 @@
     <ClInclude Include="Source\Component\BillboardComponent.h" />
     <ClInclude Include="Source\Component\CameraComponent.h" />
     <ClInclude Include="Source\Component\DecalComponent.h" />
+    <ClInclude Include="Source\Component\FireBallComponent.h" />
     <ClInclude Include="Source\Component\HeightFogComponent.h" />
     <ClInclude Include="Source\Component\LineBatchComponent.h" />
     <ClInclude Include="Source\Component\MeshComponent.h" />
@@ -112,6 +113,7 @@
     <ClInclude Include="Source\Renderer\MeshData.h" />
     <ClInclude Include="Source\Renderer\MeshPassProcessor.h" />
     <ClInclude Include="Source\Renderer\PassContext.h" />
+    <ClInclude Include="Source\Renderer\PassPipeline.h" />
     <ClInclude Include="Source\Renderer\RenderDevice.h" />
     <ClInclude Include="Source\Renderer\RenderFeatureInterfaces.h" />
     <ClInclude Include="Source\Renderer\RenderFrameContext.h" />
@@ -141,6 +143,7 @@
     <ClInclude Include="Source\Renderer\Feature\BillboardRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\DebugLineRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\DecalRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Feature\FireBallRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\FogRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\OutlineRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Feature\SubUVRenderFeature.h" />
@@ -272,6 +275,7 @@
     <ClCompile Include="Source\Component\BillboardComponent.cpp" />
     <ClCompile Include="Source\Component\CameraComponent.cpp" />
     <ClCompile Include="Source\Component\DecalComponent.cpp" />
+    <ClCompile Include="Source\Component\FireBallComponent.cpp" />
     <ClCompile Include="Source\Component\HeightFogComponent.cpp" />
     <ClCompile Include="Source\Component\LineBatchComponent.cpp" />
     <ClCompile Include="Source\Component\MeshComponent.cpp" />
@@ -348,6 +352,7 @@
     <ClCompile Include="Source\Renderer\Feature\BillboardRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\DebugLineRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\DecalRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Feature\FireBallRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\FogRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\OutlineRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Feature\SubUVRenderFeature.cpp" />
@@ -450,7 +455,6 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)Source\;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -468,7 +472,6 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)Source\;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

@@ -8,6 +8,7 @@ class USubUVComponent;
 class UBillboardComponent;
 class UHeightFogComponent;
 class UDecalComponent;
+class UFireBallComponent;
 
 struct ENGINE_API FSceneMeshPrimitive
 {
@@ -45,6 +46,12 @@ struct ENGINE_API FSceneDecalPrimitive
 	UDecalComponent* Component = nullptr;
 };
 
+struct ENGINE_API FSceneFireBallPrimitive
+{
+	// 파이어볼 패스가 참조할 파이어볼 컴포넌트다.
+	UFireBallComponent* Component = nullptr;
+};
+
 struct ENGINE_API FSceneRenderPacket
 {
 	// 이 뷰에서 월드로부터 수집한 메시 프리미티브 목록이다.
@@ -59,6 +66,9 @@ struct ENGINE_API FSceneRenderPacket
 	TArray<FSceneFogPrimitive> FogPrimitives;
 	// 데칼 컴포넌트 목록이다.
 	TArray<FSceneDecalPrimitive> DecalPrimitives;
+	// 파이어볼 컴포넌트 목록이다.
+	TArray<FSceneFireBallPrimitive> FireBAllPrimitives;
+
 
 	// 각 프리미티브 버킷에 같은 reserve 힌트를 적용한다.
 	void Reserve(size_t PrimitiveCountHint)
@@ -69,6 +79,7 @@ struct ENGINE_API FSceneRenderPacket
 		BillboardPrimitives.reserve(PrimitiveCountHint);
 		FogPrimitives.reserve(PrimitiveCountHint);
 		DecalPrimitives.reserve(PrimitiveCountHint);
+		FireBAllPrimitives.reserve(PrimitiveCountHint);
 	}
 
 	// 패킷 안의 모든 프리미티브 버킷을 비운다.
@@ -80,5 +91,6 @@ struct ENGINE_API FSceneRenderPacket
 		BillboardPrimitives.clear();
 		FogPrimitives.clear();
 		DecalPrimitives.clear();
+		FireBAllPrimitives.clear();
 	}
 };

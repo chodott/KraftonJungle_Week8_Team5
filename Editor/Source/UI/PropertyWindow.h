@@ -37,6 +37,7 @@ private:
 	void DrawHeightFogComponentDetails(class UHeightFogComponent* HeightFogComponent);
 	void DrawBillboardComponentDetials(class UBillboardComponent* BillboardComponent, FEditorEngine* Engine);
 	void DrawDecalComponentDetails(class UDecalComponent* DecalComponent, FEditorEngine* Engine);
+	void DrawFireBallComponentDetails(class UFireBallComponent* FireBallComponent);
 	bool DrawVector3Control(const char* Label, const FVector& Value, FVector& OutValue, float Speed, const char* Format);
 	bool DrawAddComponentButton(AActor* SelectedActor);
 	bool AddComponentToActor(AActor* SelectedActor, class UClass* ComponentClass, const char* BaseName);

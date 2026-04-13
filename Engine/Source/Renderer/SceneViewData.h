@@ -5,6 +5,7 @@
 #include "Renderer/Feature/DecalRenderFeature.h"
 #include "Renderer/Feature/FogRenderFeature.h"
 #include "Renderer/Feature/OutlineRenderFeature.h"
+#include  "Renderer/Feature/FireBallRenderFeature.h"
 #include "Renderer/MeshBatch.h"
 #include "Renderer/RenderFrameContext.h"
 
@@ -26,6 +27,7 @@ struct ENGINE_API FScenePostProcessInputs
 	TArray<FDecalRenderItem> DecalItems;
 	ID3D11ShaderResourceView* DecalBaseColorTextureArraySRV = nullptr;
 	TArray<FOutlineRenderItem> OutlineItems;
+	TArray<FFireBallRenderItem> FireBallItems;
 	bool bOutlineEnabled = false;
 
 	void Clear()
@@ -34,6 +36,7 @@ struct ENGINE_API FScenePostProcessInputs
 		DecalItems.clear();
 		DecalBaseColorTextureArraySRV = nullptr;
 		OutlineItems.clear();
+		FireBallItems.clear();
 		bOutlineEnabled = false;
 	}
 };

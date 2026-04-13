@@ -14,6 +14,7 @@
 #include "Component/HeightFogComponent.h"
 #include "Component/MoveComponent.h"
 #include "Component/DecalComponent.h"
+#include "Component/FireBallComponent.h"
 #include "Level/Level.h"
 #include "Object/Class.h"
 #include "Object/ObjectFactory.h"
@@ -44,7 +45,8 @@ namespace
 		{ "Text Component", "TextComponent", &UTextRenderComponent::StaticClass },
 		{ "SubUV Component", "SubUVComponent", &USubUVComponent::StaticClass },
 		{ "BillboardComponent", "BillboardComponent", &UBillboardComponent::StaticClass},
-		{ "Move Component", "MoveComponent", &UMoveComponent::StaticClass}
+		{ "Move Component", "MoveComponent", &UMoveComponent::StaticClass},
+		{ "FireBall Component", "FireBallComponent", &UFireBallComponent::StaticClass}
 	};
 
 	FString BuildUniqueComponentName(AActor* SelectedActor, const FString& BaseName)
@@ -548,6 +550,42 @@ void FPropertyWindow::DrawHeightFogComponentDetails(UHeightFogComponent* HeightF
 	}
 }
 
+void FPropertyWindow::DrawFireBallComponentDetails(UFireBallComponent* FireBallComponent)
+{
+	if (!FireBallComponent)
+	{
+		return;
+	}
+
+	ImGui::Spacing();
+	ImGui::TextDisabled("FireBall");
+
+	float Intensity = FireBallComponent->GetIntensity();
+	if (ImGui::DragFloat("Intensity", &Intensity, 0.01f, 0.0f, 100.0f, "%.2f"))
+	{
+		FireBallComponent->SetIntensity((std::max)(0.0f, Intensity));
+	}
+
+	float Radius = FireBallComponent->GetRadius();
+	if (ImGui::DragFloat("Radius", &Radius, 0.1f, 0.0f, 10000.0f, "%.2f"))
+	{
+		FireBallComponent->SetRadius((std::max)(0.0f, Radius));
+	}
+
+	float RadiusFallOff = FireBallComponent->GetRadiusFallOff();
+	if (ImGui::DragFloat("Radius FallOff", &RadiusFallOff, 0.01f, 0.0f, 100.0f, "%.2f"))
+	{
+		FireBallComponent->SetRadiusFallOff((std::max)(0.0f, RadiusFallOff));
+	}
+
+	FLinearColor Color = FireBallComponent->GetColor();
+	float ColorArray[4] = { Color.R, Color.G, Color.B, Color.A };
+	if (ImGui::ColorEdit4("Color", ColorArray))
+	{
+		FireBallComponent->SetColor(FLinearColor(ColorArray[0], ColorArray[1], ColorArray[2], ColorArray[3]));
+	}
+}
+
 void FPropertyWindow::DrawBillboardComponentDetials(UBillboardComponent* BillboardComponent, FEditorEngine* Engine)
 {
 	std::wstring CurrentPath = BillboardComponent->GetTexturePath();
@@ -801,6 +839,11 @@ void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngi
 	if (Component->IsA(UDecalComponent::StaticClass()))
 	{
 		DrawDecalComponentDetails(static_cast<UDecalComponent*>(Component), Engine);
+	}
+
+	if (Component->IsA(UFireBallComponent::StaticClass()))
+	{
+		DrawFireBallComponentDetails(static_cast<UFireBallComponent*>(Component));
 	}
 }
 

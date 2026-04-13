@@ -403,6 +403,11 @@ bool FRenderer::Initialize(HWND InHwnd, int32 Width, int32 Height)
 	FogFeature = std::make_unique<FFogRenderFeature>();
 	OutlineFeature = std::make_unique<FOutlineRenderFeature>();
 	DebugLineFeature = std::make_unique<FDebugLineRenderFeature>();
+	FireBallFeature = std::make_unique<FFireBallRenderFeature>();
+	if (!FireBallFeature)
+	{
+		return false;
+	}
 
 	std::filesystem::path FolderIconPath = FPaths::AssetDir() / FString("Textures/FolderIcon.png");
 	std::filesystem::path FileIconPath = FPaths::AssetDir() / FString("Textures/FileIcon.png");
@@ -1322,6 +1327,7 @@ void FRenderer::Release()
 	if (SubUVFeature) SubUVFeature->Release();
 	if (BillboardFeature) BillboardFeature->Release();
 	if (DecalFeature) DecalFeature->Release();
+	if (FireBallFeature) FireBallFeature->Release();
 	OutlineFeature.reset();
 	DebugLineFeature.reset();
 	FogFeature.reset();
@@ -1329,6 +1335,7 @@ void FRenderer::Release()
 	SubUVFeature.reset();
 	BillboardFeature.reset();
 	DecalFeature.reset();
+	FireBallFeature.reset();
 	ShaderManager.Release(); FShaderMap::Get().Clear(); FMaterialManager::Get().Clear();
 	if (NormalSampler) { NormalSampler->Release(); NormalSampler = nullptr; }
 	DefaultMaterial.reset();

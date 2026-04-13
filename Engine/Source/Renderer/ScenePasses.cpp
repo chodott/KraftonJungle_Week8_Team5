@@ -1,5 +1,6 @@
 #include "Renderer/ScenePasses.h"
 
+#include "Feature/FireballRenderFeature.h"
 #include "Renderer/FullscreenPass.h"
 #include "Renderer/Feature/DebugLineRenderFeature.h"
 #include "Renderer/Feature/DecalRenderFeature.h"
@@ -302,4 +303,18 @@ bool FDebugLinePass::Execute(FPassContext& Context)
 		Context.SceneViewData.View,
 		Context.Targets,
 		Context.SceneViewData.DebugInputs.LinePass);
+}
+
+bool FFireBallPass::Execute(FPassContext& Context)
+{
+	FFireBallRenderFeature* Feature = Context.Renderer.GetFireBallFeature();
+	if (!Feature || Context.SceneViewData.PostProcessInputs.FireBallItems.empty())
+		return true;
+	return Feature->Render(
+		Context.Renderer,
+		Context.SceneViewData.Frame,
+		Context.SceneViewData.View,
+		Context.Targets,
+		Context.SceneViewData.PostProcessInputs.FireBallItems	
+	);
 }
