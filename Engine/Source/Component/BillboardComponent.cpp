@@ -1,8 +1,10 @@
-﻿#include "BillboardComponent.h"
+#include "BillboardComponent.h"
 #include "Core/Paths.h"
+#include "DecalComponent.h"
 #include "Object/Class.h"
 #include "Renderer/MeshData.h"
 #include "Serializer/Archive.h"
+#include <cmath>
 
 IMPLEMENT_RTTI(UBillboardComponent, UPrimitiveComponent)
 
@@ -82,7 +84,7 @@ void UBillboardComponent::Serialize(FArchive& Ar)
 FBoxSphereBounds UBillboardComponent::GetWorldBounds() const
 {
 	const FVector Center = GetWorldLocation();
-	const FVector WorldScale = GetWorldTransform().GetScaleVector();
+	const FVector WorldScale = GetRenderWorldScale();
 
 	const float HalfW = Size.X * 0.5f * WorldScale.X;
 	const float HalfH = Size.Y * 0.5f * WorldScale.Y;
@@ -95,4 +97,25 @@ FBoxSphereBounds UBillboardComponent::GetWorldBounds() const
 FRenderMesh* UBillboardComponent::GetRenderMesh() const
 {
 	return BillboardMesh.get();
+}
+
+FVector UBillboardComponent::GetRenderWorldScale() const
+{
+	const FVector WorldScale = GetWorldTransform().GetScaleVector();
+	const USceneComponent* ParentComponent = GetAttachParent();
+	if (!ParentComponent || !ParentComponent->IsA(UDecalComponent::StaticClass()))
+	{
+		return WorldScale;
+	}
+
+	const FVector ParentScale = ParentComponent->GetWorldTransform().GetScaleVector();
+	const auto SafeDivide = [](float Value, float Divisor)
+	{
+		return std::abs(Divisor) > 1.e-6f ? (Value / Divisor) : Value;
+	};
+
+	return FVector(
+		SafeDivide(WorldScale.X, ParentScale.X),
+		SafeDivide(WorldScale.Y, ParentScale.Y),
+		SafeDivide(WorldScale.Z, ParentScale.Z));
 }

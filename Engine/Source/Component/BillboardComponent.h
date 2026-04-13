@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "PrimitiveComponent.h"
 
 struct FDynamicMesh;
@@ -46,6 +46,7 @@ public:
 	void MarkBillboardMeshDirty();
 	bool IsBillboardMeshDirty() const { return bBillboardMeshDirty; }
 	void ClearBillboardMeshDirty() { bBillboardMeshDirty = false; }
+	FVector GetRenderWorldScale() const;
 
 private:
 	bool bHiddenInGame = true;

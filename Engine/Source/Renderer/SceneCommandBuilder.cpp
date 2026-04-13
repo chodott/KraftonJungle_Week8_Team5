@@ -419,7 +419,7 @@ void FSceneCommandBuilder::BuildSceneViewData(
 		Batch.bDisableDepthWrite = true;
 
 		const FVector WorldPosition = BillboardComponent->GetWorldTransform().GetTranslation();
-		const FVector Scale = BillboardComponent->GetWorldTransform().GetScaleVector();
+		const FVector Scale = BillboardComponent->GetRenderWorldScale();
 		Batch.World = FMatrix::MakeScale(Scale) * FMatrix::MakeBillboard(WorldPosition, CameraPosition);
 		Batch.DistanceSqToCamera = (WorldPosition - CameraPosition).SizeSquared();
 
