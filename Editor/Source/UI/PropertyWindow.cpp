@@ -51,7 +51,8 @@ namespace
 		{ "Move Component", "MoveComponent", &UMoveComponent::StaticClass},
 		{ "Rotating Movement Component", "RotatingMovementComponent", &URotatingMovementComponent::StaticClass },
 		{ "Projectile Movement Component", "ProjectileMovementComponent", &UProjectileMovementComponent::StaticClass },
-		{ "FireBall Component", "FireBallComponent", &UFireBallComponent::StaticClass}
+		{ "FireBall Component", "FireBallComponent", &UFireBallComponent::StaticClass},
+		{ "Decal Component", "DecalComponent", &UDecalComponent::StaticClass },
 	};
 
 	FString BuildUniqueComponentName(AActor* SelectedActor, const FString& BaseName)
@@ -1135,6 +1136,12 @@ bool FPropertyWindow::AddComponentToActor(AActor* SelectedActor, UClass* Compone
 	{
 		UTextRenderComponent* TextComponent = static_cast<UTextRenderComponent*>(NewComponent);
 		TextComponent->MarkTextMeshDirty();
+	}
+	
+	if (NewComponent->IsA(UDecalComponent::StaticClass()))
+	{
+		UDecalComponent* DecalComponent = static_cast<UDecalComponent*>(NewComponent);
+		DecalComponent->UpdateBounds();
 	}
 
 	if (ULevel* Level = SelectedActor->GetLevel())
