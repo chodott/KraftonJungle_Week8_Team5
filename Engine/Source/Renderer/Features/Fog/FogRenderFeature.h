@@ -23,16 +23,21 @@ private:
   bool Initialize(FRenderer &Renderer);
   bool UpdateFogCompositeConstantBuffer(FRenderer &Renderer,
                                         const FViewContext &View,
+                                        uint32 TotalFogCount,
                                         uint32 GlobalFogCount,
-                                        bool bEnableLocalFog);
+                                        uint32 LocalFogCount);
+  bool UpdateFogClusterConstantBuffer(FRenderer &Renderer,
+                                      const FViewContext &View);
   bool BuildFogClusters(const FViewContext &View,
                         const TArray<FFogRenderItem> &Items);
-  bool UploadFogStructuredBuffer(FRenderer &Renderer);
+  bool UploadGlobalFogStructuredBuffer(FRenderer &Renderer);
+  bool UploadLocalFogStructuredBuffer(FRenderer &Renderer);
   bool UploadClusterHeaderStructuredBuffer(FRenderer &Renderer);
   bool UploadClusterIndexStructuredBuffer(FRenderer &Renderer);
 
 private:
   ID3D11Buffer *FogCompositeConstantBuffer = nullptr;
+  ID3D11Buffer *FogClusterConstantBuffer = nullptr;
   ID3D11DepthStencilState *NoDepthState = nullptr;
   ID3D11RasterizerState *FogRasterizerState = nullptr;
   ID3D11SamplerState *LinearSampler = nullptr;
@@ -40,10 +45,10 @@ private:
   ID3D11VertexShader *FogPostVS = nullptr;
   ID3D11PixelShader *FogPostPS = nullptr;
 
-  ID3D11Buffer *GlobalFogStructuredBuffer = nullptr;
-  ID3D11ShaderResourceView *GlobalFogStructuredBufferSRV = nullptr;
   ID3D11Buffer *LocalFogStructuredBuffer = nullptr;
   ID3D11ShaderResourceView *LocalFogStructuredBufferSRV = nullptr;
+  ID3D11Buffer *GlobalFogStructuredBuffer = nullptr;
+  ID3D11ShaderResourceView *GlobalFogStructuredBufferSRV = nullptr;
   ID3D11Buffer *ClusterHeaderStructuredBuffer = nullptr;
   ID3D11ShaderResourceView *ClusterHeaderStructuredBufferSRV = nullptr;
   ID3D11Buffer *ClusterIndexStructuredBuffer = nullptr;

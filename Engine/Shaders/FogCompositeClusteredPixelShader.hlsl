@@ -1,6 +1,7 @@
 cbuffer FogGlobals : register(b0)
 {
     float4x4 InverseViewProjection;
+    float4x4 ViewMatrix;
     float4 CameraPosition;      // xyz = camera world position
     float4 ScreenSize;          // x=width, y=height, z=1/width, w=1/height
     float4 ClusterParams;       // x=tileCountX, y=tileCountY, z=sliceCountZ, w=nearDepth
@@ -17,10 +18,11 @@ struct FFogClusterHeader
 
 struct FFogGPUData
 {
+    float4x4 WorldToFogVolume;
     float4 FogOrigin;   // xyz = origin
     float4 FogColor;    // rgb = fog color, a = extra alpha scale
     float4 FogParams;   // x=density, y=heightFalloff, z=startDistance, w=cutoffDistance
-    float4 FogParams2;  // x=maxOpacity, y=allowBackground, z/w reserved
+    float4 FogParams2;  // x=maxOpacity, y=allowBackground, z=isLocalVolume, w=reserved
 };
 
 struct VSOutput
@@ -144,7 +146,13 @@ void AccumulateFog(float3 FogColor, float FogAmount, inout float3 AccumFogColor,
     AccumFogAlpha += Remaining * FogAmount;
 }
 
-uint ComputeFogClusterIndex(float2 UV, float Depth)
+bool IsInsideLocalFogVolume(FFogGPUData Fog, float3 WorldPosition)
+{
+    float3 LocalPosition = mul(float4(WorldPosition, 1.0f), Fog.WorldToFogVolume).xyz;
+    return abs(LocalPosition.x) <= 0.5f && abs(LocalPosition.y) <= 0.5f && abs(LocalPosition.z) <= 0.5f;
+}
+
+uint ComputeFogClusterIndex(float2 UV, float3 WorldPosition)
 {
     uint TileCountX = max((uint)ClusterParams.x, 1u);
     uint TileCountY = max((uint)ClusterParams.y, 1u);
@@ -156,11 +164,10 @@ uint ComputeFogClusterIndex(float2 UV, float Depth)
     float NearDepth = max(ClusterParams.w, 1.0e-4f);
     float FarDepth = max(ClusterParams2.x, NearDepth + 1.0e-4f);
 
-    // 주의:
-    // 여기 Depth -> slice 변환은 엔진의 실제 cluster 규약과 맞춰야 한다.
-    // 현재는 depth buffer 값을 그대로 [near, far] 로그 slice로 근사한 예시다.
-    float LinearDepth = lerp(NearDepth, FarDepth, saturate(Depth));
-    float DepthRatio = saturate(log2(max(LinearDepth, NearDepth) / NearDepth) / log2(FarDepth / NearDepth));
+    float3 ViewPosition = mul(float4(WorldPosition, 1.0f), ViewMatrix).xyz;
+    float ViewDepth = clamp(ViewPosition.x, NearDepth, FarDepth);
+
+    float DepthRatio = saturate(log(max(ViewDepth, NearDepth) / NearDepth) / log(FarDepth / NearDepth));
     uint SliceZ = min((uint)(DepthRatio * SliceCountZ), SliceCountZ - 1u);
 
     return (SliceZ * TileCountY + TileY) * TileCountX + TileX;
@@ -195,7 +202,7 @@ float4 main(VSOutput Input) : SV_Target
     // 2) Local fog는 cluster에서 꺼내서 누적
     if (AccumFogAlpha < 0.999f && ClusterParams2.z > 0.5f)
     {
-        uint ClusterIndex = ComputeFogClusterIndex(Input.UV, Depth);
+        uint ClusterIndex = ComputeFogClusterIndex(Input.UV, WorldPosition);
         FFogClusterHeader Header = FogClusterHeaders[ClusterIndex];
 
         [loop]
@@ -203,6 +210,11 @@ float4 main(VSOutput Input) : SV_Target
         {
             uint LocalFogIndex = FogClusterIndices[Header.Offset + i];
             FFogGPUData Fog = FogDataBuffer[LocalFogIndex];
+            if (!IsInsideLocalFogVolume(Fog, WorldPosition))
+            {
+                continue;
+            }
+
             float FogAmount = ComputeSingleFogAmount(Fog, Depth, WorldPosition, ViewRay, ViewDistance);
             AccumulateFog(Fog.FogColor.rgb, FogAmount, AccumFogColor, AccumFogAlpha);
 

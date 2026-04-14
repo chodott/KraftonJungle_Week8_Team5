@@ -1,4 +1,4 @@
-﻿#include "Renderer/Scene/Builders/SceneCommandPostProcessBuilder.h"
+#include "Renderer/Scene/Builders/SceneCommandPostProcessBuilder.h"
 
 #include "Renderer/Scene/Builders/SceneCommandBuilder.h"
 #include "Renderer/Scene/Builders/SceneCommandBuilderUtils.h"
@@ -32,7 +32,17 @@ void FSceneCommandPostProcessBuilder::BuildFogInputs(
 		Item.FogInscatteringColor = FogComponent->FogInscatteringColor;
 		Item.AllowBackground = FogComponent->AllowBackground;
 		Item.FogExtents = FogComponent->FogExtents;
-		Item.FogVolumeWorld = FTransform(FogComponent->GetWorldTransform()).ToMatrixWithScale();
+
+		FTransform FogVolumeTransform = FTransform(FogComponent->GetWorldTransform());
+		if (Item.IsLocalFogVolume())
+		{
+			const FVector FullExtents = Item.FogExtents * 2.0f;
+			const FVector S = FogVolumeTransform.GetScale3D();
+			FogVolumeTransform.SetScale3D(
+				FVector(S.X * FullExtents.X, S.Y * FullExtents.Y, S.Z * FullExtents.Z));
+		}
+
+		Item.FogVolumeWorld = FogVolumeTransform.ToMatrixWithScale();
 		Item.WorldToFogVolume = Item.FogVolumeWorld.GetInverse();
 	}
 }

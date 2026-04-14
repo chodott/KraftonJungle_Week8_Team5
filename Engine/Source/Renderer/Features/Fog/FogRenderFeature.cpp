@@ -15,6 +15,7 @@
 namespace
 {
     static constexpr UINT FOG_COMPOSITE_CB_SLOT = 0;
+    static constexpr UINT FOG_CLUSTER_CB_SLOT = 1;
     static constexpr UINT FOG_SCENECOLOR_SRV_SLOT = 0;
     static constexpr UINT FOG_DEPTH_SRV_SLOT = 1;
     static constexpr UINT FOG_CLUSTER_HEADERS_SRV_SLOT = 10;
@@ -32,14 +33,32 @@ namespace
     struct FFogCompositeConstantBuffer
     {
         FMatrix InverseViewProjection = FMatrix::Identity;
+        FMatrix ViewMatrix = FMatrix::Identity;
         FVector4 CameraPosition = FVector4(0.0f, 0.0f, 0.0f, 0.0f);
         FVector4 ScreenSize = FVector4(0.0f, 0.0f, 0.0f, 0.0f);     // width, height, 1/width, 1/height
-        FVector4 ClusterParams = FVector4(0.0f, 0.0f, 0.0f, 0.0f);  // tileCountX, tileCountY, sliceCountZ, nearDepth
-        FVector4 ClusterParams2 = FVector4(0.0f, 0.0f, 0.0f, 0.0f); // farDepth, globalFogCount, enableLocalFog, pad
+        FVector4 ClusterParams = FVector4(0.0f, 0.0f, 0.0f, 0.0f);  // tileCountX, tileCountY, sliceCountZ, nearZ
+        FVector4 ClusterParams2 = FVector4(0.0f, 0.0f, 0.0f, 0.0f); // farZ, globalFogCount, enableLocalFog, reserved
+    };
+
+    struct FFogClusterConstantBuffer
+    {
+        uint32 ClusterCountX = 0;
+        uint32 ClusterCountY = 0;
+        uint32 ClusterCountZ = 0;
+        uint32 MaxClusterItems = 0;
+        float ViewportWidth = 0.0f;
+        float ViewportHeight = 0.0f;
+        float NearZ = 0.0f;
+        float FarZ = 0.0f;
+        float LogZScale = 0.0f;
+        float LogZBias = 0.0f;
+        float TileWidth = 0.0f;
+        float TileHeight = 0.0f;
     };
 
     struct FFogGPUData
     {
+        FMatrix WorldToFogVolume = FMatrix::Identity;
         FVector4 FogOrigin = FVector4(0.0f, 0.0f, 0.0f, 0.0f);
         FVector4 FogColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
         FVector4 FogParams = FVector4(0.0f, 0.0f, 0.0f, 0.0f);  // density, falloff, start, cutoff
@@ -229,7 +248,8 @@ bool FFogRenderFeature::Initialize(FRenderer& Renderer)
         return SUCCEEDED(Device->CreateBuffer(&Desc, nullptr, &Buffer));
     };
 
-    if (!CreateDynamicConstantBuffer(FogCompositeConstantBuffer, sizeof(FFogCompositeConstantBuffer)))
+    if (!CreateDynamicConstantBuffer(FogCompositeConstantBuffer, sizeof(FFogCompositeConstantBuffer))
+        || !CreateDynamicConstantBuffer(FogClusterConstantBuffer, sizeof(FFogClusterConstantBuffer)))
     {
         return false;
     }
@@ -300,7 +320,7 @@ bool FFogRenderFeature::Initialize(FRenderer& Renderer)
 
     if (!FogPostPS)
     {
-        auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"FogPostPixelShader.hlsl").c_str(), "main", "ps_5_0");
+        auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"FogCompositeClusteredPixelShader.hlsl").c_str(), "main", "ps_5_0");
         if (!Resource || FAILED(Device->CreatePixelShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &FogPostPS)))
         {
             return false;
@@ -310,32 +330,23 @@ bool FFogRenderFeature::Initialize(FRenderer& Renderer)
     return true;
 }
 
-bool FFogRenderFeature::UpdateFogCompositeConstantBuffer(FRenderer& Renderer, const FViewContext& View, uint32 GlobalFogCount, bool bEnableLocalFog)
+bool FFogRenderFeature::UpdateFogCompositeConstantBuffer(FRenderer& Renderer, const FViewContext& View, uint32 TotalFogCount, uint32 GlobalFogCount, uint32 LocalFogCount)
 {
     ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
-    if (!FogCompositeConstantBuffer || !DeviceContext || View.Viewport.Width <= 0.0f || View.Viewport.Height <= 0.0f || View.NearZ <= 0.0f || View.FarZ <= View.NearZ)
+    if (!FogCompositeConstantBuffer || !DeviceContext)
     {
         return false;
     }
 
     FFogCompositeConstantBuffer CBData = {};
     CBData.InverseViewProjection = View.InverseViewProjection.GetTransposed();
+    CBData.ViewMatrix = View.View.GetTransposed();
     CBData.CameraPosition = FVector4(View.CameraPosition.X, View.CameraPosition.Y, View.CameraPosition.Z, 0.0f);
-    CBData.ScreenSize = FVector4(
-        View.Viewport.Width,
-        View.Viewport.Height,
-        1.0f / View.Viewport.Width,
-        1.0f / View.Viewport.Height);
-    CBData.ClusterParams = FVector4(
-        static_cast<float>(FOG_CLUSTER_COUNT_X),
-        static_cast<float>(FOG_CLUSTER_COUNT_Y),
-        static_cast<float>(FOG_CLUSTER_COUNT_Z),
-        View.NearZ);
-    CBData.ClusterParams2 = FVector4(
-        View.FarZ,
-        static_cast<float>(GlobalFogCount),
-        bEnableLocalFog ? 1.0f : 0.0f,
-        0.0f);
+    const float InvWidth = View.Viewport.Width > 0.0f ? 1.0f / View.Viewport.Width : 0.0f;
+    const float InvHeight = View.Viewport.Height > 0.0f ? 1.0f / View.Viewport.Height : 0.0f;
+    CBData.ScreenSize = FVector4(View.Viewport.Width, View.Viewport.Height, InvWidth, InvHeight);
+    CBData.ClusterParams = FVector4(static_cast<float>(FOG_CLUSTER_COUNT_X), static_cast<float>(FOG_CLUSTER_COUNT_Y), static_cast<float>(FOG_CLUSTER_COUNT_Z), View.NearZ);
+    CBData.ClusterParams2 = FVector4(View.FarZ, static_cast<float>(GlobalFogCount), LocalFogCount > 0 ? 1.0f : 0.0f, 0.0f);
 
     D3D11_MAPPED_SUBRESOURCE Mapped = {};
     if (FAILED(DeviceContext->Map(FogCompositeConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
@@ -347,6 +358,37 @@ bool FFogRenderFeature::UpdateFogCompositeConstantBuffer(FRenderer& Renderer, co
     return true;
 }
 
+bool FFogRenderFeature::UpdateFogClusterConstantBuffer(FRenderer& Renderer, const FViewContext& View)
+{
+    ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
+    if (!FogClusterConstantBuffer || !DeviceContext || View.Viewport.Width <= 0.0f || View.Viewport.Height <= 0.0f || View.NearZ <= 0.0f || View.FarZ <= View.NearZ)
+    {
+        return false;
+    }
+
+    FFogClusterConstantBuffer CBData = {};
+    CBData.ClusterCountX = FOG_CLUSTER_COUNT_X;
+    CBData.ClusterCountY = FOG_CLUSTER_COUNT_Y;
+    CBData.ClusterCountZ = FOG_CLUSTER_COUNT_Z;
+    CBData.MaxClusterItems = FOG_MAX_CLUSTER_ITEMS;
+    CBData.ViewportWidth = View.Viewport.Width;
+    CBData.ViewportHeight = View.Viewport.Height;
+    CBData.NearZ = View.NearZ;
+    CBData.FarZ = View.FarZ;
+    CBData.TileWidth = View.Viewport.Width / static_cast<float>(FOG_CLUSTER_COUNT_X);
+    CBData.TileHeight = View.Viewport.Height / static_cast<float>(FOG_CLUSTER_COUNT_Y);
+    CBData.LogZScale = static_cast<float>(FOG_CLUSTER_COUNT_Z) / std::log(View.FarZ / View.NearZ);
+    CBData.LogZBias = -std::log(View.NearZ) * CBData.LogZScale;
+
+    D3D11_MAPPED_SUBRESOURCE Mapped = {};
+    if (FAILED(DeviceContext->Map(FogClusterConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
+    {
+        return false;
+    }
+    std::memcpy(Mapped.pData, &CBData, sizeof(CBData));
+    DeviceContext->Unmap(FogClusterConstantBuffer, 0);
+    return true;
+}
 
 bool FFogRenderFeature::BuildFogClusters(const FViewContext& View, const TArray<FFogRenderItem>& Items)
 {
@@ -418,24 +460,35 @@ bool FFogRenderFeature::BuildFogClusters(const FViewContext& View, const TArray<
     return true;
 }
 
-bool FFogRenderFeature::UploadFogStructuredBuffer(FRenderer& Renderer)
+namespace
 {
-    ID3D11Device* Device = Renderer.GetDevice();
-    ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
-    if (!Device || !Context)
+    static bool UploadFogBufferCommon(FRenderer& Renderer, const TArray<FFogRenderItem>& Items, ID3D11Buffer*& Buffer, ID3D11ShaderResourceView*& BufferSRV)
     {
-        return false;
-    }
+        ID3D11Device* Device = Renderer.GetDevice();
+        ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
+        if (!Device || !Context || Items.empty())
+        {
+            return false;
+        }
 
-    auto UploadFogBuffer = [&](const TArray<FFogRenderItem>& SourceItems,
-                               ID3D11Buffer*& Buffer,
-                               ID3D11ShaderResourceView*& SRV) -> bool
-    {
-        const uint32 ElementCount = (std::max)(1u, static_cast<uint32>(SourceItems.size()));
+        std::vector<FFogGPUData> GPUItems;
+        GPUItems.reserve(Items.size());
+        for (const FFogRenderItem& Item : Items)
+        {
+            FFogGPUData Data = {};
+            Data.WorldToFogVolume = Item.WorldToFogVolume.GetTransposed();
+            Data.FogOrigin = FVector4(Item.FogOrigin.X, Item.FogOrigin.Y, Item.FogOrigin.Z, 0.0f);
+            Data.FogColor = Item.FogInscatteringColor.ToVector4();
+            Data.FogParams = FVector4(Item.FogDensity, Item.FogHeightFalloff, Item.StartDistance, Item.FogCutoffDistance);
+            Data.FogParams2 = FVector4(Item.FogMaxOpacity, Item.AllowBackground, Item.IsLocalFogVolume() ? 1.0f : 0.0f, 0.0f);
+            GPUItems.push_back(Data);
+        }
+
+        const uint32 ElementCount = static_cast<uint32>(GPUItems.size());
         const uint32 ElementSize = static_cast<uint32>(sizeof(FFogGPUData));
         const uint32 RequiredByteWidth = Align16(ElementCount * ElementSize);
 
-        bool bNeedsCreate = !Buffer || !SRV;
+        bool bNeedsCreate = !Buffer || !BufferSRV;
         if (!bNeedsCreate)
         {
             D3D11_BUFFER_DESC Desc = {};
@@ -445,7 +498,7 @@ bool FFogRenderFeature::UploadFogStructuredBuffer(FRenderer& Renderer)
 
         if (bNeedsCreate)
         {
-            if (SRV) { SRV->Release(); SRV = nullptr; }
+            if (BufferSRV) { BufferSRV->Release(); BufferSRV = nullptr; }
             if (Buffer) { Buffer->Release(); Buffer = nullptr; }
 
             D3D11_BUFFER_DESC BufferDesc = {};
@@ -465,7 +518,7 @@ bool FFogRenderFeature::UploadFogStructuredBuffer(FRenderer& Renderer)
             SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
             SRVDesc.Buffer.FirstElement = 0;
             SRVDesc.Buffer.NumElements = ElementCount;
-            if (FAILED(Device->CreateShaderResourceView(Buffer, &SRVDesc, &SRV)))
+            if (FAILED(Device->CreateShaderResourceView(Buffer, &SRVDesc, &BufferSRV)))
             {
                 Buffer->Release();
                 Buffer = nullptr;
@@ -473,34 +526,25 @@ bool FFogRenderFeature::UploadFogStructuredBuffer(FRenderer& Renderer)
             }
         }
 
-        std::vector<FFogGPUData> GPUItems;
-        GPUItems.reserve(ElementCount);
-        for (const FFogRenderItem& Item : SourceItems)
-        {
-            FFogGPUData Data = {};
-            Data.FogOrigin = FVector4(Item.FogOrigin.X, Item.FogOrigin.Y, Item.FogOrigin.Z, 0.0f);
-            Data.FogColor = Item.FogInscatteringColor.ToVector4();
-            Data.FogParams = FVector4(Item.FogDensity, Item.FogHeightFalloff, Item.StartDistance, Item.FogCutoffDistance);
-            Data.FogParams2 = FVector4(Item.FogMaxOpacity, Item.AllowBackground, Item.IsLocalFogVolume() ? 1.0f : 0.0f, 0.0f);
-            GPUItems.push_back(Data);
-        }
-        if (GPUItems.empty())
-        {
-            GPUItems.push_back(FFogGPUData{});
-        }
-
         D3D11_MAPPED_SUBRESOURCE Mapped = {};
         if (FAILED(Context->Map(Buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
         {
             return false;
         }
-        std::memcpy(Mapped.pData, GPUItems.data(), GPUItems.size() * ElementSize);
+        std::memcpy(Mapped.pData, GPUItems.data(), ElementCount * ElementSize);
         Context->Unmap(Buffer, 0);
         return true;
-    };
+    }
+}
 
-    return UploadFogBuffer(PreparedGlobalFogItems, GlobalFogStructuredBuffer, GlobalFogStructuredBufferSRV)
-        && UploadFogBuffer(PreparedLocalFogItems, LocalFogStructuredBuffer, LocalFogStructuredBufferSRV);
+bool FFogRenderFeature::UploadGlobalFogStructuredBuffer(FRenderer& Renderer)
+{
+    return UploadFogBufferCommon(Renderer, PreparedGlobalFogItems, GlobalFogStructuredBuffer, GlobalFogStructuredBufferSRV);
+}
+
+bool FFogRenderFeature::UploadLocalFogStructuredBuffer(FRenderer& Renderer)
+{
+    return UploadFogBufferCommon(Renderer, PreparedLocalFogItems, LocalFogStructuredBuffer, LocalFogStructuredBufferSRV);
 }
 
 bool FFogRenderFeature::UploadClusterHeaderStructuredBuffer(FRenderer& Renderer)
@@ -654,8 +698,10 @@ bool FFogRenderFeature::Render(FRenderer& Renderer, const FFrameContext& Frame, 
 
     if (!BuildFogClusters(View, Items)
         || PreparedFogItems.empty()
-        || !UpdateFogCompositeConstantBuffer(Renderer, View, static_cast<uint32>(PreparedGlobalFogItems.size()), !PreparedLocalFogItems.empty())
-        || !UploadFogStructuredBuffer(Renderer)
+        || !UpdateFogCompositeConstantBuffer(Renderer, View, static_cast<uint32>(PreparedFogItems.size()), static_cast<uint32>(PreparedGlobalFogItems.size()), static_cast<uint32>(PreparedLocalFogItems.size()))
+        || !UpdateFogClusterConstantBuffer(Renderer, View)
+        || (!PreparedGlobalFogItems.empty() && !UploadGlobalFogStructuredBuffer(Renderer))
+        || (!PreparedLocalFogItems.empty() && !UploadLocalFogStructuredBuffer(Renderer))
         || !UploadClusterHeaderStructuredBuffer(Renderer)
         || !UploadClusterIndexStructuredBuffer(Renderer))
     {
@@ -689,6 +735,7 @@ bool FFogRenderFeature::Render(FRenderer& Renderer, const FFrameContext& Frame, 
     const FFullscreenPassConstantBufferBinding ConstantBuffers[] =
     {
         { FOG_COMPOSITE_CB_SLOT, FogCompositeConstantBuffer },
+        { FOG_CLUSTER_CB_SLOT, FogClusterConstantBuffer },
     };
     const FFullscreenPassShaderResourceBinding ShaderResources[] =
     {
@@ -746,16 +793,17 @@ void FFogRenderFeature::Release()
     };
 
     SafeRelease(reinterpret_cast<IUnknown*&>(FogCompositeConstantBuffer));
+    SafeRelease(reinterpret_cast<IUnknown*&>(FogClusterConstantBuffer));
     SafeRelease(reinterpret_cast<IUnknown*&>(NoDepthState));
     SafeRelease(reinterpret_cast<IUnknown*&>(FogRasterizerState));
     SafeRelease(reinterpret_cast<IUnknown*&>(LinearSampler));
     SafeRelease(reinterpret_cast<IUnknown*&>(DepthSampler));
     SafeRelease(reinterpret_cast<IUnknown*&>(FogPostVS));
     SafeRelease(reinterpret_cast<IUnknown*&>(FogPostPS));
-    SafeRelease(reinterpret_cast<IUnknown*&>(GlobalFogStructuredBuffer));
-    SafeRelease(reinterpret_cast<IUnknown*&>(GlobalFogStructuredBufferSRV));
     SafeRelease(reinterpret_cast<IUnknown*&>(LocalFogStructuredBuffer));
     SafeRelease(reinterpret_cast<IUnknown*&>(LocalFogStructuredBufferSRV));
+    SafeRelease(reinterpret_cast<IUnknown*&>(GlobalFogStructuredBuffer));
+    SafeRelease(reinterpret_cast<IUnknown*&>(GlobalFogStructuredBufferSRV));
     SafeRelease(reinterpret_cast<IUnknown*&>(ClusterHeaderStructuredBuffer));
     SafeRelease(reinterpret_cast<IUnknown*&>(ClusterHeaderStructuredBufferSRV));
     SafeRelease(reinterpret_cast<IUnknown*&>(ClusterIndexStructuredBuffer));
