@@ -49,7 +49,8 @@ namespace
 		static const TArray<FString> Options = {
 			"Lighting",
 			"NoLighting",
-			"Wireframe"
+			"Wireframe",
+			"SceneDepth"
 		};
 		return Options;
 	}
@@ -59,7 +60,7 @@ SViewportToolbarWidget::SViewportToolbarWidget(FEditorEngine* InEngine)
 	: Engine(InEngine)
 {
 	Rect = { 0, 0, 330, 0 };
-	TitleButton.Text = "View";
+	TitleButton.Text = "Show";
 	TitleButton.bEnabled = false;
 	TitleButton.FontSize = 18.0f;
 	TitleButton.LetterSpacing = 0.5f;
@@ -86,7 +87,7 @@ SViewportToolbarWidget::SViewportToolbarWidget(FEditorEngine* InEngine)
 		ApplyViewportType(static_cast<EViewportType>(SelectedIndex));
 	};
 
-	ModeDropdown.Label = "Mode";
+	ModeDropdown.Label = "";
 	ModeDropdown.Placeholder = "";
 	ModeDropdown.FontSize = 18.0f;
 	ModeDropdown.LetterSpacing = 0.5f;
@@ -120,7 +121,7 @@ void SViewportToolbarWidget::ConfigureForViewport(FViewportId InViewportId)
 	bShowLayout = false;
 	bShowViewportSettings = true;
 	TargetViewportId = InViewportId;
-	TitleButton.Text = "View";
+	TitleButton.Text = "Show";
 	CloseAllDropdowns();
 }
 

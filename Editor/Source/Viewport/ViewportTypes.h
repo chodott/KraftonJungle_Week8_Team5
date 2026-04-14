@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Core/ShowFlags.h"
+#include "Renderer/Common/RenderMode.h"
 
 class FViewport;
 struct FWorldContext;
@@ -59,13 +60,6 @@ inline FRect UnionRect(const FRect& A, const FRect& B)
 	const int32 Bottom = ((A.Y + A.Height) > (B.Y + B.Height)) ? (A.Y + A.Height) : (B.Y + B.Height);
 	return { Left, Top, Right - Left, Bottom - Top };
 }
-
-enum class ERenderMode
-{
-	Lighting,
-	NoLighting,
-	Wireframe,
-};
 
 enum class EViewportType : uint8
 {

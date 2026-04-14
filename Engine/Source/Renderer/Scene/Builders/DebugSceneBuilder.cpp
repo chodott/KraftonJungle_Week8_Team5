@@ -3,6 +3,7 @@
 #include "Actor/Actor.h"
 #include "Component/PrimitiveComponent.h"
 #include "Component/StaticMeshComponent.h"
+#include "Component/UUIDBillboardComponent.h"
 #include "Debug/DebugDrawManager.h"
 #include "Level/PrimitiveVisibilityUtils.h"
 #include "Renderer/Features/Debug/DebugLineRenderFeature.h"
@@ -10,128 +11,168 @@
 
 namespace
 {
-	void AppendActorMeshBVHDebug(
-		AActor* BoundsActor,
-		const FShowFlags& ShowFlags,
-		UWorld* World,
-		FDebugPrimitiveList& OutPrimitives)
-	{
-		if (!BoundsActor || !World)
-		{
-			return;
-		}
+void AppendActorSceneBVHDebug(AActor *BoundsActor, UWorld *World, const FShowFlags &ShowFlags,
+                              FDebugPrimitiveList &OutPrimitives)
+{
+    if (!BoundsActor || !World)
+    {
+        return;
+    }
 
-		UStaticMeshComponent* MeshComp = nullptr;
-		for (UActorComponent* Comp : BoundsActor->GetComponents())
-		{
-			if (!Comp || !Comp->IsA(UStaticMeshComponent::StaticClass()))
-			{
-				continue;
-			}
+    ULevel *Scene = World->GetScene();
+    if (!Scene)
+    {
+        return;
+    }
 
-			UStaticMeshComponent* Candidate = static_cast<UStaticMeshComponent*>(Comp);
-			if (Candidate->IsEditorVisualization() || IsHiddenByArrowVisualizationShowFlags(Candidate, ShowFlags))
-			{
-				continue;
-			}
+    const bool bShowUUID = ShowFlags.HasFlag(EEngineShowFlags::SF_UUID);
 
-			if (Candidate->GetStaticMesh())
-			{
-				MeshComp = Candidate;
-				break;
-			}
-		}
+    for (UActorComponent *Comp : BoundsActor->GetComponents())
+    {
+        UPrimitiveComponent *Primitive = dynamic_cast<UPrimitiveComponent *>(Comp);
+        if (!Primitive)
+        {
+            continue;
+        }
 
-		if (!MeshComp)
-		{
-			return;
-		}
+        if (Primitive->IsEditorVisualization() || IsHiddenByArrowVisualizationShowFlags(Primitive, ShowFlags))
+        {
+            continue;
+        }
 
-		if (ULevel* Scene = World->GetScene())
-		{
-			Scene->VisitBVHNodesForPrimitive(MeshComp, [&OutPrimitives](const FAABB& Bounds, int32 Depth, bool bIsLeaf)
-				{
-					(void)Depth;
-					const FVector Center = (Bounds.PMin + Bounds.PMax) * 0.5f;
-					const FVector Extent = (Bounds.PMax - Bounds.PMin) * 0.5f;
-					const FVector4 Color = bIsLeaf
-						? FVector4(1.0f, 1.0f, 0.0f, 1.0f)
-						: FVector4(0.0f, 1.0f, 0.0f, 1.0f);
-					OutPrimitives.Cubes.push_back({ Center, Extent, Color });
-				});
-		}
+        const bool bIsUUIDPrimitive = Primitive->IsA(UUUIDBillboardComponent::StaticClass());
+        if (bIsUUIDPrimitive && !bShowUUID)
+        {
+            continue;
+        }
 
-		UStaticMesh* StaticMesh = MeshComp->GetStaticMesh();
-		if (!StaticMesh)
-		{
-			return;
-		}
+        Scene->VisitDebugBVHNodesForPrimitive(
+            Primitive, [&OutPrimitives](const FAABB &Bounds, int32 Depth, bool bIsLeaf) {
+                (void)Depth;
 
-		const FMatrix& LocalToWorld = MeshComp->GetWorldTransform();
-		StaticMesh->VisitMeshBVHNodes([&OutPrimitives, &LocalToWorld](const FAABB& LocalBounds, int32 Depth, bool bIsLeaf)
-			{
-				(void)Depth;
-				const FVector& PMin = LocalBounds.PMin;
-				const FVector& PMax = LocalBounds.PMax;
-				const FVector Corners[8] = {
-					{ PMin.X, PMin.Y, PMin.Z }, { PMax.X, PMin.Y, PMin.Z },
-					{ PMin.X, PMax.Y, PMin.Z }, { PMax.X, PMax.Y, PMin.Z },
-					{ PMin.X, PMin.Y, PMax.Z }, { PMax.X, PMin.Y, PMax.Z },
-					{ PMin.X, PMax.Y, PMax.Z }, { PMax.X, PMax.Y, PMax.Z },
-				};
+                const FVector Center = (Bounds.PMin + Bounds.PMax) * 0.5f;
+                const FVector Extent = (Bounds.PMax - Bounds.PMin) * 0.5f;
+                const FVector4 Color = bIsLeaf ? FVector4(1.0f, 1.0f, 0.0f, 1.0f) : FVector4(0.0f, 1.0f, 0.0f, 1.0f);
 
-				FVector WorldMin = LocalToWorld.TransformPosition(Corners[0]);
-				FVector WorldMax = WorldMin;
-				for (int32 Index = 1; Index < 8; ++Index)
-				{
-					const FVector W = LocalToWorld.TransformPosition(Corners[Index]);
-					WorldMin.X = (W.X < WorldMin.X) ? W.X : WorldMin.X;
-					WorldMin.Y = (W.Y < WorldMin.Y) ? W.Y : WorldMin.Y;
-					WorldMin.Z = (W.Z < WorldMin.Z) ? W.Z : WorldMin.Z;
-					WorldMax.X = (W.X > WorldMax.X) ? W.X : WorldMax.X;
-					WorldMax.Y = (W.Y > WorldMax.Y) ? W.Y : WorldMax.Y;
-					WorldMax.Z = (W.Z > WorldMax.Z) ? W.Z : WorldMax.Z;
-				}
-
-				const FVector Center = (WorldMin + WorldMax) * 0.5f;
-				const FVector Extent = (WorldMax - WorldMin) * 0.5f;
-				const FVector4 Color = bIsLeaf
-					? FVector4(0.0f, 0.5f, 1.0f, 1.0f)
-					: FVector4(0.0f, 1.0f, 1.0f, 1.0f);
-				OutPrimitives.Cubes.push_back({ Center, Extent, Color });
-			});
-	}
+                OutPrimitives.Cubes.push_back({Center, Extent, Color});
+            });
+    }
 }
 
-void BuildDebugLinePassInputs(const FDebugPrimitiveList& Primitives, FDebugLinePassInputs& OutPassInputs)
+void AppendActorMeshBVHDebug(AActor *BoundsActor, UWorld *World, const FShowFlags &ShowFlags,
+                             FDebugPrimitiveList &OutPrimitives)
 {
-	OutPassInputs.Clear();
+    if (!BoundsActor || !World)
+    {
+        return;
+    }
 
-	for (const FDebugCube& Cube : Primitives.Cubes)
-	{
-		FDebugLineRenderFeature::AppendCube(OutPassInputs, Cube.Center, Cube.Extent, Cube.Color);
-	}
+    UStaticMeshComponent *MeshComp = nullptr;
+    for (UActorComponent *Comp : BoundsActor->GetComponents())
+    {
+        if (!Comp || !Comp->IsA(UStaticMeshComponent::StaticClass()))
+        {
+            continue;
+        }
 
-	for (const FDebugLine& Line : Primitives.Lines)
-	{
-		FDebugLineRenderFeature::AppendLine(OutPassInputs, Line.Start, Line.End, Line.Color);
-	}
+        UStaticMeshComponent *Candidate = static_cast<UStaticMeshComponent *>(Comp);
+        if (Candidate->IsEditorVisualization() || IsHiddenByArrowVisualizationShowFlags(Candidate, ShowFlags))
+        {
+            continue;
+        }
+
+        if (Candidate->GetStaticMesh())
+        {
+            MeshComp = Candidate;
+            break;
+        }
+    }
+
+    if (!MeshComp)
+    {
+        return;
+    }
+
+    UStaticMesh *StaticMesh = MeshComp->GetStaticMesh();
+    if (!StaticMesh)
+    {
+        return;
+    }
+
+    const FMatrix &LocalToWorld = MeshComp->GetWorldTransform();
+    StaticMesh->VisitMeshBVHNodes([&OutPrimitives, &LocalToWorld](const FAABB &LocalBounds, int32 Depth, bool bIsLeaf) {
+        (void)Depth;
+
+        const FVector &PMin = LocalBounds.PMin;
+        const FVector &PMax = LocalBounds.PMax;
+        const FVector Corners[8] = {
+            {PMin.X, PMin.Y, PMin.Z}, {PMax.X, PMin.Y, PMin.Z}, {PMin.X, PMax.Y, PMin.Z}, {PMax.X, PMax.Y, PMin.Z},
+            {PMin.X, PMin.Y, PMax.Z}, {PMax.X, PMin.Y, PMax.Z}, {PMin.X, PMax.Y, PMax.Z}, {PMax.X, PMax.Y, PMax.Z},
+        };
+
+        FVector WorldMin = LocalToWorld.TransformPosition(Corners[0]);
+        FVector WorldMax = WorldMin;
+
+        for (int32 Index = 1; Index < 8; ++Index)
+        {
+            const FVector W = LocalToWorld.TransformPosition(Corners[Index]);
+
+            WorldMin.X = (W.X < WorldMin.X) ? W.X : WorldMin.X;
+            WorldMin.Y = (W.Y < WorldMin.Y) ? W.Y : WorldMin.Y;
+            WorldMin.Z = (W.Z < WorldMin.Z) ? W.Z : WorldMin.Z;
+
+            WorldMax.X = (W.X > WorldMax.X) ? W.X : WorldMax.X;
+            WorldMax.Y = (W.Y > WorldMax.Y) ? W.Y : WorldMax.Y;
+            WorldMax.Z = (W.Z > WorldMax.Z) ? W.Z : WorldMax.Z;
+        }
+
+        const FVector Center = (WorldMin + WorldMax) * 0.5f;
+        const FVector Extent = (WorldMax - WorldMin) * 0.5f;
+        const FVector4 Color = bIsLeaf ? FVector4(0.0f, 0.5f, 1.0f, 1.0f) : FVector4(0.0f, 1.0f, 1.0f, 1.0f);
+
+        OutPrimitives.Cubes.push_back({Center, Extent, Color});
+    });
 }
 
-void BuildDebugLinePassInputs(const FDebugSceneBuildInputs& Inputs, FDebugLinePassInputs& OutPassInputs)
+} // namespace
+
+void BuildDebugLinePassInputs(const FDebugSceneBuildInputs &Inputs, FDebugLinePassInputs &OutPassInputs)
 {
-	OutPassInputs.Clear();
-	if (!Inputs.DrawManager || !Inputs.World)
-	{
-		return;
-	}
+    OutPassInputs.Clear();
+    if (!Inputs.DrawManager || !Inputs.World)
+    {
+        return;
+    }
 
-	FDebugPrimitiveList Primitives;
-	Inputs.DrawManager->BuildPrimitiveList(Inputs.ShowFlags, Inputs.World, Primitives);
-	if (Inputs.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw))
-	{
-		AppendActorMeshBVHDebug(Inputs.BoundsActor, Inputs.ShowFlags, Inputs.World, Primitives);
-	}
+    FDebugPrimitiveList Primitives;
+    Inputs.DrawManager->BuildPrimitiveList(Inputs.ShowFlags, Inputs.World, Primitives);
 
-	BuildDebugLinePassInputs(Primitives, OutPassInputs);
+    if (Inputs.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw))
+    {
+        if (Inputs.ShowFlags.HasFlag(EEngineShowFlags::SF_SceneBVH))
+        {
+            AppendActorSceneBVHDebug(Inputs.BoundsActor, Inputs.World, Inputs.ShowFlags, Primitives);
+        }
+
+        if (Inputs.ShowFlags.HasFlag(EEngineShowFlags::SF_MeshBVH))
+        {
+            AppendActorMeshBVHDebug(Inputs.BoundsActor, Inputs.World, Inputs.ShowFlags, Primitives);
+        }
+    }
+    BuildDebugLinePassInputs(Primitives, OutPassInputs);
+}
+
+void BuildDebugLinePassInputs(const FDebugPrimitiveList &Primitives, FDebugLinePassInputs &OutPassInputs)
+{
+    OutPassInputs.Clear();
+
+    for (const FDebugCube &Cube : Primitives.Cubes)
+    {
+        FDebugLineRenderFeature::AppendCube(OutPassInputs, Cube.Center, Cube.Extent, Cube.Color);
+    }
+
+    for (const FDebugLine &Line : Primitives.Lines)
+    {
+        FDebugLineRenderFeature::AppendLine(OutPassInputs, Line.Start, Line.End, Line.Color);
+    }
 }

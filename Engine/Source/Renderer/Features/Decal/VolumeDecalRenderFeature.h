@@ -77,4 +77,7 @@ private:
     ID3D11BlendState* VolumeBlendState = nullptr;
     ID3D11DepthStencilState* VolumeDepthState = nullptr;
     ID3D11RasterizerState* VolumeRasterizerState = nullptr;
+	
+	std::shared_ptr<FPixelShader> DebugPS = nullptr;
+	ID3D11DepthStencilState* DebugDepthState = nullptr;
 };

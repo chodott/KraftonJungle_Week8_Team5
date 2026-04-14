@@ -3,6 +3,7 @@
 #include "Input/InputManager.h"
 #include "Camera/Camera.h"
 #include "Renderer/Renderer.h"
+#include "Renderer/Common/RenderMode.h"
 #include "Level/Level.h"
 #include "Level/SceneRenderPacket.h"
 #include "Debug/EngineLog.h"
@@ -214,6 +215,7 @@ void FGameViewportClient::Render(FEngine* Engine, FRenderer* Renderer)
 	FGameFrameRequest FrameRequest;
 	FrameRequest.SceneView.ViewMatrix = ActiveCamera->GetViewMatrix();
 	FrameRequest.SceneView.ProjectionMatrix = ActiveCamera->GetProjectionMatrix();
+	FrameRequest.RenderMode = ERenderMode::Lighting;
 
 	FFrustum Frustum;
 	Frustum.ExtractFromVP(FrameRequest.SceneView.ViewMatrix * FrameRequest.SceneView.ProjectionMatrix);

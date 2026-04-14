@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/ShowFlags.h"
 #include "Renderer/Features/Debug/DebugTypes.h"
 #include "Renderer/Features/Decal/DecalTypes.h"
 #include "Renderer/Features/Fog/FogTypes.h"
@@ -61,4 +62,6 @@ struct ENGINE_API FSceneViewData
 	FSceneMeshInputs MeshInputs;
 	FScenePostProcessInputs PostProcessInputs;
 	FSceneDebugInputs DebugInputs;
+	FShowFlags ShowFlags;
+	bool bForceWireframe = false;
 };

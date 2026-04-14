@@ -1,340 +1,337 @@
 #include "ControlPanelWindow.h"
-#include "World/WorldContext.h"
-#include "imgui.h"
-#include "EditorEngine.h"
-#include "Renderer/Renderer.h"
-#include "Level/Level.h"
 #include "Actor/Actor.h"
-#include "Component/TextComponent.h"
-#include "Component/SkyComponent.h"
-#include "Object/ObjectFactory.h"
 #include "Camera/Camera.h"
-#include "Core/Paths.h"
-#include "Debug/EngineLog.h"
 #include "Component/CameraComponent.h"
+#include "Component/SkyComponent.h"
 #include "Component/StaticMeshComponent.h"
 #include "Component/SubUVComponent.h"
+#include "Component/TextComponent.h"
 #include "Controller/EditorViewportController.h"
+#include "Core/Paths.h"
+#include "Debug/EngineLog.h"
+#include "EditorEngine.h"
+#include "Level/Level.h"
+#include "Object/ObjectFactory.h"
+#include "Renderer/Renderer.h"
 #include "Serializer/SceneSerializer.h"
+#include "World/WorldContext.h"
+#include "imgui.h"
+#include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <random>
-#include <chrono>
 
+#include "Actor/BillboardActor.h"
 #include "Actor/CubeActor.h"
+#include "Actor/DecalActor.h"
+#include "Actor/HeightFogActor.h"
 #include "Actor/PlaneActor.h"
 #include "Actor/PlayerCameraActor.h"
 #include "Actor/SphereActor.h"
 #include "Actor/StaticMeshActor.h"
 #include "Actor/SubUVActor.h"
 #include "Actor/TextActor.h"
-#include "Actor/BillboardActor.h"
-#include "Actor/HeightFogActor.h"
-#include "Actor/DecalActor.h"
-#include "Math/MathUtility.h"
 #include "Asset/ObjManager.h"
+#include "Math/MathUtility.h"
 #include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Resources/Material/MaterialManager.h"
 
 namespace
 {
-	const char* GetWorldTypeLabel(EWorldType WorldType)
-	{
-		switch (WorldType)
-		{
-		case EWorldType::Game:
-			return "Game";
-		case EWorldType::Editor:
-			return "Editor";
-		case EWorldType::PIE:
-			return "PIE";
-		case EWorldType::Preview:
-			return "Preview";
-		case EWorldType::Inactive:
-			return "Inactive";
-		default:
-			return "Unknown";
-		}
-	}
-}
-
-void FControlPanelWindow::Render(FEditorEngine* Engine)
+const char *GetWorldTypeLabel(EWorldType WorldType)
 {
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
-	const bool bOpen = ImGui::Begin("Control Panel");
-	ImGui::PopStyleVar();
+    switch (WorldType)
+    {
+    case EWorldType::Game:
+        return "Game";
+    case EWorldType::Editor:
+        return "Editor";
+    case EWorldType::PIE:
+        return "PIE";
+    case EWorldType::Preview:
+        return "Preview";
+    case EWorldType::Inactive:
+        return "Inactive";
+    default:
+        return "Unknown";
+    }
+}
+} // namespace
 
-	if (!bOpen)
-	{
-		ImGui::End();
-		return;
-	}
+void FControlPanelWindow::Render(FEditorEngine *Engine)
+{
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
+    const bool bOpen = ImGui::Begin("Control Panel");
+    ImGui::PopStyleVar();
 
-	if (Engine && Engine->GetScene())
-	{
-	
-		const FWorldContext* ActiveSceneContext = Engine->GetActiveWorldContext();
-		const TArray<FWorldContext*>& PreviewSceneContexts = Engine->GetPreviewWorldContexts();
-		const bool bPreviewActive = ActiveSceneContext && ActiveSceneContext->WorldType == EWorldType::Preview;
+    if (!bOpen)
+    {
+        ImGui::End();
+        return;
+    }
 
-		/*
-			PreviewScene 등 아마 확장의 여지를 둔 것으로 보이나 아무 기능도 없어 주석 처리함		
-		*/
-		/*
-		ImGui::SeparatorText("World");
+    if (Engine && Engine->GetScene())
+    {
 
-		if (ActiveSceneContext)
-		{
-			ImGui::Text("Active: %s", ActiveSceneContext->ContextName.c_str());
-			ImGui::Text("Type: %s", GetWorldTypeLabel(ActiveSceneContext->WorldType));
-		}
-		*/
+        const FWorldContext *ActiveSceneContext = Engine->GetActiveWorldContext();
+        const TArray<FWorldContext *> &PreviewSceneContexts = Engine->GetPreviewWorldContexts();
+        const bool bPreviewActive = ActiveSceneContext && ActiveSceneContext->WorldType == EWorldType::Preview;
 
-		/*
-		if (ImGui::Button("Editor Scene"))
-		{
-			Core->ActivateEditorScene();
-		}
-		*/
+        /*
+            PreviewScene 등 아마 확장의 여지를 둔 것으로 보이나 아무 기능도 없어 주석 처리함
+        */
+        /*
+        ImGui::SeparatorText("World");
 
-		/*
-		ImGui::SameLine();
+        if (ActiveSceneContext)
+        {
+            ImGui::Text("Active: %s", ActiveSceneContext->ContextName.c_str());
+            ImGui::Text("Type: %s", GetWorldTypeLabel(ActiveSceneContext->WorldType));
+        }
+        */
 
-		if (PreviewSceneContexts.empty())
-		{
-			ImGui::BeginDisabled();
-			ImGui::Button("Preview Scene");
-			ImGui::EndDisabled();
-		}
-		else if (ImGui::Button("Preview Scene"))
-		{
-			Core->ActivatePreviewScene(PreviewSceneContexts.front()->ContextName);
-		}
+        /*
+        if (ImGui::Button("Editor Scene"))
+        {
+            Core->ActivateEditorScene();
+        }
+        */
 
-		if (bPreviewActive)
-		{
-			ImGui::TextUnformatted("Preview scene is editor-only. Scene save/load is disabled.");
-		}
-		*/
+        /*
+        ImGui::SameLine();
 
-		ImGui::SeparatorText("Camera");
-		
+        if (PreviewSceneContexts.empty())
+        {
+            ImGui::BeginDisabled();
+            ImGui::Button("Preview Scene");
+            ImGui::EndDisabled();
+        }
+        else if (ImGui::Button("Preview Scene"))
+        {
+            Core->ActivatePreviewScene(PreviewSceneContexts.front()->ContextName);
+        }
 
-		/*
-		if (ImGui::Button("Spawn Test"))
-		{
-			UScene* Scene = Core->GetScene();
-			AActor* NewActor = nullptr;
+        if (bPreviewActive)
+        {
+            ImGui::TextUnformatted("Preview scene is editor-only. Scene save/load is disabled.");
+        }
+        */
 
-			for (int i = 0; i < 1000; i++)
-			{
-				// 시드: 현재 시간 기반
-				static std::mt19937 rng(static_cast<unsigned int>(
-					std::chrono::steady_clock::now().time_since_epoch().count()
-					));
+        ImGui::Dummy(ImVec2(0.0f, 5.0f));
+        ImGui::SeparatorText("Camera");
+        ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
-				std::uniform_real_distribution<float> dist(-10, 10);
+        /*
+        if (ImGui::Button("Spawn Test"))
+        {
+            UScene* Scene = Core->GetScene();
+            AActor* NewActor = nullptr;
 
-				FVector V{ 0, 0, 0 };
-				NewActor = Scene->SpawnActor<ACubeActor>("Test");
-				NewActor->SetActorLocation(V);
-			}
-		}
-		*/
+            for (int i = 0; i < 1000; i++)
+            {
+                // 시드: 현재 시간 기반
+                static std::mt19937 rng(static_cast<unsigned int>(
+                    std::chrono::steady_clock::now().time_since_epoch().count()
+                    ));
 
-		FSlateApplication* Slate = Engine->GetSlateApplication();
-		FViewportId FocusedId = Slate ? Slate->GetFocusedViewportId() : INVALID_VIEWPORT_ID;
-		FEditorViewportRegistry& ViewportRegistry = Engine->GetViewportRegistry();
-		FViewportEntry* Entry = ViewportRegistry.FindEntryByViewportID(FocusedId);
-		if (!Entry && !ViewportRegistry.GetEntries().empty())
-			Entry = &ViewportRegistry.GetEntries().front();
+                std::uniform_real_distribution<float> dist(-10, 10);
 
-		// Speed/Sensitivity는 FCamera에서 읽기 (렌더 무관 설정값)
-		if (FCamera* Camera = Engine->GetScene()->GetCamera())
-		{
-			float Sensitivity = Camera->GetMouseSensitivity();
-			if (ImGui::SliderFloat("Mouse Sensitivity", &Sensitivity, 0.01f, 1.0f))
-				Camera->SetMouseSensitivity(Sensitivity);
+                FVector V{ 0, 0, 0 };
+                NewActor = Scene->SpawnActor<ACubeActor>("Test");
+                NewActor->SetActorLocation(V);
+            }
+        }
+        */
 
-			float Speed = Camera->GetSpeed();
-			if (ImGui::SliderFloat("Move Speed", &Speed, 0.1f, 20.0f))
-				Camera->SetSpeed(Speed);
-		}
-		if (Entry)
-		{
-			const bool bIsOrtho = (Entry->LocalState.ProjectionType != EViewportType::Perspective);
-			FVector& PositionRef = bIsOrtho ? Entry->LocalState.OrthoTarget : Entry->LocalState.Position;
-			float Position[3] = { PositionRef.X, PositionRef.Y, PositionRef.Z };
-			if (ImGui::DragFloat3("Position", Position, 0.1f))
-				PositionRef = { Position[0], Position[1], Position[2] };
+        FSlateApplication *Slate = Engine->GetSlateApplication();
+        FViewportId FocusedId = Slate ? Slate->GetFocusedViewportId() : INVALID_VIEWPORT_ID;
+        FEditorViewportRegistry &ViewportRegistry = Engine->GetViewportRegistry();
+        FViewportEntry *Entry = ViewportRegistry.FindEntryByViewportID(FocusedId);
+        if (!Entry && !ViewportRegistry.GetEntries().empty())
+            Entry = &ViewportRegistry.GetEntries().front();
 
-			if (Entry->LocalState.ProjectionType == EViewportType::Perspective)
-			{
-				float Yaw = Entry->LocalState.Rotation.Yaw;
-				float Pitch = Entry->LocalState.Rotation.Pitch;
-				bool bRotationChanged = false;
-				bRotationChanged |= ImGui::DragFloat("Yaw", &Yaw, 0.5f);
-				bRotationChanged |= ImGui::DragFloat("Pitch", &Pitch, 0.5f, -89.0f, 89.0f);
-				if (bRotationChanged)
-				{
-					Entry->LocalState.Rotation.Yaw = Yaw;
-					Entry->LocalState.Rotation.Pitch = Pitch;
-				}
+        // Speed/Sensitivity는 FCamera에서 읽기 (렌더 무관 설정값)
+        if (FCamera *Camera = Engine->GetScene()->GetCamera())
+        {
+            float Sensitivity = Camera->GetMouseSensitivity();
+            if (ImGui::SliderFloat("Mouse Sensitivity", &Sensitivity, 0.01f, 1.0f))
+                Camera->SetMouseSensitivity(Sensitivity);
 
-				float FovY = Entry->LocalState.FovY;
-				if (ImGui::SliderFloat("FOV", &FovY, 10.0f, 120.0f))
-					Entry->LocalState.FovY = FovY;
-			}
-			else
-			{
-				float OrthoZoom = Entry->LocalState.OrthoZoom;
-				if (ImGui::DragFloat("Ortho Zoom", &OrthoZoom, 1.0f, 1.0f, 10000.0f))
-					Entry->LocalState.OrthoZoom = OrthoZoom;
-			}
-		}
+            float Speed = Camera->GetSpeed();
+            if (ImGui::SliderFloat("Move Speed", &Speed, 0.1f, 20.0f))
+                Camera->SetSpeed(Speed);
+        }
+        if (Entry)
+        {
+            const bool bIsOrtho = (Entry->LocalState.ProjectionType != EViewportType::Perspective);
+            FVector &PositionRef = bIsOrtho ? Entry->LocalState.OrthoTarget : Entry->LocalState.Position;
+            float Position[3] = {PositionRef.X, PositionRef.Y, PositionRef.Z};
+            if (ImGui::DragFloat3("Position", Position, 0.1f))
+                PositionRef = {Position[0], Position[1], Position[2]};
 
-		ImGui::SeparatorText("Spawn");
+            if (Entry->LocalState.ProjectionType == EViewportType::Perspective)
+            {
+                float Yaw = Entry->LocalState.Rotation.Yaw;
+                float Pitch = Entry->LocalState.Rotation.Pitch;
+                bool bRotationChanged = false;
+                bRotationChanged |= ImGui::DragFloat("Yaw", &Yaw, 0.5f);
+                bRotationChanged |= ImGui::DragFloat("Pitch", &Pitch, 0.5f, -89.0f, 89.0f);
+                if (bRotationChanged)
+                {
+                    Entry->LocalState.Rotation.Yaw = Yaw;
+                    Entry->LocalState.Rotation.Pitch = Pitch;
+                }
 
-		static int32 SpawnTypeIndex = 0;
-		const char* SpawnTypes[] = { "Cube", "Sphere", "Plane", "SubUV", "Text", "Billboard", "Staticmesh", "HeightFog", "PlayerCamera", "Decal" };
+                float FovY = Entry->LocalState.FovY;
+                if (ImGui::SliderFloat("FOV", &FovY, 10.0f, 120.0f))
+                    Entry->LocalState.FovY = FovY;
+            }
+            else
+            {
+                float OrthoZoom = Entry->LocalState.OrthoZoom;
+                if (ImGui::DragFloat("Ortho Zoom", &OrthoZoom, 1.0f, 1.0f, 10000.0f))
+                    Entry->LocalState.OrthoZoom = OrthoZoom;
+            }
+        }
 
-		ImGui::Combo("Type", &SpawnTypeIndex, SpawnTypes, IM_ARRAYSIZE(SpawnTypes));
+        ImGui::Dummy(ImVec2(0.0f, 5.0f));
+        ImGui::SeparatorText("Place Actor");
+        ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
-		static char SpawnTextBuffer[256] = "Text";
+        static int32 SpawnTypeIndex = 0;
+        static int32 SpawnAmount = 1;
+        const char *SpawnTypes[] = {"Cube",      "Sphere",     "Plane",     "SubUV",        "Text",
+                                    "Billboard", "StaticMesh", "HeightFog", "PlayerCamera", "Decal"};
 
+        ImGui::Combo("Type", &SpawnTypeIndex, SpawnTypes, IM_ARRAYSIZE(SpawnTypes));
+        ImGui::InputInt("Count", &SpawnAmount);
+        SpawnAmount = std::max(1, SpawnAmount);
 
-		if (SpawnTypeIndex == 4)
-		{
-			ImGui::InputText("Text", SpawnTextBuffer, IM_ARRAYSIZE(SpawnTextBuffer));
-		}
+        static char SpawnTextBuffer[256] = "Text";
 
-		if (ImGui::Button("Spawn"))
-		{
-			ULevel* Scene = Engine->GetScene();
-			static int32 SpawnCount = 0;
-			const FString Name = FString(SpawnTypes[SpawnTypeIndex]) + "_Spawned_" + std::to_string(SpawnCount++);
+        if (SpawnTypeIndex == 4)
+        {
+            ImGui::InputText("Text", SpawnTextBuffer, IM_ARRAYSIZE(SpawnTextBuffer));
+        }
 
-			AActor* NewActor = nullptr;
+        if (ImGui::Button("Spawn"))
+        {
+            ULevel *Scene = Engine->GetScene();
+            static int32 SpawnCount = 0;
+            AActor *LastSpawnedActor = nullptr;
 
-			// ─── 1. 특수 액터 (미리 조립된 테스트용 액터) ───
-			if (SpawnTypeIndex == 0)
-			{
-				NewActor = Scene->SpawnActor<ACubeActor>(Name);
-			}
-			else if (SpawnTypeIndex == 1)
-			{
-				NewActor = Scene->SpawnActor<ASphereActor>(Name);
-			}
-			else if (SpawnTypeIndex == 2)
-			{
-				NewActor = Scene->SpawnActor<APlaneActor>(Name);
-			}
-			// ─── 2. 순수 컴포넌트 조립 방식 (대통합!) ───
-			else if (SpawnTypeIndex == 3)
-			{
-				NewActor = Scene->SpawnActor<ASubUVActor>(Name);
-			}
-			else if (SpawnTypeIndex == 4)
-			{
-				NewActor = Scene->SpawnActor<ATextActor>(Name);
+            for (int32 SpawnIndex = 0; SpawnIndex < SpawnAmount; ++SpawnIndex)
+            {
+                const FString Name = FString(SpawnTypes[SpawnTypeIndex]) + "_Spawned_" + std::to_string(SpawnCount++);
+                AActor *NewActor = nullptr;
 
-				if (NewActor)
-				{
-					ATextActor* TextActor = static_cast<ATextActor*>(NewActor);
-					if (UTextRenderComponent* TextComponent = TextActor->GetComponentByClass<UTextRenderComponent>())
-					{
-						if (SpawnTextBuffer[0] != '\0') TextComponent->SetText(SpawnTextBuffer);
-						else TextComponent->SetText("Text");
-					}
-				}
-			}
-			else if (SpawnTypeIndex == 5)
-			{
-				NewActor = Scene->SpawnActor<ABillboardActor>(Name);
-			}
-			else if (SpawnTypeIndex == 6)
-			{
-				NewActor = Scene->SpawnActor<AActor>(Name);
-				if (NewActor)
-				{
-					UStaticMeshComponent* MeshComp = FObjectFactory::ConstructObject<UStaticMeshComponent>(nullptr, "StaticMeshComponent");
+                // ─── 1. 특수 액터 (미리 조립된 테스트용 액터) ───
+                if (SpawnTypeIndex == 0)
+                {
+                    NewActor = Scene->SpawnActor<ACubeActor>(Name);
+                }
+                else if (SpawnTypeIndex == 1)
+                {
+                    NewActor = Scene->SpawnActor<ASphereActor>(Name);
+                }
+                else if (SpawnTypeIndex == 2)
+                {
+                    NewActor = Scene->SpawnActor<APlaneActor>(Name);
+                }
+                // ─── 2. 순수 컴포넌트 조립 방식 (대통합!) ───
+                else if (SpawnTypeIndex == 3)
+                {
+                    NewActor = Scene->SpawnActor<ASubUVActor>(Name);
+                }
+                else if (SpawnTypeIndex == 4)
+                {
+                    NewActor = Scene->SpawnActor<ATextActor>(Name);
 
-					std::filesystem::path ModelPath = FPaths::MeshDir() / "cube-tex.obj";
-					FString FullPath = FPaths::FromPath(ModelPath);
+                    if (NewActor)
+                    {
+                        ATextActor *TextActor = static_cast<ATextActor *>(NewActor);
+                        if (UTextRenderComponent *TextComponent = TextActor->GetComponentByClass<UTextRenderComponent>())
+                        {
+                            if (SpawnTextBuffer[0] != '\0')
+                                TextComponent->SetText(SpawnTextBuffer);
+                            else
+                                TextComponent->SetText("Text");
+                        }
+                    }
+                }
+                else if (SpawnTypeIndex == 5)
+                {
+                    NewActor = Scene->SpawnActor<ABillboardActor>(Name);
+                }
+                else if (SpawnTypeIndex == 6)
+                {
+                    NewActor = Scene->SpawnActor<AActor>(Name);
+                    if (NewActor)
+                    {
+                        UStaticMeshComponent *MeshComp =
+                            FObjectFactory::ConstructObject<UStaticMeshComponent>(nullptr, "StaticMeshComponent");
 
-					UStaticMesh* MeshData = FObjManager::LoadObjStaticMeshAsset(FullPath);
-					if (MeshData)
-					{
-						MeshComp->SetStaticMesh(MeshData);
-						UE_LOG("[테스트] OBJ 파일 로드 성공! 섹션 개수: %d", MeshData->GetNumSections());
+                        std::filesystem::path ModelPath = FPaths::MeshDir() / "cube-tex.obj";
+                        FString FullPath = FPaths::FromPath(ModelPath);
 
-						MeshComp->SetRelativeLocation(FVector(0, 0, 3.0f));
-					}
-					else
-					{
-						UE_LOG("[테스트 실패] OBJ 파일을 찾을 수 없거나 파싱에 실패했습니다.");
-					}
-					NewActor->AddOwnedComponent(MeshComp);
-					NewActor->SetRootComponent(MeshComp);
-				}
-			}
-			else if (SpawnTypeIndex == 7)
-			{
-				NewActor = Scene->SpawnActor<AHeightFogActor>(Name);
-			}
-			else if (SpawnTypeIndex == 8)
-			{
-				NewActor = Scene->SpawnActor<APlayerCameraActor>(Name);
-			}
-			else if (SpawnTypeIndex == 9)
-			{
-				NewActor = Scene->SpawnActor<ADecalActor>(Name);
-			}
+                        UStaticMesh *MeshData = FObjManager::LoadObjStaticMeshAsset(FullPath);
+                        if (MeshData)
+                        {
+                            MeshComp->SetStaticMesh(MeshData);
+                            UE_LOG("[테스트] OBJ 파일 로드 성공! 섹션 개수: %d", MeshData->GetNumSections());
 
-			// ─── 마무리: 에디터 선택 및 로그 출력 ───
-			Engine->SetSelectedActor(NewActor);
-			UE_LOG("Spawned %s: %s", SpawnTypes[SpawnTypeIndex], Name.c_str());
-		}
+                            MeshComp->SetRelativeLocation(FVector(0, 0, 3.0f));
+                        }
+                        else
+                        {
+                            UE_LOG("[테스트 실패] OBJ 파일을 찾을 수 없거나 파싱에 실패했습니다.");
+                        }
+                        NewActor->AddOwnedComponent(MeshComp);
+                        NewActor->SetRootComponent(MeshComp);
+                    }
+                }
+                else if (SpawnTypeIndex == 7)
+                {
+                    NewActor = Scene->SpawnActor<AHeightFogActor>(Name);
+                }
+                else if (SpawnTypeIndex == 8)
+                {
+                    NewActor = Scene->SpawnActor<APlayerCameraActor>(Name);
+                }
+                else if (SpawnTypeIndex == 9)
+                {
+                    NewActor = Scene->SpawnActor<ADecalActor>(Name);
+                }
 
-		ImGui::SameLine();
-		AActor* SelectedActor = Engine->GetSelectedActor();
-		if (!SelectedActor)
-		{
-			ImGui::BeginDisabled();
-		}
+                LastSpawnedActor = NewActor;
+            }
 
-		if (ImGui::Button("Delete"))
-		{
-			const FString Name = SelectedActor->GetName();
-			Engine->GetScene()->DestroyActor(SelectedActor);
-			Engine->SetSelectedActor(nullptr);
-			UE_LOG("Deleted actor: %s", Name.c_str());
-		}
+            // ─── 마무리: 에디터 선택 및 로그 출력 ───
+            Engine->SetSelectedActor(LastSpawnedActor);
+            UE_LOG("Spawned %d %s actor(s)", SpawnAmount, SpawnTypes[SpawnTypeIndex]);
+        }
 
-		if (!SelectedActor)
-		{
-			ImGui::EndDisabled();
-		}
+        ImGui::Dummy(ImVec2(0.0f, 5.0f));
+        ImGui::SeparatorText("Decal Projection Mode");
+        ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
-		ImGui::SeparatorText("Decal Projection Mode");
+        if (FRenderer *Renderer = Engine->GetRenderer())
+        {
+            const EDecalProjectionMode Mode = Renderer->GetDecalProjectionMode();
+            if (ImGui::RadioButton("Volume Draw", Mode == EDecalProjectionMode::VolumeDraw))
+            {
+                Renderer->SetDecalProjectionMode(EDecalProjectionMode::VolumeDraw);
+            }
+            if (ImGui::RadioButton("Clustered Lookup", Mode == EDecalProjectionMode::ClusteredLookup))
+            {
+                Renderer->SetDecalProjectionMode(EDecalProjectionMode::ClusteredLookup);
+            }
+        }
+        else
+        {
+            ImGui::TextDisabled("Renderer unavailable.");
+        }
+    }
 
-		if (FRenderer* Renderer = Engine->GetRenderer())
-		{
-			const EDecalProjectionMode Mode = Renderer->GetDecalProjectionMode();
-			if (ImGui::RadioButton("Volume Draw", Mode == EDecalProjectionMode::VolumeDraw))
-			{
-				Renderer->SetDecalProjectionMode(EDecalProjectionMode::VolumeDraw);
-			}
-			if (ImGui::RadioButton("Clustered Lookup", Mode == EDecalProjectionMode::ClusteredLookup))
-			{
-				Renderer->SetDecalProjectionMode(EDecalProjectionMode::ClusteredLookup);
-			}
-		}
-		else
-		{
-			ImGui::TextDisabled("Renderer unavailable.");
-		}
-
-	}
-
-	ImGui::End();
+    ImGui::End();
 }

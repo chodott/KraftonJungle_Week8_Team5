@@ -70,6 +70,9 @@ void FVolumeDecalRenderFeature::Release()
     if (VolumeBlendState) { VolumeBlendState->Release(); VolumeBlendState = nullptr; }
     if (VolumeDepthState) { VolumeDepthState->Release(); VolumeDepthState = nullptr; }
     if (VolumeRasterizerState) { VolumeRasterizerState->Release(); VolumeRasterizerState = nullptr; }
+
+    DebugPS.reset();
+    if (DebugDepthState) { DebugDepthState->Release(); DebugDepthState = nullptr; }
 }
 
 bool FVolumeDecalRenderFeature::Render(
@@ -211,6 +214,27 @@ bool FVolumeDecalRenderFeature::Render(
 
     ID3D11ShaderResourceView* NullSRVs[2] = { nullptr, nullptr };
     DeviceContext->PSSetShaderResources(DECAL_DEPTH_TEXTURE_SLOT, 2, NullSRVs);
+	
+	if (Request.bDebugDraw && DebugPS && DebugDepthState)
+	{
+		DeviceContext->OMSetRenderTargets(1, &Targets.SceneColorRTV, Targets.SceneDepthDSV);
+		DeviceContext->OMSetDepthStencilState(DebugDepthState, 0);
+		DeviceContext->OMSetBlendState(VolumeBlendState, nullptr, 0xFFFFFFFFu);
+		DeviceContext->RSSetState(VolumeRasterizerState);
+		VolumeVS->Bind(DeviceContext);
+		DebugPS->Bind(DeviceContext);
+		
+		for (const FDecalRenderItem* Item : SortedItems)
+		{
+			if (!Item || !Item->IsValid()) continue;
+			Renderer.UpdateObjectConstantBuffer(Item->DecalWorld);
+			UpdatePerDecalConstants(Renderer, Request, *Item);
+			ID3D11Buffer* CBs[1] = { PerDecalConstantBuffer };
+			DeviceContext->VSSetConstantBuffers(DECAL_PER_MATERIAL_CB_SLOT, 1, CBs);
+			DeviceContext->DrawIndexed(VolumeIndexCount, 0, 0);
+		}
+		DeviceContext->OMSetRenderTargets(1, &Targets.SceneColorRTV, nullptr);
+	}
 
     LastTotalTimeMs = ToMilliseconds(FVolumeDecalClock::now() - StartTime);
     return true;
@@ -336,6 +360,16 @@ bool FVolumeDecalRenderFeature::CreateStates(FRenderer& Renderer)
         return false;
     }
 
+	D3D11_DEPTH_STENCIL_DESC DebugDepthDesc = {};
+	DebugDepthDesc.DepthEnable = TRUE;
+	DebugDepthDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	DebugDepthDesc.DepthFunc = D3D11_COMPARISON_LESS;
+	if (FAILED(Device->CreateDepthStencilState(&DebugDepthDesc, &DebugDepthState)) || !DebugDepthState)
+	{
+		return false;
+	}
+	
+	
     return true;
 }
 
@@ -381,10 +415,12 @@ bool FVolumeDecalRenderFeature::CreateShaders(FRenderer& Renderer)
     const std::wstring ShaderDir = FPaths::ShaderDir();
     const std::wstring VSPath = ShaderDir + L"VolumeDecalVertexShader.hlsl";
     const std::wstring PSPath = ShaderDir + L"VolumeDecalPixelShader.hlsl";
+	const std::wstring DebugPSPath = ShaderDir + L"DecalDebugPixelShader.hlsl";
 
     VolumeVS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
     VolumePS = FShaderMap::Get().GetOrCreatePixelShader(Device, PSPath.c_str());
-    return VolumeVS != nullptr && VolumePS != nullptr;
+	DebugPS =  FShaderMap::Get().GetOrCreatePixelShader(Device, DebugPSPath.c_str());
+    return VolumeVS != nullptr && VolumePS != nullptr && DebugPS != nullptr;
 }
 
 bool FVolumeDecalRenderFeature::UpdatePerDecalConstants(
