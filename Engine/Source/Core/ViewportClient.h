@@ -3,7 +3,7 @@
 #include "EngineAPI.h"
 #include "Windows.h"
 #include "Types/String.h"
-#include "ShowFlags.h"
+#include "Core/ShowFlags.h"
 #include "Level/ScenePacketBuilder.h"
 #include "Level/SceneRenderPacket.h"
 

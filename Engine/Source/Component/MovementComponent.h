@@ -1,5 +1,5 @@
 #pragma once
-#include "ActorComponent.h"
+#include "Component/ActorComponent.h"
 #include "Math/Rotator.h"
 #include "Math/Vector.h"
 

@@ -1,6 +1,6 @@
 #pragma once
-#include "PrimitiveComponent.h"
-#include "Renderer/MeshData.h"
+#include "Component/PrimitiveComponent.h"
+#include "Renderer/Mesh/MeshData.h"
 
 enum EHorizTextAligment : int;
 enum EVerticalTextAligment : int;

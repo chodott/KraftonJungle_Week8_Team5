@@ -16,7 +16,7 @@ class FFrustum;
 class FEditorEngine;
 class FEditorViewportRegistry;
 class UWorld;
-#include "Renderer/Material.h"
+#include "Renderer/Resources/Material/Material.h"
 
 /**
  * 에디터 메인 뷰포트 클라이언트다.

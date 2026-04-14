@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Renderer/MeshData.h"
+#include "Renderer/Mesh/MeshData.h"
 
 struct FModelMaterialInfo
 {

@@ -1,4 +1,4 @@
-#include "PlayerCameraActor.h"
+#include "Actor/PlayerCameraActor.h"
 
 #include "Camera/Camera.h"
 #include "Component/CameraComponent.h"
@@ -7,8 +7,8 @@
 #include "Object/Class.h"
 #include "Object/ObjectFactory.h"
 #include "Primitive/PrimitiveGizmo.h"
-#include "Renderer/MaterialManager.h"
-#include "Renderer/MeshData.h"
+#include "Renderer/Resources/Material/MaterialManager.h"
+#include "Renderer/Mesh/MeshData.h"
 
 namespace
 {

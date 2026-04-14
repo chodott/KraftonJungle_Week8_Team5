@@ -1,11 +1,11 @@
-#include "PrimitiveComponent.h"
+#include "Component/PrimitiveComponent.h"
 #include "Object/Class.h"
 #include "Serializer/Archive.h"
 #include "Debug/EngineLog.h"
 #include "Actor/Actor.h"
 #include "Level/Level.h"
 
-#include "PrimitiveComponent.h"
+#include "Component/PrimitiveComponent.h"
 IMPLEMENT_RTTI(UPrimitiveComponent, USceneComponent)
 
 void UPrimitiveComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const

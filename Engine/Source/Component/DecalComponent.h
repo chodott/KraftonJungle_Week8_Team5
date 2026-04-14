@@ -1,8 +1,8 @@
 #pragma once
 
-#include "PrimitiveComponent.h"
-#include "Renderer/Feature/DecalRenderFeature.h"
-#include "Renderer/LinearColor.h"
+#include "Component/PrimitiveComponent.h"
+#include "Renderer/Features/Decal/DecalTypes.h"
+#include "Math/LinearColor.h"
 
 #include <algorithm>
 

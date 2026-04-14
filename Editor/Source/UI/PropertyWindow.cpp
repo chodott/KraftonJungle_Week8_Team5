@@ -22,10 +22,10 @@
 #include "Object/Class.h"
 #include "Object/ObjectFactory.h"
 #include "Object/ObjectIterator.h"
-#include "Renderer/MeshData.h"
-#include "Renderer/RenderMesh.h"
-#include "Renderer/Material.h"
-#include "Renderer/MaterialManager.h"
+#include "Renderer/Mesh/MeshData.h"
+#include "Renderer/Mesh/RenderMesh.h"
+#include "Renderer/Resources/Material/Material.h"
+#include "Renderer/Resources/Material/MaterialManager.h"
 #include "Core/Paths.h"
 
 #include <algorithm>

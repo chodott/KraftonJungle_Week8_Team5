@@ -1,8 +1,8 @@
 #pragma once
 
-#include "String.h"
-#include "Map.h"
-#include "CoreTypes.h"
+#include "Types/String.h"
+#include "Types/Map.h"
+#include "Types/CoreTypes.h"
 #include <vector>
 
 class FName {

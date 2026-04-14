@@ -1,6 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
-#include "ActorComponent.h"
+#include "Component/ActorComponent.h"
 
 class ENGINE_API USceneComponent : public UActorComponent
 {

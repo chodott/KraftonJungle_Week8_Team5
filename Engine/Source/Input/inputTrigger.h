@@ -1,5 +1,5 @@
 #pragma once
-#include "InputAction.h"
+#include "Input/InputAction.h"
 
 enum class ETriggerState : uint32
 {

@@ -1,5 +1,5 @@
 #pragma once
-#include "PrimitiveComponent.h"
+#include "Component/PrimitiveComponent.h"
 
 struct FDynamicMesh;
 class FArchive;

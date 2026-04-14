@@ -1,6 +1,6 @@
-#include "GameEngine.h"
+#include "Core/GameEngine.h"
 
-#include "ViewportClient.h"
+#include "Core/ViewportClient.h"
 #include "World/World.h"
 
 bool FGameEngine::InitializeWorlds()

@@ -1,4 +1,4 @@
-#include "RotatingMovementComponent.h"
+#include "Component/RotatingMovementComponent.h"
 #include "Object/Class.h"
 #include "Serializer/Archive.h"
 

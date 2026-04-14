@@ -1,5 +1,5 @@
 #pragma once
-#include "InputAction.h"
+#include "Input/InputAction.h"
 #include <cmath>
 
 class ENGINE_API FInputModifier

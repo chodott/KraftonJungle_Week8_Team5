@@ -1,6 +1,6 @@
 #pragma once
-#include "SceneComponent.h"
-#include "PrimitiveComponent.h"
+#include "Component/SceneComponent.h"
+#include "Component/PrimitiveComponent.h"
 #include "Math/Frustum.h"
 #include <memory>
 #include <algorithm>

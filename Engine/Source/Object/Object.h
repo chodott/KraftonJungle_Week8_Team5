@@ -1,6 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
-#include "ObjectTypes.h"
+#include "Object/ObjectTypes.h"
 
 #define DECLARE_RTTI(ClassName, ParentClassName) \
     public: \

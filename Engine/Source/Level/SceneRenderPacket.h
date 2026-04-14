@@ -67,7 +67,7 @@ struct ENGINE_API FSceneRenderPacket
 	// 데칼 컴포넌트 목록이다.
 	TArray<FSceneDecalPrimitive> DecalPrimitives;
 	// 파이어볼 컴포넌트 목록이다.
-	TArray<FSceneFireBallPrimitive> FireBAllPrimitives;
+	TArray<FSceneFireBallPrimitive> FireBallPrimitives;
 	// FXAA 적용 여부이다.
 	bool bApplyFXAA = false;
 
@@ -81,7 +81,7 @@ struct ENGINE_API FSceneRenderPacket
 		BillboardPrimitives.reserve(PrimitiveCountHint);
 		FogPrimitives.reserve(PrimitiveCountHint);
 		DecalPrimitives.reserve(PrimitiveCountHint);
-		FireBAllPrimitives.reserve(PrimitiveCountHint);
+		FireBallPrimitives.reserve(PrimitiveCountHint);
 	}
 
 	// 패킷 안의 모든 프리미티브 버킷을 비운다.
@@ -93,7 +93,7 @@ struct ENGINE_API FSceneRenderPacket
 		BillboardPrimitives.clear();
 		FogPrimitives.clear();
 		DecalPrimitives.clear();
-		FireBAllPrimitives.clear();
+		FireBallPrimitives.clear();
 		bApplyFXAA = false;
 	}
 };

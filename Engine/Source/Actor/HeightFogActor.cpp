@@ -1,4 +1,4 @@
-#include "HeightFogActor.h"
+#include "Actor/HeightFogActor.h"
 
 #include "Object/ObjectFactory.h"
 #include "Object/Class.h"

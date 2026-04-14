@@ -1,10 +1,10 @@
-#include "PrimitiveGizmo.h"
+#include "Primitive/PrimitiveGizmo.h"
 
-#include "UnrealEditorStyledGizmo.h"
+#include "Primitive/UnrealEditorStyledGizmo.h"
 
 #include <optional>
 
-#include "Renderer/MeshData.h"
+#include "Renderer/Mesh/MeshData.h"
 
 static TMap<FString, std::shared_ptr<FDynamicMesh>> GizmoCache;
 

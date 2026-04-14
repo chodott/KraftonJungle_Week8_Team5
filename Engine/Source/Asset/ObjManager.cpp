@@ -1,4 +1,4 @@
-#include "ObjManager.h"
+#include "Asset/ObjManager.h"
 
 #include <algorithm>
 #include <cctype>
@@ -15,11 +15,11 @@
 #include <map>
 
 #include "Object/ObjectFactory.h"
-#include "Renderer/Material.h"
-#include "Renderer/MaterialManager.h"
+#include "Renderer/Resources/Material/Material.h"
+#include "Renderer/Resources/Material/MaterialManager.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/Shader.h"
-#include "Renderer/ShaderMap.h"
+#include "Renderer/Resources/Shader/Shader.h"
+#include "Renderer/Resources/Shader/ShaderMap.h"
 
 TMap<FString, UStaticMesh*> FObjManager::ObjStaticMeshMap;
 

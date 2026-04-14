@@ -1,19 +1,30 @@
-#include "Renderer.h"
-#include "ShaderType.h"
-#include "Shader.h"
-#include "ShaderMap.h"
-#include "ShaderResource.h"
-#include "Material.h"
-#include "MaterialManager.h"
+﻿#include "Renderer/Renderer.h"
+#include "Renderer/Resources/Shader/ShaderType.h"
+#include "Renderer/Resources/Shader/Shader.h"
+#include "Renderer/Resources/Shader/ShaderMap.h"
+#include "Renderer/Resources/Shader/ShaderResource.h"
+#include "Renderer/Resources/Material/Material.h"
+#include "Renderer/Resources/Material/MaterialManager.h"
 #include "Actor/Actor.h"
 #include "Core/Paths.h"
-#include "RenderMesh.h"
+#include "Renderer/Mesh/RenderMesh.h"
 #include "Component/StaticMeshComponent.h"
 #include "Component/DecalComponent.h"
 #include "Debug/DebugDrawManager.h"
-#include "Renderer/FramePasses.h"
-#include "Renderer/FramePipeline.h"
-#include "Renderer/Feature/FogRenderFeature.h"
+#include "Renderer/UI/FramePasses.h"
+#include "Renderer/UI/FramePipeline.h"
+#include "Renderer/Common/SceneTargetManager.h"
+#include "Renderer/Features/Decal/DecalTextureCache.h"
+#include "Renderer/Features/Fog/FogRenderFeature.h"
+#include "Renderer/Features/Outline/OutlineRenderFeature.h"
+#include "Renderer/Features/Decal/DecalRenderFeature.h"
+#include "Renderer/Features/Decal/VolumeDecalRenderFeature.h"
+#include "Renderer/Features/FireBall/FireBallRenderFeature.h"
+#include "Renderer/Features/PostProcess/FXAARenderFeature.h"
+#include "Renderer/Features/Debug/DebugLineRenderFeature.h"
+#include "Renderer/Features/SubUV/SubUVRenderFeature.h"
+#include "Renderer/Features/Text/TextRenderFeature.h"
+#include "Renderer/Features/Billboard/BillboardRenderFeature.h"
 #include "World/World.h"
 #include <cassert>
 #include <algorithm>
@@ -267,6 +278,12 @@ namespace
 	}
 }
 
+
+FBillboardRenderer& FRenderer::GetBillboardRenderer()
+{
+	return BillboardFeature->GetRenderer();
+}
+
 FRenderer::FRenderer(HWND InHwnd, int32 InWidth, int32 InHeight)
 {
 	Initialize(InHwnd, InWidth, InHeight);
@@ -426,7 +443,7 @@ bool FRenderer::Initialize(HWND InHwnd, int32 Width, int32 Height)
 	std::filesystem::path FileIconPath = FPaths::AssetDir() / FString("Textures/FileIcon.png");
 	CreateTextureFromSTB(Device, FolderIconPath, &FolderIconSRV);
 	CreateTextureFromSTB(Device, FileIconPath, &FileIconSRV);
-	if (!CreateSolidColorTextureSRV(Device, 0xFFFFFFFFu, &DecalFallbackBaseColorSRV))
+	if (!DecalTextureCache.InitializeFallbackTexture(Device))
 	{
 		return false;
 	}
@@ -486,7 +503,7 @@ FViewContext FRenderer::BuildViewContext(const FSceneViewRenderRequest& SceneVie
 bool FRenderer::RenderGameFrame(const FGameFrameRequest& Request)
 {
 	FSceneRenderTargets Targets;
-	if (!AcquireGameSceneTargets(Targets))
+	if (!SceneTargetManager.AcquireGameSceneTargets(GetDevice(), RenderDevice.GetViewport(), Targets))
 	{
 		return false;
 	}
@@ -496,7 +513,7 @@ bool FRenderer::RenderGameFrame(const FGameFrameRequest& Request)
 
 	FSceneViewData SceneViewData;
 	SceneRenderer.BuildSceneViewData(*this, Request.ScenePacket, Frame, View, Request.AdditionalMeshBatches, SceneViewData);
-	ResolveDecalBaseColorTextureArray(SceneViewData);
+	DecalTextureCache.ResolveTextureArray(GetDevice(), SceneViewData);
 	BuildDebugLinePassInputs(Request.DebugInputs, SceneViewData.DebugInputs.LinePass);
 
 	if (!SceneRenderer.RenderSceneView(
@@ -583,7 +600,8 @@ bool FRenderer::RenderEditorFrame(const FEditorFrameRequest& Request)
 		const FViewContext View = BuildViewContext(ScenePass.SceneView, ScenePass.Viewport);
 
 		FSceneRenderTargets Targets;
-		if (!WrapExternalSceneTargets(
+		if (!SceneTargetManager.WrapExternalSceneTargets(
+			GetDevice(),
 			ScenePass.RenderTargetView,
 			ScenePass.RenderTargetShaderResourceView,
 			ScenePass.DepthStencilView,
@@ -596,7 +614,7 @@ bool FRenderer::RenderEditorFrame(const FEditorFrameRequest& Request)
 
 		FSceneViewData SceneViewData;
 		SceneRenderer.BuildSceneViewData(*this, ScenePass.ScenePacket, Frame, View, ScenePass.AdditionalMeshBatches, SceneViewData);
-		ResolveDecalBaseColorTextureArray(SceneViewData);
+		DecalTextureCache.ResolveTextureArray(GetDevice(), SceneViewData);
 		SceneViewData.PostProcessInputs.OutlineItems = ScenePass.OutlineRequest.Items;
 		SceneViewData.PostProcessInputs.bOutlineEnabled = ScenePass.OutlineRequest.bEnabled;
 		BuildDebugLinePassInputs(ScenePass.DebugInputs, SceneViewData.DebugInputs.LinePass);
@@ -785,199 +803,6 @@ void FRenderer::UpdateObjectConstantBuffer(const FMatrix& WorldMatrix)
 	}
 }
 
-bool FRenderer::EnsureGameSceneTargets(uint32 Width, uint32 Height)
-{
-	if (Width == 0 || Height == 0)
-	{
-		return false;
-	}
-
-	if (GameSceneColorRTV && GameSceneDepthDSV
-		&& GameSceneTargetCacheWidth == Width
-		&& GameSceneTargetCacheHeight == Height)
-	{
-		return EnsureSupplementalTargets(Width, Height);
-	}
-
-	ReleaseSceneTargets();
-	ID3D11Device* Device = GetDevice();
-	if (!Device)
-	{
-		return false;
-	}
-
-	if (!CreateColorRenderTarget(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, &GameSceneColorTexture, &GameSceneColorRTV, &GameSceneColorSRV))
-	{
-		ReleaseSceneTargets();
-		return false;
-	}
-
-	if (!CreateDepthTarget(Device, Width, Height, &GameSceneDepthTexture, &GameSceneDepthDSV, &GameSceneDepthSRV))
-	{
-		ReleaseSceneTargets();
-		return false;
-	}
-
-	GameSceneTargetCacheWidth = Width;
-	GameSceneTargetCacheHeight = Height;
-	return EnsureSupplementalTargets(Width, Height);
-}
-
-bool FRenderer::EnsureSupplementalTargets(uint32 Width, uint32 Height)
-{
-	if (Width == 0 || Height == 0)
-	{
-		return false;
-	}
-
-	if (GBufferARTV && GBufferBRTV && GBufferCRTV && SceneColorScratchRTV && OutlineMaskRTV
-		&& SupplementalTargetCacheWidth == Width
-		&& SupplementalTargetCacheHeight == Height)
-	{
-		return true;
-	}
-
-	ID3D11Device* Device = GetDevice();
-	if (!Device)
-	{
-		return false;
-	}
-
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferASRV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferARTV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferATexture));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferBSRV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferBRTV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferBTexture));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferCSRV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferCRTV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferCTexture));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(SceneColorScratchSRV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(SceneColorScratchRTV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(SceneColorScratchTexture));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(OutlineMaskSRV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(OutlineMaskRTV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(OutlineMaskTexture));
-
-	if (!CreateColorRenderTarget(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, &GBufferATexture, &GBufferARTV, &GBufferASRV)
-		|| !CreateColorRenderTarget(Device, Width, Height, DXGI_FORMAT_R16G16B16A16_FLOAT, &GBufferBTexture, &GBufferBRTV, &GBufferBSRV)
-		|| !CreateColorRenderTarget(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, &GBufferCTexture, &GBufferCRTV, &GBufferCSRV)
-		|| !CreateColorRenderTarget(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, &SceneColorScratchTexture, &SceneColorScratchRTV, &SceneColorScratchSRV)
-		|| !CreateColorRenderTarget(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, &OutlineMaskTexture, &OutlineMaskRTV, &OutlineMaskSRV))
-	{
-		ReleaseSceneTargets();
-		return false;
-	}
-
-	SupplementalTargetCacheWidth = Width;
-	SupplementalTargetCacheHeight = Height;
-	return true;
-}
-
-bool FRenderer::AcquireGameSceneTargets(FSceneRenderTargets& OutTargets)
-{
-	const D3D11_VIEWPORT& Viewport = RenderDevice.GetViewport();
-	if (!EnsureGameSceneTargets(static_cast<uint32>(Viewport.Width), static_cast<uint32>(Viewport.Height)))
-	{
-		return false;
-	}
-
-	OutTargets = {};
-	OutTargets.Width = static_cast<uint32>(Viewport.Width);
-	OutTargets.Height = static_cast<uint32>(Viewport.Height);
-	OutTargets.SceneColorTexture = GameSceneColorTexture;
-	OutTargets.SceneColorRTV = GameSceneColorRTV;
-	OutTargets.SceneColorSRV = GameSceneColorSRV;
-	OutTargets.SceneColorScratchTexture = SceneColorScratchTexture;
-	OutTargets.SceneColorScratchRTV = SceneColorScratchRTV;
-	OutTargets.SceneColorScratchSRV = SceneColorScratchSRV;
-	OutTargets.SceneDepthTexture = GameSceneDepthTexture;
-	OutTargets.SceneDepthDSV = GameSceneDepthDSV;
-	OutTargets.SceneDepthSRV = GameSceneDepthSRV;
-	OutTargets.GBufferATexture = GBufferATexture;
-	OutTargets.GBufferARTV = GBufferARTV;
-	OutTargets.GBufferASRV = GBufferASRV;
-	OutTargets.GBufferBTexture = GBufferBTexture;
-	OutTargets.GBufferBRTV = GBufferBRTV;
-	OutTargets.GBufferBSRV = GBufferBSRV;
-	OutTargets.GBufferCTexture = GBufferCTexture;
-	OutTargets.GBufferCRTV = GBufferCRTV;
-	OutTargets.GBufferCSRV = GBufferCSRV;
-	OutTargets.OutlineMaskTexture = OutlineMaskTexture;
-	OutTargets.OutlineMaskRTV = OutlineMaskRTV;
-	OutTargets.OutlineMaskSRV = OutlineMaskSRV;
-	return true;
-}
-
-bool FRenderer::WrapExternalSceneTargets(
-	ID3D11RenderTargetView* RenderTargetView,
-	ID3D11ShaderResourceView* RenderTargetShaderResourceView,
-	ID3D11DepthStencilView* DepthStencilView,
-	ID3D11ShaderResourceView* DepthShaderResourceView,
-	const D3D11_VIEWPORT& Viewport,
-	FSceneRenderTargets& OutTargets)
-{
-	const uint32 Width = static_cast<uint32>(Viewport.Width);
-	const uint32 Height = static_cast<uint32>(Viewport.Height);
-	if (!RenderTargetView || !RenderTargetShaderResourceView || !DepthStencilView || !DepthShaderResourceView || !EnsureSupplementalTargets(Width, Height))
-	{
-		return false;
-	}
-
-	OutTargets = {};
-	OutTargets.Width = Width;
-	OutTargets.Height = Height;
-	OutTargets.SceneColorRTV = RenderTargetView;
-	OutTargets.SceneColorSRV = RenderTargetShaderResourceView;
-	OutTargets.SceneColorScratchTexture = SceneColorScratchTexture;
-	OutTargets.SceneColorScratchRTV = SceneColorScratchRTV;
-	OutTargets.SceneColorScratchSRV = SceneColorScratchSRV;
-	OutTargets.SceneDepthDSV = DepthStencilView;
-	OutTargets.SceneDepthSRV = DepthShaderResourceView;
-	OutTargets.GBufferATexture = GBufferATexture;
-	OutTargets.GBufferARTV = GBufferARTV;
-	OutTargets.GBufferASRV = GBufferASRV;
-	OutTargets.GBufferBTexture = GBufferBTexture;
-	OutTargets.GBufferBRTV = GBufferBRTV;
-	OutTargets.GBufferBSRV = GBufferBSRV;
-	OutTargets.GBufferCTexture = GBufferCTexture;
-	OutTargets.GBufferCRTV = GBufferCRTV;
-	OutTargets.GBufferCSRV = GBufferCSRV;
-	OutTargets.OutlineMaskTexture = OutlineMaskTexture;
-	OutTargets.OutlineMaskRTV = OutlineMaskRTV;
-	OutTargets.OutlineMaskSRV = OutlineMaskSRV;
-	return true;
-}
-
-void FRenderer::ReleaseSceneTargets()
-{
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GameSceneColorSRV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GameSceneColorRTV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GameSceneColorTexture));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GameSceneDepthSRV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GameSceneDepthDSV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GameSceneDepthTexture));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferASRV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferARTV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferATexture));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferBSRV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferBRTV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferBTexture));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferCSRV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferCRTV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferCTexture));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(SceneColorScratchSRV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(SceneColorScratchRTV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(SceneColorScratchTexture));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(OutlineMaskSRV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(OutlineMaskRTV));
-	ReleaseCOM(reinterpret_cast<IUnknown*&>(OutlineMaskTexture));
-	GameSceneTargetCacheWidth = 0;
-	GameSceneTargetCacheHeight = 0;
-	SupplementalTargetCacheWidth = 0;
-	SupplementalTargetCacheHeight = 0;
-}
-
 void FRenderer::ConfigureMaterialPasses(FMaterial& Material, bool bTexturedMaterial)
 {
 	ID3D11Device* Device = GetDevice();
@@ -1082,301 +907,9 @@ bool FRenderer::CreateTextureFromSTB(ID3D11Device* Device, const std::filesystem
 	return SUCCEEDED(hr);
 }
 
-bool FRenderer::CreateSolidColorTextureSRV(ID3D11Device* Device, uint32 PackedRGBA, ID3D11ShaderResourceView** OutSRV)
-{
-	if (Device == nullptr || OutSRV == nullptr)
-	{
-		return false;
-	}
-
-	*OutSRV = nullptr;
-
-	D3D11_TEXTURE2D_DESC Desc = {};
-	Desc.Width = 1;
-	Desc.Height = 1;
-	Desc.MipLevels = 1;
-	Desc.ArraySize = 1;
-	Desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	Desc.SampleDesc.Count = 1;
-	Desc.Usage = D3D11_USAGE_DEFAULT;
-	Desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-
-	const D3D11_SUBRESOURCE_DATA InitData = { &PackedRGBA, sizeof(PackedRGBA), 0 };
-
-	ID3D11Texture2D* Texture = nullptr;
-	if (FAILED(Device->CreateTexture2D(&Desc, &InitData, &Texture)) || !Texture)
-	{
-		return false;
-	}
-
-	const HRESULT Hr = Device->CreateShaderResourceView(Texture, nullptr, OutSRV);
-	Texture->Release();
-	return SUCCEEDED(Hr);
-}
-
-ID3D11ShaderResourceView* FRenderer::GetOrLoadDecalBaseColorTexture(const std::wstring& TexturePath)
-{
-	if (TexturePath.empty())
-	{
-		return DecalFallbackBaseColorSRV;
-	}
-
-	const std::wstring NormalizedPath = std::filesystem::path(TexturePath).lexically_normal().wstring();
-	auto Found = DecalBaseColorTextureCache.find(NormalizedPath);
-	if (Found != DecalBaseColorTextureCache.end())
-	{
-		return Found->second;
-	}
-
-	ID3D11Device* Device = GetDevice();
-	if (!Device)
-	{
-		return DecalFallbackBaseColorSRV;
-	}
-
-	ID3D11ShaderResourceView* LoadedSRV = nullptr;
-	if (!CreateTextureFromSTB(Device, std::filesystem::path(NormalizedPath), &LoadedSRV) || !LoadedSRV)
-	{
-		return DecalFallbackBaseColorSRV;
-	}
-
-	DecalBaseColorTextureCache.emplace(NormalizedPath, LoadedSRV);
-	return LoadedSRV;
-}
-
-ID3D11ShaderResourceView* FRenderer::ResolveDecalBaseColorTexture(
-	const FSceneRenderPacket& ScenePacket,
-	std::wstring& OutResolvedTexturePath)
-{
-	OutResolvedTexturePath.clear();
-
-	for (const FSceneDecalPrimitive& Primitive : ScenePacket.DecalPrimitives)
-	{
-		const UDecalComponent* DecalComponent = Primitive.Component;
-		if (!DecalComponent || !DecalComponent->IsEnabled())
-		{
-			continue;
-		}
-
-		const std::wstring& TexturePath = DecalComponent->GetTexturePath();
-		if (TexturePath.empty())
-		{
-			continue;
-		}
-
-		ID3D11ShaderResourceView* TextureSRV = GetOrLoadDecalBaseColorTexture(TexturePath);
-		if (TextureSRV && TextureSRV != DecalFallbackBaseColorSRV)
-		{
-			OutResolvedTexturePath = std::filesystem::path(TexturePath).lexically_normal().wstring();
-			return TextureSRV;
-		}
-	}
-
-	return DecalFallbackBaseColorSRV;
-}
-
-void FRenderer::ResolveDecalBaseColorTextureArray(FSceneViewData& InOutSceneViewData)
-{
-	auto& DecalItems = InOutSceneViewData.PostProcessInputs.DecalItems;
-
-	// --- Step 1: path dedup, assign TextureIndex per item ---
-	// Slot 0 is always the fallback (white).
-	TArray<std::wstring> SlicePaths;
-	SlicePaths.push_back(L""); // slot 0 = fallback
-	TMap<std::wstring, uint32> PathToSlice;
-	PathToSlice.emplace(L"", 0u);
-
-	for (FDecalRenderItem& Item : DecalItems)
-	{
-		Item.TextureIndex = 0;
-		if (Item.TexturePath.empty())
-		{
-			continue;
-		}
-
-		const std::wstring NormalizedPath =
-			std::filesystem::path(Item.TexturePath).lexically_normal().wstring();
-
-		auto Found = PathToSlice.find(NormalizedPath);
-		if (Found != PathToSlice.end())
-		{
-			Item.TextureIndex = Found->second;
-			continue;
-		}
-
-		if (SlicePaths.size() >= DECAL_MAX_TEXTURE_SLICES)
-		{
-			UE_LOG("[Decal] Texture array overflow (%u slices). Using fallback for %ls",
-				static_cast<uint32>(DECAL_MAX_TEXTURE_SLICES), NormalizedPath.c_str());
-			PathToSlice.emplace(NormalizedPath, 0u);
-			Item.TextureIndex = 0;
-			continue;
-		}
-
-		const uint32 NewIndex = static_cast<uint32>(SlicePaths.size());
-		SlicePaths.push_back(NormalizedPath);
-		PathToSlice.emplace(NormalizedPath, NewIndex);
-		Item.TextureIndex = NewIndex;
-	}
-
-	// --- Step 2: early-out if path set is unchanged ---
-	if (SlicePaths == DecalBaseColorTextureArrayPaths && DecalBaseColorTextureArraySRV)
-	{
-		InOutSceneViewData.PostProcessInputs.DecalBaseColorTextureArraySRV = DecalBaseColorTextureArraySRV;
-		return;
-	}
-
-	// --- Step 3: release stale resources ---
-	if (DecalBaseColorTextureArraySRV)
-	{
-		DecalBaseColorTextureArraySRV->Release();
-		DecalBaseColorTextureArraySRV = nullptr;
-	}
-	if (DecalBaseColorTextureArrayResource)
-	{
-		DecalBaseColorTextureArrayResource->Release();
-		DecalBaseColorTextureArrayResource = nullptr;
-	}
-	DecalBaseColorTextureArrayPaths = SlicePaths;
-
-	// --- Step 4: load raw pixels for each slice ---
-	struct FSlicePixels
-	{
-		std::vector<unsigned char> Pixels;
-		uint32 W = 0;
-		uint32 H = 0;
-	};
-
-	const uint32 ArraySize = static_cast<uint32>(SlicePaths.size());
-	std::vector<FSlicePixels> Slices(ArraySize);
-
-	// Slot 0: 1x1 white fallback (will be resized to canonical size later)
-	Slices[0].W = 1; Slices[0].H = 1;
-	Slices[0].Pixels = { 255, 255, 255, 255 };
-
-	uint32 CanonicalW = 0;
-	uint32 CanonicalH = 0;
-
-	for (uint32 i = 1; i < ArraySize; ++i)
-	{
-		const std::wstring& Path = SlicePaths[i];
-		std::ifstream File(Path, std::ios::binary | std::ios::ate);
-		if (!File.is_open())
-		{
-			UE_LOG("[Decal] Cannot open texture for array: %ls. Using fallback.", Path.c_str());
-			continue; // pixels remain empty — will be replaced with canonical fallback below
-		}
-
-		const std::streamsize FileSize = File.tellg();
-		File.seekg(0, std::ios::beg);
-		std::vector<unsigned char> FileBytes(static_cast<size_t>(FileSize));
-		if (!File.read(reinterpret_cast<char*>(FileBytes.data()), FileSize))
-		{
-			UE_LOG("[Decal] Cannot read texture for array: %ls. Using fallback.", Path.c_str());
-			continue;
-		}
-
-		int W = 0, H = 0, C = 0;
-		unsigned char* Data = stbi_load_from_memory(
-			FileBytes.data(), static_cast<int>(FileBytes.size()), &W, &H, &C, 4);
-		if (!Data)
-		{
-			UE_LOG("[Decal] STB decode failed for: %ls. Using fallback.", Path.c_str());
-			continue;
-		}
-
-		if (CanonicalW == 0)
-		{
-			CanonicalW = static_cast<uint32>(W);
-			CanonicalH = static_cast<uint32>(H);
-		}
-
-		if (static_cast<uint32>(W) == CanonicalW && static_cast<uint32>(H) == CanonicalH)
-		{
-			Slices[i].W = CanonicalW;
-			Slices[i].H = CanonicalH;
-			Slices[i].Pixels.assign(Data, Data + W * H * 4);
-		}
-		else
-		{
-			UE_LOG("[Decal] Size mismatch for %ls (%dx%d vs canonical %dx%d). Using fallback.",
-				Path.c_str(), W, H, CanonicalW, CanonicalH);
-		}
-		stbi_image_free(Data);
-	}
-
-	// Resolve canonical size (fallback to 1x1 if no real textures)
-	if (CanonicalW == 0) { CanonicalW = 1; CanonicalH = 1; }
-
-	// Fill all empty/mismatched slices with canonical-sized white pixels
-	const std::vector<unsigned char> WhitePixels(CanonicalW * CanonicalH * 4, 255u);
-	for (uint32 i = 0; i < ArraySize; ++i)
-	{
-		if (Slices[i].W != CanonicalW || Slices[i].H != CanonicalH)
-		{
-			Slices[i].W = CanonicalW;
-			Slices[i].H = CanonicalH;
-			Slices[i].Pixels = WhitePixels;
-		}
-	}
-
-	// --- Step 5: create ID3D11Texture2D array ---
-	ID3D11Device* Device = GetDevice();
-	if (!Device)
-	{
-		return;
-	}
-
-	D3D11_TEXTURE2D_DESC Desc = {};
-	Desc.Width = CanonicalW;
-	Desc.Height = CanonicalH;
-	Desc.MipLevels = 1;
-	Desc.ArraySize = ArraySize;
-	Desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	Desc.SampleDesc.Count = 1;
-	Desc.Usage = D3D11_USAGE_DEFAULT;
-	Desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-
-	std::vector<D3D11_SUBRESOURCE_DATA> InitData(ArraySize);
-	for (uint32 i = 0; i < ArraySize; ++i)
-	{
-		InitData[i].pSysMem = Slices[i].Pixels.data();
-		InitData[i].SysMemPitch = CanonicalW * 4;
-		InitData[i].SysMemSlicePitch = 0;
-	}
-
-	if (FAILED(Device->CreateTexture2D(&Desc, InitData.data(), &DecalBaseColorTextureArrayResource))
-		|| !DecalBaseColorTextureArrayResource)
-	{
-		UE_LOG("[Decal] Failed to create Texture2DArray (%u slices, %ux%u).", ArraySize, CanonicalW, CanonicalH);
-		InOutSceneViewData.PostProcessInputs.DecalBaseColorTextureArraySRV = nullptr;
-		return;
-	}
-
-	// --- Step 6: create SRV ---
-	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
-	SRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
-	SRVDesc.Texture2DArray.MostDetailedMip = 0;
-	SRVDesc.Texture2DArray.MipLevels = 1;
-	SRVDesc.Texture2DArray.FirstArraySlice = 0;
-	SRVDesc.Texture2DArray.ArraySize = ArraySize;
-
-	if (FAILED(Device->CreateShaderResourceView(
-		DecalBaseColorTextureArrayResource, &SRVDesc, &DecalBaseColorTextureArraySRV))
-		|| !DecalBaseColorTextureArraySRV)
-	{
-		UE_LOG("[Decal] Failed to create Texture2DArray SRV.");
-		InOutSceneViewData.PostProcessInputs.DecalBaseColorTextureArraySRV = nullptr;
-		return;
-	}
-
-	InOutSceneViewData.PostProcessInputs.DecalBaseColorTextureArraySRV = DecalBaseColorTextureArraySRV;
-}
-
 void FRenderer::Release()
 {
-	ReleaseSceneTargets();
+	SceneTargetManager.Release();
 	ViewportCompositor.Release();
 	if (FogFeature) FogFeature->Release();
 	if (OutlineFeature) OutlineFeature->Release();
@@ -1402,18 +935,7 @@ void FRenderer::Release()
 	if (NormalSampler) { NormalSampler->Release(); NormalSampler = nullptr; }
 	DefaultMaterial.reset();
 	DefaultTextureMaterial.reset();
-	for (auto& Entry : DecalBaseColorTextureCache)
-	{
-		if (Entry.second)
-		{
-			Entry.second->Release();
-		}
-	}
-	DecalBaseColorTextureCache.clear();
-	if (DecalBaseColorTextureArraySRV) { DecalBaseColorTextureArraySRV->Release(); DecalBaseColorTextureArraySRV = nullptr; }
-	if (DecalBaseColorTextureArrayResource) { DecalBaseColorTextureArrayResource->Release(); DecalBaseColorTextureArrayResource = nullptr; }
-	DecalBaseColorTextureArrayPaths.clear();
-	if (DecalFallbackBaseColorSRV) { DecalFallbackBaseColorSRV->Release(); DecalFallbackBaseColorSRV = nullptr; }
+	DecalTextureCache.Release();
 	if (FolderIconSRV) { FolderIconSRV->Release(); FolderIconSRV = nullptr; }
 	if (FileIconSRV) { FileIconSRV->Release(); FileIconSRV = nullptr; }
 	if (FrameConstantBuffer) { FrameConstantBuffer->Release(); FrameConstantBuffer = nullptr; }
@@ -1429,6 +951,6 @@ bool FRenderer::IsOccluded()
 void FRenderer::OnResize(int32 W, int32 H)
 {
 	if (W == 0 || H == 0) return;
-	ReleaseSceneTargets();
+	SceneTargetManager.Release();
 	RenderDevice.OnResize(W, H);
 }

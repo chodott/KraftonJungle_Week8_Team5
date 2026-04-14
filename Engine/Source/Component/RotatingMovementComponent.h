@@ -1,5 +1,5 @@
 #pragma once
-#include "MovementComponent.h"
+#include "Component/MovementComponent.h"
 #include "Math/Rotator.h"
 
 class FArchive;

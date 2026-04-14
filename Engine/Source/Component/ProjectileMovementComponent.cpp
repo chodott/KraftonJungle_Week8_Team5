@@ -1,4 +1,4 @@
-#include "ProjectileMovementComponent.h"
+#include "Component/ProjectileMovementComponent.h"
 #include "Actor/Actor.h"
 #include "World/World.h"
 #include "Object/Class.h"
