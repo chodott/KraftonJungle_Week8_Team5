@@ -16,6 +16,37 @@ IMPLEMENT_RTTI(ASpotLightFakeActor, AActor)
 namespace
 {
 	const std::wstring GSpotLightFakeCircularMaskPath = L"__SpotLightFakeCircularMask__";
+
+	template <typename TComponent>
+	TComponent* FindSpotLightComponentByName(const ASpotLightFakeActor* Actor, const char* ComponentName, TArray<UActorComponent*>* OutDuplicates = nullptr)
+	{
+		if (!Actor)
+		{
+			return nullptr;
+		}
+
+		TComponent* FoundComponent = nullptr;
+		for (UActorComponent* Component : Actor->GetComponents())
+		{
+			if (!Component || !Component->IsA(TComponent::StaticClass()) || Component->GetName() != ComponentName)
+			{
+				continue;
+			}
+
+			if (!FoundComponent)
+			{
+				FoundComponent = static_cast<TComponent*>(Component);
+				continue;
+			}
+
+			if (OutDuplicates)
+			{
+				OutDuplicates->push_back(Component);
+			}
+		}
+
+		return FoundComponent;
+	}
 }
 
 void ASpotLightFakeActor::PostSpawnInitialize()
@@ -62,11 +93,59 @@ void ASpotLightFakeActor::Serialize(FArchive& Ar)
 
 	if (Ar.IsLoading())
 	{
+		TArray<UActorComponent*> DuplicateComponents;
+		RootSceneComponent = FindSpotLightComponentByName<USceneComponent>(this, "RootSceneComponent", &DuplicateComponents);
+		DecalComponent = FindSpotLightComponentByName<UDecalComponent>(this, "DecalComponent", &DuplicateComponents);
+		BillboardComponent = FindSpotLightComponentByName<UBillboardComponent>(this, "BillboardComponent", &DuplicateComponents);
+
+		for (UActorComponent* DuplicateComponent : DuplicateComponents)
+		{
+			if (!DuplicateComponent)
+			{
+				continue;
+			}
+
+			if (DuplicateComponent->IsA(USceneComponent::StaticClass()))
+			{
+				static_cast<USceneComponent*>(DuplicateComponent)->DetachFromParent();
+			}
+
+			RemoveOwnedComponent(DuplicateComponent);
+		}
+
+		if (RootSceneComponent)
+		{
+			SetRootComponent(RootSceneComponent);
+		}
+
 		DecalFadeRadius = (std::max)(0.0f, DecalFadeRadius);
 		if (DecalComponent)
 		{
+			DecalComponent->DetachFromParent();
+			if (RootSceneComponent)
+			{
+				DecalComponent->AttachTo(RootSceneComponent);
+			}
+
+			const std::filesystem::path TexturePath = FPaths::ToPath(FPaths::FromWide(DecalComponent->GetTexturePath()));
+			if (TexturePath.filename() == std::filesystem::path(GSpotLightFakeCircularMaskPath))
+			{
+				SetDecalTexturePath(L"");
+			}
+
 			DecalComponent->SetEdgeFade(bDecalFadeEnabled ? DecalFadeRadius : 0.0f);
 		}
+
+		if (BillboardComponent)
+		{
+			BillboardComponent->DetachFromParent();
+			if (RootSceneComponent)
+			{
+				BillboardComponent->AttachTo(RootSceneComponent);
+			}
+		}
+
+		UpdateBillboardPlacement();
 	}
 }
 
