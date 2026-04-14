@@ -16,6 +16,7 @@ void UPrimitiveComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicate
 	DuplicatedPrimitiveComponent->Bounds = {};
 	DuplicatedPrimitiveComponent->bDrawDebugBounds = bDrawDebugBounds;
 	DuplicatedPrimitiveComponent->bIgnoreParentScaleInRender = bIgnoreParentScaleInRender;
+	DuplicatedPrimitiveComponent->bEditorVisualization = bEditorVisualization;
 }
 
 void UPrimitiveComponent::PostDuplicate(UObject* DuplicatedObject, const FDuplicateContext& Context) const
@@ -77,9 +78,14 @@ FMatrix UPrimitiveComponent::GetRenderWorldTransform() const
 	return RenderTransform.ToMatrixWithScale();
 }
 
+FMatrix UPrimitiveComponent::GetBoundsWorldTransform() const
+{
+	return bIgnoreParentScaleInRender ? GetRenderWorldTransform() : GetWorldTransform();
+}
+
 void UPrimitiveComponent::UpdateBounds()
 {
-	Bounds = CalcBounds(GetWorldTransform());
+	Bounds = CalcBounds(GetBoundsWorldTransform());
 }
 
 FBoxSphereBounds UPrimitiveComponent::CalcBounds(const FMatrix& LocalToWorld) const
@@ -117,4 +123,5 @@ void UPrimitiveComponent::Serialize(FArchive& Ar)
 	USceneComponent::Serialize(Ar);
 	Ar.Serialize("DrawDebugBounds", bDrawDebugBounds);
 	Ar.Serialize("IgnoreParentScaleInRender", bIgnoreParentScaleInRender);
+	Ar.Serialize("EditorVisualization", bEditorVisualization);
 }

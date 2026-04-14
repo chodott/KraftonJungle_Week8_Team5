@@ -3,6 +3,7 @@
 #include "Math/Vector.h"
 
 class FArchive;
+class UStaticMeshComponent;
 
 class ENGINE_API UProjectileMovementComponent : public UMovementComponent
 {
@@ -34,11 +35,15 @@ public:
 	void Serialize(FArchive& Ar) override;
 
 private:
+	void UpdateVelocityArrow();
+
 	FVector Velocity{ FVector::ZeroVector };
 	float GravityScale = 1.0f;
 	float MaxSpeed = 0.0f;
 	bool bAutoStartSimulation = true;
 	bool bSimulationEnabled = false;
+
+	TObjectPtr<UStaticMeshComponent> VelocityArrowComponent;
 
 	static constexpr float GravityZ = -980.0f;
 };

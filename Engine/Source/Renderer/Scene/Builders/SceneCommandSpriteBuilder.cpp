@@ -129,8 +129,10 @@ void FSceneCommandSpriteBuilder::BuildBillboardInputs(
 		FMeshBatch Batch;
 		Batch.Mesh = BillboardMesh;
 		Batch.Material = BillboardMaterial;
-		Batch.Domain = EMaterialDomain::Transparent;
-		Batch.PassMask = static_cast<uint32>(EMeshPassMask::ForwardTransparent);
+		Batch.Domain = BillboardComponent->IsEditorVisualization() ? EMaterialDomain::Overlay : EMaterialDomain::Transparent;
+		Batch.PassMask = BillboardComponent->IsEditorVisualization()
+			? static_cast<uint32>(EMeshPassMask::Overlay)
+			: static_cast<uint32>(EMeshPassMask::ForwardTransparent);
 		Batch.bDisableDepthWrite = true;
 
 		const FVector WorldPosition = BillboardComponent->GetWorldTransform().GetTranslation();

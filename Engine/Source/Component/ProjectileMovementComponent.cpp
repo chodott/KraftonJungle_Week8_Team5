@@ -3,9 +3,59 @@
 #include "World/World.h"
 #include "Object/Class.h"
 #include "Serializer/Archive.h"
+#include "Component/StaticMeshComponent.h"
+#include "Primitive/PrimitiveGizmo.h"
+#include "Renderer/Resources/Material/MaterialManager.h"
+#include "Renderer/Mesh/MeshData.h"
+#include "Math/Quat.h"
 #include <cmath>
 
 IMPLEMENT_RTTI(UProjectileMovementComponent, UMovementComponent)
+
+namespace
+{
+	UStaticMesh* GetVelocityArrowMesh()
+	{
+		static TObjectPtr<UStaticMesh> ArrowMesh;
+		if (ArrowMesh)
+		{
+			return ArrowMesh;
+		}
+
+		std::shared_ptr<FDynamicMesh> SourceMesh =
+			FPrimitiveGizmo::CreateTranslationAxisMesh(EAxis::X, FVector4(1.0f, 0.5f, 0.0f, 1.0f));
+		if (!SourceMesh)
+		{
+			return nullptr;
+		}
+
+		auto StaticRenderMesh = std::make_unique<FStaticMesh>();
+		StaticRenderMesh->Topology = SourceMesh->Topology;
+		StaticRenderMesh->Vertices = SourceMesh->Vertices;
+		StaticRenderMesh->Indices = SourceMesh->Indices;
+		StaticRenderMesh->Sections.push_back({ 0, 0, static_cast<uint32>(StaticRenderMesh->Indices.size()) });
+		StaticRenderMesh->UpdateLocalBound();
+
+		ArrowMesh = FObjectFactory::ConstructObject<UStaticMesh>(nullptr, "ProjectileVelocityArrowMesh");
+		if (!ArrowMesh)
+		{
+			return nullptr;
+		}
+
+		ArrowMesh->SetStaticMeshAsset(StaticRenderMesh.release());
+		ArrowMesh->LocalBounds.Radius = ArrowMesh->GetRenderData()->GetLocalBoundRadius();
+		ArrowMesh->LocalBounds.Center = ArrowMesh->GetRenderData()->GetCenterCoord();
+		ArrowMesh->LocalBounds.BoxExtent =
+			(ArrowMesh->GetRenderData()->GetMaxCoord() - ArrowMesh->GetRenderData()->GetMinCoord()) * 0.5f;
+
+		if (std::shared_ptr<FMaterial> GizmoMaterial = FMaterialManager::Get().FindByName("M_Gizmos"))
+		{
+			ArrowMesh->AddDefaultMaterial(GizmoMaterial);
+		}
+
+		return ArrowMesh;
+	}
+}
 
 void UProjectileMovementComponent::PostConstruct()
 {

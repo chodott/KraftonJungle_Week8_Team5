@@ -17,6 +17,19 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 
 	if (AActor* Owner = Primitive->GetOwner())
 	{
+		if (UWorld* World = Owner->GetWorld())
+		{
+			const EWorldType WorldType = World->GetWorldType();
+			const bool bIsPlayWorld = (WorldType == EWorldType::Game || WorldType == EWorldType::PIE);
+			if (bIsPlayWorld && Primitive->IsEditorVisualization())
+			{
+				return false;
+			}
+		}
+	}
+
+	if (AActor* Owner = Primitive->GetOwner())
+	{
 		if (Owner->IsA(ADecalActor::StaticClass()))
 		{
 			ADecalActor* DecalActor = static_cast<ADecalActor*>(Owner);

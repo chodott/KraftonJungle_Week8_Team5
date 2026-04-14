@@ -34,11 +34,20 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			Batch.World = MeshComponent->GetRenderWorldTransform();
 			std::shared_ptr<FMaterial> Material = MeshComponent->GetMaterial(0);
 			Batch.Material = Material ? Material.get() : BuildContext.DefaultMaterial;
-			Batch.Domain = EMaterialDomain::Opaque;
-			Batch.PassMask =
-				static_cast<uint32>(EMeshPassMask::DepthPrepass) |
-				static_cast<uint32>(EMeshPassMask::GBuffer) |
-				static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+			if (MeshComponent->IsEditorVisualization())
+			{
+				Batch.Domain = EMaterialDomain::Overlay;
+				Batch.PassMask = static_cast<uint32>(EMeshPassMask::Overlay);
+				Batch.bDisableDepthWrite = true;
+			}
+			else
+			{
+				Batch.Domain = EMaterialDomain::Opaque;
+				Batch.PassMask =
+					static_cast<uint32>(EMeshPassMask::DepthPrepass) |
+					static_cast<uint32>(EMeshPassMask::GBuffer) |
+					static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+			}
 			SceneCommandBuilderUtils::AddBatch(BuildContext, OutSceneViewData, std::move(Batch));
 			continue;
 		}
@@ -56,11 +65,20 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 
 			std::shared_ptr<FMaterial> Material = MeshComponent->GetMaterial(SectionIndex);
 			Batch.Material = Material ? Material.get() : BuildContext.DefaultMaterial;
-			Batch.Domain = EMaterialDomain::Opaque;
-			Batch.PassMask =
-				static_cast<uint32>(EMeshPassMask::DepthPrepass) |
-				static_cast<uint32>(EMeshPassMask::GBuffer) |
-				static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+			if (MeshComponent->IsEditorVisualization())
+			{
+				Batch.Domain = EMaterialDomain::Overlay;
+				Batch.PassMask = static_cast<uint32>(EMeshPassMask::Overlay);
+				Batch.bDisableDepthWrite = true;
+			}
+			else
+			{
+				Batch.Domain = EMaterialDomain::Opaque;
+				Batch.PassMask =
+					static_cast<uint32>(EMeshPassMask::DepthPrepass) |
+					static_cast<uint32>(EMeshPassMask::GBuffer) |
+					static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+			}
 			SceneCommandBuilderUtils::AddBatch(BuildContext, OutSceneViewData, std::move(Batch));
 		}
 	}
