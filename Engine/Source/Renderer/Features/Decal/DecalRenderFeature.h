@@ -9,6 +9,8 @@
 #include <d3d11.h>
 #include <chrono>
 
+#include "Renderer/Resources/Shader/Shader.h"
+
 class FRenderer;
 
 class ENGINE_API FDecalRenderFeature
@@ -83,4 +85,16 @@ private:
 	ID3D11SamplerState* PointSampler = nullptr;
 	ID3D11VertexShader* CompositeVS = nullptr;
 	ID3D11PixelShader* CompositePS = nullptr;
+	
+	std::shared_ptr<FVertexShader> DebugBoxVS = nullptr;
+	std::shared_ptr<FPixelShader> DebugBoxPS = nullptr;
+	
+	
+	ID3D11Buffer*             DebugBoxVertexBuffer  = nullptr;
+	ID3D11Buffer*             DebugBoxIndexBuffer   = nullptr;
+	UINT                      DebugBoxIndexCount    = 0;
+	ID3D11Buffer*             DebugBoxConstantBuffer = nullptr;
+	ID3D11DepthStencilState*  DebugBoxDepthState    = nullptr;
+	ID3D11BlendState*         DebugBoxBlendState    = nullptr;
+	ID3D11RasterizerState*    DebugBoxRasterizerState = nullptr;
 };

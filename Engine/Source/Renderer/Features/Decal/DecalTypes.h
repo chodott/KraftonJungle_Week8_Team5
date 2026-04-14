@@ -101,6 +101,8 @@ struct ENGINE_API FDecalRenderRequest
 			|| ViewportHeight == 0
 			|| Items.empty();
 	}
+	
+	bool bDebugDraw = false;
 };
 
 struct ENGINE_API FDecalClusterBuildStats

@@ -24,6 +24,8 @@ inline FDecalRenderRequest BuildDecalPassRequest(const FSceneViewData& SceneView
 	Request.ReceiverLayerMask = 0xFFFFFFFFu;
 	Request.BaseColorTextureArraySRV = SceneViewData.PostProcessInputs.DecalBaseColorTextureArraySRV;
 	Request.CandidateReceiverObjectCount = static_cast<uint32>(SceneViewData.MeshInputs.Batches.size());
+	Request.bDebugDraw = SceneViewData.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw)
+	                  && SceneViewData.ShowFlags.HasFlag(EEngineShowFlags::SF_Decal);
 	return Request;
 }
 

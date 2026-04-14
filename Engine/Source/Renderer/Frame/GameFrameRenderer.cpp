@@ -33,6 +33,7 @@ bool FGameFrameRenderer::Render(FRenderer& Renderer, const FGameFrameRequest& Re
         Request.AdditionalMeshBatches,
         SceneViewData);
     Renderer.DecalTextureCache->ResolveTextureArray(Renderer.GetDevice(), SceneViewData);
+    SceneViewData.ShowFlags = Request.DebugInputs.ShowFlags;
     BuildDebugLinePassInputs(Request.DebugInputs, SceneViewData.DebugInputs.LinePass);
 
     if (!Renderer.GetSceneRenderer().RenderSceneView(

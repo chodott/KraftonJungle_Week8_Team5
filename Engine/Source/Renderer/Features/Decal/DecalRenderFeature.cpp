@@ -6,6 +6,9 @@
 #include "Renderer/Resources/Shader/ShaderResource.h"
 #include <algorithm>
 
+#include "Renderer/Mesh/Vertex.h"
+#include "Renderer/Resources/Shader/ShaderMap.h"
+
 namespace
 {
 	using FDecalClock = std::chrono::high_resolution_clock;
@@ -229,6 +232,14 @@ namespace
 
 		return true;
 	}
+	
+	struct FDebugBoxMaterialCB
+	{
+		FLinearColor BaseColorTint = FLinearColor::White;
+		FVector4 AtlasScaleBias = FVector4(1, 1, 0, 0);
+		FVector DecalExtents = FVector(50, 50, 50);
+		float DecalEdgeFade = 2.0f;
+	};
 }
 
 
@@ -441,6 +452,56 @@ bool FDecalRenderFeature::Render(
 	FrameStats.TotalDecalTimeMs = ToMilliseconds(FDecalClock::now() - PrepareStartTime);
 	LastBuildStats = PreparedData.BuildStats;
 	LastFrameStats = FrameStats;
+	
+	{
+  	    ID3D11ShaderResourceView* NullSRVs[14] = {};
+  	    Context->PSSetShaderResources(0, 14, NullSRVs);
+  	}
+	
+  	if (Request.bDebugDraw
+  	    && DebugBoxVS && DebugBoxPS
+  	    && DebugBoxVertexBuffer && DebugBoxIndexBuffer
+  	    && DebugBoxConstantBuffer && DebugBoxDepthState)
+  	{
+  	    Renderer.SetConstantBuffers();   // View / Projection CB 세팅
+	
+  	    Context->OMSetRenderTargets(1, &Targets.SceneColorRTV, Targets.SceneDepthDSV);
+  	    Context->OMSetDepthStencilState(DebugBoxDepthState, 0);
+  	    Context->OMSetBlendState(DebugBoxBlendState, nullptr, 0xFFFFFFFFu);
+  	    Context->RSSetState(DebugBoxRasterizerState);
+  	    DebugBoxVS->Bind(Context);
+  	    DebugBoxPS->Bind(Context);
+	
+  	    UINT Stride = sizeof(FVertex), Offset = 0;
+  	    Context->IASetVertexBuffers(0, 1, &DebugBoxVertexBuffer, &Stride, &Offset);
+  	    Context->IASetIndexBuffer(DebugBoxIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+  	    Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	
+  	    for (const FDecalRenderItem& Item : Request.Items)
+  	    {
+  	        if (!Item.IsValid()) continue;
+	
+  	        Renderer.UpdateObjectConstantBuffer(Item.DecalWorld);
+
+  	        FDebugBoxMaterialCB MatCB;
+  	        MatCB.DecalExtents = Item.Extents;   
+  	                                                                                                    
+  	        D3D11_MAPPED_SUBRESOURCE Mapped = {};
+  	        if (SUCCEEDED(Context->Map(DebugBoxConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
+  	        {                                             
+  	            memcpy(Mapped.pData, &MatCB, sizeof(MatCB));
+  	            Context->Unmap(DebugBoxConstantBuffer, 0);
+  	        }                                                 
+  	                                                 
+  	        ID3D11Buffer* CBs[1] = { DebugBoxConstantBuffer };
+  	        Context->VSSetConstantBuffers(2, 1, CBs);      
+  	     
+  	        Context->DrawIndexed(DebugBoxIndexCount, 0, 0);
+  	    }                                                               
+  	 
+  	    Context->OMSetRenderTargets(1, &Targets.SceneColorRTV, nullptr);
+  	}                
+	
 	return bRendered;
 }
 
@@ -577,7 +638,92 @@ bool FDecalRenderFeature::Initialize(FRenderer& Renderer)
 			return false;
 		}
 	}
-
+	
+	if (!DebugBoxPS || !DebugBoxVS)
+	{
+		const std::wstring ShaderDir = FPaths::ShaderDir();
+		DebugBoxVS = FShaderMap::Get().GetOrCreateVertexShader(Device, (ShaderDir + L"DecalVertexShader.hlsl").c_str());
+		DebugBoxPS = FShaderMap::Get().GetOrCreatePixelShader(Device, (ShaderDir + L"DecalDebugPixelShader.hlsl").c_str());
+		if (!DebugBoxPS || !DebugBoxVS) return false;
+	}
+	
+  	if (!DebugBoxVertexBuffer)
+  	{
+  	    const FVector4 White(1,1,1,1);
+  	    const FVector  NX(1,0,0);
+  	    const FVertex Verts[] =
+  	    {
+  	        { FVector(-1,-1,-1), White, NX, FVector2(0,0) },
+  	        { FVector( 1,-1,-1), White, NX, FVector2(1,0) },
+  	        { FVector( 1, 1,-1), White, NX, FVector2(1,1) },
+  	        { FVector(-1, 1,-1), White, NX, FVector2(0,1) },
+  	        { FVector(-1,-1, 1), White, NX, FVector2(0,0) },
+  	        { FVector( 1,-1, 1), White, NX, FVector2(1,0) },
+  	        { FVector( 1, 1, 1), White, NX, FVector2(1,1) },
+  	        { FVector(-1, 1, 1), White, NX, FVector2(0,1) },
+  	    };
+  	    const uint32 Idx[] = { 0,2,1, 0,3,2, 4,5,6, 4,6,7,
+  	                           0,1,5, 0,5,4, 1,2,6, 1,6,5,
+  	                           2,3,7, 2,7,6, 3,0,4, 3,4,7 };
+	
+  	    D3D11_BUFFER_DESC VBDesc = {};
+  	    VBDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+  	    VBDesc.ByteWidth = sizeof(Verts);
+  	    VBDesc.Usage     = D3D11_USAGE_IMMUTABLE;
+  	    D3D11_SUBRESOURCE_DATA VBData = { Verts };
+  	    if (FAILED(Device->CreateBuffer(&VBDesc, &VBData, &DebugBoxVertexBuffer))) return false;
+	
+  	    D3D11_BUFFER_DESC IBDesc = {};
+  	    IBDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+  	    IBDesc.ByteWidth = sizeof(Idx);
+  	    IBDesc.Usage     = D3D11_USAGE_IMMUTABLE;
+  	    D3D11_SUBRESOURCE_DATA IBData = { Idx };
+  	    if (FAILED(Device->CreateBuffer(&IBDesc, &IBData, &DebugBoxIndexBuffer))) return false;
+	
+  	    DebugBoxIndexCount = static_cast<UINT>(sizeof(Idx) / sizeof(Idx[0]));
+  	}
+	
+  	if (!DebugBoxConstantBuffer)
+  	{
+  	    D3D11_BUFFER_DESC Desc = {};
+  	    Desc.BindFlags      = D3D11_BIND_CONSTANT_BUFFER;
+  	    Desc.ByteWidth      = Align16(static_cast<uint32>(sizeof(FDebugBoxMaterialCB)));
+  	    Desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+  	    Desc.Usage          = D3D11_USAGE_DYNAMIC;
+  	    if (FAILED(Device->CreateBuffer(&Desc, nullptr, &DebugBoxConstantBuffer))) return false;
+  	}
+	
+  	if (!DebugBoxDepthState)
+  	{
+  	    D3D11_DEPTH_STENCIL_DESC D = {};
+  	    D.DepthEnable    = TRUE;
+  	    D.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+  	    D.DepthFunc      = D3D11_COMPARISON_LESS;
+  	    if (FAILED(Device->CreateDepthStencilState(&D, &DebugBoxDepthState))) return false;
+  	}
+	
+  	if (!DebugBoxBlendState)
+  	{
+  	    D3D11_BLEND_DESC B = {};
+  	    B.RenderTarget[0].BlendEnable           = TRUE;
+  	    B.RenderTarget[0].SrcBlend              = D3D11_BLEND_SRC_ALPHA;
+  	    B.RenderTarget[0].DestBlend             = D3D11_BLEND_INV_SRC_ALPHA;
+  	    B.RenderTarget[0].BlendOp               = D3D11_BLEND_OP_ADD;
+  	    B.RenderTarget[0].SrcBlendAlpha         = D3D11_BLEND_ONE;
+  	    B.RenderTarget[0].DestBlendAlpha        = D3D11_BLEND_INV_SRC_ALPHA;
+  	    B.RenderTarget[0].BlendOpAlpha          = D3D11_BLEND_OP_ADD;
+  	    B.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+  	    if (FAILED(Device->CreateBlendState(&B, &DebugBoxBlendState))) return false;
+  	}
+	
+  	if (!DebugBoxRasterizerState)
+  	{
+  	    D3D11_RASTERIZER_DESC R = {};
+  	    R.FillMode        = D3D11_FILL_SOLID;
+  	    R.CullMode        = D3D11_CULL_NONE;
+  	    R.DepthClipEnable = TRUE;
+  	    if (FAILED(Device->CreateRasterizerState(&R, &DebugBoxRasterizerState))) return false;
+  	}	
 	bInitialized = true;
 	return true;
 }
@@ -937,6 +1083,40 @@ void FDecalRenderFeature::Release()
 	{
 		CompositePS->Release();
 		CompositePS = nullptr;
+	}
+	
+	DebugBoxVS.reset();
+	DebugBoxPS.reset();
+	if (DebugBoxVertexBuffer)
+	{
+		DebugBoxVertexBuffer->Release();
+		DebugBoxVertexBuffer = nullptr;
+	}
+	if (DebugBoxIndexBuffer)
+	{
+		DebugBoxIndexBuffer->Release();
+		DebugBoxIndexBuffer = nullptr;
+		DebugBoxIndexCount = 0;
+	}
+	if (DebugBoxConstantBuffer)
+	{
+		DebugBoxConstantBuffer->Release();
+		DebugBoxConstantBuffer = nullptr;
+	}
+	if (DebugBoxBlendState)
+	{
+		DebugBoxBlendState->Release();
+		DebugBoxBlendState = nullptr;
+	}
+	if (DebugBoxDepthState)
+	{
+		DebugBoxDepthState->Release();
+		DebugBoxDepthState = nullptr;
+	}
+	if (DebugBoxRasterizerState)
+	{
+		DebugBoxRasterizerState->Release();
+		DebugBoxRasterizerState = nullptr;
 	}
 }
 
