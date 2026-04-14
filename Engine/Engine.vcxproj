@@ -104,6 +104,8 @@
     <ClInclude Include="Source\Primitive\PrimitiveGizmo.h" />
     <ClInclude Include="Source\Primitive\UnrealEditorStyledGizmo.h" />
     <ClInclude Include="Source\Renderer\Features\Billboard\BillboardRenderer.h" />
+    <ClInclude Include="Source\Renderer\Features\Decal\DecalProjectionMode.h" />
+    <ClInclude Include="Source\Renderer\Features\Decal\DecalStats.h" />
     <ClInclude Include="Source\Renderer\Features\Decal\VolumeDecalRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Features\Text\FontAtlas.h" />
     <ClInclude Include="Source\Renderer\Frame\UI\FramePassContext.h" />
@@ -117,6 +119,7 @@
     <ClInclude Include="Source\Renderer\Mesh\MeshData.h" />
     <ClInclude Include="Source\Renderer\Scene\MeshPassProcessor.h" />
     <ClInclude Include="Source\Renderer\Scene\Passes\PassContext.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\ScenePassExecutionUtils.h" />
     <ClInclude Include="Source\Renderer\Scene\Pipeline\PassPipeline.h" />
     <ClInclude Include="Source\Renderer\GraphicsCore\RenderDevice.h" />
     <ClInclude Include="Source\Renderer\Common\RenderFeatureInterfaces.h" />

@@ -1,510 +1,525 @@
-# 렌더러 종합 가이드
+# 렌더러 구조 안내서
 
-## 1. 이 문서는 무엇을 위한 문서인가
+## 1. 이 문서는 무엇을 설명하나요
 
-이 문서는 현재 코드베이스의 렌더러를 **처음 보는 사람도 끝까지 읽으면 실제 흐름이 머릿속에 그려지도록** 정리한 종합 설명서입니다.
+이 문서는 **현재 코드베이스의 렌더러 구조만** 설명합니다.
 
-단순히 클래스 이름만 나열하는 문서가 아니라, 아래 질문에 실제 코드 기준으로 답하도록 구성했습니다.
+목표는 세 가지입니다.
 
-1. 한 프레임은 어디서 시작되는가
-2. 월드는 어디서 렌더러가 이해할 수 있는 데이터로 바뀌는가
-3. 그 데이터는 어디서 실제 GPU 드로우 입력으로 조립되는가
-4. 패스는 어떤 순서로 실행되는가
-5. 게임 프레임과 에디터 프레임은 무엇이 다른가
-6. 새 패스를 추가하려면 정확히 어디를 고쳐야 하는가
-7. 새 기능이 화면에 안 나오면 어디부터 확인해야 하는가
+1. 처음 코드를 보는 분이 **전체 구조를 한 번에 이해**할 수 있게 하는 것
+2. 각 클래스와 파일이 **무엇을 담당하는지 바로 찾을 수 있게** 하는 것
+3. 새로운 기능이나 패스를 넣을 때 **어디를 수정해야 하는지 바로 판단**할 수 있게 하는 것
 
-이 문서의 목표는 한 가지입니다.
-
-**“이 렌더러가 어떻게 흐르는지 이해하고, 새 기능이나 새 패스를 직접 넣을 수 있게 만드는 것.”**
+이 문서는 “클래스 이름 모음”이 아니라, 실제로 작업할 때 필요한 기준서를 목표로 작성했습니다.
 
 ---
 
-## 2. 먼저 한 줄로 요약하면
+## 2. 먼저 전체 구조를 한 문장으로 요약하면
 
-이 렌더러는 아래 흐름으로 이해하면 됩니다.
+현재 렌더러는 다음 흐름으로 움직입니다.
 
-```text
-World / Components
- -> ViewportClient
- -> FSceneRenderPacket
- -> FSceneViewData
- -> RenderPipeline(Scene Passes)
- -> Viewport Composite
- -> Screen UI
- -> Present
-```
+**뷰포트가 프레임 요청을 만들고 → `FRenderer`가 그 요청을 받아 → 씬 렌더링과 프레임 후반 합성을 순서대로 실행합니다.**
 
-조금 더 풀면 이렇습니다.
+초심자 기준으로는 아래처럼 이해하시면 됩니다.
 
-- `ViewportClient`가 현재 카메라에서 **무엇이 보이는지** 모읍니다.
-- `FScenePacketBuilder`가 그것을 `FSceneRenderPacket`으로 분류합니다.
-- `FSceneRenderer`가 이를 `FSceneViewData`로 조립합니다.
-- `ScenePipelineBuilder`가 패스 순서를 만들고, 각 패스가 실제 GPU 작업을 실행합니다.
-- 게임은 최종 장면을 전체 화면으로 합성합니다.
-- 에디터는 여러 뷰포트를 합성한 뒤 화면 UI를 마지막에 덮습니다.
-
-즉 이 구조에서 가장 중요한 구분은 이것입니다.
-
-- `ScenePacket`: **무엇을 그릴지** 설명하는 데이터
-- `SceneViewData`: **어떻게 그릴지에 필요한 실행 데이터**
-- `RenderPipeline`: **어떤 순서로 그릴지**
+- `IViewportClient` / `FEditorViewportRenderService`:
+  이번 프레임에 무엇을 그릴지 정리하는 쪽
+- `FRenderer`:
+  렌더러 전체 서브시스템을 소유하고 프레임 진입점을 제공하는 쪽
+- `FGameFrameRenderer` / `FEditorFrameRenderer`:
+  게임 프레임과 에디터 프레임의 실제 실행 순서를 잡는 쪽
+- `FSceneRenderer`:
+  한 개의 씬 뷰를 실제 장면 패스로 렌더링하는 쪽
+- `FViewportCompositor`:
+  여러 뷰포트 결과를 최종 백버퍼에 붙이는 쪽
+- `FScreenUIRenderer`:
+  화면 UI 드로우 리스트를 실제 GPU 드로우로 바꾸는 쪽
 
 ---
 
-## 3. 초심자를 위한 핵심 용어 정리
+## 3. 전체 파일 지도
 
-렌더러 문서를 읽다 보면 용어 때문에 막히는 경우가 많습니다. 먼저 이것만 잡고 가면 훨씬 편합니다.
+처음 코드를 읽을 때는 아래 순서로 보면 가장 빠릅니다.
 
-### 3-1. 패스(Pass)
+### 3-1. 프레임 진입점
 
-패스는 한 프레임을 여러 단계로 나눈 것이라고 보면 됩니다.
-
-예를 들면:
-
-- 깊이만 먼저 그리는 단계
-- GBuffer를 채우는 단계
-- 실제 색을 그리는 단계
-- 안개를 덮는 단계
-- 아웃라인을 덮는 단계
-- FXAA를 적용하는 단계
-
-즉 패스는 “렌더링 작업 한 덩어리”입니다.
-
-### 3-2. Render Target
-
-렌더 결과를 그려 넣는 텍스처입니다.
-
-예를 들면:
-
-- `SceneColor`: 장면의 최종 색
-- `GBufferA/B/C`: 머티리얼/노멀 같은 중간 정보
-- `OutlineMask`: 아웃라인용 마스크
-- `SceneColorScratch`: 임시 복사용 텍스처
-
-### 3-3. Depth Buffer
-
-화면의 각 픽셀이 카메라에서 얼마나 가까운지를 저장하는 버퍼입니다.
-
-이 값이 있어야:
-
-- 앞에 있는 물체가 뒤의 물체를 가릴 수 있고
-- Fog/Outline/Decal 같은 효과도 깊이를 기준으로 계산할 수 있습니다.
-
-### 3-4. RTV / DSV / SRV
-
-D3D11에서는 같은 텍스처를 어떤 용도로 쓰느냐에 따라 뷰가 달라집니다.
-
-- `RTV`: Render Target View. 여기에 **그려 넣을 때** 사용합니다.
-- `DSV`: Depth Stencil View. 깊이 버퍼로 **쓸 때** 사용합니다.
-- `SRV`: Shader Resource View. 셰이더에서 **읽을 때** 사용합니다.
-
-같은 텍스처라도 “지금 쓰는 중인지, 읽는 중인지”가 중요합니다.
-
-### 3-5. `FMeshBatch`
-
-렌더러가 메시 하나를 그리기 위해 필요한 최소 단위입니다.
-
-여기에는 보통 아래 정보가 들어갑니다.
-
-- 어떤 메시를 그릴지
-- 어떤 머티리얼을 쓸지
-- 어떤 월드 변환으로 그릴지
-- 어떤 인덱스 범위를 그릴지
-- 어떤 패스에서 그릴지 (`PassMask`)
-
-즉 `FMeshBatch`는 “GPU가 그릴 준비가 된 메시 한 건”이라고 보면 됩니다.
-
----
-
-## 4. 큰 그림에서 어떤 객체들이 있나
-
-## 4-1. `FRenderer`: 전체 프레임의 오케스트레이터
-
-파일:
 - `Engine/Source/Renderer/Renderer.h`
 - `Engine/Source/Renderer/Renderer.cpp`
 
-`FRenderer`는 렌더러의 얼굴이지만, 모든 기능을 직접 구현하는 클래스는 아닙니다.
+여기서 렌더러의 큰 얼굴을 봅니다.
 
-핵심 역할은 아래와 같습니다.
+### 3-2. 게임 프레임 / 에디터 프레임 조립
 
-1. 프레임 시작/종료를 관리한다.
-2. 게임 프레임과 에디터 프레임 요청을 받는다.
-3. 내부 서브시스템을 올바른 순서로 호출한다.
-4. 공용 디바이스, 컨텍스트, 상태, 피처 접근 지점을 제공한다.
+- `Engine/Source/Renderer/Frame/FrameRequests.h`
+- `Engine/Source/Renderer/Frame/GameFrameRenderer.cpp`
+- `Engine/Source/Renderer/Frame/EditorFrameRenderer.cpp`
 
-이 클래스를 볼 때 가장 중요한 관점은 이것입니다.
+여기서 “프레임 단위로 어떤 순서로 실행되는지”를 봅니다.
 
-**`FRenderer`는 직접 다 그리는 클래스가 아니라, “전체 흐름을 지휘하는 클래스”다.**
+### 3-3. 씬 렌더링 중심
 
-## 4-2. `FRenderDevice`: D3D11 바닥 계층
-
-파일:
-- `Engine/Source/Renderer/GraphicsCore/RenderDevice.h`
-
-이 클래스는 D3D11 디바이스와 스왑체인, 백버퍼 관련 책임을 가집니다.
-
-대표 역할:
-
-1. 디바이스/컨텍스트 생성
-2. 스왑체인 생성
-3. 백버퍼 RTV/DSV 관리
-4. 리사이즈 처리
-5. `Present`
-
-즉 “화면 출력의 가장 바닥”입니다.
-
-## 4-3. `FSceneRenderer`: 실제 씬 렌더 실행기
-
-파일:
 - `Engine/Source/Renderer/Scene/SceneRenderer.h`
 - `Engine/Source/Renderer/Scene/SceneRenderer.cpp`
+- `Engine/Source/Renderer/Scene/SceneViewData.h`
 
-이 클래스는 장면 렌더링의 중심입니다.
+여기서 “씬 하나가 어떻게 렌더되는지”를 봅니다.
 
-대표 역할:
+### 3-4. 씬 패스 순서 정의
 
-1. `FSceneRenderPacket`을 `FSceneViewData`로 바꾼다.
-2. 필요하면 와이어프레임 override를 적용한다.
-3. 기본 씬 파이프라인을 구성한다.
-4. 각 패스를 실행한다.
+- `Engine/Source/Renderer/Scene/Pipeline/ScenePipelineBuilder.cpp`
+- `Engine/Source/Renderer/Scene/Passes/ScenePasses.h`
+- `Engine/Source/Renderer/Scene/Passes/SceneBasePasses.cpp`
+- `Engine/Source/Renderer/Scene/Passes/SceneEffectPasses.cpp`
+- `Engine/Source/Renderer/Scene/Passes/SceneOverlayPasses.cpp`
 
-즉 “씬이 실제로 GPU에서 그려지는 곳”은 `FSceneRenderer`입니다.
+새 패스를 넣을 때 가장 많이 보게 되는 파일입니다.
 
-## 4-4. `FSceneTargetManager`: 씬용 렌더 타깃 묶음 관리자
+### 3-5. 월드 수집과 씬 데이터 조립
 
-파일:
-- `Engine/Source/Renderer/Frame/SceneTargetManager.h`
+- `Engine/Source/Level/SceneRenderPacket.h`
+- `Engine/Source/Level/ScenePacketBuilder.cpp`
+- `Engine/Source/Core/ViewportClient.cpp`
+- `Engine/Source/Renderer/Scene/Builders/SceneCommandBuilder.cpp`
+- `Engine/Source/Renderer/Scene/Builders/SceneCommandMeshBuilder.cpp`
+- `Engine/Source/Renderer/Scene/Builders/SceneCommandTextBuilder.cpp`
+- `Engine/Source/Renderer/Scene/Builders/SceneCommandSpriteBuilder.cpp`
+- `Engine/Source/Renderer/Scene/Builders/SceneCommandPostProcessBuilder.cpp`
+- `Engine/Source/Renderer/Scene/Builders/SceneViewAssembler.cpp`
 
-이 클래스는 게임과 에디터가 서로 다른 렌더 타깃 소유 방식을 갖더라도, 씬 렌더러 입장에서는 비슷한 형태의 `FSceneRenderTargets`를 받도록 맞춰줍니다.
+여기서 “월드 정보가 렌더 입력으로 바뀌는 과정”을 봅니다.
 
-대표 역할:
+### 3-6. 최종 합성과 UI
 
-1. 게임용 내부 SceneColor/SceneDepth/GBuffer 타깃 확보
-2. 에디터의 외부 RTV/DSV를 씬 타깃 구조로 래핑
-3. 패스들이 공통 구조를 쓰게 정리
-
-## 4-5. `FViewportCompositor`: 최종 뷰포트 합성기
-
-파일:
-- `Engine/Source/Renderer/Frame/Viewport/ViewportCompositor.h`
 - `Engine/Source/Renderer/Frame/Viewport/ViewportCompositor.cpp`
-
-이 클래스는 여러 뷰포트 결과를 최종 백버퍼에 배치합니다.
-
-대표 역할:
-
-1. 각 뷰포트 텍스처를 백버퍼의 지정된 위치에 배치
-2. 컬러/깊이 시각화 모드 처리
-3. 합성용 셰이더와 상태 관리
-
-## 4-6. `FScreenUIRenderer`: 화면 UI 렌더러
-
-파일:
-- `Engine/Source/Renderer/UI/Screen/ScreenUIRenderer.h`
+- `Engine/Source/Renderer/Frame/UI/FramePasses.cpp`
 - `Engine/Source/Renderer/UI/Screen/ScreenUIRenderer.cpp`
+- `Engine/Source/Renderer/UI/Screen/ScreenUIPassBuilder.cpp`
+- `Engine/Source/Renderer/UI/Screen/ScreenUIBatchRenderer.cpp`
+- `Editor/Source/Slate/Widget/Painter.cpp`
+- `Editor/Source/Slate/SlateApplication.cpp`
 
-UI는 씬 메시 패스에 섞이지 않습니다.
+여기서 “뷰포트를 화면에 합치는 단계”와 “UI를 올리는 단계”를 봅니다.
 
-대표 역할:
+### 3-7. 렌더 타깃 관리
 
-1. `FUIDrawList`를 GPU 입력으로 변환
-2. 화면 UI 패스를 구성
-3. 최종 백버퍼 위에 UI를 그림
+- `Engine/Source/Renderer/Common/SceneRenderTargets.h`
+- `Engine/Source/Renderer/Frame/SceneTargetManager.cpp`
 
-즉 화면 UI는 **씬 이후의 완전 별도 경로**입니다.
-
----
-
-## 5. 이 렌더러를 이해할 때 가장 중요한 설계 원칙
-
-이 원칙들을 기억하면 구조가 잘 보입니다.
-
-1. 월드 수집 계층은 D3D11 세부사항을 몰라야 합니다.
-2. `ScenePacket`은 “무엇이 보이는지”만 담고, “어떻게 그릴지”는 담지 않습니다.
-3. `SceneViewData`는 패스가 바로 소비할 수 있는 실행 데이터입니다.
-4. 메시 패스와 후처리 패스는 같은 프레임 안에 있지만 역할이 다릅니다.
-5. 에디터는 패스 내부를 직접 건드리기보다 프레임 요청을 조립합니다.
-6. UI는 먼저 기록하고 마지막에 렌더링합니다.
-
-가장 많이 헷갈리는 부분을 한 문장으로 정리하면 이렇습니다.
-
-**렌더러는 월드를 직접 그리는 것이 아니라, 월드에서 만든 설명 데이터를 받아 GPU가 이해할 수 있는 형식으로 다시 조립한 뒤 패스 순서대로 실행합니다.**
+새 패스가 새 텍스처를 필요로 하면 반드시 보게 됩니다.
 
 ---
 
-## 6. 한 프레임은 실제로 어떻게 흐르나
+## 4. 가장 먼저 머릿속에 넣어야 할 핵심 데이터
 
-이 섹션이 가장 중요합니다.
+렌더러를 이해할 때는 아래 네 가지를 먼저 구분하시면 됩니다.
 
-### 6-1. 정말 단순화한 전체 흐름
+### 4-1. `FSceneRenderPacket`
 
-```text
-카메라/뷰포트 결정
- -> 월드에서 visible primitive 수집
- -> ScenePacket 생성
- -> SceneViewData 생성
- -> 렌더 타깃 준비
- -> 패스 파이프라인 실행
- -> 결과 합성
- -> UI 렌더
- -> Present
-```
+파일: `Engine/Source/Level/SceneRenderPacket.h`
 
-### 6-2. 게임 프레임 흐름
+이 구조는 **월드에서 수집한 렌더 대상 목록**입니다.
 
-실제 코드 흐름은 대략 아래와 같습니다.
+들어 있는 것은 다음과 같습니다.
+
+- 메시 프리미티브
+- 텍스트 프리미티브
+- SubUV 프리미티브
+- 빌보드 프리미티브
+- 포그 프리미티브
+- 데칼 프리미티브
+- 파이어볼 프리미티브
+- FXAA 적용 여부
+
+중요한 점은 이것이 아직 **GPU 드로우 명령 목록은 아니라는 것**입니다.
+
+이 구조는 “이 뷰에서 어떤 종류의 오브젝트를 렌더해야 하는가”를 담는 단계입니다.
+
+### 4-2. `FMeshBatch`
+
+파일: `Engine/Source/Renderer/Mesh/MeshBatch.h`
+
+이 구조는 실제 드로우에 훨씬 가까운 단위입니다.
+
+들어 있는 것은 다음과 같습니다.
+
+- 어떤 메시를 그릴지
+- 어떤 머티리얼을 쓸지
+- 월드 행렬이 무엇인지
+- 어떤 패스에서 그릴지 (`PassMask`)
+- 깊이 테스트/깊이 쓰기/컬링을 어떻게 할지
+- 투명 정렬에 필요한 거리
+- 제출 순서
+
+즉, `FMeshBatch`는 **실제 패스가 소비하는 장면 드로우 단위**라고 생각하시면 됩니다.
+
+### 4-3. `FSceneViewData`
+
+파일: `Engine/Source/Renderer/Scene/SceneViewData.h`
+
+이 구조는 **한 뷰의 실제 렌더 입력 전체**입니다.
+
+안에는 크게 세 묶음이 있습니다.
+
+- `MeshInputs`: 메시 배치 목록
+- `PostProcessInputs`: 포그, 데칼, 아웃라인, 파이어볼, FXAA 같은 후반 입력
+- `DebugInputs`: 디버그 라인 입력
+
+즉, `FSceneViewData`는 “한 카메라 시점의 씬을 렌더하기 위한 완성본”입니다.
+
+### 4-4. `FSceneRenderTargets`
+
+파일: `Engine/Source/Renderer/Common/SceneRenderTargets.h`
+
+이 구조는 한 씬 렌더링이 사용하는 타깃 묶음입니다.
+
+들어 있는 것은 다음과 같습니다.
+
+- SceneColor
+- SceneColorScratch
+- SceneDepth
+- GBuffer A/B/C
+- OutlineMask
+
+새 패스가 어떤 입력/출력을 필요로 하는지 따질 때 이 구조가 매우 중요합니다.
+
+---
+
+## 5. 현재 프레임 흐름
+
+## 5-1. 게임 프레임 흐름
+
+게임 쪽은 `FGameViewportClient::Render()`에서 시작합니다.
 
 파일:
 - `Engine/Source/Core/ViewportClient.cpp`
 - `Engine/Source/Renderer/Frame/GameFrameRenderer.cpp`
 
+흐름은 아래와 같습니다.
+
+1. 활성 월드와 활성 카메라를 찾습니다.
+2. 카메라의 View / Projection을 구합니다.
+3. 프러스텀을 만듭니다.
+4. `BuildSceneRenderPacket()`으로 현재 뷰에 보이는 프리미티브를 수집합니다.
+5. `FGameFrameRequest`를 채웁니다.
+6. `FRenderer::RenderGameFrame()`을 호출합니다.
+7. 내부에서 `FGameFrameRenderer::Render()`가 실행됩니다.
+8. 게임용 씬 타깃을 확보합니다.
+9. `FSceneRenderer::BuildSceneViewData()`로 패킷을 실제 렌더 입력으로 조립합니다.
+10. `FSceneRenderer::RenderSceneView()`가 씬 패이프라인을 실행합니다.
+11. 렌더된 SceneColor/Depth를 `FViewportCompositePass`로 최종 백버퍼에 붙입니다.
+
+텍스트로 그리면 아래와 같습니다.
+
 ```text
-IViewportClient::BuildSceneRenderPacket()
- -> FScenePacketBuilder::BuildScenePacket()
- -> FRenderer::RenderGameFrame()
- -> FGameFrameRenderer::Render()
- -> SceneTargetManager::AcquireGameSceneTargets()
- -> FSceneRenderer::BuildSceneViewData()
- -> FSceneRenderer::RenderSceneView()
- -> ViewportCompositePass
- -> Present
+FGameViewportClient
+ -> FGameFrameRequest
+ -> FRenderer::RenderGameFrame
+ -> FGameFrameRenderer
+ -> FSceneRenderer::BuildSceneViewData
+ -> FSceneRenderer::RenderSceneView
+ -> Scene Pass Pipeline
+ -> Viewport Composite Pass
 ```
 
-이걸 사람 말로 풀면 이렇습니다.
+### 5-2. 에디터 프레임 흐름
 
-1. 현재 카메라 기준으로 무엇이 보이는지 수집합니다.
-2. 그것을 `FSceneRenderPacket`으로 정리합니다.
-3. 게임용 SceneColor/SceneDepth/GBuffer 타깃을 확보합니다.
-4. 패킷을 실제 렌더 입력인 `FSceneViewData`로 바꿉니다.
-5. 패스 파이프라인을 실행해서 SceneColor를 만듭니다.
-6. SceneColor를 최종 화면 전체에 합성합니다.
-7. 화면을 출력합니다.
-
-### 6-3. 에디터 프레임 흐름
+에디터 쪽은 `FEditorViewportRenderService::RenderAll()`이 핵심입니다.
 
 파일:
 - `Editor/Source/Viewport/Services/EditorViewportRenderService.cpp`
 - `Engine/Source/Renderer/Frame/EditorFrameRenderer.cpp`
 
+흐름은 아래와 같습니다.
+
+1. 활성 에디터 뷰포트 엔트리들을 순회합니다.
+2. 각 뷰포트의 렌더 타깃과 깊이 타깃을 확인합니다.
+3. 각 뷰포트의 View / Projection / Frustum을 계산합니다.
+4. 각 뷰포트마다 `FSceneRenderPacket`을 만듭니다.
+5. 기즈모와 그리드는 `AdditionalMeshBatches`로 따로 넣습니다.
+6. 선택된 액터가 있으면 `OutlineRequest`를 만듭니다.
+7. 디버그 드로우 입력을 채웁니다.
+8. 이를 `FViewportScenePassRequest`로 묶습니다.
+9. 모든 뷰포트의 결과를 `CompositeItems`로 정리합니다.
+10. `FSlateApplication::BuildDrawList()`로 화면 UI 드로우 리스트를 만듭니다.
+11. 이를 `FEditorFrameRequest`로 묶어 `FRenderer::RenderEditorFrame()`에 넘깁니다.
+12. 내부에서 각 뷰포트 씬을 먼저 렌더합니다.
+13. 그 뒤 여러 뷰포트 결과를 백버퍼에 합성합니다.
+14. 마지막에 화면 UI를 그립니다.
+
+텍스트로 그리면 아래와 같습니다.
+
 ```text
-EditorViewportRenderService::RenderAll()
- -> 뷰포트마다 ScenePacket 생성
- -> 뷰포트마다 Outline/Debug 입력 준비
- -> FRenderer::RenderEditorFrame()
- -> FEditorFrameRenderer::Render()
- -> 각 뷰포트별 SceneRenderer 실행
+FEditorViewportRenderService
+ -> many FViewportScenePassRequest
+ -> FEditorFrameRequest
+ -> FRenderer::RenderEditorFrame
+ -> per-viewport SceneRenderer
  -> ViewportCompositePass
  -> ScreenUIPass
- -> Present
 ```
 
-에디터는 게임보다 한 단계 더 복잡합니다.
-
-왜냐하면:
-
-- 뷰포트가 여러 개일 수 있고
-- 각 뷰포트가 별도의 렌더 타깃을 가질 수 있고
-- Outline, Gizmo, Grid, DebugLine 같은 에디터 전용 요소가 있고
-- 마지막에 Screen UI가 또 별도로 올라가야 하기 때문입니다.
-
-즉 에디터는 이렇게 기억하면 됩니다.
-
-**“여러 개의 작은 장면을 먼저 따로 렌더하고, 마지막에 한 화면으로 합친다.”**
+에디터 프레임은 **씬 렌더링이 여러 번 돌고**, 그 결과를 **나중에 한 화면으로 모아 붙인다**는 점을 기억하시면 됩니다.
 
 ---
 
-## 7. `ScenePacket`은 어디서 만들어지나
+## 6. 각 클래스는 무엇을 담당하나요
 
-## 7-1. 시작점은 `ViewportClient`
+## 6-1. `FRenderer`
+
+파일: `Engine/Source/Renderer/Renderer.h`
+
+이 클래스는 렌더러의 최상위 소유자입니다.
+
+담당 업무:
+
+- `FRenderDevice` 소유
+- `FSceneRenderer` 소유
+- `FViewportCompositor` 소유
+- `FScreenUIRenderer` 소유
+- Text / SubUV / Billboard / Fog / Outline / Decal / FireBall / FXAA / DebugLine feature 소유
+- 게임 프레임 진입점 제공
+- 에디터 프레임 진입점 제공
+- 공용 constant buffer와 sampler 관리
+
+작업자가 기억해야 할 점:
+
+- 새 기능이 렌더러 전역 서브시스템이라면 여기서 소유하거나 getter를 추가할 가능성이 큽니다.
+- 새 feature를 초기화하려면 `RendererResourceBootstrap.cpp`도 함께 봐야 합니다.
+
+## 6-2. `FRenderDevice`
+
+파일: `Engine/Source/Renderer/GraphicsCore/RenderDevice.h`
+
+이 클래스는 D3D11 디바이스/컨텍스트/스왑체인/백버퍼를 다룹니다.
+
+담당 업무:
+
+- 디바이스 생성
+- 스왑체인 생성
+- 백버퍼 RTV/DSV 관리
+- 리사이즈 처리
+- `BeginFrame`, `EndFrame`, `Present`
+
+작업자가 기억해야 할 점:
+
+- 씬 패스를 추가할 때는 보통 여기까지 건드리지 않습니다.
+- 창 크기나 백버퍼 자체 정책을 바꿀 때 봅니다.
+
+## 6-3. `FGameFrameRenderer`
+
+파일: `Engine/Source/Renderer/Frame/GameFrameRenderer.cpp`
+
+이 클래스는 **게임 프레임 전체 실행 순서**를 정합니다.
+
+담당 업무:
+
+- 게임용 씬 타깃 확보
+- `FrameContext`, `ViewContext` 구성
+- `SceneViewData` 생성 요청
+- 데칼 텍스처 배열 준비
+- 디버그 라인 입력 구성
+- 한 뷰의 씬 렌더 실행
+- 최종 화면 합성 패스 실행
+
+작업자가 기억해야 할 점:
+
+- 게임 화면 전용 후처리나 프레임 마지막 단계가 필요하면 여기서 순서를 손볼 수 있습니다.
+
+## 6-4. `FEditorFrameRenderer`
+
+파일: `Engine/Source/Renderer/Frame/EditorFrameRenderer.cpp`
+
+이 클래스는 **에디터 프레임 전체 실행 순서**를 정합니다.
+
+담당 업무:
+
+- 뷰포트별 외부 타깃 래핑
+- 각 뷰포트별 `SceneViewData` 구성
+- 아웃라인 입력 연결
+- 디버그 입력 연결
+- 뷰포트별 씬 렌더 실행
+- 최종 뷰포트 합성
+- 화면 UI 패스 실행
+
+작업자가 기억해야 할 점:
+
+- 에디터 전용 후반 패스를 넣으려면 가장 먼저 여기서 위치를 생각하셔야 합니다.
+- “씬 렌더 전에 필요한가, 뷰포트 합성 뒤에 필요한가, UI 뒤에 필요한가”를 먼저 정해야 합니다.
+
+## 6-5. `FSceneTargetManager`
+
+파일: `Engine/Source/Renderer/Frame/SceneTargetManager.cpp`
+
+이 클래스는 씬 렌더링에 필요한 오프스크린 타깃 묶음을 준비합니다.
+
+담당 업무:
+
+- 게임 씬용 SceneColor / SceneDepth 생성
+- 보조 타깃(GBuffer, Scratch, OutlineMask) 생성
+- 에디터 뷰포트가 가진 외부 RTV/DSV/SRV를 `FSceneRenderTargets` 형태로 감싸기
+
+작업자가 기억해야 할 점:
+
+- 새 패스가 **새 텍스처**를 필요로 하면 여기까지 수정해야 합니다.
+- `SceneRenderTargets.h` 구조체와 `SceneTargetManager.cpp` 생성/해제 로직은 항상 같이 움직입니다.
+
+## 6-6. `FSceneRenderer`
+
+파일: `Engine/Source/Renderer/Scene/SceneRenderer.cpp`
+
+이 클래스는 **한 개의 씬 뷰를 실제로 렌더하는 중심 클래스**입니다.
+
+담당 업무:
+
+- `FSceneRenderPacket`을 `FSceneViewData`로 조립
+- wireframe override 적용
+- 씬 패이프라인 구성
+- 패스 순서대로 실행
+
+작업자가 기억해야 할 점:
+
+- 새 씬 패스를 넣더라도 보통 `FSceneRenderer` 자체는 크게 바뀌지 않습니다.
+- 대부분은 `BuildSceneViewData` 쪽이나 `ScenePipelineBuilder.cpp` 쪽을 수정합니다.
+
+## 6-7. `FSceneCommandBuilder`와 하위 빌더들
 
 파일:
-- `Engine/Source/Core/ViewportClient.cpp`
-
-`IViewportClient::BuildSceneRenderPacket()`가 바깥쪽 시작점입니다.
-
-이 함수는 보통 아래 순서로 동작합니다.
-
-1. 월드와 현재 프러스텀을 잡습니다.
-2. visible primitive를 찾습니다.
-3. `ScenePacketBuilder.BuildScenePacket()`을 호출합니다.
-4. Fog, FireBall 같은 추가 입력을 채웁니다.
-5. ShowFlags를 보고 FXAA 같은 옵션을 기록합니다.
-
-즉 이 단계는 “월드에서 지금 화면에 보일 것들을 정리하는 단계”입니다.
-
-## 7-2. `FSceneRenderPacket`의 의미
-
-파일:
-- `Engine/Source/Level/SceneRenderPacket.h`
-
-`FSceneRenderPacket`은 렌더러 비의존적인 장면 설명 데이터입니다.
-
-대표 버킷:
-
-- `MeshPrimitives`
-- `TextPrimitives`
-- `SubUVPrimitives`
-- `BillboardPrimitives`
-- `FogPrimitives`
-- `DecalPrimitives`
-- `FireBallPrimitives`
-- `bApplyFXAA`
-
-여기서 중요한 점은, 이 구조가 아직 GPU 드로우 커맨드가 아니라는 점입니다.
-
-이 단계는 그냥 이렇게 생각하면 됩니다.
-
-**“지금 뷰에서 무엇을 그려야 하는지 종류별로 담아둔 상자.”**
-
-## 7-3. `FScenePacketBuilder`가 하는 일
-
-파일:
-- `Engine/Source/Level/ScenePacketBuilder.h`
-- `Engine/Source/Level/ScenePacketBuilder.cpp`
-
-이 빌더는 다음 역할만 합니다.
-
-1. ShowFlag 확인
-2. 프리미티브 타입 판별
-3. 메시/텍스트/SubUV/빌보드/데칼 등으로 분류
-4. `FSceneRenderPacket` 채우기
-
-이 단계에서는 아직 머티리얼 바인딩, 셰이더 바인딩, draw 호출이 없습니다.
-
-즉 이 빌더는 **수집기**이지, 아직 **렌더 실행기**가 아닙니다.
-
----
-
-## 8. `ScenePacket`은 어디서 실제 렌더 입력이 되나
-
-## 8-1. `FSceneViewData`란 무엇인가
-
-파일:
-- `Engine/Source/Renderer/Scene/SceneViewData.h`
-
-`FSceneViewData`는 한 뷰를 그리기 위해 필요한 실행 데이터를 모아둔 구조입니다.
-
-핵심 구성:
-
-- `Frame`
-- `View`
-- `MeshInputs`
-- `PostProcessInputs`
-- `DebugInputs`
-
-조금 더 풀면:
-
-- `MeshInputs.Batches`: 실제 메시 드로우에 필요한 `FMeshBatch`들
-- `PostProcessInputs`: Fog, Decal, Outline, FireBall, FXAA 입력
-- `DebugInputs`: 디버그 라인 입력
-
-즉 `SceneViewData`는 패스들이 바로 읽을 수 있는 최종 조립 결과입니다.
-
-## 8-2. `FSceneRenderer::BuildSceneViewData()`
-
-파일:
-- `Engine/Source/Renderer/Scene/SceneRenderer.cpp`
-- `Engine/Source/Renderer/Scene/Builders/SceneViewAssembler.cpp`
-
-게임과 에디터 모두 결국 이 함수로 들어옵니다.
-
-내부적으로는 `BuildSceneViewDataFromPacket()`이 호출되고, 그 안에서 `FSceneCommandBuilder`가 실제 조립을 담당합니다.
-
-즉 흐름은 이렇습니다.
-
-```text
-FSceneRenderPacket
- -> FSceneCommandBuilder
- -> FSceneViewData
-```
-
-## 8-3. `FSceneCommandBuilder`의 역할
-
-파일:
-- `Engine/Source/Renderer/Scene/Builders/SceneCommandBuilder.h`
 - `Engine/Source/Renderer/Scene/Builders/SceneCommandBuilder.cpp`
+- `SceneCommandMeshBuilder.cpp`
+- `SceneCommandTextBuilder.cpp`
+- `SceneCommandSpriteBuilder.cpp`
+- `SceneCommandPostProcessBuilder.cpp`
 
-이 빌더는 타입별 하위 빌더를 조합합니다.
+이 묶음은 **장면 패킷을 실제 렌더 입력으로 조립**합니다.
 
-대표 하위 빌더:
+각자의 역할은 아래와 같습니다.
 
-- `SceneCommandMeshBuilder`
-- `SceneCommandTextBuilder`
-- `SceneCommandSpriteBuilder`
-- `SceneCommandPostProcessBuilder`
+### `FSceneCommandMeshBuilder`
 
-즉 “하나의 거대한 변환 함수”가 아니라, 역할별로 나눠진 조립기입니다.
+- `MeshPrimitives`를 `FMeshBatch`들로 바꿉니다.
+- 기본 메시는 `DepthPrepass + GBuffer + ForwardOpaque` 마스크로 들어갑니다.
 
-## 8-4. `FMeshBatch`는 어떻게 만들어지나
+### `FSceneCommandTextBuilder`
+
+- `TextPrimitives`를 텍스트 메시 배치로 바꿉니다.
+- UUID billboard 텍스트는 Overlay 도메인으로 들어갑니다.
+
+### `FSceneCommandSpriteBuilder`
+
+- `SubUVPrimitives`, `BillboardPrimitives`를 투명 배치로 바꿉니다.
+- 빌보드 변환, 카메라 거리 계산도 여기서 합니다.
+
+### `FSceneCommandPostProcessBuilder`
+
+- `FogPrimitives`, `DecalPrimitives`, `FireBallPrimitives`를 후반 패스 입력으로 바꿉니다.
+
+작업자가 기억해야 할 점:
+
+- **새 프리미티브 타입**을 추가하려면 거의 항상 여기까지 옵니다.
+- “패킷에는 들어갔는데 실제 렌더링이 안 된다”면 이 구간부터 확인하시면 됩니다.
+
+## 6-8. `FMeshPassProcessor`
+
+파일: `Engine/Source/Renderer/Scene/MeshPassProcessor.cpp`
+
+이 클래스는 메시 배치를 패스별로 필터링하고 정렬해서 그립니다.
+
+담당 업무:
+
+- 배치의 `PassMask` 검사
+- 패스별 정렬 정책 적용
+- 머티리얼/렌더 상태 바인딩
+- 메시 바인딩
+- Draw / DrawIndexed 실행
+
+현재 정렬 규칙:
+
+- `ForwardTransparent`: 카메라에서 먼 것부터
+- `Overlay`: 제출 순서 유지
+- `DepthPrepass`, `GBuffer`, `ForwardOpaque`: 상태/셰이더 중심 정렬
+
+작업자가 기억해야 할 점:
+
+- 새 **메시 패스**를 추가하려면 `EMeshPassType`, `EMeshPassMask`, `ShouldDrawInPass`, `ToMaterialPassType`까지 같이 봐야 합니다.
+
+## 6-9. `FViewportCompositor`
+
+파일: `Engine/Source/Renderer/Frame/Viewport/ViewportCompositor.cpp`
+
+이 클래스는 최종 백버퍼에 뷰포트 결과를 붙입니다.
+
+담당 업무:
+
+- SceneColor 또는 SceneDepth를 소스로 선택
+- 뷰포트 사각형에 맞게 전체화면 삼각형으로 복사
+- DepthView 같은 시각화 모드 지원
+
+작업자가 기억해야 할 점:
+
+- “에디터 뷰포트 결과를 화면에 어떻게 배치하는가”는 여기서 결정됩니다.
+- 뷰포트 시각화 모드를 늘리려면 여기와 `FViewportCompositeItem` 해석 쪽을 봅니다.
+
+## 6-10. `FScreenUIRenderer`
+
+파일: `Engine/Source/Renderer/UI/Screen/ScreenUIRenderer.cpp`
+
+이 클래스는 최종 UI 드로우 리스트를 실제 GPU 드로우로 바꿉니다.
+
+역할은 내부적으로 둘로 나뉩니다.
+
+### `FScreenUIPassBuilder`
+
+- `FUIDrawList`를 읽습니다.
+- 사각형/외곽선/텍스트를 메시로 만듭니다.
+- 레이어, 깊이, 순서 기준으로 정렬합니다.
+- 직교 투영을 설정합니다.
+
+### `FScreenUIBatchRenderer`
+
+- 메시 버퍼를 업로드합니다.
+- UI 머티리얼과 상태를 바인딩합니다.
+- 실제 Draw를 실행합니다.
+
+작업자가 기억해야 할 점:
+
+- 화면 UI 요소 타입을 늘리려면 `UIDrawList.h`와 `ScreenUIPassBuilder.cpp`를 같이 수정하면 됩니다.
+
+## 6-11. `FSlatePaintContext`와 `FSlateApplication`
 
 파일:
-- `Engine/Source/Renderer/Scene/Builders/SceneCommandMeshBuilder.cpp`
-- `Engine/Source/Renderer/Mesh/MeshBatch.h`
+- `Editor/Source/Slate/Widget/Painter.cpp`
+- `Editor/Source/Slate/SlateApplication.cpp`
 
-정적 메시 프리미티브는 `FMeshBatch`로 바뀝니다.
+이쪽은 화면 UI를 **즉시 렌더링하지 않고 기록만 하는 계층**입니다.
 
-`FMeshBatch`에 들어가는 대표 정보는 아래와 같습니다.
+`FSlatePaintContext`가 하는 일:
 
-- `Mesh`
-- `Material`
-- `World`
-- `SectionIndex`
-- `IndexStart`
-- `IndexCount`
-- `Domain`
-- `PassMask`
+- FilledRect 기록
+- RectOutline 기록
+- Text 기록
+- ClipRect 기록
+- Layer / Depth / Order 기록
 
-여기서 아주 중요한 필드가 `PassMask`입니다.
+`FSlateApplication`이 하는 일:
 
-예를 들어 현재 정적 메시 경로는 대체로 아래처럼 들어갑니다.
+- 위젯 트리 배치
+- 뷰포트 및 크롬 레이아웃 계산
+- paint 호출
+- 최종 `FUIDrawList` 빌드
 
-- `DepthPrepass`
-- `GBuffer`
-- `ForwardOpaque`
+작업자가 기억해야 할 점:
 
-즉 **같은 메시가 여러 패스에서 다시 사용될 수 있도록 미리 표시를 달아 둡니다.**
-
-## 8-5. 텍스트, SubUV, 빌보드도 결국 메시 배치로 간다
-
-파일:
-- `Engine/Source/Renderer/Scene/Builders/SceneCommandTextBuilder.cpp`
-- `Engine/Source/Renderer/Scene/Builders/SceneCommandSpriteBuilder.cpp`
-
-특수 오브젝트들도 가능하면 `FMeshBatch`로 흡수합니다.
-
-이 설계의 장점은 큽니다.
-
-1. 정렬 방식을 공통으로 쓸 수 있습니다.
-2. 패스 체계를 공유할 수 있습니다.
-3. 새 오브젝트 타입을 넣을 때 구조가 덜 흔들립니다.
-
-## 8-6. 후처리 입력은 따로 들어간다
-
-파일:
-- `Engine/Source/Renderer/Scene/Builders/SceneCommandPostProcessBuilder.cpp`
-
-Fog, FireBall, Decal은 `PostProcessInputs`에 들어갑니다.
-
-예를 들면:
-
-- `FogItems`
-- `DecalItems`
-- `FireBallItems`
-- `bOutlineEnabled`
-- `bApplyFXAA`
-
-즉 메시를 그리는 입력과 후처리 입력은 같은 `SceneViewData` 안에 있지만, **조립 단계부터 서로 다른 통로를 타고 들어갑니다.**
+- UI 쪽 기능을 추가할 때는 “Slate 기록 단계”와 “실제 GPU UI 렌더 단계”를 따로 생각해야 합니다.
 
 ---
 
-## 9. 실제 렌더 패스는 어떤 순서로 실행되나
+## 7. 현재 씬 패스 순서
 
-파일:
-- `Engine/Source/Renderer/Scene/Pipeline/ScenePipelineBuilder.cpp`
+현재 기본 씬 패스 순서는 아래 파일에서 정의됩니다.
 
-기본 씬 패스 순서는 아래와 같습니다.
+파일: `Engine/Source/Renderer/Scene/Pipeline/ScenePipelineBuilder.cpp`
+
+현재 순서:
 
 1. `FClearSceneTargetsPass`
 2. `FUploadMeshBuffersPass`
@@ -521,801 +536,610 @@ Fog, FireBall, Decal은 `PostProcessInputs`에 들어갑니다.
 13. `FDebugLinePass`
 14. `FFXAAPass`
 
-이 순서는 단순한 나열이 아니라 의미가 있습니다.
+초심자 기준으로 각 패스를 간단히 설명하면 아래와 같습니다.
 
-### 9-1. `FClearSceneTargetsPass`
+### 7-1. `FClearSceneTargetsPass`
 
-SceneColor, Depth, GBuffer, OutlineMask를 프레임 시작 상태로 초기화합니다.
+- SceneColor, SceneDepth, GBuffer, OutlineMask를 초기화합니다.
+- 프레임마다 새 캔버스를 만드는 단계라고 생각하시면 됩니다.
 
-### 9-2. `FUploadMeshBuffersPass`
+### 7-2. `FUploadMeshBuffersPass`
 
-이번 프레임에 필요한 메시들의 버텍스/인덱스 버퍼를 업로드합니다.
+- 이번 프레임에 필요한 메시 버퍼를 GPU에 올립니다.
+- 실제 그리기 전에 준비만 하는 단계입니다.
 
-### 9-3. `FDepthPrepass`
+### 7-3. `FDepthPrepass`
 
-색은 쓰지 않고 깊이만 먼저 채웁니다.
+- 깊이만 먼저 채웁니다.
+- 이후 패스가 깊이 정보를 활용할 수 있게 합니다.
 
-이 단계가 있으면:
+### 7-4. `FGBufferPass`
 
-- 뒤에 있는 픽셀을 더 빨리 걸러낼 수 있고
-- 후처리와 데칼, 포그가 안정적으로 깊이를 읽을 수 있습니다.
+- GBuffer A/B/C를 채웁니다.
+- 후처리나 데칼 같은 기능이 씬 표면 정보를 사용할 수 있게 합니다.
 
-### 9-4. `FGBufferPass`
+### 7-5. `FForwardOpaquePass`
 
-GBufferA/B/C를 채웁니다.
+- 불투명 메시를 SceneColor에 그립니다.
 
-현재 구조는 완전한 deferred renderer라기보다는 하이브리드에 가깝지만, 이 단계는 앞으로의 확장성과 시각화에 중요합니다.
+### 7-6. `FDecalCompositePass`
 
-### 9-5. `FForwardOpaquePass`
+- 데칼 입력이 있으면 데칼을 합성합니다.
+- 현재는 일반 데칼 feature 또는 volume decal feature 중 하나가 실행됩니다.
 
-불투명 메시의 실제 장면 색을 `SceneColor`에 그립니다.
+### 7-7. `FForwardTransparentPass`
 
-즉 현재 장면 컬러의 중심은 이 패스입니다.
+- 투명 오브젝트를 뒤에서 앞으로 정렬하여 그립니다.
 
-### 9-6. `FDecalCompositePass`
+### 7-8. `FFogPostPass`
 
-SceneColor와 Depth를 읽으면서 데칼을 합성합니다.
+- 포그가 있으면 씬 결과 위에 포그를 적용합니다.
 
-데칼은 메시 기본 드로우와는 별도 기능으로 빠져 있습니다.
+### 7-9. `FFireBallPass`
 
-### 9-7. `FForwardTransparentPass`
+- 파이어볼 관련 효과를 적용합니다.
 
-투명 메시를 그립니다.
+### 7-10. `FOutlineMaskPass` / `FOutlineCompositePass`
 
-투명체는 일반적으로 뒤에서 앞으로 정렬해야 하므로 opaque와 다른 규칙을 가집니다.
+- 선택된 오브젝트 윤곽선용 마스크를 만들고
+- 그 마스크를 이용해 최종 씬에 외곽선을 합성합니다.
 
-### 9-8. `FFogPostPass`
+### 7-11. `FOverlayPass`
 
-깊이를 읽어 안개를 장면 위에 덮습니다.
+- 오버레이 성격의 메시를 그립니다.
+- 기즈모 텍스트나 특정 화면 상부 요소가 여기에 들어갈 수 있습니다.
 
-### 9-9. `FFireBallPass`
+### 7-12. `FDebugLinePass`
 
-화면 공간 효과 성격의 FireBall 효과를 적용합니다.
+- 디버그 라인을 그립니다.
 
-### 9-10. `FOutlineMaskPass` / `FOutlineCompositePass`
+### 7-13. `FFXAAPass`
 
-선택 오브젝트의 마스크를 만들고, 그것을 이용해 실제 아웃라인을 장면 위에 합성합니다.
-
-### 9-11. `FOverlayPass`
-
-기즈모나 특정 오버레이 성격의 메시를 그리는 단계입니다.
-
-### 9-12. `FDebugLinePass`
-
-디버그 라인을 최종 장면 위에 올립니다.
-
-### 9-13. `FFXAAPass`
-
-최종 결과물에 안티앨리어싱을 적용합니다.
-
-보통 FXAA가 마지막에 오는 이유는, 이미 그려진 최종 장면 전체를 대상으로 처리하는 후처리이기 때문입니다.
+- `bApplyFXAA`가 켜져 있으면 마지막에 FXAA를 적용합니다.
 
 ---
 
-## 10. 이 렌더러는 왜 하이브리드라고 부를 수 있나
+## 8. 현재 프레임 후반 패스 순서
 
-완전한 deferred renderer라면 보통:
+씬 렌더링이 끝나면 프레임 후반 패스가 실행됩니다.
 
-1. GBuffer를 만든다.
-2. 별도의 라이팅 패스에서 그것을 읽는다.
-3. 최종 색을 만든다.
+관련 파일:
+- `Engine/Source/Renderer/Frame/UI/FramePasses.h`
+- `Engine/Source/Renderer/Frame/UI/FramePasses.cpp`
+- `Engine/Source/Renderer/Frame/UI/FramePipeline.h`
 
-그런데 현재 구조는:
+현재 사용되는 프레임 패스는 두 개입니다.
 
-1. GBuffer는 만든다.
-2. 전통적인 독립 deferred lighting pass는 보이지 않는다.
-3. 실제 장면 색은 `FForwardOpaquePass`에서 만들어진다.
-4. 그 뒤에 Decal/Fog/Outline/FXAA가 이어진다.
+1. `FViewportCompositePass`
+2. `FScreenUIPass`
 
-즉 현재 구조는 아래 쪽에 더 가깝습니다.
+### `FViewportCompositePass`
 
-**Depth + GBuffer + Forward + Screen-space Effects가 결합된 하이브리드 구조**
+- 에디터: 여러 뷰포트 결과를 최종 백버퍼에 배치합니다.
+- 게임: 단일 SceneColor 결과를 전체 화면에 붙입니다.
 
-이렇게 보면 왜 패스 순서가 지금처럼 생겼는지 이해가 쉬워집니다.
+### `FScreenUIPass`
 
----
+- 화면 UI를 최종 결과 위에 그립니다.
 
-## 11. 메시 패스는 실제로 어떻게 실행되나
+즉, **씬 패스**와 **프레임 후반 패스**는 별도 계층입니다.
 
-파일:
-- `Engine/Source/Renderer/Scene/MeshPassProcessor.cpp`
+이 구분이 매우 중요합니다.
 
-이 클래스는 메시 패스 실행의 핵심입니다.
+- 씬 내부에 들어갈 패스인가?
+- 최종 화면 합성 뒤에 들어갈 패스인가?
 
-핵심 역할:
-
-1. 어떤 배치가 어떤 패스에 들어갈지 결정
-2. 패스별 정렬
-3. 머티리얼/셰이더 바인딩
-4. 렌더 상태 바인딩
-5. 메시 바인딩과 draw 호출
-
-## 11-1. `PassMask`로 패스 참여 여부를 결정한다
-
-`ShouldDrawInPass()`는 `PassMask`를 보고 판단합니다.
-
-예를 들면:
-
-- `DepthPrepass`
-- `GBuffer`
-- `ForwardOpaque`
-- `ForwardTransparent`
-- `Overlay`
-
-즉 패스를 새로 추가할 때는 “이 패스에 메시가 들어와야 하는가”를 함께 설계해야 합니다.
-
-## 11-2. 패스별 정렬 전략이 다르다
-
-코드를 보면 정렬 전략이 다릅니다.
-
-- `ForwardTransparent`: 거리 기준 뒤에서 앞으로
-- `Overlay`: 제출 순서 유지
-- `Depth/GBuffer/ForwardOpaque`: 셰이더/상태/메시 기준 정렬
-
-왜 다르냐면 목적이 다르기 때문입니다.
-
-- 투명체는 블렌딩 때문에 순서가 중요합니다.
-- 오버레이는 사용자가 넣은 순서가 중요할 수 있습니다.
-- 불투명체는 성능상 상태 변경 최소화가 중요합니다.
+이 두 질문에 따라 수정 위치가 완전히 달라집니다.
 
 ---
 
-## 12. 게임 프레임과 에디터 프레임은 무엇이 다른가
+## 9. “무엇을 하려면 어디를 수정하나요?”
 
-## 12-1. 게임 프레임
+실무에서는 이 섹션이 가장 중요합니다.
 
-파일:
-- `Engine/Source/Renderer/Frame/GameFrameRenderer.cpp`
-
-흐름 요약:
-
-1. 게임용 SceneTargets 확보
-2. `BuildSceneViewData()`
-3. 데칼 텍스처 배열 해결
-4. 디버그 라인 입력 추가
-5. `RenderSceneView()` 실행
-6. 최종 SceneColor를 전체 화면으로 합성
-
-즉 게임은 상대적으로 단순합니다.
-
-**한 개의 장면을 만들고, 그것을 최종 화면에 붙입니다.**
-
-## 12-2. 에디터 프레임
-
-파일:
-- `Engine/Source/Renderer/Frame/EditorFrameRenderer.cpp`
-
-흐름 요약:
-
-1. 각 뷰포트의 외부 렌더 타깃을 씬 타깃 구조로 래핑
-2. 뷰포트마다 `BuildSceneViewData()`
-3. Outline/Debug 입력을 뷰별로 추가
-4. 각 뷰포트에 대해 `RenderSceneView()` 실행
-5. 모든 뷰포트 결과를 백버퍼에 합성
-6. 그 위에 Screen UI를 그린다
-
-즉 에디터는 이렇게 기억하면 됩니다.
-
-**여러 장면을 먼저 만들고, 마지막에 하나의 창으로 합친다.**
-
----
-
-## 13. 새 기능을 추가할 때 먼저 던져야 할 질문
-
-무조건 코드를 쓰기 전에 먼저 이 질문을 해야 합니다.
-
-### 질문 1. 이 기능은 메시인가, 후처리인가
-
-- 메시처럼 특정 기하를 그리는 기능인가
-- 화면 전체를 덮는 풀스크린 효과인가
-
-### 질문 2. 입력은 어디서 오나
-
-- 월드 컴포넌트에서 오는가
-- 에디터 요청에서 오는가
-- 뷰포트/프레임 옵션에서 오는가
-
-### 질문 3. 어느 시점의 결과를 읽어야 하나
-
-- Depth가 필요하면 `DepthPrepass` 이후여야 합니다.
-- SceneColor가 필요하면 `ForwardOpaque` 이후여야 합니다.
-- Transparent까지 반영된 결과가 필요하면 `ForwardTransparent` 이후여야 합니다.
-- 화면 전체 최종 결과를 다 보고 싶으면 `FXAA` 직전이나 이후를 고려해야 합니다.
-
-이 세 질문에 답하면 새 패스를 어디에 넣어야 할지 윤곽이 나옵니다.
-
----
-
-## 14. 새 패스를 추가하는 전체 절차
-
-이 섹션은 실전 작업용입니다.
-
-### 14-1. 새 패스 추가의 공통 흐름
-
-보통 아래 순서입니다.
-
-1. **입력 데이터 구조를 정한다.**
-2. 그 입력을 `ScenePacket` 또는 프레임 요청에서 채운다.
-3. `SceneViewData`로 옮긴다.
-4. 새 패스 클래스를 만든다.
-5. `ScenePipelineBuilder.cpp`에 등록한다.
-6. 필요한 리소스와 feature를 `FRenderer`가 들고 있게 한다.
-7. 실제 입력이 들어오는지 확인한다.
-
-### 14-2. 언제 `ScenePacket`에 넣고, 언제 직접 `SceneViewData`에 넣나
-
-아래 기준이 편합니다.
-
-#### `ScenePacket`에 넣는 편이 맞는 경우
-
-- 월드에 존재하는 새로운 프리미티브 종류
-- 예: 커스텀 스프라이트, 월드 마커, 새 데칼류
-
-이 경우 순서는 보통:
-
-```text
-SceneRenderPacket.h
- -> ScenePacketBuilder
- -> SceneCommandBuilder / SceneViewAssembler
- -> SceneViewData
- -> Pass Execute
-```
-
-#### 프레임 요청이나 에디터 요청에서 직접 넣는 편이 맞는 경우
-
-- 특정 뷰포트나 특정 프레임에만 필요한 기능
-- 예: 선택 아웃라인, 디버그 오버레이, 픽킹 마스크
-
-이 경우는 `ScenePacket`보다 `FEditorFrameRequest`, `FViewportScenePassRequest`, `DebugInputs`, `OutlineRequest` 같은 구조가 더 자연스럽습니다.
-
----
-
-## 15. 예제 1: 풀스크린 후처리 패스 하나 추가하기
-
-여기서는 예시로 **색상을 살짝 톤 조정하는 간단한 후처리 패스**를 추가한다고 가정하겠습니다.
-
-목표는 이렇습니다.
-
-- SceneColor를 읽는다.
-- 결과를 다시 SceneColor에 반영한다.
-- 옵션이 켜져 있을 때만 돈다.
-
-### 15-1. 먼저 어디에 둬야 하나
-
-이 효과는 SceneColor를 읽어서 처리하므로 최소한 `FForwardOpaquePass` 이후여야 합니다.
-
-또 투명체까지 포함한 최종 화면을 바꾸고 싶다면 `FForwardTransparentPass` 뒤가 더 맞습니다.
-
-예를 들어 “모든 장면 결과를 대상으로 톤 조정”을 원한다면 아래 위치가 자연스럽습니다.
-
-```text
-ForwardTransparent 뒤
-Fog 앞 또는 뒤
-```
-
-어디가 맞는지는 효과 의도에 따라 달라집니다.
-
-- Fog보다 먼저: 안개가 그 위에 다시 덮임
-- Fog보다 나중: 안개까지 포함한 최종 결과를 조정
-
-### 15-2. 입력 데이터 추가
-
-예를 들어 `bApplyToneAdjust`, `ToneAdjustStrength` 같은 입력이 필요하다고 하겠습니다.
-
-가장 단순한 방법은 `FScenePostProcessInputs`에 넣는 것입니다.
-
-파일:
-- `Engine/Source/Renderer/Scene/SceneViewData.h`
+## 9-1. 새 월드 프리미티브 타입을 추가하고 싶을 때
 
 예시:
+- `ULaserBeamComponent`
+- `UWorldMarkerComponent`
+- `UHeatDistortionComponent`
 
-```cpp
-struct FScenePostProcessInputs
-{
-    ...
-    bool bApplyToneAdjust = false;
-    float ToneAdjustStrength = 0.0f;
-};
-```
+수정 순서:
 
-### 15-3. 입력을 어디서 채울까
+1. `SceneRenderPacket.h`에 새 프리미티브 구조와 배열을 추가합니다.
+2. `ScenePacketBuilder.cpp`에서 ShowFlag와 타입 판별을 추가합니다.
+3. 필요하면 `ViewportClient.cpp`에서 프러스텀 외 수집 로직을 추가합니다.
+4. `SceneCommandBuilder` 하위 빌더 중 알맞은 곳에서 `FSceneViewData` 입력으로 바꿉니다.
+5. 메시로 렌더할 것인지, 후처리 입력으로 넣을 것인지 결정합니다.
+6. 실제 패스가 그 입력을 소비하도록 연결합니다.
 
-선택지는 두 가지입니다.
+판단 기준:
 
-#### 방법 A. 뷰포트 옵션에서 채운다
+- 메시처럼 그릴 수 있으면 `FMeshBatch`로 만듭니다.
+- 후처리 성격이면 `PostProcessInputs` 쪽으로 넣습니다.
 
-`ViewportClient` 단계에서 ShowFlag나 뷰 옵션을 보고 채웁니다.
-
-#### 방법 B. 월드 컴포넌트에서 채운다
-
-특정 컴포넌트가 있으면 `ScenePacket`에 넣고, `SceneCommandPostProcessBuilder`가 `SceneViewData`로 옮깁니다.
-
-초심자 기준으로는 **방법 A가 더 단순**합니다.
-
-### 15-4. 패스 클래스 만들기
-
-파일 추가 예시:
-
-- `Engine/Source/Renderer/Scene/Passes/SceneToneAdjustPass.h`
-- `Engine/Source/Renderer/Scene/Passes/SceneToneAdjustPass.cpp`
-
-패턴은 기존 `FFogPostPass`, `FFXAAPass`를 참고하면 됩니다.
-
-헤더 예시:
-
-```cpp
-class ENGINE_API FToneAdjustPass : public IRenderPass
-{
-public:
-    bool Execute(FPassContext& Context) override;
-};
-```
-
-구현 예시 개념:
-
-```cpp
-bool FToneAdjustPass::Execute(FPassContext& Context)
-{
-    if (!Context.SceneViewData.PostProcessInputs.bApplyToneAdjust)
-    {
-        return true;
-    }
-
-    FToneAdjustRenderFeature* Feature = Context.Renderer.GetToneAdjustFeature();
-    if (!Feature)
-    {
-        return true;
-    }
-
-    return Feature->Render(
-        Context.Renderer,
-        Context.SceneViewData.Frame,
-        Context.SceneViewData.View,
-        Context.Targets,
-        Context.SceneViewData.PostProcessInputs.ToneAdjustStrength);
-}
-```
-
-여기서 중요한 포인트는, 패스 클래스 자체는 보통 얇아야 한다는 점입니다.
-
-즉 패스는 보통:
-
-- 입력이 있는지 검사하고
-- feature를 얻고
-- feature의 `Render()`를 호출하는 역할
-
-정도만 맡습니다.
-
-### 15-5. 파이프라인에 등록하기
-
-파일:
-- `Engine/Source/Renderer/Scene/Pipeline/ScenePipelineBuilder.cpp`
-
-예를 들어 `ForwardTransparent` 뒤, `Fog` 앞에 넣고 싶다면:
-
-```cpp
-OutPipeline.AddPass(std::make_unique<FForwardTransparentPass>(MeshPassProcessor));
-OutPipeline.AddPass(std::make_unique<FToneAdjustPass>());
-OutPipeline.AddPass(std::make_unique<FFogPostPass>());
-```
-
-이 단계가 빠지면 패스를 아무리 잘 만들어도 절대 실행되지 않습니다.
-
-### 15-6. 실제 렌더 기능 구현하기
-
-보통은 feature 클래스를 하나 둡니다.
-
-예:
-
-- `Renderer/Features/PostProcess/ToneAdjustRenderFeature.h`
-- `Renderer/Features/PostProcess/ToneAdjustRenderFeature.cpp`
-
-이 feature는 보통 아래 일을 합니다.
-
-1. 필요한 셰이더와 상태를 준비
-2. `SceneColorSRV`를 읽음
-3. 임시 RT에 쓰거나 scratch를 사용
-4. 결과를 다시 `SceneColor`에 반영
-
-### 15-7. 초심자가 자주 놓치는 포인트
-
-1. `SceneColor`를 읽으면서 동시에 같은 `SceneColorRTV`에 쓰면 안 됩니다.
-	- 보통 scratch texture가 필요합니다.
-2. 패스를 만들고 `ScenePipelineBuilder.cpp`에 등록하지 않으면 실행되지 않습니다.
-3. 입력 값이 기본값인 채로 남아 있으면 패스가 항상 스킵됩니다.
-4. feature를 `FRenderer`가 소유하지 않으면 `GetToneAdjustFeature()`가 실패합니다.
-
----
-
-## 16. 예제 2: 메시 패스 하나 추가하기
-
-이번에는 예시로 **“특정 메시를 별도의 강조 패스에서 한 번 더 그리는 기능”**을 생각해보겠습니다.
-
-이 예제는 새 메시 패스가 어떤 식으로 들어가는지 이해하는 데 좋습니다.
-
-### 16-1. 먼저 판단해야 할 것
-
-이 기능은 풀스크린이 아니라 메시를 다시 그리는 기능입니다.
-
-따라서 고민 포인트는 이것입니다.
-
-1. 기존 `PassMask` 체계에 새 비트를 추가할까
-2. 기존 `Overlay`를 재활용할까
-3. 새 `EMeshPassType` 자체를 만들까
-
-기능이 명확히 별도의 의미를 갖고, 앞으로도 독립성이 필요하다면 새 패스를 만드는 편이 낫습니다.
-
-### 16-2. enum 확장
-
-파일:
-- `Engine/Source/Renderer/Mesh/MeshBatch.h`
-
-예를 들어 `Highlight` 패스를 추가한다면:
-
-```cpp
-enum class EMeshPassType : uint32
-{
-    DepthPrepass = 0,
-    GBuffer,
-    ForwardOpaque,
-    ForwardTransparent,
-    Overlay,
-    Highlight,
-    Count,
-};
-
-enum class EMeshPassMask : uint32
-{
-    None               = 0,
-    DepthPrepass       = 1u << 0,
-    GBuffer            = 1u << 1,
-    ForwardOpaque      = 1u << 2,
-    ForwardTransparent = 1u << 3,
-    Overlay            = 1u << 4,
-    Highlight          = 1u << 5,
-};
-```
-
-### 16-3. `FMeshPassProcessor`가 새 패스를 이해하도록 만들기
-
-파일:
-- `Engine/Source/Renderer/Scene/MeshPassProcessor.cpp`
-
-적어도 아래 세 군데를 함께 봐야 합니다.
-
-1. `ToMaterialPassType()`
-2. `ShouldDrawInPass()`
-3. 정렬 전략 분기
-
-예를 들어 새 머티리얼 패스 타입이 필요하면 `EMaterialPassType`과 머티리얼 셰이더 바인딩도 함께 확장해야 합니다.
-
-반대로 기존 `ForwardOpaque` 셰이더를 그대로 쓰는 강조 드로우라면, 새로운 머티리얼 패스 타입 없이도 설계할 수 있습니다.
-
-### 16-4. 패스 클래스 추가
-
-파일 예시:
-
-- `Engine/Source/Renderer/Scene/Passes/SceneHighlightPass.h`
-- `Engine/Source/Renderer/Scene/Passes/SceneHighlightPass.cpp`
-
-형태는 `FForwardOpaquePass`나 `FOverlayPass`와 비슷합니다.
+## 9-2. 기존 메시를 특정 패스에만 보내고 싶을 때
 
 예시:
+- 어떤 메시를 Overlay 패스에만 보내기
+- 투명 전용 패스로 보내기
 
-```cpp
-class ENGINE_API FHighlightPass : public IRenderPass
-{
-public:
-    explicit FHighlightPass(const FMeshPassProcessor& InProcessor)
-        : Processor(InProcessor)
-    {
-    }
+주로 수정할 곳:
 
-    bool Execute(FPassContext& Context) override;
+- `MeshBatch.h`: `EMeshPassMask`, 필요하면 `EMeshPassType`
+- `SceneCommandMeshBuilder.cpp` 또는 관련 빌더: `Batch.PassMask`
+- `MeshPassProcessor.cpp`: `ShouldDrawInPass`, 정렬 규칙
 
-private:
-    const FMeshPassProcessor& Processor;
-};
-```
+핵심은 **배치를 만들 때 어떤 `PassMask`를 주는가**입니다.
 
-구현은 보통 이런 형태가 됩니다.
+## 9-3. 새 후처리 입력을 추가하고 싶을 때
 
-```cpp
-bool FHighlightPass::Execute(FPassContext& Context)
-{
-    return ExecuteMeshScenePass(
-        Context.Renderer,
-        Context.Targets,
-        Context.SceneViewData,
-        Processor,
-        EMeshPassType::Highlight);
-}
-```
+예시:
+- Bloom 입력
+- SSAO 입력
+- Custom Highlight 입력
 
-### 16-5. 어떤 메시가 이 패스에 들어올지 정하기
+수정 순서:
 
-이 단계가 핵심입니다.
+1. `SceneViewData.h`의 `FScenePostProcessInputs`에 새 입력 필드를 추가합니다.
+2. `SceneRenderPacket.h`에 필요한 프리미티브나 설정을 추가합니다.
+3. `ScenePacketBuilder.cpp` 또는 `ViewportClient.cpp`에서 패킷에 입력을 채웁니다.
+4. `SceneCommandPostProcessBuilder.cpp`에서 `PostProcessInputs`로 변환합니다.
+5. 새 패스를 만들어 이 입력을 소비하게 합니다.
+6. `ScenePipelineBuilder.cpp`에 새 패스를 추가합니다.
 
-패스만 만드는 것으로 끝나지 않습니다. 어떤 배치가 `Highlight`에 참여할지 표시해야 합니다.
+## 9-4. 씬 패스를 하나 추가하고 싶을 때
 
-예를 들어 `SceneCommandMeshBuilder.cpp`에서 조건에 따라:
+이 경우가 가장 자주 나옵니다.
 
-```cpp
-Batch.PassMask =
-    static_cast<uint32>(EMeshPassMask::DepthPrepass) |
-    static_cast<uint32>(EMeshPassMask::GBuffer) |
-    static_cast<uint32>(EMeshPassMask::ForwardOpaque) |
-    static_cast<uint32>(EMeshPassMask::Highlight);
-```
+예시:
+- SSAO 패스
+- Bloom threshold 패스
+- Custom edge detect 패스
+- SceneColor를 변형하는 풀스크린 패스
 
-또는 에디터 전용 선택 메시만 넣고 싶다면, `AdditionalMeshBatches`를 만드는 쪽에서 `Highlight` 마스크를 부여할 수도 있습니다.
+수정 순서:
 
-### 16-6. 파이프라인에 위치시키기
+1. 새 패스 클래스를 `ScenePasses.h`에 선언합니다.
+2. 구현을 `SceneBasePasses.cpp`, `SceneEffectPasses.cpp`, `SceneOverlayPasses.cpp` 중 성격에 맞는 파일에 넣습니다.
+3. 필요하면 새 feature 클래스를 만듭니다.
+4. `ScenePipelineBuilder.cpp`에 실행 순서를 추가합니다.
+5. 그 패스가 읽을 입력을 `FSceneViewData`에 넣습니다.
+6. 새 타깃이 필요하면 `SceneRenderTargets.h`와 `SceneTargetManager.cpp`를 수정합니다.
 
-예를 들어 opaque 뒤, transparent 앞에 강조 패스를 두고 싶다면:
+가장 중요한 질문:
 
-```cpp
-OutPipeline.AddPass(std::make_unique<FForwardOpaquePass>(MeshPassProcessor));
-OutPipeline.AddPass(std::make_unique<FHighlightPass>(MeshPassProcessor));
-OutPipeline.AddPass(std::make_unique<FDecalCompositePass>());
-```
+- 이 패스는 **SceneColor를 읽기만 하는가**
+- 아니면 **새 텍스처에 써야 하는가**
+- 아니면 **깊이 / GBuffer가 필요한가**
 
-왜 이 위치냐면, 강조 대상이 불투명 메시 위에 한 번 더 그려지되, 이후의 transparent나 후처리와도 자연스럽게 이어지기 때문입니다.
+이 질문에 따라 필요한 수정 범위가 달라집니다.
 
-### 16-7. 초심자가 자주 하는 실수
+## 9-5. 새 렌더 타깃이 필요할 때
 
-1. 새 패스 enum만 추가하고 `ShouldDrawInPass()`를 고치지 않는 경우
-2. `PassMask`를 아무도 안 붙여서 배치가 0개인 경우
-3. 새 패스를 만들었지만 파이프라인에 등록하지 않은 경우
-4. 강조 패스가 기존 깊이 상태 때문에 전혀 안 보이는 경우
+예시:
+- SSAO 결과 텍스처
+- Blur ping-pong 텍스처
+- Custom mask 텍스처
 
-특히 4번은 자주 나옵니다.
+수정할 곳:
 
-예를 들어 highlight를 항상 보이게 하고 싶다면 머티리얼이나 상태에서 depth test/write 정책을 다시 생각해야 합니다.
+1. `SceneRenderTargets.h`에 텍스처 / RTV / SRV 필드를 추가합니다.
+2. `SceneTargetManager.h`에 멤버를 추가합니다.
+3. `SceneTargetManager.cpp`의 생성 함수에서 타깃을 만듭니다.
+4. `ReleaseSupplementalTargets()`와 `Release()`에 해제를 추가합니다.
+5. `AcquireGameSceneTargets()`와 `WrapExternalSceneTargets()`에서 `OutTargets`에 연결합니다.
 
----
+초심자 체크포인트:
 
-## 17. 새 월드 프리미티브 종류를 추가하는 경우
+- 새 패스가 읽으려면 SRV가 필요합니다.
+- 새 패스가 쓰려면 RTV 또는 DSV가 필요합니다.
+- 둘 다 필요하면 texture 생성 시 bind flag도 맞아야 합니다.
 
-예를 들어 “월드 마커” 같은 새 오브젝트 타입을 추가한다고 해보겠습니다.
+## 9-6. 에디터 전용 기즈모/그리드/보조 메시를 추가하고 싶을 때
 
-이 경우 보통 흐름은 이렇습니다.
+수정할 곳:
 
-### 단계 1. `SceneRenderPacket`에 새 버킷을 추가한다
-
-파일:
-- `Engine/Source/Level/SceneRenderPacket.h`
-
-예:
-
-```cpp
-TArray<FSceneWorldMarkerPrimitive> WorldMarkerPrimitives;
-```
-
-### 단계 2. `ScenePacketBuilder`가 그것을 수집하게 만든다
-
-파일:
-- `Engine/Source/Level/ScenePacketBuilder.cpp`
-
-### 단계 3. `SceneCommandBuilder` 하위 빌더가 그것을 `FMeshBatch`나 `PostProcessInputs`로 바꾼다
-
-파일:
-- `SceneCommandMeshBuilder.cpp`
-- 또는 새 빌더 파일
-
-### 단계 4. 새 패스 또는 기존 패스로 흘려보낸다
-
-- 메시라면 `FMeshBatch` + `PassMask`
-- 풀스크린/후처리라면 `PostProcessInputs`
-
-이 흐름을 기억하면 새로운 기능도 대부분 같은 패턴으로 넣을 수 있습니다.
-
----
-
-## 18. 패스 위치를 고르는 감각
-
-새 패스를 넣을 때 가장 어려운 부분이 “그래서 어디에 꽂아야 하지?”입니다.
-
-아래 기준을 쓰면 판단이 쉬워집니다.
-
-### 18-1. Depth만 필요하다
-
-최소한 `DepthPrepass` 이후면 됩니다.
-
-예:
-
-- 깊이 기반 마스크
-- 깊이 시각화
-
-### 18-2. 불투명 SceneColor가 필요하다
-
-`ForwardOpaque` 이후가 좋습니다.
-
-예:
-
-- 불투명 장면 기준 색 보정
-- Opaque 기반 데칼/마스크
-
-### 18-3. 투명체까지 포함된 SceneColor가 필요하다
-
-`ForwardTransparent` 이후가 좋습니다.
-
-예:
-
-- 최종 화면에 가까운 후처리
-- 전체 화면 톤 조정
-
-### 18-4. Overlay나 DebugLine보다 먼저 와야 한다
-
-기즈모, 디버그, UI는 보통 가장 위에 보이길 원합니다.
-
-따라서 그 위를 덮어쓰는 패스를 너무 뒤에 두면 의도와 어긋납니다.
-
-### 18-5. 안티앨리어싱은 대개 마지막
-
-FXAA 같은 화면 기반 AA는 이미 나온 최종 결과 전체를 대상으로 처리하므로 보통 마지막에 둡니다.
-
----
-
-## 19. 디버깅할 때는 어디부터 보면 되나
-
-무언가 화면에 안 나오면, 무작정 셰이더부터 보지 말고 아래 순서대로 좁혀가면 빠릅니다.
-
-### 19-1. 수집 단계 확인
-
-질문:
-
-- 애초에 이 오브젝트가 `ScenePacket`에 들어갔는가
-- `ViewportClient`가 그것을 수집했는가
-- `ShowFlags` 때문에 걸러진 것은 아닌가
-
-### 19-2. 조립 단계 확인
-
-질문:
-
-- `SceneViewData`에 실제 입력이 들어갔는가
-- `MeshInputs.Batches`에 배치가 생겼는가
-- `PostProcessInputs`가 비어 있지는 않은가
-
-### 19-3. 패스 참여 여부 확인
-
-질문:
-
-- `PassMask`가 올바르게 붙었는가
-- `ShouldDrawInPass()`가 true가 되는가
-- 새 패스가 파이프라인에 등록되었는가
-
-### 19-4. 상태/자원 충돌 확인
-
-질문:
-
-- 읽는 텍스처를 동시에 쓰고 있지는 않은가
-- Depth test 때문에 안 보이는 것은 아닌가
-- 머티리얼의 pass shader가 없는 것은 아닌가
-
-### 19-5. 최종 합성 확인
-
-질문:
-
-- 게임이면 composite mode가 이상하지 않은가
-- 에디터면 뷰포트 합성 단계에서 사각형 배치가 틀리지 않았는가
-- UI나 다른 overlay가 덮어쓴 것은 아닌가
-
-이 순서를 한 줄로 줄이면 이렇습니다.
-
-```text
-수집 -> 조립 -> 패스 참여 -> 상태/자원 -> 최종 합성
-```
-
----
-
-## 20. 초심자가 자주 헷갈리는 포인트 정리
-
-### 20-1. 패스를 만들었는데 왜 실행이 안 되나
-
-가장 흔한 원인은 세 가지입니다.
-
-1. `ScenePipelineBuilder.cpp`에 등록하지 않음
-2. 입력 데이터가 비어 있음
-3. 스킵 조건이 항상 true로 걸림
-
-### 20-2. 메시를 추가했는데 왜 안 보이나
-
-가장 흔한 원인은 세 가지입니다.
-
-1. `PassMask`가 맞지 않음
-2. 머티리얼에 해당 pass shader가 없음
-3. 깊이 상태나 블렌드 상태 때문에 묻힘
-
-### 20-3. 후처리를 추가했는데 화면이 깨진다
-
-자주 있는 원인은 이것입니다.
-
-- 같은 텍스처를 읽으면서 동시에 쓰는 경우
-
-이 경우는 scratch texture나 임시 RTV/SRV가 필요합니다.
-
-### 20-4. 에디터에서는 보이는데 게임에서는 안 보인다
-
-원인 후보:
-
-1. 에디터 쪽 `AdditionalMeshBatches`에만 들어감
-2. 에디터 전용 `OutlineRequest`, `DebugInputs`에만 들어감
-3. 게임 경로의 frame request에는 빠져 있음
-
-### 20-5. 게임에서는 보이는데 에디터에서는 안 보인다
-
-원인 후보:
-
-1. 에디터 뷰포트별 scene pass request에 입력이 안 들어감
-2. 뷰포트 합성 단계에서 안 보이는 영역에 배치됨
-3. Screen UI나 gizmo가 위를 덮음
-
----
-
-## 21. 파일 지도로 다시 정리하면
-
-처음 분석할 때는 아래 순서가 가장 좋습니다.
-
-### 21-1. 프레임 시작점
-
-- `Engine/Source/Renderer/Renderer.h`
-- `Engine/Source/Renderer/Renderer.cpp`
-
-### 21-2. 게임/에디터 프레임 흐름
-
-- `Engine/Source/Renderer/Frame/GameFrameRenderer.cpp`
-- `Engine/Source/Renderer/Frame/EditorFrameRenderer.cpp`
 - `Editor/Source/Viewport/Services/EditorViewportRenderService.cpp`
 
-### 21-3. 씬 수집
+이 파일에서 `AdditionalMeshBatches`를 만들고 있으므로,
+에디터 전용 보조 메시를 넣으려면 여기서 `FMeshBatch`를 추가하시면 됩니다.
 
-- `Engine/Source/Core/ViewportClient.cpp`
-- `Engine/Source/Level/ScenePacketBuilder.cpp`
-- `Engine/Source/Level/SceneRenderPacket.h`
+대표 사례:
 
-### 21-4. 씬 조립
+- 그리드
+- 기즈모 메시
+- 특정 에디터 보조 메쉬
 
-- `Engine/Source/Renderer/Scene/SceneRenderer.cpp`
-- `Engine/Source/Renderer/Scene/SceneViewData.h`
-- `Engine/Source/Renderer/Scene/Builders/SceneViewAssembler.cpp`
-- `Engine/Source/Renderer/Scene/Builders/SceneCommandBuilder.cpp`
-- `SceneCommandMeshBuilder.cpp`
-- `SceneCommandTextBuilder.cpp`
-- `SceneCommandSpriteBuilder.cpp`
-- `SceneCommandPostProcessBuilder.cpp`
+## 9-7. 최종 화면 합성 단계를 추가하고 싶을 때
 
-### 21-5. 패스 실행
+예시:
+- 뷰포트 합성 후 전체 화면 톤매핑
+- UI 전에 최종 색보정
+- 에디터 전체 화면 디버그 시각화
 
-- `Engine/Source/Renderer/Scene/Pipeline/ScenePipelineBuilder.cpp`
-- `Engine/Source/Renderer/Scene/Passes/ScenePasses.h`
-- `Engine/Source/Renderer/Scene/Passes/SceneBasePasses.cpp`
-- `Engine/Source/Renderer/Scene/Passes/SceneEffectPasses.cpp`
-- `Engine/Source/Renderer/Scene/MeshPassProcessor.cpp`
+이 경우는 씬 패스가 아니라 **프레임 패스**입니다.
 
-### 21-6. 최종 합성과 UI
+수정할 곳:
 
-- `Engine/Source/Renderer/Frame/Viewport/ViewportCompositor.cpp`
-- `Engine/Source/Renderer/UI/Screen/ScreenUIRenderer.cpp`
+1. `FramePassContext.h`에 필요한 입력을 추가합니다.
+2. `FramePasses.h/cpp`에 새 `IFrameRenderPass` 구현을 추가합니다.
+3. `GameFrameRenderer.cpp` 또는 `EditorFrameRenderer.cpp`에서 `FramePipeline.AddPass(...)` 순서를 조정합니다.
+
+판단 기준:
+
+- 개별 뷰포트 씬 안에서 돌아야 하면 씬 패스
+- 최종 백버퍼 단계에서 돌아야 하면 프레임 패스
+
+## 9-8. 새로운 UI 도형이나 UI 요소 타입을 추가하고 싶을 때
+
+예시:
+- 선 그리기
+- 이미지 드로우
+- 아이콘 드로우
+- 둥근 사각형
+
+수정할 곳:
+
+1. `UIDrawList.h`에 `EUIDrawElementType`와 데이터 필드를 추가합니다.
+2. `Painter.cpp`에 기록 API를 추가합니다.
+3. `ScreenUIPassBuilder.cpp`에 해당 타입을 메시로 바꾸는 코드를 추가합니다.
+4. 필요하면 전용 머티리얼이나 텍스처 바인딩을 넣습니다.
+
+## 9-9. 새 렌더 feature 클래스를 붙이고 싶을 때
+
+예시:
+- `FBloomRenderFeature`
+- `FCustomAOFeature`
+
+수정할 곳:
+
+1. feature 클래스 작성
+2. `Renderer.h`에 멤버 포인터 / getter 추가
+3. `RendererResourceBootstrap.cpp`에서 생성 및 초기화
+4. 패스에서 `Renderer.Get...Feature()`로 호출
+
+이 패턴은 Fog, Outline, DebugLine, Decal, FireBall, FXAA가 이미 보여주고 있습니다.
 
 ---
 
-## 22. 마지막으로 머릿속에 남겨야 할 모델
+## 10. 패스를 추가하려면 정확히 어디를 건드리면 되나요
 
-이 렌더러는 아래 문장으로 기억하면 됩니다.
+이 섹션은 **새 패스 추가 절차**만 따로 정리한 체크리스트입니다.
 
-**`ViewportClient`가 장면을 모으고, `SceneRenderer`가 그것을 패스용 데이터로 조립한 뒤, 패스 파이프라인이 실제로 그리며, 마지막에 `ViewportCompositor`와 `ScreenUIRenderer`가 화면을 완성한다.**
+## 10-1. 케이스 A: 씬 패이프라인 안에 새 패스를 추가하는 경우
 
-그리고 새 기능을 넣을 때는 항상 아래 순서로 생각하면 됩니다.
+예시:
+- SSAO
+- Bloom prefilter
+- Custom composite
+- Object ID mask 생성
 
-```text
-입력은 어디서 오나
- -> ScenePacket에 넣을까 / FrameRequest에 넣을까
- -> SceneViewData에 어떻게 옮길까
- -> 어떤 패스에서 실행할까
- -> 그 패스를 파이프라인 어디에 둘까
- -> 읽기/쓰기 충돌은 없는가
+### 1단계. 패스가 사용할 입력을 정합니다
+
+먼저 아래 중 어디에서 입력을 받을지 정합니다.
+
+- `FSceneViewData::MeshInputs`
+- `FSceneViewData::PostProcessInputs`
+- `FSceneViewData::DebugInputs`
+- `FSceneRenderTargets`
+
+질문 예시:
+
+- 메시 목록이 필요한가?
+- SceneColor가 필요한가?
+- Depth가 필요한가?
+- GBuffer가 필요한가?
+- 별도 텍스처 출력이 필요한가?
+
+### 2단계. 새 출력 타깃이 필요하면 렌더 타깃을 추가합니다
+
+수정 파일:
+
+- `SceneRenderTargets.h`
+- `SceneTargetManager.h`
+- `SceneTargetManager.cpp`
+
+여기서 새 텍스처 / RTV / SRV를 만들고 `OutTargets`에 연결합니다.
+
+### 3단계. 패스 클래스를 선언합니다
+
+수정 파일:
+
+- `ScenePasses.h`
+
+예시 형태:
+
+```cpp
+class ENGINE_API FMyCustomPass : public IRenderPass
+{
+public:
+    bool Execute(FPassContext& Context) override;
+};
 ```
 
-이 흐름만 몸에 익으면, 렌더러가 더 이상 거대한 블랙박스처럼 보이지 않습니다.
-새 패스를 추가하는 일도 “막연한 수정”이 아니라 “정해진 경로를 따라가는 작업”으로 바뀝니다.
+### 4단계. 패스 구현을 작성합니다
+
+수정 파일:
+
+- 메시 성격이면 `SceneBasePasses.cpp`
+- 효과 성격이면 `SceneEffectPasses.cpp`
+- 오버레이/디버그 성격이면 `SceneOverlayPasses.cpp`
+
+보통 `Execute()` 안에서 아래 중 하나를 합니다.
+
+- `FMeshPassProcessor`로 메시 패스를 돌린다.
+- 특정 feature의 `Render()`를 호출한다.
+- 전체화면 패스를 실행한다.
+
+### 5단계. 실행 순서를 파이프라인에 넣습니다
+
+수정 파일:
+
+- `ScenePipelineBuilder.cpp`
+
+예시:
+
+```cpp
+OutPipeline.AddPass(std::make_unique<FMyCustomPass>());
+```
+
+여기서 순서가 매우 중요합니다.
+
+예를 들어:
+
+- Depth 이후가 필요한지
+- GBuffer 이후가 필요한지
+- 투명체 전에 해야 하는지
+- 아웃라인 전에 해야 하는지
+- FXAA 전에 해야 하는지
+
+를 먼저 정해야 합니다.
+
+### 6단계. 패스 입력을 채웁니다
+
+수정 파일 후보:
+
+- `SceneRenderPacket.h`
+- `ScenePacketBuilder.cpp`
+- `ViewportClient.cpp`
+- `SceneCommandPostProcessBuilder.cpp`
+- `SceneCommandMeshBuilder.cpp`
+- `SceneCommandSpriteBuilder.cpp`
+- `SceneCommandTextBuilder.cpp`
+
+즉, 패스 자체만 만들어서는 동작하지 않고,
+**그 패스가 읽을 데이터를 `FSceneViewData`에 넣어야** 합니다.
+
+### 7단계. feature가 필요하면 렌더러에 연결합니다
+
+수정 파일:
+
+- `Renderer.h`
+- `RendererResourceBootstrap.cpp`
+
+새 feature를 렌더러가 소유하도록 연결한 뒤,
+패스에서 getter를 통해 호출하게 합니다.
+
+---
+
+## 10-2. 케이스 B: 메시 패스 자체를 하나 더 추가하는 경우
+
+예시:
+- `EMeshPassType::CustomMask`
+- `EMeshPassType::Velocity`
+
+이 경우는 일반 후처리 패스보다 수정 범위가 조금 더 넓습니다.
+
+### 수정 체크리스트
+
+1. `MeshBatch.h`
+   - `EMeshPassType`에 새 값 추가
+   - `EMeshPassMask`에 새 비트 추가
+
+2. `MeshPassProcessor.cpp`
+   - `ToMaterialPassType()` 확장
+   - `ShouldDrawInPass()` 확장
+   - 정렬 정책 필요 시 추가
+
+3. 메시를 만드는 빌더
+   - 해당 배치에 새 `PassMask`를 주도록 수정
+
+4. 새 패스 클래스 추가
+   - `ScenePasses.h/cpp`
+
+5. 파이프라인 순서 추가
+   - `ScenePipelineBuilder.cpp`
+
+이 케이스는 “새 패스”이면서 동시에 “새 메시 필터 기준”이 추가되는 것이므로,
+`PassMask`와 `ScenePipelineBuilder`를 둘 다 수정해야 합니다.
+
+---
+
+## 10-3. 케이스 C: 최종 프레임 단계에 새 패스를 추가하는 경우
+
+예시:
+- 백버퍼 전체 색보정
+- 뷰포트 합성 후 디버그 오버레이
+- UI 전용 블러 배경
+
+수정 체크리스트:
+
+1. `FramePassContext.h`
+   - 새 패스가 읽어야 할 입력 추가
+
+2. `FramePasses.h`
+   - 새 `IFrameRenderPass` 선언
+
+3. `FramePasses.cpp`
+   - `Execute()` 구현
+
+4. `GameFrameRenderer.cpp` 또는 `EditorFrameRenderer.cpp`
+   - `FramePipeline.AddPass(...)` 위치 추가
+
+예를 들어,
+
+- UI 전에 넣고 싶으면 `FScreenUIPass` 앞
+- UI 뒤에 넣고 싶으면 `FScreenUIPass` 뒤
+
+에 넣으면 됩니다.
+
+---
+
+## 11. 초심자가 가장 자주 헷갈리는 구분
+
+## 11-1. `SceneRenderPacket`과 `SceneViewData`의 차이
+
+- `SceneRenderPacket`:
+  월드에서 수집한 원재료 목록
+- `SceneViewData`:
+  실제 렌더러가 사용할 가공 완료본
+
+즉,
+
+- 수집 단계는 `ScenePacketBuilder`
+- 조립 단계는 `SceneCommandBuilder`
+
+입니다.
+
+## 11-2. 씬 패스와 프레임 패스의 차이
+
+- 씬 패스:
+  한 개의 뷰포트 SceneColor/Depth/GBuffer를 만드는 과정
+- 프레임 패스:
+  최종 백버퍼에서 뷰포트 결과를 합치고 UI를 올리는 과정
+
+## 11-3. `AdditionalMeshBatches`의 의미
+
+이것은 월드에서 수집된 정규 프리미티브가 아니라,
+**프레임 구성 단계에서 따로 넣는 보조 배치**입니다.
+
+대표 예:
+
+- 기즈모
+- 그리드
+- 에디터 전용 보조 메시
+
+## 11-4. 아웃라인은 왜 `ScenePacketBuilder`가 아니라 프레임 요청 쪽에 있나
+
+현재 구조에서 아웃라인은 일반 월드 수집 결과가 아니라,
+**에디터가 특정 선택 상태를 해석해서 넣는 별도 요청**입니다.
+
+그래서 `FViewportScenePassRequest`의 `OutlineRequest`를 통해 전달됩니다.
+
+---
+
+## 12. 실제 작업 시 추천 확인 순서
+
+화면에 뭔가 안 보일 때는 아래 순서로 확인하시면 가장 빠릅니다.
+
+### 경우 1. 월드 오브젝트가 아예 안 보인다
+
+1. `ViewportClient.cpp`에서 패킷이 채워졌는지
+2. `ScenePacketBuilder.cpp`에서 타입이 수집되는지
+3. `SceneCommandBuilder` 하위 빌더에서 `FMeshBatch` 또는 후처리 입력이 만들어졌는지
+4. `FSceneViewData`에 실제로 들어갔는지
+5. `ScenePipelineBuilder.cpp`에 필요한 패스가 들어 있는지
+6. 해당 패스 `Execute()`가 호출되는지
+
+### 경우 2. 패스는 돌았는데 화면 결과가 이상하다
+
+1. `SceneRenderTargets`에서 올바른 타깃을 쓰는지
+2. 패스 전후로 RTV/DSV/SRV가 맞는지
+3. `SceneColorScratch` 같은 중간 타깃이 필요한데 빠진 것은 아닌지
+4. 순서가 맞는지
+
+### 경우 3. 에디터 화면에는 안 보이는데 씬 렌더는 된 것 같다
+
+1. `CompositeItems`가 올바른지
+2. `FViewportCompositor`가 원하는 SRV를 읽는지
+3. `Rect`가 올바른지
+4. 최종 백버퍼에 실제로 합성됐는지
+
+### 경우 4. UI가 안 보인다
+
+1. `FSlateApplication::BuildDrawList()`가 실제로 엘리먼트를 기록했는지
+2. `FUIDrawList`의 `ScreenWidth`, `ScreenHeight`가 맞는지
+3. `ScreenUIPassBuilder.cpp`가 메시를 만들었는지
+4. `FScreenUIPass`가 실행됐는지
+
+---
+
+## 13. 작업 유형별 바로가기
+
+### 작업: 새 씬 패스 추가
+
+먼저 볼 파일:
+
+- `ScenePipelineBuilder.cpp`
+- `ScenePasses.h`
+- `SceneEffectPasses.cpp`
+- `SceneViewData.h`
+- `SceneTargetManager.cpp`
+
+### 작업: 새 프리미티브 수집
+
+먼저 볼 파일:
+
+- `SceneRenderPacket.h`
+- `ScenePacketBuilder.cpp`
+- `ViewportClient.cpp`
+- `SceneCommandBuilder.cpp`
+
+### 작업: 새 메시 패스 마스크 추가
+
+먼저 볼 파일:
+
+- `MeshBatch.h`
+- `MeshPassProcessor.cpp`
+- 관련 SceneCommand builder
+
+### 작업: 에디터 전용 기즈모/그리드/오버레이 추가
+
+먼저 볼 파일:
+
+- `EditorViewportRenderService.cpp`
+- `FrameRequests.h`
+- 필요 시 `ScenePasses.cpp`
+
+### 작업: 화면 UI 요소 추가
+
+먼저 볼 파일:
+
+- `UIDrawList.h`
+- `Painter.cpp`
+- `ScreenUIPassBuilder.cpp`
+- `ScreenUIBatchRenderer.cpp`
+
+### 작업: 새 렌더 타깃 추가
+
+먼저 볼 파일:
+
+- `SceneRenderTargets.h`
+- `SceneTargetManager.h`
+- `SceneTargetManager.cpp`
+
+---
+
+## 14. 마지막으로 이 구조를 기억하는 가장 쉬운 방법
+
+현재 구조는 아래 한 줄로 기억하시면 됩니다.
+
+**뷰포트/에디터 서비스가 프레임 요청을 만들고, `FRenderer`가 이를 받아 씬 패스와 프레임 패스를 순서대로 실행합니다.**
+
+조금 더 풀면 이렇게 됩니다.
+
+1. `ScenePacketBuilder`가 월드에서 렌더 대상을 모읍니다.
+2. `SceneCommandBuilder`가 그것을 실제 렌더 입력으로 바꿉니다.
+3. `SceneRenderer`가 씬 패이프라인을 돌립니다.
+4. `ViewportCompositor`가 결과를 최종 화면에 붙입니다.
+5. `ScreenUIRenderer`가 마지막 UI를 올립니다.
+
+새 작업을 시작할 때는 항상 먼저 이 질문부터 하시면 됩니다.
+
+- 이건 **월드 수집 단계**인가?
+- 이건 **씬 패스 단계**인가?
+- 이건 **최종 프레임 합성 단계**인가?
+- 이건 **UI 기록/렌더 단계**인가?
+
+이 질문만 정확히 잡으면, 수정 위치를 훨씬 빠르게 찾을 수 있습니다.

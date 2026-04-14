@@ -82,47 +82,14 @@
     <Filter Include="ThirdParty\nlohmann">
       <UniqueIdentifier>{c70e54eb-75c7-d408-4bdc-b003f49af18a}</UniqueIdentifier>
     </Filter>
-      <Filter Include="Source\Renderer\Common">
+    <Filter Include="Source\Renderer\Common">
       <UniqueIdentifier>{83EA4F67-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\Features\Billboard">
-      <UniqueIdentifier>{AEC48B51-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\Features\Debug">
-      <UniqueIdentifier>{3EF16425-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\Features\Decal">
-      <UniqueIdentifier>{161DAED0-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\Features\FireBall">
-      <UniqueIdentifier>{D4217646-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\Features\Fog">
-      <UniqueIdentifier>{E24824DF-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\Features\Outline">
-      <UniqueIdentifier>{D617430B-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\Features\PostProcess">
-      <UniqueIdentifier>{45C398C2-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\Features\SubUV">
-      <UniqueIdentifier>{7B04F1BC-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\Features\Text">
-      <UniqueIdentifier>{93363E8F-0000-0000-0000-000000000000}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\Renderer\Mesh">
       <UniqueIdentifier>{943581D3-0000-0000-0000-000000000000}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\Renderer\RHI">
       <UniqueIdentifier>{E2FD1253-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\Resources\Material">
-      <UniqueIdentifier>{5A599826-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\Resources\Shader">
-      <UniqueIdentifier>{EDE1B895-0000-0000-0000-000000000000}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\Renderer\Scene">
       <UniqueIdentifier>{F960F4AF-0000-0000-0000-000000000000}</UniqueIdentifier>
@@ -171,6 +138,11 @@
     <ClInclude Include="Source\Renderer\Scene\Builders\DebugSceneBuilder.h">
       <Filter>Source\Renderer\Scene</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Pipeline\ScenePipelineBuilder.h" />
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneViewAssembler.h" />
+    <ClInclude Include="Source\Renderer\Features\Decal\DecalProjectionMode.h" />
+    <ClInclude Include="Source\Renderer\Features\Decal\DecalStats.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\ScenePassExecutionUtils.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\Actor\Actor.cpp">
@@ -532,6 +504,11 @@
     <ClCompile Include="Source\Component\MovementComponent.cpp" />
     <ClCompile Include="Source\Component\ProjectileMovementComponent.cpp" />
     <ClCompile Include="Source\Component\RotatingMovementComponent.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Pipeline\ScenePipelineBuilder.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Builders\SceneViewAssembler.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\SceneBasePasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\SceneEffectPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\SceneOverlayPasses.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\CoreMinimal.h">
@@ -1274,14 +1251,5 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
-      <ClCompile Include="Source\Renderer\Scene\Passes\SceneBasePasses.cpp">
-      <Filter>Source Files\Renderer\Scene\Passes</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Scene\Passes\SceneEffectPasses.cpp">
-      <Filter>Source Files\Renderer\Scene\Passes</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Scene\Passes\SceneOverlayPasses.cpp">
-      <Filter>Source Files\Renderer\Scene\Passes</Filter>
-    </ClCompile>
-</ItemGroup>
+  </ItemGroup>
 </Project>
