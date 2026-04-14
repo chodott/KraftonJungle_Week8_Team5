@@ -9,6 +9,7 @@
 #include "Renderer/GraphicsCore/RenderDevice.h"
 #include "Renderer/Common/RenderFeatureInterfaces.h"
 #include "Renderer/Frame/FrameRequests.h"
+#include "Renderer/Common/RenderMode.h"
 #include "Renderer/Common/RenderFrameContext.h"
 #include "Renderer/GraphicsCore/RenderStateManager.h"
 #include "Renderer/Common/SceneRenderTargets.h"

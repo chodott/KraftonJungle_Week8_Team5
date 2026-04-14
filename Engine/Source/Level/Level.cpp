@@ -6,6 +6,7 @@
 #include "Component/CameraComponent.h"
 #include "Object/ObjectFactory.h"
 #include "Component/PrimitiveComponent.h"
+#include "Component/UUIDBillboardComponent.h"
 #include "Object/Class.h"
 
 #include "Serializer/SceneSerializer.h"
@@ -29,6 +30,7 @@ ULevel::~ULevel()
 	}
 	Actors.clear();
 	SpatialBVH.Reset();
+	DebugSpatialBVH.Reset();
 	bSpatialDirty = true;
 }
 
@@ -61,6 +63,7 @@ void ULevel::DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Cont
 	ULevel* DuplicatedLevel = static_cast<ULevel*>(DuplicatedObject);
 	DuplicatedLevel->Actors.clear();
 	DuplicatedLevel->SpatialBVH.Reset();
+	DuplicatedLevel->DebugSpatialBVH.Reset();
 	DuplicatedLevel->bSpatialDirty = true;
 }
 
@@ -186,7 +189,7 @@ void ULevel::MarkSpatialDirty()
 	bSpatialDirty = true;
 }
 
-void ULevel::GatherPrimitiveComponents(TArray<UPrimitiveComponent*>& OutPrimitives) const
+void ULevel::GatherPrimitiveComponents(TArray<UPrimitiveComponent*>& OutPrimitives, bool bExcludeUUIDBillboards) const
 {
 	for (AActor* Actor : Actors)
 	{
@@ -208,6 +211,11 @@ void ULevel::GatherPrimitiveComponents(TArray<UPrimitiveComponent*>& OutPrimitiv
 				continue;
 			}
 
+			if (bExcludeUUIDBillboards && PrimitiveComponent->IsA(UUUIDBillboardComponent::StaticClass()))
+			{
+				continue;
+			}
+
 			OutPrimitives.push_back(PrimitiveComponent);
 		}
 	}
@@ -220,9 +228,14 @@ void ULevel::RebuildSpatialIfNeeded() const
 		return;
 	}
 
-	TArray<UPrimitiveComponent*> PrimitiveComponents;
-	GatherPrimitiveComponents(PrimitiveComponents);
-	SpatialBVH.Build(PrimitiveComponents);
+	TArray<UPrimitiveComponent*> SpatialPrimitives;
+	GatherPrimitiveComponents(SpatialPrimitives, false);
+	SpatialBVH.Build(SpatialPrimitives);
+
+	TArray<UPrimitiveComponent*> DebugPrimitives;
+	GatherPrimitiveComponents(DebugPrimitives, true);
+	DebugSpatialBVH.Build(DebugPrimitives);
+
 	bSpatialDirty = false;
 }
 
@@ -268,4 +281,16 @@ void ULevel::VisitBVHNodesForPrimitive(UPrimitiveComponent* Target, const FBVHNo
 {
 	RebuildSpatialIfNeeded();
 	SpatialBVH.VisitNodesForPrimitive(Target, Visitor);
+}
+
+void ULevel::VisitDebugBVHNodes(const FBVHNodeVisitor& Visitor) const
+{
+	RebuildSpatialIfNeeded();
+	DebugSpatialBVH.VisitNodes(Visitor);
+}
+
+void ULevel::VisitDebugBVHNodesForPrimitive(UPrimitiveComponent* Target, const FBVHNodeVisitor& Visitor) const
+{
+	RebuildSpatialIfNeeded();
+	DebugSpatialBVH.VisitNodesForPrimitive(Target, Visitor);
 }

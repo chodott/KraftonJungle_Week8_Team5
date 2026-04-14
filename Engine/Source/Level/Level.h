@@ -64,6 +64,8 @@ public:
 	void VisitPrimitivesByRay(const FVector& RayOrigin, const FVector& RayDirection, float& InOutMaxDistance, const BVH::FRayHitVisitor& Visitor) const;
 	void VisitBVHNodes(const FBVHNodeVisitor& Visitor) const;
 	void VisitBVHNodesForPrimitive(UPrimitiveComponent* Target, const FBVHNodeVisitor& Visitor) const;
+	void VisitDebugBVHNodes(const FBVHNodeVisitor& Visitor) const;
+	void VisitDebugBVHNodesForPrimitive(UPrimitiveComponent* Target, const FBVHNodeVisitor& Visitor) const;
 
 	//----------------------------------------------------------------
 	//						PIE Layer
@@ -74,10 +76,11 @@ public:
 	void PostDuplicate(UObject* DuplicatedObject, const FDuplicateContext& Context) const override;
 
 private:
-	void GatherPrimitiveComponents(TArray<UPrimitiveComponent*>& OutPrimitives) const;
+	void GatherPrimitiveComponents(TArray<UPrimitiveComponent*>& OutPrimitives, bool bExcludeUUIDBillboards = false) const;
 	void RebuildSpatialIfNeeded() const;
 
 	TArray<AActor*> Actors;
 	mutable BVH SpatialBVH;
+	mutable BVH DebugSpatialBVH;
 	mutable bool bSpatialDirty = true;
 };
