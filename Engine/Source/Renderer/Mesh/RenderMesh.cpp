@@ -25,25 +25,25 @@ void FRenderMesh::Release()
 
 void FRenderMesh::UpdateLocalBound()
 {
-	if (Vertices.empty())
-	{
-		MinCoord = FVector(FLT_MAX, FLT_MAX, FLT_MAX);
-		MaxCoord = FVector(-FLT_MAX, -FLT_MAX, -FLT_MAX);
-		LocalBoundRadius = 0.f;
-	}
-	else
-	{
-		// TODO: Ritter's Algorithm으로 개선
-		for (const FVertex& Vertex : Vertices)
-		{
-			if (Vertex.Position.X < MinCoord.X) MinCoord.X = Vertex.Position.X;
-			if (Vertex.Position.X > MaxCoord.X) MaxCoord.X = Vertex.Position.X;
-			if (Vertex.Position.Y < MinCoord.Y) MinCoord.Y = Vertex.Position.Y;
-			if (Vertex.Position.Y > MaxCoord.Y) MaxCoord.Y = Vertex.Position.Y;
-			if (Vertex.Position.Z < MinCoord.Z) MinCoord.Z = Vertex.Position.Z;
-			if (Vertex.Position.Z > MaxCoord.Z) MaxCoord.Z = Vertex.Position.Z;
+    MinCoord = FVector(FLT_MAX, FLT_MAX, FLT_MAX);
+    MaxCoord = FVector(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+    LocalBoundRadius = 0.f;
 
-			LocalBoundRadius = ((MaxCoord - MinCoord) * 0.5).Size();
-		}
-	}
+    if (Vertices.empty())
+    {
+        return;
+    }
+
+    for (const FVertex& Vertex : Vertices)
+    {
+        MinCoord.X = std::min(MinCoord.X, Vertex.Position.X);
+        MinCoord.Y = std::min(MinCoord.Y, Vertex.Position.Y);
+        MinCoord.Z = std::min(MinCoord.Z, Vertex.Position.Z);
+
+        MaxCoord.X = std::max(MaxCoord.X, Vertex.Position.X);
+        MaxCoord.Y = std::max(MaxCoord.Y, Vertex.Position.Y);
+        MaxCoord.Z = std::max(MaxCoord.Z, Vertex.Position.Z);
+    }
+
+    LocalBoundRadius = ((MaxCoord - MinCoord) * 0.5f).Size();
 }
