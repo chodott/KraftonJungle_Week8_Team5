@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "CoreMinimal.h"
 #include "EngineAPI.h"
 #include "Math/Vector.h"
@@ -81,5 +81,5 @@ private:
 
 	TMap<UWorld*, FWorldDebugDrawBucket> WorldBuckets;
 	// 충돌 바운드를 순회해 renderer-neutral primitive 목록에 추가한다.
-	void DrawAllCollisionBounds(UWorld* World, FDebugPrimitiveList& OutPrimitives) const;
+	void DrawAllCollisionBounds(const FShowFlags& ShowFlags, UWorld* World, FDebugPrimitiveList& OutPrimitives) const;
 };

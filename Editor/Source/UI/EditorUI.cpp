@@ -476,6 +476,21 @@ void FEditorUI::LoadEditorSettings()
         GetPrivateProfileStringW(Sec, L"SF.MeshBVH", L"0", Buf, 64, Path.c_str());
         S.ShowFlags.SetFlag(EEngineShowFlags::SF_MeshBVH, _wtoi(Buf) != 0);
 
+        GetPrivateProfileStringW(Sec, L"SF.Decal", L"1", Buf, 64, Path.c_str());
+        S.ShowFlags.SetFlag(EEngineShowFlags::SF_Decal, _wtoi(Buf) != 0);
+
+        GetPrivateProfileStringW(Sec, L"SF.FXAA", L"0", Buf, 64, Path.c_str());
+        S.ShowFlags.SetFlag(EEngineShowFlags::SF_FXAA, _wtoi(Buf) != 0);
+
+        GetPrivateProfileStringW(Sec, L"SF.DepthView", L"0", Buf, 64, Path.c_str());
+        S.ShowFlags.SetFlag(EEngineShowFlags::SF_DepthView, _wtoi(Buf) != 0);
+
+        GetPrivateProfileStringW(Sec, L"SF.DecalArrow", L"1", Buf, 64, Path.c_str());
+        S.ShowFlags.SetFlag(EEngineShowFlags::SF_DecalArrow, _wtoi(Buf) != 0);
+
+        GetPrivateProfileStringW(Sec, L"SF.ProjectileArrow", L"1", Buf, 64, Path.c_str());
+        S.ShowFlags.SetFlag(EEngineShowFlags::SF_ProjectileArrow, _wtoi(Buf) != 0);
+
         GetPrivateProfileStringW(Sec, L"SF.DecalDebug", L"0", Buf, 64, Path.c_str());
         S.ShowFlags.SetFlag(EEngineShowFlags::SF_DecalDebug, _wtoi(Buf) != 0);
 
@@ -598,9 +613,18 @@ void FEditorUI::SaveEditorSettings()
         WritePrivateProfileStringW(Sec, L"SF.DecalDebug", S.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalDebug) ? L"1" : L"0",
                                    Path.c_str());
 
+        WritePrivateProfileStringW(Sec, L"SF.Decal", S.ShowFlags.HasFlag(EEngineShowFlags::SF_Decal) ? L"1" : L"0",
+                                   Path.c_str());
         WritePrivateProfileStringW(Sec, L"SF.Fog", S.ShowFlags.HasFlag(EEngineShowFlags::SF_Fog) ? L"1" : L"0",
                                    Path.c_str());
         WritePrivateProfileStringW(Sec, L"SF.FXAA", S.ShowFlags.HasFlag(EEngineShowFlags::SF_FXAA) ? L"1" : L"0",
+                                   Path.c_str());
+        WritePrivateProfileStringW(Sec, L"SF.DepthView",
+                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_DepthView) ? L"1" : L"0", Path.c_str());
+        WritePrivateProfileStringW(Sec, L"SF.DecalArrow",
+                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalArrow) ? L"1" : L"0", Path.c_str());
+        WritePrivateProfileStringW(Sec, L"SF.ProjectileArrow",
+                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_ProjectileArrow) ? L"1" : L"0",
                                    Path.c_str());
     }
 
@@ -888,6 +912,8 @@ void FEditorUI::Render()
 
                     ShowFlagCheckbox("Primitives", EEngineShowFlags::SF_Primitives);
                     ShowFlagCheckbox("UUID Text", EEngineShowFlags::SF_UUID);
+                    ShowFlagCheckbox("Decal Arrow", EEngineShowFlags::SF_DecalArrow);
+                    ShowFlagCheckbox("Projectile Arrow", EEngineShowFlags::SF_ProjectileArrow);
 
                     bool bDebugDraw = ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw);
                     if (ImGui::Checkbox("Debug Line", &bDebugDraw))
@@ -955,6 +981,7 @@ void FEditorUI::Render()
                     ShowFlagCheckbox("Anti-Aliasing (FXAA)", EEngineShowFlags::SF_FXAA);
                     ShowFlagCheckbox("Height Fog", EEngineShowFlags::SF_Fog);
                     ShowFlagCheckbox("Decal Projection", EEngineShowFlags::SF_Decal);
+                    ShowFlagCheckbox("Depth View", EEngineShowFlags::SF_DepthView);
                 }
             }
             ImGui::EndMenu();

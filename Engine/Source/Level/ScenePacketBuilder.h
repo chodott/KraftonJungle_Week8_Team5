@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Core/ShowFlags.h"
@@ -13,12 +13,11 @@ class UPrimitiveComponent;
 class ENGINE_API FScenePacketBuilder
 {
 public:
+	bool ShouldIncludePrimitive(UPrimitiveComponent* Primitive, const FShowFlags& ShowFlags) const;
+
 	// 이미 수집된 프리미티브를 ShowFlag 기준으로 분류해 씬 패킷에 기록한다.
 	void BuildScenePacket(
 		const TArray<UPrimitiveComponent*>& VisiblePrimitives,
 		const FShowFlags& ShowFlags,
 		FSceneRenderPacket& OutPacket);
-
-private:
-	bool ShouldIncludePrimitive(UPrimitiveComponent* Primitive, const FShowFlags& ShowFlags) const;
 };

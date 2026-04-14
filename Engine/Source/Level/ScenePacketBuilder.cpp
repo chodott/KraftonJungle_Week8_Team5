@@ -1,12 +1,13 @@
 #include "Level/ScenePacketBuilder.h"
-
+#include "Level/PrimitiveVisibilityUtils.h"
 #include "Actor/DecalActor.h"
 #include "Component/BillboardComponent.h"
+#include "Component/DecalComponent.h"
+#include "Component/ProjectileMovementComponent.h"
 #include "Component/StaticMeshComponent.h"
 #include "Component/SubUVComponent.h"
 #include "Component/TextComponent.h"
 #include "Component/UUIDBillboardComponent.h"
-#include "Component/DecalComponent.h"
 
 bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive, const FShowFlags& ShowFlags) const
 {
@@ -26,13 +27,15 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 				return false;
 			}
 		}
-	}
 
-	if (AActor* Owner = Primitive->GetOwner())
-	{
 		if (Owner->IsA(ADecalActor::StaticClass()))
 		{
 			ADecalActor* DecalActor = static_cast<ADecalActor*>(Owner);
+			if (Primitive == DecalActor->GetArrowComponent() && !ShowFlags.HasFlag(EEngineShowFlags::SF_DecalArrow))
+			{
+				return false;
+			}
+
 			if (UWorld* World = DecalActor->GetWorld())
 			{
 				const EWorldType WorldType = World->GetWorldType();
@@ -42,6 +45,11 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 					return false;
 				}
 			}
+		}
+
+		if (IsHiddenByArrowVisualizationShowFlags(Primitive, ShowFlags))
+		{
+			return false;
 		}
 	}
 

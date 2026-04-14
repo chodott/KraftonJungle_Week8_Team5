@@ -1,9 +1,11 @@
-﻿#include "Renderer/Scene/Builders/DebugSceneBuilder.h"
+#include "Renderer/Scene/Builders/DebugSceneBuilder.h"
 
 #include "Actor/Actor.h"
+#include "Component/PrimitiveComponent.h"
 #include "Component/StaticMeshComponent.h"
 #include "Component/UUIDBillboardComponent.h"
 #include "Debug/DebugDrawManager.h"
+#include "Level/PrimitiveVisibilityUtils.h"
 #include "Renderer/Features/Debug/DebugLineRenderFeature.h"
 #include "World/World.h"
 
@@ -33,6 +35,11 @@ void AppendActorSceneBVHDebug(AActor *BoundsActor, UWorld *World, const FShowFla
             continue;
         }
 
+        if (Primitive->IsEditorVisualization() || IsHiddenByArrowVisualizationShowFlags(Primitive, ShowFlags))
+        {
+            continue;
+        }
+
         const bool bIsUUIDPrimitive = Primitive->IsA(UUUIDBillboardComponent::StaticClass());
         if (bIsUUIDPrimitive && !bShowUUID)
         {
@@ -52,7 +59,8 @@ void AppendActorSceneBVHDebug(AActor *BoundsActor, UWorld *World, const FShowFla
     }
 }
 
-void AppendActorMeshBVHDebug(AActor *BoundsActor, UWorld *World, FDebugPrimitiveList &OutPrimitives)
+void AppendActorMeshBVHDebug(AActor *BoundsActor, UWorld *World, const FShowFlags &ShowFlags,
+                             FDebugPrimitiveList &OutPrimitives)
 {
     if (!BoundsActor || !World)
     {
@@ -62,9 +70,20 @@ void AppendActorMeshBVHDebug(AActor *BoundsActor, UWorld *World, FDebugPrimitive
     UStaticMeshComponent *MeshComp = nullptr;
     for (UActorComponent *Comp : BoundsActor->GetComponents())
     {
-        if (Comp && Comp->IsA(UStaticMeshComponent::StaticClass()))
+        if (!Comp || !Comp->IsA(UStaticMeshComponent::StaticClass()))
         {
-            MeshComp = static_cast<UStaticMeshComponent *>(Comp);
+            continue;
+        }
+
+        UStaticMeshComponent *Candidate = static_cast<UStaticMeshComponent *>(Comp);
+        if (Candidate->IsEditorVisualization() || IsHiddenByArrowVisualizationShowFlags(Candidate, ShowFlags))
+        {
+            continue;
+        }
+
+        if (Candidate->GetStaticMesh())
+        {
+            MeshComp = Candidate;
             break;
         }
     }
@@ -137,7 +156,7 @@ void BuildDebugLinePassInputs(const FDebugSceneBuildInputs &Inputs, FDebugLinePa
 
         if (Inputs.ShowFlags.HasFlag(EEngineShowFlags::SF_MeshBVH))
         {
-            AppendActorMeshBVHDebug(Inputs.BoundsActor, Inputs.World, Primitives);
+            AppendActorMeshBVHDebug(Inputs.BoundsActor, Inputs.World, Inputs.ShowFlags, Primitives);
         }
     }
     BuildDebugLinePassInputs(Primitives, OutPassInputs);
