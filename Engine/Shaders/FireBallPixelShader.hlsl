@@ -29,6 +29,12 @@ float3 ReconstructWorldPosition(float2 UV, float Depth)
 float4 main(VSOutput Input) : SV_Target
 {
 	float Depth = DepthTexture.Sample(DepthSampler, Input.UV).r;
+	
+	if (Depth>= 1 - 1e-6f)
+	{
+		return float4(0.0f, 0.0f, 0.0f, 0.0f);
+	}
+	
 	float3 WorldPosition = ReconstructWorldPosition(Input.UV, Depth);
 
 	float3 ddxWP = ddx(WorldPosition);
@@ -46,7 +52,7 @@ float4 main(VSOutput Input) : SV_Target
 	float Distance = length(FireballOrigin.xyz - WorldPosition);
 	float Attenuation = saturate(1.0f - (Distance / max(Radius, 1e-6f)));
 	Attenuation = pow(Attenuation, RadiusFalloff);
-	Attenuation *= NdotL;
+	// Attenuation *= NdotL; Not Work Well...
 
 	float4 FinalColor = Color * Intensity * Attenuation;
 	FinalColor.a = Attenuation;
