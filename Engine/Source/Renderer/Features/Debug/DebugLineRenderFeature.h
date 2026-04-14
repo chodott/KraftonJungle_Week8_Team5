@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Renderer/Features/Debug/DebugTypes.h"
@@ -22,4 +22,8 @@ public:
 		const FSceneRenderTargets& Targets,
 		FDebugLinePassInputs& PassInputs);
 	void Release();
+
+private:
+	bool EnsureDebugDepthState(ID3D11Device* Device);
+	ID3D11DepthStencilState* DebugDepthOffState = nullptr;
 };
