@@ -11,6 +11,7 @@ public:
 	DECLARE_RTTI(APlayerCameraActor, AActor)
 
 	void PostSpawnInitialize() override;
+	void Serialize(FArchive& Ar) override;
 	void FixupDuplicatedReferences(UObject* DuplicatedObject, const FDuplicateContext& Context) const override;
 
 	UCameraComponent* GetCameraComponent() const { return CameraComponent; }

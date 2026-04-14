@@ -2,6 +2,7 @@
 
 #include "Camera/Camera.h"
 #include "Component/CameraComponent.h"
+#include "Component/SceneComponent.h"
 #include "Component/StaticMeshComponent.h"
 #include "Math/Quat.h"
 #include "Object/Class.h"
@@ -9,6 +10,7 @@
 #include "Primitive/PrimitiveGizmo.h"
 #include "Renderer/Resources/Material/MaterialManager.h"
 #include "Renderer/Mesh/MeshData.h"
+#include "Serializer/Archive.h"
 
 namespace
 {
@@ -57,6 +59,40 @@ namespace
 
 IMPLEMENT_RTTI(APlayerCameraActor, AActor)
 
+namespace
+{
+	template <typename TComponent>
+	TComponent* FindCameraActorComponentByName(const APlayerCameraActor* Actor, const char* ComponentName, TArray<UActorComponent*>* OutDuplicates = nullptr)
+	{
+		if (!Actor)
+		{
+			return nullptr;
+		}
+
+		TComponent* FoundComponent = nullptr;
+		for (UActorComponent* Component : Actor->GetComponents())
+		{
+			if (!Component || !Component->IsA(TComponent::StaticClass()) || Component->GetName() != ComponentName)
+			{
+				continue;
+			}
+
+			if (!FoundComponent)
+			{
+				FoundComponent = static_cast<TComponent*>(Component);
+				continue;
+			}
+
+			if (OutDuplicates)
+			{
+				OutDuplicates->push_back(Component);
+			}
+		}
+
+		return FoundComponent;
+	}
+}
+
 void APlayerCameraActor::PostSpawnInitialize()
 {
 	CameraComponent = FObjectFactory::ConstructObject<UCameraComponent>(this, "PlayerCameraComponent");
@@ -79,6 +115,46 @@ void APlayerCameraActor::PostSpawnInitialize()
 	SyncCameraComponentState();
 
 	AActor::PostSpawnInitialize();
+}
+
+void APlayerCameraActor::Serialize(FArchive& Ar)
+{
+	AActor::Serialize(Ar);
+
+	if (!Ar.IsLoading())
+	{
+		return;
+	}
+
+	TArray<UActorComponent*> DuplicateComponents;
+	CameraComponent = FindCameraActorComponentByName<UCameraComponent>(this, "PlayerCameraComponent", &DuplicateComponents);
+	VisualizerComponent = FindCameraActorComponentByName<UStaticMeshComponent>(this, "PlayerCameraVisualizer", &DuplicateComponents);
+
+	for (UActorComponent* DuplicateComponent : DuplicateComponents)
+	{
+		if (!DuplicateComponent)
+		{
+			continue;
+		}
+
+		if (DuplicateComponent->IsA(USceneComponent::StaticClass()))
+		{
+			static_cast<USceneComponent*>(DuplicateComponent)->DetachFromParent();
+		}
+
+		RemoveOwnedComponent(DuplicateComponent);
+	}
+
+	if (VisualizerComponent)
+	{
+		VisualizerComponent->DetachFromParent();
+		if (CameraComponent)
+		{
+			VisualizerComponent->AttachTo(CameraComponent);
+		}
+	}
+
+	SyncCameraComponentState();
 }
 
 void APlayerCameraActor::FixupDuplicatedReferences(UObject* DuplicatedObject, const FDuplicateContext& Context) const
