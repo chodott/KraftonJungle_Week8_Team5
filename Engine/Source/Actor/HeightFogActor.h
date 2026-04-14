@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Actor/Actor.h"
 #include "Component/HeightFogComponent.h"
+#include "Component/BillboardComponent.h"
 
 class ENGINE_API AHeightFogActor : public AActor
 {
@@ -13,4 +14,5 @@ class ENGINE_API AHeightFogActor : public AActor
 
 private:
 	UHeightFogComponent* HeightFogComponent = nullptr;
+	UBillboardComponent* BillboardComponent = nullptr;
 };
