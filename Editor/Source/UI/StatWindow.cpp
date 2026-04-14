@@ -5,7 +5,7 @@
 #include "Memory/MemoryBase.h"
 #include "Viewport/ViewportTypes.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/DecalStats.h"
+#include "Renderer/Features/Decal/DecalRenderFeature.h"
 
 #include "imgui.h"
 

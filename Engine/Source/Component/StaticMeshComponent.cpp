@@ -3,12 +3,12 @@
 #include <filesystem>
 
 #include "Object/Class.h"
-#include "PrimitiveComponent.h"
-#include "MeshComponent.h"
+#include "Component/PrimitiveComponent.h"
+#include "Component/MeshComponent.h"
 #include "Asset/ObjManager.h"
 #include "Core/Paths.h"
 #include "Debug/EngineLog.h"
-#include "Renderer/Material.h"
+#include "Renderer/Resources/Material/Material.h"
 IMPLEMENT_RTTI(UStaticMeshComponent, UMeshComponent)
 
 void UStaticMeshComponent::SetStaticMesh(UStaticMesh* InStaticMesh)

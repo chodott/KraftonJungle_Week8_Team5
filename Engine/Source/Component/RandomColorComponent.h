@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ActorComponent.h"
-#include "Renderer/Material.h"
+#include "Component/ActorComponent.h"
+#include "Renderer/Resources/Material/Material.h"
 #include <memory>
 
 class FDynamicMaterial;

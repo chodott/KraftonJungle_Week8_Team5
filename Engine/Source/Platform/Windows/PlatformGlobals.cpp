@@ -1,3 +1,3 @@
-#include "PlatformGlobals.h"
+#include "Platform/Windows/PlatformGlobals.h"
 
 HINSTANCE GhInstance = nullptr;

@@ -2,7 +2,7 @@
 #include "CoreMinimal.h"
 #include <Windows.h>
 #include <functional>
-#include "WindowTypes.h"
+#include "Platform/Windows/WindowTypes.h"
 
 class ENGINE_API FWindowsWindow
 {

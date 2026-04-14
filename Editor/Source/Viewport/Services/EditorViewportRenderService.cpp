@@ -6,7 +6,7 @@
 #include "Core/Engine.h"
 #include "Gizmo/Gizmo.h"
 #include "Math/Frustum.h"
-#include "Renderer/Material.h"
+#include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Renderer.h"
 #include "Level/Level.h"
 #include "UI/EditorUI.h"

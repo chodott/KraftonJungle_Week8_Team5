@@ -1,4 +1,4 @@
-#include "ViewportClient.h"
+#include "Core/ViewportClient.h"
 #include "World/World.h"
 #include "Input/InputManager.h"
 #include "Camera/Camera.h"
@@ -13,7 +13,7 @@
 #include "Math/Frustum.h"
 #include "Component/PrimitiveComponent.h"
 #include "Component/FireBallComponent.h"
-#include "ShowFlags.h"
+#include "Core/ShowFlags.h"
 
 
 namespace
@@ -55,7 +55,7 @@ namespace
 		}
 		
 		const TArray<AActor*> Actors = Level->GetActors();
-		OutPacket.FireBAllPrimitives.reserve(OutPacket.FireBAllPrimitives.size() + Actors.size());
+		OutPacket.FireBallPrimitives.reserve(OutPacket.FireBallPrimitives.size() + Actors.size());
 		
 		for (AActor* Actor : Actors)
 		{
@@ -71,7 +71,7 @@ namespace
 					continue;
 				}
 				
-				OutPacket.FireBAllPrimitives.push_back({ static_cast<UFireBallComponent*>(Component) });
+				OutPacket.FireBallPrimitives.push_back({ static_cast<UFireBallComponent*>(Component) });
 			}
 		}
 	}

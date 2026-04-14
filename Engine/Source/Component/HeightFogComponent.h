@@ -1,8 +1,8 @@
 #pragma once
 
-#include "PrimitiveComponent.h"
+#include "Component/PrimitiveComponent.h"
 
-#include "Renderer/LinearColor.h"
+#include "Math/LinearColor.h"
 
 class FArchive;
 

@@ -2,7 +2,7 @@
 #include "Component/CameraComponent.h"
 #include "Input/InputManager.h"
 #include "Input/EnhancedInputManager.h"
-#include "Input/InputTrigger.h"
+#include "Input/inputTrigger.h"
 #include "Input/InputModifier.h"
 #include "Input/InputMappingContext.h"
 #include "Camera/Camera.h"

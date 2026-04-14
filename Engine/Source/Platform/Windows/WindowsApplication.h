@@ -1,6 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
-#include "WindowTypes.h"
+#include "Platform/Windows/WindowTypes.h"
 
 class FWindowsWindow;
 

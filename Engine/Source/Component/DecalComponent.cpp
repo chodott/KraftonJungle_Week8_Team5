@@ -1,4 +1,4 @@
-#include "DecalComponent.h"
+#include "Component/DecalComponent.h"
 
 #include <algorithm>
 

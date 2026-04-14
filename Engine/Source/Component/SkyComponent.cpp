@@ -1,12 +1,12 @@
-#include "SkyComponent.h"
+#include "Component/SkyComponent.h"
 
 #include <filesystem>
 
 #include "Actor/Actor.h"
 #include "Asset/ObjManager.h"
 #include "Object/Class.h"
-#include "Renderer/MaterialManager.h"
-#include "CameraComponent.h"
+#include "Renderer/Resources/Material/MaterialManager.h"
+#include "Component/CameraComponent.h"
 #include "Camera/Camera.h"
 #include "Core/Paths.h"
 #include "World/World.h"

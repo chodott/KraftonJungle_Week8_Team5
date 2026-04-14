@@ -1,6 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
-#include "InputTrigger.h"
+#include "Input/inputTrigger.h"
 #include <functional>
 
 class FInputManager;

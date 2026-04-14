@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "BVH.h"
+#include "Level/BVH.h"
 
 struct FRenderMesh;
 

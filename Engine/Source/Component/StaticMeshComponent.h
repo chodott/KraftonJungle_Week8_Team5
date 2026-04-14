@@ -1,7 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
-#include "PrimitiveComponent.h"
-#include "MeshComponent.h"
+#include "Component/PrimitiveComponent.h"
+#include "Component/MeshComponent.h"
 #include "Serializer/Archive.h"
 
 class UStaticMesh;

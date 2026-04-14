@@ -1,7 +1,7 @@
-#include "EngineLoop.h"
+#include "Core/EngineLoop.h"
 
-#include "Engine.h"
-#include "GameEngine.h"
+#include "Core/Engine.h"
+#include "Core/GameEngine.h"
 #include "Platform/Windows/WindowsApplication.h"
 #include "Platform/Windows/WindowsWindow.h"
 #include <functional>

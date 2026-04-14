@@ -1,5 +1,5 @@
 #pragma once
-#include "Renderer/MeshData.h"
+#include "Renderer/Mesh/MeshData.h"
 
 struct FDynamicMesh;
 struct FRotationGizmoDesc;

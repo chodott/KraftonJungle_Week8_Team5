@@ -1,6 +1,6 @@
-#include "WindowsApplication.h"
-#include "PlatformGlobals.h"
-#include "WindowsWindow.h"
+#include "Platform/Windows/WindowsApplication.h"
+#include "Platform/Windows/PlatformGlobals.h"
+#include "Platform/Windows/WindowsWindow.h"
 
 
 TMap<HWND, FWindowsWindow*> FWindowsApplication::WindowMap;

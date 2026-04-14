@@ -1,5 +1,5 @@
 #pragma once
-#include "SceneComponent.h"
+#include "Component/SceneComponent.h"
 
 class ENGINE_API UMoveComponent : public USceneComponent
 {
