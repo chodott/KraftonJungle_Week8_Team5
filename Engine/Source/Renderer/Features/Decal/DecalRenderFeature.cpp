@@ -5,6 +5,7 @@
 #include "Renderer/Renderer.h"
 #include "Renderer/Resources/Shader/ShaderResource.h"
 #include <algorithm>
+#include <filesystem>
 
 #include "Renderer/Mesh/Vertex.h"
 #include "Renderer/Resources/Shader/ShaderMap.h"
@@ -92,6 +93,78 @@ namespace
 		int32 Slice = static_cast<int32>(std::floor(std::log(Depth) * LogScale + LogBias));
 		Slice = std::clamp(Slice, 0, static_cast<int32>(Request.ClusterCountZ) - 1);
 		return static_cast<uint32>(Slice);
+	}
+
+	static uint64 HashBytes(uint64 Seed, const void* Data, size_t Size)
+	{
+		const uint8* Bytes = reinterpret_cast<const uint8*>(Data);
+		uint64 Hash = Seed;
+		for (size_t Index = 0; Index < Size; ++Index)
+		{
+			Hash ^= static_cast<uint64>(Bytes[Index]);
+			Hash *= 1099511628211ull;
+		}
+		return Hash;
+	}
+
+	template <typename TValue>
+	static uint64 HashValue(uint64 Seed, const TValue& Value)
+	{
+		return HashBytes(Seed, &Value, sizeof(TValue));
+	}
+
+	static uint64 HashWideString(uint64 Seed, const std::wstring& Value)
+	{
+		if (Value.empty())
+		{
+			static const wchar_t EmptyMarker = L'\0';
+			return HashBytes(Seed, &EmptyMarker, sizeof(EmptyMarker));
+		}
+
+		const std::wstring NormalizedPath = std::filesystem::path(Value).lexically_normal().wstring();
+		return HashBytes(Seed, NormalizedPath.data(), NormalizedPath.size() * sizeof(wchar_t));
+	}
+
+	static uint64 ComputeDecalRequestSignature(const FDecalRenderRequest& Request)
+	{
+		uint64 Hash = 1469598103934665603ull;
+
+		Hash = HashValue(Hash, Request.ViewProjection);
+		Hash = HashValue(Hash, Request.ViewportWidth);
+		Hash = HashValue(Hash, Request.ViewportHeight);
+		Hash = HashValue(Hash, Request.NearZ);
+		Hash = HashValue(Hash, Request.FarZ);
+		Hash = HashValue(Hash, Request.ClusterCountX);
+		Hash = HashValue(Hash, Request.ClusterCountY);
+		Hash = HashValue(Hash, Request.ClusterCountZ);
+		Hash = HashValue(Hash, Request.ReceiverLayerMask);
+		Hash = HashValue(Hash, Request.MaxClusterItems);
+		Hash = HashValue(Hash, static_cast<uint32>(Request.bEnabled ? 1u : 0u));
+		Hash = HashValue(Hash, static_cast<uint32>(Request.bSortByPriority ? 1u : 0u));
+		Hash = HashValue(Hash, static_cast<uint32>(Request.bClampClusterItemCount ? 1u : 0u));
+		Hash = HashValue(Hash, static_cast<uint32>(Request.Items.size()));
+
+		for (const FDecalRenderItem& Item : Request.Items)
+		{
+			Hash = HashValue(Hash, Item.DecalWorld);
+			Hash = HashValue(Hash, Item.WorldToDecal);
+			Hash = HashValue(Hash, Item.Extents);
+			Hash = HashValue(Hash, Item.TextureIndex);
+			Hash = HashWideString(Hash, Item.TexturePath);
+			Hash = HashValue(Hash, Item.Flags);
+			Hash = HashValue(Hash, Item.Priority);
+			Hash = HashValue(Hash, Item.ReceiverLayerMask);
+			Hash = HashValue(Hash, Item.AtlasScaleBias);
+			Hash = HashValue(Hash, Item.BaseColorTint);
+			Hash = HashValue(Hash, Item.NormalBlend);
+			Hash = HashValue(Hash, Item.RoughnessBlend);
+			Hash = HashValue(Hash, Item.EmissiveBlend);
+			Hash = HashValue(Hash, Item.EdgeFade);
+			Hash = HashValue(Hash, static_cast<uint32>(Item.bIsFading ? 1u : 0u));
+			Hash = HashValue(Hash, Item.AllowAngle);
+		}
+
+		return Hash;
 	}
 
 	static bool ComputeDecalClusterRange(
@@ -721,16 +794,13 @@ bool FDecalRenderFeature::BuildFrameData(
 	FDecalPreparedViewData& OutPreparedData,
 	FDecalFrameStats& OutFrameStats)
 {
-	const bool bViewChanged = (Request.ViewProjection != CachedViewProjection);
-	const bool bDecalCountChanged = (Request.Items.size() != CachedDecalCount);
-	
-	if (!bViewChanged && !bDecalCountChanged && bClusterDataValid)
+	const uint64 RequestSignature = ComputeDecalRequestSignature(Request);
+	if (bClusterDataValid && RequestSignature == CachedRequestSignature)
 	{
 		return true;
 	}
-	
-	CachedDecalCount = static_cast<uint32>(Request.Items.size());
-	CachedViewProjection = Request.ViewProjection;
+
+	CachedRequestSignature = RequestSignature;
 	bClusterDataValid = true;
 
 	OutPreparedData.DecalGPUItems.clear();

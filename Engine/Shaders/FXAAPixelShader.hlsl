@@ -15,7 +15,8 @@ SamplerState LinearSampler : register(s0);
 
 float Luminance(float3 c)
 {
-	return dot(c, float3(0.299f, 0.587f, 0.114f));
+	// return dot(c, float3(0.299f, 0.587f, 0.114f));
+	return c.y * (0.587/0.299) + c.x;
 }
 
 float4 main(VSOutput Input) : SV_Target

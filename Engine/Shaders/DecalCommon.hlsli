@@ -167,7 +167,8 @@ float4 ApplyBaseColorDecals(
 		}
 
 		const float4 DecalColor = DecalBaseColorTextureArray.Sample(DecalSampler, float3(DecalUV, (float)Decal.TextureIndex)) * Decal.BaseColorTint;
-		const float BlendAlpha = saturate(DecalColor.a);
+		// const float BlendAlpha = saturate(DecalColor.a);
+		const float BlendAlpha = saturate(DecalColor.a * ComputeDecalEdgeFade(LocalPosition, Decal.Extents, Decal.EdgeFade));
 		ResultColor = lerp(ResultColor, DecalColor.rgb, BlendAlpha);
 	}
 
