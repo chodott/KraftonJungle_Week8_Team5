@@ -2,6 +2,7 @@
 
 #include "Camera/Camera.h"
 #include "Component/CameraComponent.h"
+#include "Component/SceneComponent.h"
 #include "Component/StaticMeshComponent.h"
 #include "Math/Quat.h"
 #include "Object/Class.h"
@@ -9,6 +10,7 @@
 #include "Primitive/PrimitiveGizmo.h"
 #include "Renderer/Resources/Material/MaterialManager.h"
 #include "Renderer/Mesh/MeshData.h"
+#include "Serializer/Archive.h"
 
 namespace
 {
@@ -57,6 +59,30 @@ namespace
 
 IMPLEMENT_RTTI(APlayerCameraActor, AActor)
 
+namespace
+{
+	template <typename TComponent>
+	TComponent* FindCameraActorComponentByName(const APlayerCameraActor* Actor, const char* ComponentName)
+	{
+		if (!Actor)
+		{
+			return nullptr;
+		}
+
+		for (UActorComponent* Component : Actor->GetComponents())
+		{
+			if (!Component || !Component->IsA(TComponent::StaticClass()) || Component->GetName() != ComponentName)
+			{
+				continue;
+			}
+
+			return static_cast<TComponent*>(Component);
+		}
+
+		return nullptr;
+	}
+}
+
 void APlayerCameraActor::PostSpawnInitialize()
 {
 	CameraComponent = FObjectFactory::ConstructObject<UCameraComponent>(this, "PlayerCameraComponent");
@@ -79,6 +105,30 @@ void APlayerCameraActor::PostSpawnInitialize()
 	SyncCameraComponentState();
 
 	AActor::PostSpawnInitialize();
+}
+
+void APlayerCameraActor::Serialize(FArchive& Ar)
+{
+	AActor::Serialize(Ar);
+
+	if (!Ar.IsLoading())
+	{
+		return;
+	}
+
+	CameraComponent = FindCameraActorComponentByName<UCameraComponent>(this, "PlayerCameraComponent");
+	VisualizerComponent = FindCameraActorComponentByName<UStaticMeshComponent>(this, "PlayerCameraVisualizer");
+
+	if (VisualizerComponent)
+	{
+		VisualizerComponent->DetachFromParent();
+		if (CameraComponent)
+		{
+			VisualizerComponent->AttachTo(CameraComponent);
+		}
+	}
+
+	SyncCameraComponentState();
 }
 
 void APlayerCameraActor::FixupDuplicatedReferences(UObject* DuplicatedObject, const FDuplicateContext& Context) const

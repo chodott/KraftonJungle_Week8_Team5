@@ -8,6 +8,9 @@
 
 namespace
 {
+	constexpr const char* GMaterialBaseColorCountKey = "MaterialBaseColorCount";
+	constexpr const char* GMaterialBaseColorKeyPrefix = "MaterialBaseColor_";
+
 	std::shared_ptr<FMaterial> DuplicateMaterialInstance(const std::shared_ptr<FMaterial>& SourceMaterial)
 	{
 		if (!SourceMaterial)
@@ -72,6 +75,19 @@ void UMeshComponent::Serialize(FArchive& Ar)
 			else MaterialNames.push_back("");
 		}
 		Ar.SerializeStringArray("Materials", MaterialNames);
+
+		int32 MaterialBaseColorCount = static_cast<int32>(Materials.size());
+		Ar.Serialize(GMaterialBaseColorCountKey, MaterialBaseColorCount);
+		for (int32 MaterialIndex = 0; MaterialIndex < MaterialBaseColorCount; ++MaterialIndex)
+		{
+			FVector4 BaseColor(1.0f, 1.0f, 1.0f, 1.0f);
+			if (const std::shared_ptr<FMaterial>& Material = Materials[MaterialIndex])
+			{
+				BaseColor = Material->GetVectorParameter("BaseColor");
+			}
+
+			Ar.Serialize(FString(GMaterialBaseColorKeyPrefix) + std::to_string(MaterialIndex), BaseColor);
+		}
 	}
 	else
 	{
@@ -90,6 +106,35 @@ void UMeshComponent::Serialize(FArchive& Ar)
 				}
 				else Materials.push_back(nullptr);
 			}
+		}
+
+		int32 MaterialBaseColorCount = 0;
+		Ar.Serialize(GMaterialBaseColorCountKey, MaterialBaseColorCount);
+		for (int32 MaterialIndex = 0; MaterialIndex < MaterialBaseColorCount; ++MaterialIndex)
+		{
+			const FString BaseColorKey = FString(GMaterialBaseColorKeyPrefix) + std::to_string(MaterialIndex);
+			if (!Ar.Contains(BaseColorKey) || MaterialIndex < 0 || MaterialIndex >= static_cast<int32>(Materials.size()))
+			{
+				continue;
+			}
+
+			FVector4 BaseColor(1.0f, 1.0f, 1.0f, 1.0f);
+			Ar.Serialize(BaseColorKey, BaseColor);
+
+			if (!Materials[MaterialIndex])
+			{
+				continue;
+			}
+
+			std::shared_ptr<FMaterial> MaterialInstance = DuplicateMaterialInstance(Materials[MaterialIndex]);
+			if (!MaterialInstance)
+			{
+				continue;
+			}
+
+			const float BaseColorArray[4] = { BaseColor.X, BaseColor.Y, BaseColor.Z, BaseColor.W };
+			MaterialInstance->SetParameterData("BaseColor", BaseColorArray, sizeof(BaseColorArray));
+			Materials[MaterialIndex] = MaterialInstance;
 		}
 	}
 }

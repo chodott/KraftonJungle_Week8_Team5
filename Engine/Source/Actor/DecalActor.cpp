@@ -2,6 +2,7 @@
 
 #include "Component/BillboardComponent.h"
 #include "Component/DecalComponent.h"
+#include "Component/SceneComponent.h"
 #include "Component/StaticMeshComponent.h"
 #include "Core/Paths.h"
 #include "Object/Class.h"
@@ -9,6 +10,7 @@
 #include "Primitive/PrimitiveGizmo.h"
 #include "Renderer/Resources/Material/MaterialManager.h"
 #include "Renderer/Mesh/MeshData.h"
+#include "Serializer/Archive.h"
 
 namespace
 {
@@ -91,6 +93,57 @@ void ADecalActor::PostSpawnInitialize()
 	}
 
 	AActor::PostSpawnInitialize();
+}
+
+void ADecalActor::Serialize(FArchive& Ar)
+{
+	AActor::Serialize(Ar);
+
+	if (!Ar.IsLoading())
+	{
+		return;
+	}
+
+	DecalComponent = GetComponentByClass<UDecalComponent>();
+
+	BillboardComponent = nullptr;
+	ArrowComponent = nullptr;
+	for (UActorComponent* Component : GetComponents())
+	{
+		if (!Component)
+		{
+			continue;
+		}
+
+		if (!BillboardComponent && Component->IsA(UBillboardComponent::StaticClass()) && Component->GetName() == "BillboardComponent")
+		{
+			BillboardComponent = static_cast<UBillboardComponent*>(Component);
+			continue;
+		}
+
+		if (!ArrowComponent && Component->IsA(UStaticMeshComponent::StaticClass()) && Component->GetName() == "ArrowComponent")
+		{
+			ArrowComponent = static_cast<UStaticMeshComponent*>(Component);
+		}
+	}
+
+	if (BillboardComponent)
+	{
+		BillboardComponent->DetachFromParent();
+		if (DecalComponent)
+		{
+			BillboardComponent->AttachTo(DecalComponent);
+		}
+	}
+
+	if (ArrowComponent)
+	{
+		ArrowComponent->DetachFromParent();
+		if (BillboardComponent)
+		{
+			ArrowComponent->AttachTo(BillboardComponent);
+		}
+	}
 }
 
 void ADecalActor::FixupDuplicatedReferences(UObject* DuplicatedObject, const FDuplicateContext& Context) const

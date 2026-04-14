@@ -16,6 +16,27 @@ IMPLEMENT_RTTI(ASpotLightFakeActor, AActor)
 namespace
 {
 	const std::wstring GSpotLightFakeCircularMaskPath = L"__SpotLightFakeCircularMask__";
+
+	template <typename TComponent>
+	TComponent* FindSpotLightComponentByName(const ASpotLightFakeActor* Actor, const char* ComponentName)
+	{
+		if (!Actor)
+		{
+			return nullptr;
+		}
+
+		for (UActorComponent* Component : Actor->GetComponents())
+		{
+			if (!Component || !Component->IsA(TComponent::StaticClass()) || Component->GetName() != ComponentName)
+			{
+				continue;
+			}
+
+			return static_cast<TComponent*>(Component);
+		}
+
+		return nullptr;
+	}
 }
 
 void ASpotLightFakeActor::PostSpawnInitialize()
@@ -44,8 +65,9 @@ void ASpotLightFakeActor::PostSpawnInitialize()
 	{
 		AddOwnedComponent(BillboardComponent);
 		BillboardComponent->AttachTo(RootSceneComponent);
-		BillboardComponent->SetSize(FVector2(0.5f, 0.5f));
-		BillboardComponent->SetTexturePath((FPaths::IconDir() / L"SpotLight_64x.png").wstring());
+		BillboardComponent->SetSize(FVector2(2.5f, 2.5f));
+		BillboardComponent->SetAxisLockMode(UBillboardComponent::EAxisLockMode::LocalZ);
+		BillboardComponent->SetTexturePath((FPaths::IconDir() / L"SpotLight1.png").wstring());
 		BillboardComponent->SetHiddenInGame(false);
 	}
 
@@ -62,11 +84,43 @@ void ASpotLightFakeActor::Serialize(FArchive& Ar)
 
 	if (Ar.IsLoading())
 	{
+		RootSceneComponent = FindSpotLightComponentByName<USceneComponent>(this, "RootSceneComponent");
+		DecalComponent = FindSpotLightComponentByName<UDecalComponent>(this, "DecalComponent");
+		BillboardComponent = FindSpotLightComponentByName<UBillboardComponent>(this, "BillboardComponent");
+
+		if (RootSceneComponent)
+		{
+			SetRootComponent(RootSceneComponent);
+		}
+
 		DecalFadeRadius = (std::max)(0.0f, DecalFadeRadius);
 		if (DecalComponent)
 		{
+			DecalComponent->DetachFromParent();
+			if (RootSceneComponent)
+			{
+				DecalComponent->AttachTo(RootSceneComponent);
+			}
+
+			const std::filesystem::path TexturePath = FPaths::ToPath(FPaths::FromWide(DecalComponent->GetTexturePath()));
+			if (TexturePath.filename() == std::filesystem::path(GSpotLightFakeCircularMaskPath))
+			{
+				SetDecalTexturePath(L"");
+			}
+
 			DecalComponent->SetEdgeFade(bDecalFadeEnabled ? DecalFadeRadius : 0.0f);
 		}
+
+		if (BillboardComponent)
+		{
+			BillboardComponent->DetachFromParent();
+			if (RootSceneComponent)
+			{
+				BillboardComponent->AttachTo(RootSceneComponent);
+			}
+		}
+
+		UpdateBillboardPlacement();
 	}
 }
 

@@ -1,4 +1,4 @@
-﻿#include "BillboardRenderer.h"
+#include "BillboardRenderer.h"
 
 #include <WICTextureLoader.h>
 #include <algorithm>
@@ -79,11 +79,12 @@ bool FBillboardRenderer::Initialize(FRenderer& InRenderer)
 	BillboardMaterial->SetBlendOption(BlendOption);
 	BillboardMaterial->SetBlendState(InRenderer.GetRenderStateManager()->GetOrCreateBlendState(BlendOption));
 
-	const int32 SlotIndex = BillboardMaterial->CreateConstantBuffer(Device, 16);
+	const int32 SlotIndex = BillboardMaterial->CreateConstantBuffer(Device, 32);
 	if (SlotIndex >= 0)
 	{
 		BillboardMaterial->RegisterParameter("CellSize", SlotIndex, 0, sizeof(FVector2));
 		BillboardMaterial->RegisterParameter("UVOffset", SlotIndex, sizeof(FVector2), sizeof(FVector2));
+		BillboardMaterial->RegisterParameter("BaseColor", SlotIndex, 16, sizeof(FVector4));
 	}
 
 	return true;
@@ -160,8 +161,10 @@ FMaterial* FBillboardRenderer::GetOrCreateMaterial(const UBillboardComponent& Co
 	Material->SetMaterialTexture(Texture);
 	const FVector2 CellSize = Component.GetUVMax() - Component.GetUVMin();
 	const FVector2 UVOffset = Component.GetUVMin();
+	const FVector4 BaseColor = Component.GetBaseColor();
 	Material->SetParameterData("CellSize", &CellSize, sizeof(FVector2));
 	Material->SetParameterData("UVOffset", &UVOffset, sizeof(FVector2));
+	Material->SetParameterData("BaseColor", &BaseColor, sizeof(FVector4));
 	return Material;
 }
 
@@ -186,14 +189,16 @@ std::shared_ptr<FMaterialTexture> FBillboardRenderer::GetOrLoadTexture(const std
 		return nullptr;
 	}
 
-	auto Found = TextureCache.find(Path);
+	const std::wstring NormalizedPath = std::filesystem::path(Path).lexically_normal().wstring();
+
+	auto Found = TextureCache.find(NormalizedPath);
 	if (Found != TextureCache.end())
 	{
 		return Found->second;
 	}
 
 	ID3D11ShaderResourceView* SRV = nullptr;
-	HRESULT Hr = DirectX::CreateWICTextureFromFile(Device, DeviceContext, Path.c_str(), nullptr, &SRV);
+	HRESULT Hr = DirectX::CreateWICTextureFromFile(Device, DeviceContext, NormalizedPath.c_str(), nullptr, &SRV);
 	if (FAILED(Hr) || !SRV)
 	{
 		return nullptr;
@@ -218,6 +223,6 @@ std::shared_ptr<FMaterialTexture> FBillboardRenderer::GetOrLoadTexture(const std
 	auto MaterialTexture = std::make_shared<FMaterialTexture>();
 	MaterialTexture->TextureSRV = SRV;
 	MaterialTexture->SamplerState = Sampler;
-	TextureCache[Path] = MaterialTexture;
+	TextureCache[NormalizedPath] = MaterialTexture;
 	return MaterialTexture;
 }
