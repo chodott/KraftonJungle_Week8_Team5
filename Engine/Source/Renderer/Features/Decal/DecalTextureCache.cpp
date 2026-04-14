@@ -5,11 +5,41 @@
 #include "Debug/EngineLog.h"
 
 #include <fstream>
+#include <cmath>
 #include <vector>
 
 namespace
 {
     static constexpr uint32 DECAL_MAX_TEXTURE_SLICES = 16;
+    static const std::wstring GSpotLightFakeCircularMaskPath = L"__SpotLightFakeCircularMask__";
+
+    std::vector<unsigned char> CreateCircularMaskPixels(uint32 Width, uint32 Height)
+    {
+        std::vector<unsigned char> Pixels(Width * Height * 4, 255u);
+        const float InvWidth = Width > 1 ? 1.0f / static_cast<float>(Width - 1) : 0.0f;
+        const float InvHeight = Height > 1 ? 1.0f / static_cast<float>(Height - 1) : 0.0f;
+
+        for (uint32 Y = 0; Y < Height; ++Y)
+        {
+            for (uint32 X = 0; X < Width; ++X)
+            {
+                const float U = static_cast<float>(X) * InvWidth;
+                const float V = static_cast<float>(Y) * InvHeight;
+                const float DX = U * 2.0f - 1.0f;
+                const float DY = V * 2.0f - 1.0f;
+                const float Distance = std::sqrt(DX * DX + DY * DY);
+                const float Alpha = std::clamp((1.0f - Distance) * 16.0f, 0.0f, 1.0f);
+
+                const size_t PixelIndex = static_cast<size_t>(Y) * Width * 4 + static_cast<size_t>(X) * 4;
+                Pixels[PixelIndex + 0] = 255u;
+                Pixels[PixelIndex + 1] = 255u;
+                Pixels[PixelIndex + 2] = 255u;
+                Pixels[PixelIndex + 3] = static_cast<unsigned char>(Alpha * 255.0f);
+            }
+        }
+
+        return Pixels;
+    }
 }
 
 bool FDecalTextureCache::CreateSolidColorTextureSRV(ID3D11Device* Device, uint32 PackedRGBA, ID3D11ShaderResourceView** OutSRV)
@@ -168,6 +198,29 @@ void FDecalTextureCache::ResolveTextureArray(ID3D11Device* Device, FSceneViewDat
             continue;
         }
 
+        if (Item.TexturePath == GSpotLightFakeCircularMaskPath)
+        {
+            auto Found = PathToSlice.find(GSpotLightFakeCircularMaskPath);
+            if (Found != PathToSlice.end())
+            {
+                Item.TextureIndex = Found->second;
+                continue;
+            }
+
+            if (SlicePaths.size() >= DECAL_MAX_TEXTURE_SLICES)
+            {
+                PathToSlice.emplace(GSpotLightFakeCircularMaskPath, 0u);
+                Item.TextureIndex = 0;
+                continue;
+            }
+
+            const uint32 NewIndex = static_cast<uint32>(SlicePaths.size());
+            SlicePaths.push_back(GSpotLightFakeCircularMaskPath);
+            PathToSlice.emplace(GSpotLightFakeCircularMaskPath, NewIndex);
+            Item.TextureIndex = NewIndex;
+            continue;
+        }
+
         const std::wstring NormalizedPath = std::filesystem::path(Item.TexturePath).lexically_normal().wstring();
         auto Found = PathToSlice.find(NormalizedPath);
         if (Found != PathToSlice.end())
@@ -228,6 +281,22 @@ void FDecalTextureCache::ResolveTextureArray(ID3D11Device* Device, FSceneViewDat
     for (uint32 i = 1; i < ArraySize; ++i)
     {
         const std::wstring& Path = SlicePaths[i];
+        if (Path == GSpotLightFakeCircularMaskPath)
+        {
+            const uint32 Width = CanonicalW > 0 ? CanonicalW : 64u;
+            const uint32 Height = CanonicalH > 0 ? CanonicalH : 64u;
+            if (CanonicalW == 0)
+            {
+                CanonicalW = Width;
+                CanonicalH = Height;
+            }
+
+            Slices[i].W = CanonicalW;
+            Slices[i].H = CanonicalH;
+            Slices[i].Pixels = CreateCircularMaskPixels(CanonicalW, CanonicalH);
+            continue;
+        }
+
         std::vector<unsigned char> Pixels;
         uint32 Width = 0;
         uint32 Height = 0;

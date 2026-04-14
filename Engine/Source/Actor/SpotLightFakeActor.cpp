@@ -13,6 +13,11 @@
 
 IMPLEMENT_RTTI(ASpotLightFakeActor, AActor)
 
+namespace
+{
+	const std::wstring GSpotLightFakeCircularMaskPath = L"__SpotLightFakeCircularMask__";
+}
+
 void ASpotLightFakeActor::PostSpawnInitialize()
 {
 	RootSceneComponent = FObjectFactory::ConstructObject<USceneComponent>(this, "RootSceneComponent");
@@ -28,7 +33,7 @@ void ASpotLightFakeActor::PostSpawnInitialize()
 			FVector::ZeroVector,
 			FVector::OneVector));
 		DecalComponent->SetExtents(FVector(3.0f, 1.5f, 1.5f));
-		DecalComponent->SetTexturePath((FPaths::IconDir() / L"SpotLight_64x.png").wstring());
+		SetDecalTexturePath(L"");
 		DecalComponent->SetBaseColorTint(FLinearColor::White);
 		DecalComponent->SetEnabled(true);
 		DecalComponent->SetEdgeFade(DecalFadeRadius);
@@ -107,14 +112,20 @@ void ASpotLightFakeActor::SetDecalTexturePath(const std::wstring& InPath)
 {
 	if (DecalComponent)
 	{
-		DecalComponent->SetTexturePath(InPath);
+		DecalComponent->SetTexturePath(InPath.empty() ? GSpotLightFakeCircularMaskPath : InPath);
 	}
 }
 
 const std::wstring& ASpotLightFakeActor::GetDecalTexturePath() const
 {
 	static const std::wstring Empty;
-	return DecalComponent ? DecalComponent->GetTexturePath() : Empty;
+	if (!DecalComponent)
+	{
+		return Empty;
+	}
+
+	const std::wstring& TexturePath = DecalComponent->GetTexturePath();
+	return TexturePath == GSpotLightFakeCircularMaskPath ? Empty : TexturePath;
 }
 
 void ASpotLightFakeActor::SetDecalExtent(const FVector& InExtent)
