@@ -3,6 +3,7 @@
 #include "Actor/Actor.h"
 #include "Camera/Camera.h"
 #include "Component/PrimitiveComponent.h"
+#include "Level/PrimitiveVisibilityUtils.h"
 #include "Renderer/Mesh/MeshData.h"
 #include "Level/Level.h"
 #include "Viewport/Viewport.h"
@@ -231,6 +232,11 @@ AActor* FPicker::PickActor(ULevel* Scene, const FViewportEntry* Entry, int32 Scr
 		[&](UPrimitiveComponent* PrimComp, float BoundsNear, float BoundsFar, float& InOutClosestDistance)
 		{
 			if (!PrimComp || PrimComp->IsPendingKill())
+			{
+				return;
+			}
+
+			if (IsHiddenByArrowVisualizationShowFlags(PrimComp, Entry->LocalState.ShowFlags))
 			{
 				return;
 			}

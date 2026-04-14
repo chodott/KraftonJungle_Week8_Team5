@@ -1,8 +1,10 @@
-﻿#include "Renderer/Scene/Builders/DebugSceneBuilder.h"
+#include "Renderer/Scene/Builders/DebugSceneBuilder.h"
 
 #include "Actor/Actor.h"
+#include "Component/PrimitiveComponent.h"
 #include "Component/StaticMeshComponent.h"
 #include "Debug/DebugDrawManager.h"
+#include "Level/PrimitiveVisibilityUtils.h"
 #include "Renderer/Features/Debug/DebugLineRenderFeature.h"
 #include "World/World.h"
 
@@ -10,6 +12,7 @@ namespace
 {
 	void AppendActorMeshBVHDebug(
 		AActor* BoundsActor,
+		const FShowFlags& ShowFlags,
 		UWorld* World,
 		FDebugPrimitiveList& OutPrimitives)
 	{
@@ -21,9 +24,20 @@ namespace
 		UStaticMeshComponent* MeshComp = nullptr;
 		for (UActorComponent* Comp : BoundsActor->GetComponents())
 		{
-			if (Comp && Comp->IsA(UStaticMeshComponent::StaticClass()))
+			if (!Comp || !Comp->IsA(UStaticMeshComponent::StaticClass()))
 			{
-				MeshComp = static_cast<UStaticMeshComponent*>(Comp);
+				continue;
+			}
+
+			UStaticMeshComponent* Candidate = static_cast<UStaticMeshComponent*>(Comp);
+			if (Candidate->IsEditorVisualization() || IsHiddenByArrowVisualizationShowFlags(Candidate, ShowFlags))
+			{
+				continue;
+			}
+
+			if (Candidate->GetStaticMesh())
+			{
+				MeshComp = Candidate;
 				break;
 			}
 		}
@@ -116,7 +130,7 @@ void BuildDebugLinePassInputs(const FDebugSceneBuildInputs& Inputs, FDebugLinePa
 	Inputs.DrawManager->BuildPrimitiveList(Inputs.ShowFlags, Inputs.World, Primitives);
 	if (Inputs.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw))
 	{
-		AppendActorMeshBVHDebug(Inputs.BoundsActor, Inputs.World, Primitives);
+		AppendActorMeshBVHDebug(Inputs.BoundsActor, Inputs.ShowFlags, Inputs.World, Primitives);
 	}
 
 	BuildDebugLinePassInputs(Primitives, OutPassInputs);

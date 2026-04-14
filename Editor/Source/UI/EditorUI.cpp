@@ -491,6 +491,12 @@ void FEditorUI::LoadEditorSettings()
 
 		GetPrivateProfileStringW(Sec, L"SF.DepthView", L"0", Buf, 64, Path.c_str());
 		S.ShowFlags.SetFlag(EEngineShowFlags::SF_DepthView, _wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"SF.DecalArrow", L"1", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_DecalArrow, _wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"SF.ProjectileArrow", L"1", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_ProjectileArrow, _wtoi(Buf) != 0);
 	}
 
 	bool bAnyDebugDrawEnabled = false;
@@ -589,6 +595,10 @@ void FEditorUI::SaveEditorSettings()
 			S.ShowFlags.HasFlag(EEngineShowFlags::SF_DepthView) ? L"1" : L"0", Path.c_str());
 		WritePrivateProfileStringW(Sec, L"SF.FXAA", 
 			S.ShowFlags.HasFlag(EEngineShowFlags::SF_FXAA) ? L"1" : L"0", Path.c_str());
+		WritePrivateProfileStringW(Sec, L"SF.DecalArrow",
+			S.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalArrow) ? L"1" : L"0", Path.c_str());
+		WritePrivateProfileStringW(Sec, L"SF.ProjectileArrow",
+			S.ShowFlags.HasFlag(EEngineShowFlags::SF_ProjectileArrow) ? L"1" : L"0", Path.c_str());
 	}
 
 	FSlateApplication* Slate = Engine->GetSlateApplication();
@@ -884,6 +894,8 @@ void FEditorUI::Render()
 				ShowFlagCheckbox("UUID", EEngineShowFlags::SF_UUID);
 				ShowFlagCheckbox("Fog", EEngineShowFlags::SF_Fog);
 				ShowFlagCheckbox("Decal", EEngineShowFlags::SF_Decal);
+				ShowFlagCheckbox("Decal Arrow", EEngineShowFlags::SF_DecalArrow);
+				ShowFlagCheckbox("Projectile Arrow", EEngineShowFlags::SF_ProjectileArrow);
 				ShowFlagCheckbox("FXAA", EEngineShowFlags::SF_FXAA);
 				ShowFlagCheckbox("Depth View", EEngineShowFlags::SF_DepthView);
 				ShowFlagCheckbox("Debug Draw", EEngineShowFlags::SF_DebugDraw);

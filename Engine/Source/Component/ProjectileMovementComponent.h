@@ -11,6 +11,7 @@ public:
 	DECLARE_RTTI(UProjectileMovementComponent, UMovementComponent)
 
 	void PostConstruct() override;
+	void OnRegister() override;
 	void BeginPlay() override;
 	void Tick(float DeltaTime) override;
 
@@ -18,8 +19,9 @@ public:
 	void StartSimulation();
 	void StopSimulation();
 
-	void SetVelocity(const FVector& InVelocity) { Velocity = InVelocity; }
+	void SetVelocity(const FVector& InVelocity);
 	const FVector& GetVelocity() const { return Velocity; }
+	UStaticMeshComponent* GetVelocityArrowComponent() const { return VelocityArrowComponent; }
 
 	void SetGravityScale(float InScale) { GravityScale = InScale; }
 	float GetGravityScale() const { return GravityScale; }
@@ -32,9 +34,11 @@ public:
 	bool IsSimulationEnabled() const { return bSimulationEnabled; }
 
 	void DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
+	void FixupDuplicatedReferences(UObject* DuplicatedObject, const FDuplicateContext& Context) const override;
 	void Serialize(FArchive& Ar) override;
 
 private:
+	void EnsureVelocityArrowComponent();
 	void UpdateVelocityArrow();
 
 	FVector Velocity{ FVector::ZeroVector };

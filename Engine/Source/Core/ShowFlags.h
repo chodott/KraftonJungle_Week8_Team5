@@ -15,6 +15,8 @@ enum class EEngineShowFlags : uint64
 	SF_Decal		= 1ull << 9,
 	SF_DepthView	= 1ull << 10,
 	SF_FXAA			= 1ull << 11,
+	SF_DecalArrow	= 1ull << 12,
+	SF_ProjectileArrow = 1ull << 13,
 };
 class ENGINE_API FShowFlags
 {
@@ -26,7 +28,9 @@ public:
 			static_cast<uint64>(EEngineShowFlags::SF_Billboard) |
 			static_cast<uint64>(EEngineShowFlags::SF_Text) |
 			static_cast<uint64>(EEngineShowFlags::SF_Fog) |
-			static_cast<uint64>(EEngineShowFlags::SF_Decal)
+			static_cast<uint64>(EEngineShowFlags::SF_Decal) |
+			static_cast<uint64>(EEngineShowFlags::SF_DecalArrow) |
+			static_cast<uint64>(EEngineShowFlags::SF_ProjectileArrow)
 		)
 	{
 	}

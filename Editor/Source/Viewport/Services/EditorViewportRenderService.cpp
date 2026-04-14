@@ -9,6 +9,7 @@
 #include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Renderer.h"
 #include "Level/Level.h"
+#include "Level/PrimitiveVisibilityUtils.h"
 #include "UI/EditorUI.h"
 #include "Viewport/Viewport.h"
 #include "World/World.h"
@@ -39,7 +40,7 @@ namespace
 		OutGridAxisV = ViewInverse.GetUpVector().GetSafeNormal();
 	}
 
-	TArray<FOutlineRenderItem> BuildSelectionOutlineItems(AActor* Selected)
+	TArray<FOutlineRenderItem> BuildSelectionOutlineItems(AActor* Selected, const FShowFlags& ShowFlags)
 	{
 		TArray<FOutlineRenderItem> OutlineItems;
 		if (!Selected || Selected->IsPendingDestroy() || !Selected->IsVisible())
@@ -67,6 +68,11 @@ namespace
 			}
 
 			UPrimitiveComponent* PrimitiveComponent = static_cast<UPrimitiveComponent*>(Component);
+			if (IsHiddenByArrowVisualizationShowFlags(PrimitiveComponent, ShowFlags))
+			{
+				continue;
+			}
+
 			FRenderMesh* RenderMesh = PrimitiveComponent->GetRenderMesh();
 			if (!RenderMesh)
 			{
@@ -87,7 +93,7 @@ namespace
 					FOutlineRenderItem& Item = OutlineItems.emplace_back();
 					Item.Mesh = RenderMesh;
 					Item.Material = MeshComponent ? MeshComponent->GetMaterial(Section.MaterialIndex).get() : nullptr;
-					Item.WorldMatrix = PrimitiveComponent->GetWorldTransform();
+					Item.WorldMatrix = PrimitiveComponent->GetRenderWorldTransform();
 					Item.IndexStart = Section.StartIndex;
 					Item.IndexCount = Section.IndexCount;
 				}
@@ -97,7 +103,7 @@ namespace
 			FOutlineRenderItem& Item = OutlineItems.emplace_back();
 			Item.Mesh = RenderMesh;
 			Item.Material = MeshComponent ? MeshComponent->GetMaterial(0).get() : nullptr;
-			Item.WorldMatrix = PrimitiveComponent->GetWorldTransform();
+			Item.WorldMatrix = PrimitiveComponent->GetRenderWorldTransform();
 		}
 
 		return OutlineItems;
@@ -239,7 +245,7 @@ void FEditorViewportRenderService::RenderAll(
 			Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_Primitives);
 		if (ScenePass.OutlineRequest.bEnabled)
 		{
-			ScenePass.OutlineRequest.Items = BuildSelectionOutlineItems(SelectedActor);
+			ScenePass.OutlineRequest.Items = BuildSelectionOutlineItems(SelectedActor, Entry.LocalState.ShowFlags);
 		}
 		ScenePass.DebugInputs.DrawManager = &Engine->GetDebugDrawManager();
 		ScenePass.DebugInputs.World = EntryWorld;
