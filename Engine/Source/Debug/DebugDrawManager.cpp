@@ -2,6 +2,7 @@
 
 #include "Actor/Actor.h"
 #include "Component/PrimitiveComponent.h"
+#include "Component/DecalComponent.h"
 #include "Component/LocalHeightFogComponent.h"
 #include "Core/ShowFlags.h"
 #include "Level/PrimitiveVisibilityUtils.h"
@@ -150,7 +151,7 @@ void FDebugDrawManager::DrawAllCollisionBounds(const FShowFlags& ShowFlags, UWor
 				}
 				for (const auto& Edge : Edges)
 				{
-					OutPrimitives.Lines.push_back({ WorldCorners[Edge[0]], WorldCorners[Edge[1]], FVector4(1.0f, 0.0f, 0.0f, 1.0f) });
+					OutPrimitives.Lines.push_back({ WorldCorners[Edge[0]], WorldCorners[Edge[1]], FVector4(1.0f, 0.6f, 0.1f, 1.0f) });
 				}
 				continue;
 			}
@@ -158,7 +159,11 @@ void FDebugDrawManager::DrawAllCollisionBounds(const FShowFlags& ShowFlags, UWor
 			const FBoxSphereBounds Bounds = PrimitiveComponent->GetWorldBounds();
 			if (Bounds.BoxExtent.SizeSquared() > 0.0f)
 			{
-				OutPrimitives.Cubes.push_back({ Bounds.Center, Bounds.BoxExtent, FVector4(1.0f, 0.0f, 0.0f, 1.0f) });
+				const bool bIsDecalComponent = PrimitiveComponent->IsA(UDecalComponent::StaticClass());
+				const FVector4 Color = bIsDecalComponent
+					? FVector4(1.0f, 0.6f, 0.1f, 1.0f)   // Orange: Decal Bounds
+					: FVector4(1.0f, 0.2f, 1.0f, 1.0f);  // Magenta: Picking Bounds / generic collision bounds
+				OutPrimitives.Cubes.push_back({ Bounds.Center, Bounds.BoxExtent, Color });
 			}
 		}
 	}
