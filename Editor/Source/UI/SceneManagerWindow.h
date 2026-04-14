@@ -3,7 +3,7 @@
 
 class FEditorEngine;
 
-class FOutlinerWindow
+class FSceneManagerWindow
 {
 public:
 	void Render(FEditorEngine* Engine);

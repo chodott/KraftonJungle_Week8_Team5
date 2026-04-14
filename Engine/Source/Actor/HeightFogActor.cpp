@@ -1,5 +1,6 @@
 #include "Actor/HeightFogActor.h"
-
+#include "Component/BillboardComponent.h"
+#include "Core/Paths.h"
 #include "Object/ObjectFactory.h"
 #include "Object/Class.h"
 
@@ -9,6 +10,18 @@ void AHeightFogActor::PostSpawnInitialize()
 {
 	HeightFogComponent = FObjectFactory::ConstructObject<UHeightFogComponent>(this, "HeightFogComponent");
 	AddOwnedComponent(HeightFogComponent);
+
+	BillboardComponent = FObjectFactory::ConstructObject<UBillboardComponent>(this, "BillboardComponent");
+	if (BillboardComponent)
+	{
+		AddOwnedComponent(BillboardComponent);
+		BillboardComponent->AttachTo(HeightFogComponent);
+		BillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_ExpoHeightFog.png").wstring());
+		BillboardComponent->SetSize(FVector2(0.5f, 0.5f));
+		BillboardComponent->SetIgnoreParentScaleInRender(true);
+		BillboardComponent->SetEditorVisualization(true);
+		BillboardComponent->SetHiddenInGame(true);
+	}
 
 	AActor::PostSpawnInitialize();
 }

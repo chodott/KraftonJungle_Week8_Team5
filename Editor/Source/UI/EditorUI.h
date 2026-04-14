@@ -1,5 +1,5 @@
 #pragma once
-#include "OutlinerWindow.h" 
+#include "SceneManagerWindow.h" 
 #include "ControlPanelWindow.h"
 #include "PropertyWindow.h"
 #include "ConsoleWindow.h"
@@ -53,7 +53,7 @@ private:
 	FPropertyWindow Property;
 	FConsoleWindow Console;
 	FStatWindow Stat;
-	FOutlinerWindow Outliner;
+	FSceneManagerWindow SceneManager;
 	FContentBrowserWindow ContentBrowser;
 
 	bool bWindowSetup = false;
