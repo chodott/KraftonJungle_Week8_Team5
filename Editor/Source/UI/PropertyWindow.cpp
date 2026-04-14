@@ -1,6 +1,7 @@
 #include "PropertyWindow.h"
 #include "EditorEngine.h"
 #include "Actor/Actor.h"
+#include "Actor/SpotLightFakeActor.h"
 #include "Component/ActorComponent.h"
 #include "Component/CameraComponent.h"
 #include "Component/PrimitiveComponent.h"
@@ -905,6 +906,13 @@ void FPropertyWindow::DrawDecalComponentDetails(UDecalComponent* DecalComponent,
 	CollectTextureFiles(FPaths::ContentDir() / "Textures", TextureFiles);
 
 	std::wstring CurrentPath = DecalComponent->GetTexturePath();
+	if (AActor* OwnerActor = DecalComponent->GetOwner())
+	{
+		if (OwnerActor->IsA(ASpotLightFakeActor::StaticClass()) && CurrentPath == L"__SpotLightFakeCircularMask__")
+		{
+			CurrentPath.clear();
+		}
+	}
 	std::string CurrentLabel = CurrentPath.empty()
 		? std::string("(None)")
 		: std::filesystem::path(CurrentPath).filename().string();
@@ -914,7 +922,21 @@ void FPropertyWindow::DrawDecalComponentDetails(UDecalComponent* DecalComponent,
 		bool bNoneSelected = CurrentPath.empty();
 		if (ImGui::Selectable("(None)", bNoneSelected))
 		{
-			DecalComponent->SetTexturePath(L"");
+			if (AActor* OwnerActor = DecalComponent->GetOwner())
+			{
+				if (OwnerActor->IsA(ASpotLightFakeActor::StaticClass()))
+				{
+					static_cast<ASpotLightFakeActor*>(OwnerActor)->SetDecalTexturePath(L"");
+				}
+				else
+				{
+					DecalComponent->SetTexturePath(L"");
+				}
+			}
+			else
+			{
+				DecalComponent->SetTexturePath(L"");
+			}
 		}
 
 		for (const auto& Path : TextureFiles)
@@ -924,7 +946,21 @@ void FPropertyWindow::DrawDecalComponentDetails(UDecalComponent* DecalComponent,
 			const bool bSelected = (FullPath == CurrentPath);
 			if (ImGui::Selectable(Label.c_str(), bSelected))
 			{
-				DecalComponent->SetTexturePath(FullPath);
+				if (AActor* OwnerActor = DecalComponent->GetOwner())
+				{
+					if (OwnerActor->IsA(ASpotLightFakeActor::StaticClass()))
+					{
+						static_cast<ASpotLightFakeActor*>(OwnerActor)->SetDecalTexturePath(FullPath);
+					}
+					else
+					{
+						DecalComponent->SetTexturePath(FullPath);
+					}
+				}
+				else
+				{
+					DecalComponent->SetTexturePath(FullPath);
+				}
 			}
 			if (bSelected)
 			{
