@@ -9,6 +9,14 @@ class ENGINE_API UBillboardComponent : public UPrimitiveComponent
 public:
 	DECLARE_RTTI(UBillboardComponent, UPrimitiveComponent)
 
+	enum class EAxisLockMode : uint8
+	{
+		None,
+		LocalX,
+		LocalY,
+		LocalZ,
+	};
+
 	void PostConstruct() override;
 
 	virtual bool UseSpherePicking() const override { return true; }
@@ -38,10 +46,18 @@ public:
 	void SetUVMax(const FVector2& InUVMax) { UVMax = InUVMax; }
 	const FVector2& GetUVMax() const { return UVMax; }
 
+	void SetBaseColor(const FVector4& InBaseColor);
+	const FVector4& GetBaseColor() const;
+
 	FDynamicMesh* GetBillboardMesh() const { return BillboardMesh.get(); }
 
 	void SetHiddenInGame(bool bInHidden) { bHiddenInGame = bInHidden; }
 	bool IsHiddenInGame() const { return bHiddenInGame; }
+
+	void SetAxisLockMode(EAxisLockMode InMode) { AxisLockMode = InMode; }
+	EAxisLockMode GetAxisLockMode() const { return AxisLockMode; }
+	bool IsAxisLockedBillboard() const { return AxisLockMode != EAxisLockMode::None; }
+	FVector GetBillboardAxisLockVector() const;
 
 	void MarkBillboardMeshDirty();
 	bool IsBillboardMeshDirty() const { return bBillboardMeshDirty; }
@@ -50,12 +66,14 @@ public:
 
 private:
 	bool bHiddenInGame = true;
+	EAxisLockMode AxisLockMode = EAxisLockMode::None;
 
 	std::wstring TexturePath;
 
 	FVector2 Size = FVector2(1.f, 1.f);
 	FVector2 UVMin = FVector2(0.f, 0.f);
 	FVector2 UVMax = FVector2(1.f, 1.f);
+	FVector4 BaseColor = FVector4(1.f, 1.f, 1.f, 1.f);
 
 	bool bBillboardMeshDirty = true;
 	std::shared_ptr<struct FDynamicMesh> BillboardMesh;

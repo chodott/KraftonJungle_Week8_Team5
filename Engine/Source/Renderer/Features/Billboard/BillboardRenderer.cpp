@@ -1,4 +1,4 @@
-﻿#include "BillboardRenderer.h"
+#include "BillboardRenderer.h"
 
 #include <WICTextureLoader.h>
 #include <algorithm>
@@ -79,11 +79,12 @@ bool FBillboardRenderer::Initialize(FRenderer& InRenderer)
 	BillboardMaterial->SetBlendOption(BlendOption);
 	BillboardMaterial->SetBlendState(InRenderer.GetRenderStateManager()->GetOrCreateBlendState(BlendOption));
 
-	const int32 SlotIndex = BillboardMaterial->CreateConstantBuffer(Device, 16);
+	const int32 SlotIndex = BillboardMaterial->CreateConstantBuffer(Device, 32);
 	if (SlotIndex >= 0)
 	{
 		BillboardMaterial->RegisterParameter("CellSize", SlotIndex, 0, sizeof(FVector2));
 		BillboardMaterial->RegisterParameter("UVOffset", SlotIndex, sizeof(FVector2), sizeof(FVector2));
+		BillboardMaterial->RegisterParameter("BaseColor", SlotIndex, 16, sizeof(FVector4));
 	}
 
 	return true;
@@ -160,8 +161,10 @@ FMaterial* FBillboardRenderer::GetOrCreateMaterial(const UBillboardComponent& Co
 	Material->SetMaterialTexture(Texture);
 	const FVector2 CellSize = Component.GetUVMax() - Component.GetUVMin();
 	const FVector2 UVOffset = Component.GetUVMin();
+	const FVector4 BaseColor = Component.GetBaseColor();
 	Material->SetParameterData("CellSize", &CellSize, sizeof(FVector2));
 	Material->SetParameterData("UVOffset", &UVOffset, sizeof(FVector2));
+	Material->SetParameterData("BaseColor", &BaseColor, sizeof(FVector4));
 	return Material;
 }
 

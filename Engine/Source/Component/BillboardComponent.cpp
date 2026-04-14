@@ -1,6 +1,7 @@
 #include "Component/BillboardComponent.h"
 #include "Core/Paths.h"
 #include "Component/DecalComponent.h"
+#include "Math/Matrix.h"
 #include "Object/Class.h"
 #include "Renderer/Mesh/MeshData.h"
 #include "Serializer/Archive.h"
@@ -34,6 +35,8 @@ void UBillboardComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicate
 	DuplicatedBillboardComponent->Size = Size;
 	DuplicatedBillboardComponent->UVMin = UVMin;
 	DuplicatedBillboardComponent->UVMax = UVMax;
+	DuplicatedBillboardComponent->BaseColor = BaseColor;
+	DuplicatedBillboardComponent->AxisLockMode = AxisLockMode;
 	DuplicatedBillboardComponent->MarkBillboardMeshDirty();
 }
 
@@ -63,6 +66,9 @@ void UBillboardComponent::Serialize(FArchive& Ar)
 		Ar.Serialize("Size", Size);
 		Ar.Serialize("UVMin", UVMin);
 		Ar.Serialize("UVMax", UVMax);
+		Ar.Serialize("BaseColor", BaseColor);
+		int32 AxisLockModeValue = static_cast<int32>(AxisLockMode);
+		Ar.Serialize("AxisLockMode", AxisLockModeValue);
 	}
 	else
 	{
@@ -71,6 +77,14 @@ void UBillboardComponent::Serialize(FArchive& Ar)
 		Ar.Serialize("Size", Size);
 		Ar.Serialize("UVMin", UVMin);
 		Ar.Serialize("UVMax", UVMax);
+		Ar.Serialize("BaseColor", BaseColor);
+		int32 AxisLockModeValue = static_cast<int32>(AxisLockMode);
+		Ar.Serialize("AxisLockMode", AxisLockModeValue);
+		if (AxisLockModeValue < static_cast<int32>(EAxisLockMode::None) || AxisLockModeValue > static_cast<int32>(EAxisLockMode::LocalZ))
+		{
+			AxisLockModeValue = static_cast<int32>(EAxisLockMode::None);
+		}
+		AxisLockMode = static_cast<EAxisLockMode>(AxisLockModeValue);
 
 		TexturePath = TexturePathString.empty()
 			? std::wstring()
@@ -97,6 +111,31 @@ FBoxSphereBounds UBillboardComponent::GetWorldBounds() const
 FRenderMesh* UBillboardComponent::GetRenderMesh() const
 {
 	return BillboardMesh.get();
+}
+
+void UBillboardComponent::SetBaseColor(const FVector4& InBaseColor)
+{
+	BaseColor = InBaseColor;
+}
+
+const FVector4& UBillboardComponent::GetBaseColor() const
+{
+	return BaseColor;
+}
+
+FVector UBillboardComponent::GetBillboardAxisLockVector() const
+{
+	switch (AxisLockMode)
+	{
+	case EAxisLockMode::LocalX:
+		return GetWorldTransform().GetUnitAxis(EAxis::X);
+	case EAxisLockMode::LocalY:
+		return GetWorldTransform().GetUnitAxis(EAxis::Y);
+	case EAxisLockMode::LocalZ:
+		return GetWorldTransform().GetUnitAxis(EAxis::Z);
+	default:
+		return FVector::ZeroVector;
+	}
 }
 
 FVector UBillboardComponent::GetRenderWorldScale() const
