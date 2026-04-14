@@ -1,4 +1,4 @@
-﻿#include "Renderer/Scene/SceneCommandTextBuilder.h"
+#include "Renderer/Scene/SceneCommandTextBuilder.h"
 
 #include "Renderer/Scene/SceneCommandBuilder.h"
 #include "Renderer/Scene/SceneCommandBuilderUtils.h"

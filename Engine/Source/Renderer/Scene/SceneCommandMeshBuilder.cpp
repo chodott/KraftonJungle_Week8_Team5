@@ -1,4 +1,4 @@
-﻿#include "Renderer/Scene/SceneCommandMeshBuilder.h"
+#include "Renderer/Scene/SceneCommandMeshBuilder.h"
 
 #include "Renderer/Scene/SceneCommandBuilder.h"
 #include "Renderer/Scene/SceneCommandBuilderUtils.h"
@@ -31,7 +31,7 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 		{
 			FMeshBatch Batch;
 			Batch.Mesh = TargetMesh;
-			Batch.World = MeshComponent->GetWorldTransform();
+			Batch.World = MeshComponent->GetRenderWorldTransform();
 			std::shared_ptr<FMaterial> Material = MeshComponent->GetMaterial(0);
 			Batch.Material = Material ? Material.get() : BuildContext.DefaultMaterial;
 			Batch.Domain = EMaterialDomain::Opaque;
@@ -49,7 +49,7 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 
 			FMeshBatch Batch;
 			Batch.Mesh = TargetMesh;
-			Batch.World = MeshComponent->GetWorldTransform();
+			Batch.World = MeshComponent->GetRenderWorldTransform();
 			Batch.SectionIndex = static_cast<uint32>(SectionIndex);
 			Batch.IndexStart = Section.StartIndex;
 			Batch.IndexCount = Section.IndexCount;
