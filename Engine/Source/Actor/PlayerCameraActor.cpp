@@ -62,14 +62,13 @@ IMPLEMENT_RTTI(APlayerCameraActor, AActor)
 namespace
 {
 	template <typename TComponent>
-	TComponent* FindCameraActorComponentByName(const APlayerCameraActor* Actor, const char* ComponentName, TArray<UActorComponent*>* OutDuplicates = nullptr)
+	TComponent* FindCameraActorComponentByName(const APlayerCameraActor* Actor, const char* ComponentName)
 	{
 		if (!Actor)
 		{
 			return nullptr;
 		}
 
-		TComponent* FoundComponent = nullptr;
 		for (UActorComponent* Component : Actor->GetComponents())
 		{
 			if (!Component || !Component->IsA(TComponent::StaticClass()) || Component->GetName() != ComponentName)
@@ -77,19 +76,10 @@ namespace
 				continue;
 			}
 
-			if (!FoundComponent)
-			{
-				FoundComponent = static_cast<TComponent*>(Component);
-				continue;
-			}
-
-			if (OutDuplicates)
-			{
-				OutDuplicates->push_back(Component);
-			}
+			return static_cast<TComponent*>(Component);
 		}
 
-		return FoundComponent;
+		return nullptr;
 	}
 }
 
@@ -126,24 +116,8 @@ void APlayerCameraActor::Serialize(FArchive& Ar)
 		return;
 	}
 
-	TArray<UActorComponent*> DuplicateComponents;
-	CameraComponent = FindCameraActorComponentByName<UCameraComponent>(this, "PlayerCameraComponent", &DuplicateComponents);
-	VisualizerComponent = FindCameraActorComponentByName<UStaticMeshComponent>(this, "PlayerCameraVisualizer", &DuplicateComponents);
-
-	for (UActorComponent* DuplicateComponent : DuplicateComponents)
-	{
-		if (!DuplicateComponent)
-		{
-			continue;
-		}
-
-		if (DuplicateComponent->IsA(USceneComponent::StaticClass()))
-		{
-			static_cast<USceneComponent*>(DuplicateComponent)->DetachFromParent();
-		}
-
-		RemoveOwnedComponent(DuplicateComponent);
-	}
+	CameraComponent = FindCameraActorComponentByName<UCameraComponent>(this, "PlayerCameraComponent");
+	VisualizerComponent = FindCameraActorComponentByName<UStaticMeshComponent>(this, "PlayerCameraVisualizer");
 
 	if (VisualizerComponent)
 	{

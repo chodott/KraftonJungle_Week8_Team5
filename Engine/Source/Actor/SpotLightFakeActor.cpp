@@ -18,14 +18,13 @@ namespace
 	const std::wstring GSpotLightFakeCircularMaskPath = L"__SpotLightFakeCircularMask__";
 
 	template <typename TComponent>
-	TComponent* FindSpotLightComponentByName(const ASpotLightFakeActor* Actor, const char* ComponentName, TArray<UActorComponent*>* OutDuplicates = nullptr)
+	TComponent* FindSpotLightComponentByName(const ASpotLightFakeActor* Actor, const char* ComponentName)
 	{
 		if (!Actor)
 		{
 			return nullptr;
 		}
 
-		TComponent* FoundComponent = nullptr;
 		for (UActorComponent* Component : Actor->GetComponents())
 		{
 			if (!Component || !Component->IsA(TComponent::StaticClass()) || Component->GetName() != ComponentName)
@@ -33,19 +32,10 @@ namespace
 				continue;
 			}
 
-			if (!FoundComponent)
-			{
-				FoundComponent = static_cast<TComponent*>(Component);
-				continue;
-			}
-
-			if (OutDuplicates)
-			{
-				OutDuplicates->push_back(Component);
-			}
+			return static_cast<TComponent*>(Component);
 		}
 
-		return FoundComponent;
+		return nullptr;
 	}
 }
 
@@ -93,25 +83,9 @@ void ASpotLightFakeActor::Serialize(FArchive& Ar)
 
 	if (Ar.IsLoading())
 	{
-		TArray<UActorComponent*> DuplicateComponents;
-		RootSceneComponent = FindSpotLightComponentByName<USceneComponent>(this, "RootSceneComponent", &DuplicateComponents);
-		DecalComponent = FindSpotLightComponentByName<UDecalComponent>(this, "DecalComponent", &DuplicateComponents);
-		BillboardComponent = FindSpotLightComponentByName<UBillboardComponent>(this, "BillboardComponent", &DuplicateComponents);
-
-		for (UActorComponent* DuplicateComponent : DuplicateComponents)
-		{
-			if (!DuplicateComponent)
-			{
-				continue;
-			}
-
-			if (DuplicateComponent->IsA(USceneComponent::StaticClass()))
-			{
-				static_cast<USceneComponent*>(DuplicateComponent)->DetachFromParent();
-			}
-
-			RemoveOwnedComponent(DuplicateComponent);
-		}
+		RootSceneComponent = FindSpotLightComponentByName<USceneComponent>(this, "RootSceneComponent");
+		DecalComponent = FindSpotLightComponentByName<UDecalComponent>(this, "DecalComponent");
+		BillboardComponent = FindSpotLightComponentByName<UBillboardComponent>(this, "BillboardComponent");
 
 		if (RootSceneComponent)
 		{
