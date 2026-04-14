@@ -1,27 +1,18 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "Core/ShowFlags.h"
-#include "Level/SceneRenderPacket.h"
 #include "Renderer/Features/Outline/OutlineTypes.h"
 #include "Renderer/Features/Decal/DecalProjectionMode.h"
 #include "Renderer/Features/Decal/DecalStats.h"
 #include "Renderer/Features/Decal/DecalTypes.h"
 #include "Renderer/Mesh/MeshBatch.h"
-#include "Renderer/RHI/RenderDevice.h"
+#include "Renderer/GraphicsCore/RenderDevice.h"
 #include "Renderer/Common/RenderFeatureInterfaces.h"
+#include "Renderer/Frame/FrameRequests.h"
 #include "Renderer/Common/RenderFrameContext.h"
-#include "Renderer/RHI/RenderStateManager.h"
+#include "Renderer/GraphicsCore/RenderStateManager.h"
 #include "Renderer/Common/SceneRenderTargets.h"
-#include "Renderer/Common/SceneTargetManager.h"
-#include "Renderer/Features/Text/TextRenderFeature.h"
-#include "Renderer/Features/SubUV/SubUVRenderFeature.h"
-#include "Renderer/Features/Billboard/BillboardRenderFeature.h"
-#include "Renderer/Features/Decal/DecalTextureCache.h"
-#include "Renderer/Scene/SceneRenderer.h"
-#include "Renderer/UI/ScreenUIRenderer.h"
-#include "Renderer/UI/UIDrawList.h"
-#include "Renderer/UI/ViewportCompositor.h"
+#include "Renderer/UI/Screen/UIDrawList.h"
 #include "Renderer/Resources/Shader/ShaderManager.h"
 
 #include <d3d11.h>
@@ -35,6 +26,14 @@ class FMaterial;
 class ULevel;
 class UWorld;
 class AActor;
+class FSceneRenderer;
+class FViewportCompositor;
+class FScreenUIRenderer;
+class FSceneTargetManager;
+class FDecalTextureCache;
+class FTextRenderFeature;
+class FSubUVRenderFeature;
+class FBillboardRenderFeature;
 class FFogRenderFeature;
 class FOutlineRenderFeature;
 class FDecalRenderFeature;
@@ -44,70 +43,7 @@ class FFXAARenderFeature;
 class FDebugLineRenderFeature;
 class FBillboardRenderer;
 class FDebugDrawManager;
-
-struct FSceneViewRenderRequest
-{
-	FMatrix ViewMatrix = FMatrix::Identity;
-	FMatrix ProjectionMatrix = FMatrix::Identity;
-	FVector CameraPosition = FVector::ZeroVector;
-	float TotalTimeSeconds = 0.0f;
-	float NearZ = 0.1f;
-	float FarZ = 1000.0f;
-};
-
-struct FDebugSceneBuildInputs
-{
-	const FDebugDrawManager* DrawManager = nullptr;
-	UWorld* World = nullptr;
-	AActor* BoundsActor = nullptr;
-	FShowFlags ShowFlags = {};
-};
-
-struct FGameFrameRequest
-{
-	FSceneRenderPacket ScenePacket;
-	FSceneViewRenderRequest SceneView;
-	TArray<FMeshBatch> AdditionalMeshBatches;
-	FDebugSceneBuildInputs DebugInputs;
-	EViewportCompositeMode CompositeMode = EViewportCompositeMode::SceneColor;
-	bool bForceWireframe = false;
-	FMaterial* WireframeMaterial = nullptr;
-	float ClearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
-};
-
-struct FViewportScenePassRequest
-{
-	ID3D11RenderTargetView* RenderTargetView = nullptr;
-	ID3D11ShaderResourceView* RenderTargetShaderResourceView = nullptr;
-	ID3D11DepthStencilView* DepthStencilView = nullptr;
-	ID3D11ShaderResourceView* DepthShaderResourceView = nullptr;
-	D3D11_VIEWPORT Viewport = {};
-	FSceneRenderPacket ScenePacket;
-	FSceneViewRenderRequest SceneView;
-	TArray<FMeshBatch> AdditionalMeshBatches;
-	FOutlineRenderRequest OutlineRequest;
-	FDebugSceneBuildInputs DebugInputs;
-	bool bForceWireframe = false;
-	FMaterial* WireframeMaterial = nullptr;
-	float ClearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
-
-	bool IsValid() const
-	{
-		return RenderTargetView != nullptr
-			&& DepthStencilView != nullptr
-			&& RenderTargetShaderResourceView != nullptr
-			&& DepthShaderResourceView != nullptr
-			&& Viewport.Width > 0.0f
-			&& Viewport.Height > 0.0f;
-	}
-};
-
-struct FEditorFrameRequest
-{
-	TArray<FViewportScenePassRequest> ScenePasses;
-	TArray<FViewportCompositeItem> CompositeItems;
-	FUIDrawList ScreenDrawList;
-};
+struct FScreenUIPassInputs;
 
 class ENGINE_API FRenderer
 {
@@ -155,18 +91,18 @@ public:
 	HWND GetHwnd() const { return RenderDevice.GetHwnd(); }
 	const D3D11_VIEWPORT& GetBackBufferViewport() const { return RenderDevice.GetViewport(); }
 
-	ISceneTextFeature* GetSceneTextFeature() const { return TextFeature.get(); }
-	ISceneSubUVFeature* GetSceneSubUVFeature() const { return SubUVFeature.get(); }
-	ISceneBillboardFeature* GetSceneBillboardFeature() const { return BillboardFeature.get(); }
-	FFogRenderFeature* GetFogFeature() const { return FogFeature.get(); }
-	FOutlineRenderFeature* GetOutlineFeature() const { return OutlineFeature.get(); }
-	FDebugLineRenderFeature* GetDebugLineFeature() const { return DebugLineFeature.get(); }
-	FDecalRenderFeature* GetDecalFeature() const { return DecalFeature.get(); }
-	FVolumeDecalRenderFeature* GetVolumeDecalFeature() const { return VolumeDecalFeature.get(); }
-	FFireBallRenderFeature* GetFireBallFeature() const { return FireBallFeature.get(); }
-	FFXAARenderFeature* GetFXAAFeature() const { return FXAAFeature.get(); }
-	FSceneRenderer& GetSceneRenderer() { return SceneRenderer; }
-	FScreenUIRenderer& GetScreenUIRenderer() { return ScreenUIRenderer; }
+	ISceneTextFeature* GetSceneTextFeature() const;
+	ISceneSubUVFeature* GetSceneSubUVFeature() const;
+	ISceneBillboardFeature* GetSceneBillboardFeature() const;
+	FFogRenderFeature* GetFogFeature() const;
+	FOutlineRenderFeature* GetOutlineFeature() const;
+	FDebugLineRenderFeature* GetDebugLineFeature() const;
+	FDecalRenderFeature* GetDecalFeature() const;
+	FVolumeDecalRenderFeature* GetVolumeDecalFeature() const;
+	FFireBallRenderFeature* GetFireBallFeature() const;
+	FFXAARenderFeature* GetFXAAFeature() const;
+	FSceneRenderer& GetSceneRenderer() { return *SceneRenderer; }
+	FScreenUIRenderer& GetScreenUIRenderer() { return *ScreenUIRenderer; }
 	FRenderDevice& GetRenderDevice() { return RenderDevice; }
 	FBillboardRenderer& GetBillboardRenderer();
 	const FDecalFrameStats& GetDecalFrameStats() const;
@@ -196,11 +132,11 @@ private:
 	friend class FDecalRenderFeature;
 	friend class FVolumeDecalRenderFeature;
 	friend class FScreenUIRenderer;
+	friend class FRendererResourceBootstrap;
+	friend class FGameFrameRenderer;
+	friend class FEditorFrameRenderer;
 	bool CreateConstantBuffers();
 	bool CreateSamplers();
-
-	FFrameContext BuildFrameContext(float TotalTimeSeconds) const;
-	FViewContext BuildViewContext(const FSceneViewRenderRequest& SceneView, const D3D11_VIEWPORT& Viewport) const;
 
 
 private:
@@ -214,9 +150,9 @@ private:
 	std::shared_ptr<FMaterial> DefaultMaterial;
 	std::shared_ptr<FMaterial> DefaultTextureMaterial;
 
-	FSceneRenderer SceneRenderer;
-	FViewportCompositor ViewportCompositor;
-	FScreenUIRenderer ScreenUIRenderer;
+	std::unique_ptr<FSceneRenderer> SceneRenderer;
+	std::unique_ptr<FViewportCompositor> ViewportCompositor;
+	std::unique_ptr<FScreenUIRenderer> ScreenUIRenderer;
 	std::unique_ptr<FTextRenderFeature> TextFeature;
 	std::unique_ptr<FSubUVRenderFeature> SubUVFeature;
 	std::unique_ptr<FBillboardRenderFeature> BillboardFeature;
@@ -231,7 +167,7 @@ private:
 
 	ID3D11ShaderResourceView* FolderIconSRV = nullptr;
 	ID3D11ShaderResourceView* FileIconSRV = nullptr;
-	FSceneTargetManager SceneTargetManager;
-	FDecalTextureCache DecalTextureCache;
+	std::unique_ptr<FSceneTargetManager> SceneTargetManager;
+	std::unique_ptr<FDecalTextureCache> DecalTextureCache;
 	ID3D11SamplerState* NormalSampler = nullptr;
 };

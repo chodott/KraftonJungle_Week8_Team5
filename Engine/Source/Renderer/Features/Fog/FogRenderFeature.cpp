@@ -1,7 +1,7 @@
-#include "Renderer/Features/Fog/FogRenderFeature.h"
+﻿#include "Renderer/Features/Fog/FogRenderFeature.h"
 
 #include "Core/Paths.h"
-#include "Renderer/RHI/FullscreenPass.h"
+#include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/Resources/Shader/ShaderResource.h"
 

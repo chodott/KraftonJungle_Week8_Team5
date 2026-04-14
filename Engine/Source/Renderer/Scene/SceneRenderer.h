@@ -1,20 +1,29 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "Level/SceneRenderPacket.h"
-#include "Renderer/Scene/MeshPassProcessor.h"
-#include "Renderer/Scene/RenderPipeline.h"
-#include "Renderer/Scene/SceneCommandBuilder.h"
-#include "Renderer/Common/SceneRenderTargets.h"
-#include "Renderer/Scene/ScenePasses.h"
-#include "Renderer/Scene/SceneViewData.h"
+#include "Renderer/Common/RenderFrameContext.h"
+#include "Renderer/Mesh/MeshBatch.h"
+
+#include <memory>
 
 class FRenderer;
 class FMaterial;
+class FSceneCommandBuilder;
+class FSceneCommandResourceCache;
+class FMeshPassProcessor;
+struct FSceneRenderPacket;
+struct FSceneViewData;
+struct FSceneRenderTargets;
 
 class ENGINE_API FSceneRenderer
 {
 public:
+	FSceneRenderer();
+	~FSceneRenderer();
+
+	FSceneRenderer(const FSceneRenderer&) = delete;
+	FSceneRenderer& operator=(const FSceneRenderer&) = delete;
+
 	void BeginFrame();
 	size_t GetPrevCommandCount() const;
 
@@ -35,15 +44,9 @@ public:
 		FMaterial* WireframeMaterial);
 
 private:
-	void AppendAdditionalMeshBatches(FRenderer& Renderer, const TArray<FMeshBatch>& AdditionalMeshBatches, FSceneViewData& InOutSceneViewData);
-	void BuildRenderPipeline(FRenderPipeline& OutPipeline) const;
-
-	static void ApplyWireframeOverride(FSceneViewData& SceneViewData, FMaterial* WireframeMaterial);
-
-private:
-	FSceneCommandBuilder SceneCommandBuilder;
-	FSceneCommandResourceCache SceneCommandResourceCache;
-	FMeshPassProcessor MeshPassProcessor;
+	std::unique_ptr<FSceneCommandBuilder> SceneCommandBuilder;
+	std::unique_ptr<FSceneCommandResourceCache> SceneCommandResourceCache;
+	std::unique_ptr<FMeshPassProcessor> MeshPassProcessor;
 	size_t PrevCommandCount = 0;
 	size_t CurrentFramePeakCommandCount = 0;
 };

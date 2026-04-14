@@ -1,4 +1,4 @@
-#include "Renderer/Features/Text/TextMeshBuilder.h"
+﻿#include "Renderer/Features/Text/TextMeshBuilder.h"
 #include "Renderer/Resources/Shader/Shader.h"
 #include "Renderer/Resources/Shader/ShaderResource.h"
 #include "Renderer/Resources/Shader/ShaderType.h"
@@ -7,7 +7,7 @@
 #include "Renderer/Resources/Shader/ShaderMap.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/Mesh/RenderMesh.h"
-#include "Renderer/RHI/RenderStateManager.h"
+#include "Renderer/GraphicsCore/RenderStateManager.h"
 #include "Core/Paths.h"
 #include <cstring>
 #include <algorithm>

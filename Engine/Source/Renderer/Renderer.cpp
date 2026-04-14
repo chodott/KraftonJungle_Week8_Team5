@@ -11,9 +11,13 @@
 #include "Component/StaticMeshComponent.h"
 #include "Component/DecalComponent.h"
 #include "Debug/DebugDrawManager.h"
-#include "Renderer/UI/FramePasses.h"
-#include "Renderer/UI/FramePipeline.h"
-#include "Renderer/Common/SceneTargetManager.h"
+#include "Renderer/Frame/GameFrameRenderer.h"
+#include "Renderer/Frame/EditorFrameRenderer.h"
+#include "Renderer/Frame/RendererResourceBootstrap.h"
+#include "Renderer/Frame/SceneTargetManager.h"
+#include "Renderer/Frame/Viewport/ViewportCompositor.h"
+#include "Renderer/UI/Screen/ScreenUIRenderer.h"
+#include "Renderer/Scene/SceneRenderer.h"
 #include "Renderer/Features/Decal/DecalTextureCache.h"
 #include "Renderer/Features/Fog/FogRenderFeature.h"
 #include "Renderer/Features/Outline/OutlineRenderFeature.h"
@@ -41,250 +45,67 @@
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 
-namespace
-{
-	static constexpr uint32 DECAL_MAX_TEXTURE_SLICES = 16;
-
-	void BuildDebugLinePassInputs(const FDebugPrimitiveList& Primitives, FDebugLinePassInputs& OutPassInputs)
-	{
-		OutPassInputs.Clear();
-
-		for (const FDebugCube& Cube : Primitives.Cubes)
-		{
-			FDebugLineRenderFeature::AppendCube(OutPassInputs, Cube.Center, Cube.Extent, Cube.Color);
-		}
-
-		for (const FDebugLine& Line : Primitives.Lines)
-		{
-			FDebugLineRenderFeature::AppendLine(OutPassInputs, Line.Start, Line.End, Line.Color);
-		}
-	}
-
-	void AppendActorMeshBVHDebug(
-		AActor* BoundsActor,
-		UWorld* World,
-		FDebugPrimitiveList& OutPrimitives)
-	{
-		if (!BoundsActor || !World)
-		{
-			return;
-		}
-
-		UStaticMeshComponent* MeshComp = nullptr;
-		for (UActorComponent* Comp : BoundsActor->GetComponents())
-		{
-			if (Comp && Comp->IsA(UStaticMeshComponent::StaticClass()))
-			{
-				MeshComp = static_cast<UStaticMeshComponent*>(Comp);
-				break;
-			}
-		}
-
-		if (!MeshComp)
-		{
-			return;
-		}
-
-		if (ULevel* Scene = World->GetScene())
-		{
-			Scene->VisitBVHNodesForPrimitive(MeshComp, [&OutPrimitives](const FAABB& Bounds, int32 Depth, bool bIsLeaf)
-				{
-					(void)Depth;
-					const FVector Center = (Bounds.PMin + Bounds.PMax) * 0.5f;
-					const FVector Extent = (Bounds.PMax - Bounds.PMin) * 0.5f;
-					const FVector4 Color = bIsLeaf
-						? FVector4(1.0f, 1.0f, 0.0f, 1.0f)
-						: FVector4(0.0f, 1.0f, 0.0f, 1.0f);
-					OutPrimitives.Cubes.push_back({ Center, Extent, Color });
-				});
-		}
-
-		UStaticMesh* StaticMesh = MeshComp->GetStaticMesh();
-		if (!StaticMesh)
-		{
-			return;
-		}
-
-		const FMatrix& LocalToWorld = MeshComp->GetWorldTransform();
-		StaticMesh->VisitMeshBVHNodes([&OutPrimitives, &LocalToWorld](const FAABB& LocalBounds, int32 Depth, bool bIsLeaf)
-			{
-				(void)Depth;
-				const FVector& PMin = LocalBounds.PMin;
-				const FVector& PMax = LocalBounds.PMax;
-				const FVector Corners[8] = {
-					{ PMin.X, PMin.Y, PMin.Z }, { PMax.X, PMin.Y, PMin.Z },
-					{ PMin.X, PMax.Y, PMin.Z }, { PMax.X, PMax.Y, PMin.Z },
-					{ PMin.X, PMin.Y, PMax.Z }, { PMax.X, PMin.Y, PMax.Z },
-					{ PMin.X, PMax.Y, PMax.Z }, { PMax.X, PMax.Y, PMax.Z },
-				};
-
-				FVector WorldMin = LocalToWorld.TransformPosition(Corners[0]);
-				FVector WorldMax = WorldMin;
-				for (int32 Index = 1; Index < 8; ++Index)
-				{
-					const FVector W = LocalToWorld.TransformPosition(Corners[Index]);
-					WorldMin.X = (W.X < WorldMin.X) ? W.X : WorldMin.X;
-					WorldMin.Y = (W.Y < WorldMin.Y) ? W.Y : WorldMin.Y;
-					WorldMin.Z = (W.Z < WorldMin.Z) ? W.Z : WorldMin.Z;
-					WorldMax.X = (W.X > WorldMax.X) ? W.X : WorldMax.X;
-					WorldMax.Y = (W.Y > WorldMax.Y) ? W.Y : WorldMax.Y;
-					WorldMax.Z = (W.Z > WorldMax.Z) ? W.Z : WorldMax.Z;
-				}
-
-				const FVector Center = (WorldMin + WorldMax) * 0.5f;
-				const FVector Extent = (WorldMax - WorldMin) * 0.5f;
-				const FVector4 Color = bIsLeaf
-					? FVector4(0.0f, 0.5f, 1.0f, 1.0f)
-					: FVector4(0.0f, 1.0f, 1.0f, 1.0f);
-				OutPrimitives.Cubes.push_back({ Center, Extent, Color });
-			});
-	}
-
-	void BuildDebugLinePassInputs(const FDebugSceneBuildInputs& Inputs, FDebugLinePassInputs& OutPassInputs)
-	{
-		OutPassInputs.Clear();
-		if (!Inputs.DrawManager || !Inputs.World)
-		{
-			return;
-		}
-
-		FDebugPrimitiveList Primitives;
-		Inputs.DrawManager->BuildPrimitiveList(Inputs.ShowFlags, Inputs.World, Primitives);
-		if (Inputs.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw))
-		{
-			AppendActorMeshBVHDebug(Inputs.BoundsActor, Inputs.World, Primitives);
-		}
-
-		BuildDebugLinePassInputs(Primitives, OutPassInputs);
-	}
-
-	bool CreateColorRenderTarget(
-		ID3D11Device* Device,
-		uint32 Width,
-		uint32 Height,
-		DXGI_FORMAT Format,
-		ID3D11Texture2D** OutTexture,
-		ID3D11RenderTargetView** OutRTV,
-		ID3D11ShaderResourceView** OutSRV)
-	{
-		if (!Device || !OutTexture || !OutRTV || !OutSRV)
-		{
-			return false;
-		}
-
-		*OutTexture = nullptr;
-		*OutRTV = nullptr;
-		*OutSRV = nullptr;
-
-		D3D11_TEXTURE2D_DESC Desc = {};
-		Desc.Width = Width;
-		Desc.Height = Height;
-		Desc.MipLevels = 1;
-		Desc.ArraySize = 1;
-		Desc.Format = Format;
-		Desc.SampleDesc.Count = 1;
-		Desc.Usage = D3D11_USAGE_DEFAULT;
-		Desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-
-		if (FAILED(Device->CreateTexture2D(&Desc, nullptr, OutTexture)) || !*OutTexture)
-		{
-			return false;
-		}
-
-		if (FAILED(Device->CreateRenderTargetView(*OutTexture, nullptr, OutRTV)) || !*OutRTV)
-		{
-			(*OutTexture)->Release();
-			*OutTexture = nullptr;
-			return false;
-		}
-
-		if (FAILED(Device->CreateShaderResourceView(*OutTexture, nullptr, OutSRV)) || !*OutSRV)
-		{
-			(*OutRTV)->Release();
-			(*OutTexture)->Release();
-			*OutRTV = nullptr;
-			*OutTexture = nullptr;
-			return false;
-		}
-
-		return true;
-	}
-
-	bool CreateDepthTarget(
-		ID3D11Device* Device,
-		uint32 Width,
-		uint32 Height,
-		ID3D11Texture2D** OutTexture,
-		ID3D11DepthStencilView** OutDSV,
-		ID3D11ShaderResourceView** OutSRV)
-	{
-		if (!Device || !OutTexture || !OutDSV || !OutSRV)
-		{
-			return false;
-		}
-
-		*OutTexture = nullptr;
-		*OutDSV = nullptr;
-		*OutSRV = nullptr;
-
-		D3D11_TEXTURE2D_DESC DepthDesc = {};
-		DepthDesc.Width = Width;
-		DepthDesc.Height = Height;
-		DepthDesc.MipLevels = 1;
-		DepthDesc.ArraySize = 1;
-		DepthDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
-		DepthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
-		DepthDesc.SampleDesc.Count = 1;
-		DepthDesc.Usage = D3D11_USAGE_DEFAULT;
-
-		if (FAILED(Device->CreateTexture2D(&DepthDesc, nullptr, OutTexture)) || !*OutTexture)
-		{
-			return false;
-		}
-
-		D3D11_DEPTH_STENCIL_VIEW_DESC DSVDesc = {};
-		DSVDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-		DSVDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-		if (FAILED(Device->CreateDepthStencilView(*OutTexture, &DSVDesc, OutDSV)) || !*OutDSV)
-		{
-			(*OutTexture)->Release();
-			*OutTexture = nullptr;
-			return false;
-		}
-
-		D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
-		SRVDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
-		SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-		SRVDesc.Texture2D.MipLevels = 1;
-		if (FAILED(Device->CreateShaderResourceView(*OutTexture, &SRVDesc, OutSRV)) || !*OutSRV)
-		{
-			(*OutDSV)->Release();
-			(*OutTexture)->Release();
-			*OutDSV = nullptr;
-			*OutTexture = nullptr;
-			return false;
-		}
-
-		return true;
-	}
-
-	void ReleaseCOM(IUnknown*& Resource)
-	{
-		if (Resource)
-		{
-			Resource->Release();
-			Resource = nullptr;
-		}
-	}
-}
-
-
 FBillboardRenderer& FRenderer::GetBillboardRenderer()
 {
 	return BillboardFeature->GetRenderer();
 }
 
+ISceneTextFeature* FRenderer::GetSceneTextFeature() const
+{
+	return TextFeature.get();
+}
+
+ISceneSubUVFeature* FRenderer::GetSceneSubUVFeature() const
+{
+	return SubUVFeature.get();
+}
+
+ISceneBillboardFeature* FRenderer::GetSceneBillboardFeature() const
+{
+	return BillboardFeature.get();
+}
+
+FFogRenderFeature* FRenderer::GetFogFeature() const
+{
+	return FogFeature.get();
+}
+
+FOutlineRenderFeature* FRenderer::GetOutlineFeature() const
+{
+	return OutlineFeature.get();
+}
+
+FDebugLineRenderFeature* FRenderer::GetDebugLineFeature() const
+{
+	return DebugLineFeature.get();
+}
+
+FDecalRenderFeature* FRenderer::GetDecalFeature() const
+{
+	return DecalFeature.get();
+}
+
+FVolumeDecalRenderFeature* FRenderer::GetVolumeDecalFeature() const
+{
+	return VolumeDecalFeature.get();
+}
+
+FFireBallRenderFeature* FRenderer::GetFireBallFeature() const
+{
+	return FireBallFeature.get();
+}
+
+FFXAARenderFeature* FRenderer::GetFXAAFeature() const
+{
+	return FXAAFeature.get();
+}
+
 FRenderer::FRenderer(HWND InHwnd, int32 InWidth, int32 InHeight)
+	: SceneRenderer(std::make_unique<FSceneRenderer>())
+	, ViewportCompositor(std::make_unique<FViewportCompositor>())
+	, ScreenUIRenderer(std::make_unique<FScreenUIRenderer>())
+	, SceneTargetManager(std::make_unique<FSceneTargetManager>())
+	, DecalTextureCache(std::make_unique<FDecalTextureCache>())
 {
 	Initialize(InHwnd, InWidth, InHeight);
 }
@@ -305,145 +126,12 @@ bool FRenderer::Initialize(HWND InHwnd, int32 Width, int32 Height)
 	RenderStateManager->PrepareCommonStates();
 
 	if (!CreateSamplers()) return false;
-	if (!ViewportCompositor.Initialize(Device)) return false;
+	if (!ViewportCompositor || !ViewportCompositor->Initialize(Device)) return false;
 
 	if (!CreateConstantBuffers()) return false;
 	SetConstantBuffers();
 
-	std::wstring ShaderDirW = FPaths::ShaderDir();
-	std::wstring VSPath = ShaderDirW + L"VertexShader.hlsl";
-	std::wstring PSPath = ShaderDirW + L"PixelShader.hlsl";
-
-	if (!ShaderManager.LoadVertexShader(Device, VSPath.c_str())) return false;
-	if (!ShaderManager.LoadPixelShader(Device, PSPath.c_str())) return false;
-
-	{
-		auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
-		std::wstring ColorPSPath = ShaderDirW + L"ColorPixelShader.hlsl";
-		auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, ColorPSPath.c_str());
-		DefaultMaterial = std::make_shared<FMaterial>();
-		DefaultMaterial->SetOriginName("M_Default");
-		DefaultMaterial->SetVertexShader(VS);
-		DefaultMaterial->SetPixelShader(PS);
-
-		FRasterizerStateOption rasterizerOption;
-		rasterizerOption.FillMode = D3D11_FILL_SOLID;
-		rasterizerOption.CullMode = D3D11_CULL_BACK;
-		auto RS = RenderStateManager->GetOrCreateRasterizerState(rasterizerOption);
-		DefaultMaterial->SetRasterizerOption(rasterizerOption);
-		DefaultMaterial->SetRasterizerState(RS);
-
-		FDepthStencilStateOption depthStencilOption;
-		depthStencilOption.DepthEnable = true;
-		depthStencilOption.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-		auto DSS = RenderStateManager->GetOrCreateDepthStencilState(depthStencilOption);
-		DefaultMaterial->SetDepthStencilOption(depthStencilOption);
-		DefaultMaterial->SetDepthStencilState(DSS);
-
-		int32 SlotIndex = DefaultMaterial->CreateConstantBuffer(Device, 16);
-		if (SlotIndex >= 0)
-		{
-			DefaultMaterial->RegisterParameter("BaseColor", SlotIndex, 0, 16);
-			float White[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-			DefaultMaterial->GetConstantBuffer(SlotIndex)->SetData(White, sizeof(White));
-		}
-
-		ConfigureMaterialPasses(*DefaultMaterial, false);
-		FMaterialManager::Get().Register("M_Default", DefaultMaterial);
-	}
-
-	{
-		std::wstring TextureVSPath = ShaderDirW + L"TextureVertexShader.hlsl";
-		auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, TextureVSPath.c_str());
-		std::wstring TexturePSPath = ShaderDirW + L"TexturePixelShader.hlsl";
-		auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, TexturePSPath.c_str());
-		DefaultTextureMaterial = std::make_shared<FMaterial>();
-		DefaultTextureMaterial->SetOriginName("M_Default_Texture");
-		DefaultTextureMaterial->SetVertexShader(VS);
-		DefaultTextureMaterial->SetPixelShader(PS);
-
-		FRasterizerStateOption rasterizerOption;
-		rasterizerOption.FillMode = D3D11_FILL_SOLID;
-		rasterizerOption.CullMode = D3D11_CULL_BACK;
-		auto RS = RenderStateManager->GetOrCreateRasterizerState(rasterizerOption);
-		DefaultTextureMaterial->SetRasterizerOption(rasterizerOption);
-		DefaultTextureMaterial->SetRasterizerState(RS);
-
-		FDepthStencilStateOption depthStencilOption;
-		depthStencilOption.DepthEnable = true;
-		depthStencilOption.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-		auto DSS = RenderStateManager->GetOrCreateDepthStencilState(depthStencilOption);
-		DefaultTextureMaterial->SetDepthStencilOption(depthStencilOption);
-		DefaultTextureMaterial->SetDepthStencilState(DSS);
-
-		int32 SlotIndex = DefaultTextureMaterial->CreateConstantBuffer(Device, 32);
-		if (SlotIndex >= 0)
-		{
-			DefaultTextureMaterial->RegisterParameter("BaseColor", SlotIndex, 0, 16);
-			float White[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-			DefaultTextureMaterial->GetConstantBuffer(SlotIndex)->SetData(White, sizeof(White));
-
-			DefaultTextureMaterial->RegisterParameter("UVScrollSpeed", SlotIndex, 16, 16);
-			float DefaultScroll[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-			DefaultTextureMaterial->GetConstantBuffer(SlotIndex)->SetData(DefaultScroll, sizeof(DefaultScroll), 16);
-		}
-
-		ConfigureMaterialPasses(*DefaultTextureMaterial, true);
-		FMaterialManager::Get().Register("M_Default_Texture", DefaultTextureMaterial);
-	}
-
-	TextFeature = std::make_unique<FTextRenderFeature>();
-	if (!TextFeature || !TextFeature->Initialize(*this))
-	{
-		return false;
-	}
-
-	std::filesystem::path SubUVTexturePath = FPaths::ContentDir() / FString("Textures/SubUVDino.png");
-	SubUVFeature = std::make_unique<FSubUVRenderFeature>();
-	if (!SubUVFeature || !SubUVFeature->Initialize(*this, SubUVTexturePath.wstring()))
-	{
-		MessageBox(0, L"SubUVRenderer Initialize Failed.", 0, 0);
-		return false;
-	}
-
-	BillboardFeature = std::make_unique<FBillboardRenderFeature>();
-	if (!BillboardFeature || !BillboardFeature->Initialize(*this))
-	{
-		return false;
-	}
-
-	DecalFeature = std::make_unique<FDecalRenderFeature>();
-	if (!DecalFeature)
-	{
-		return false;
-	}
-
-	VolumeDecalFeature = std::make_unique<FVolumeDecalRenderFeature>();
-	if (!VolumeDecalFeature)
-	{
-		return false;
-	}
-
-	FogFeature = std::make_unique<FFogRenderFeature>();
-	OutlineFeature = std::make_unique<FOutlineRenderFeature>();
-	DebugLineFeature = std::make_unique<FDebugLineRenderFeature>();
-	FireBallFeature = std::make_unique<FFireBallRenderFeature>();
-	if (!FireBallFeature)
-	{
-		return false;
-	}
-
-	FXAAFeature = std::make_unique<FFXAARenderFeature>();
-	if (!FXAAFeature)
-	{
-		return false;
-	}
-
-	std::filesystem::path FolderIconPath = FPaths::AssetDir() / FString("Textures/FolderIcon.png");
-	std::filesystem::path FileIconPath = FPaths::AssetDir() / FString("Textures/FileIcon.png");
-	CreateTextureFromSTB(Device, FolderIconPath, &FolderIconSRV);
-	CreateTextureFromSTB(Device, FileIconPath, &FileIconSRV);
-	if (!DecalTextureCache.InitializeFallbackTexture(Device))
+	if (!FRendererResourceBootstrap::Initialize(*this))
 	{
 		return false;
 	}
@@ -468,7 +156,10 @@ void FRenderer::BeginFrame()
 {
 	constexpr float ClearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
 	RenderDevice.BeginFrame(ClearColor);
-	SceneRenderer.BeginFrame();
+	if (SceneRenderer)
+	{
+		SceneRenderer->BeginFrame();
+	}
 }
 
 void FRenderer::EndFrame()
@@ -476,80 +167,10 @@ void FRenderer::EndFrame()
 	RenderDevice.EndFrame();
 }
 
-FFrameContext FRenderer::BuildFrameContext(float TotalTimeSeconds) const
-{
-	FFrameContext Frame;
-	Frame.TotalTimeSeconds = TotalTimeSeconds;
-	Frame.DeltaTimeSeconds = GEngine ? GEngine->GetDeltaTime() : 0.0f;
-	return Frame;
-}
-
-FViewContext FRenderer::BuildViewContext(const FSceneViewRenderRequest& SceneView, const D3D11_VIEWPORT& Viewport) const
-{
-	FViewContext View;
-	View.View = SceneView.ViewMatrix;
-	View.Projection = SceneView.ProjectionMatrix;
-	View.ViewProjection = SceneView.ViewMatrix * SceneView.ProjectionMatrix;
-	View.InverseView = SceneView.ViewMatrix.GetInverse();
-	View.InverseProjection = SceneView.ProjectionMatrix.GetInverse();
-	View.InverseViewProjection = View.ViewProjection.GetInverse();
-	View.CameraPosition = SceneView.CameraPosition;
-	View.NearZ = SceneView.NearZ;
-	View.FarZ = SceneView.FarZ;
-	View.Viewport = Viewport;
-	return View;
-}
 
 bool FRenderer::RenderGameFrame(const FGameFrameRequest& Request)
 {
-	FSceneRenderTargets Targets;
-	if (!SceneTargetManager.AcquireGameSceneTargets(GetDevice(), RenderDevice.GetViewport(), Targets))
-	{
-		return false;
-	}
-
-	const FFrameContext Frame = BuildFrameContext(Request.SceneView.TotalTimeSeconds);
-	const FViewContext View = BuildViewContext(Request.SceneView, RenderDevice.GetViewport());
-
-	FSceneViewData SceneViewData;
-	SceneRenderer.BuildSceneViewData(*this, Request.ScenePacket, Frame, View, Request.AdditionalMeshBatches, SceneViewData);
-	DecalTextureCache.ResolveTextureArray(GetDevice(), SceneViewData);
-	BuildDebugLinePassInputs(Request.DebugInputs, SceneViewData.DebugInputs.LinePass);
-
-	if (!SceneRenderer.RenderSceneView(
-		*this,
-		Targets,
-		SceneViewData,
-		Request.ClearColor,
-		Request.bForceWireframe,
-		Request.WireframeMaterial))
-	{
-		return false;
-	}
-
-	FViewportCompositeItem FullscreenItem;
-	FullscreenItem.Mode = Request.CompositeMode;
-	FullscreenItem.SceneColorSRV = Targets.SceneColorSRV;
-	FullscreenItem.SceneDepthSRV = Targets.SceneDepthSRV;
-	FullscreenItem.VisualizationParams.NearZ = View.NearZ;
-	FullscreenItem.VisualizationParams.FarZ = View.FarZ;
-	FullscreenItem.VisualizationParams.bOrthographic = 0u;
-	FullscreenItem.Rect.X = 0;
-	FullscreenItem.Rect.Y = 0;
-	FullscreenItem.Rect.Width = static_cast<int32>(RenderDevice.GetViewport().Width);
-	FullscreenItem.Rect.Height = static_cast<int32>(RenderDevice.GetViewport().Height);
-	FullscreenItem.bVisible = true;
-
-	TArray<FViewportCompositeItem> CompositeItems;
-	CompositeItems.push_back(FullscreenItem);
-	const FViewportCompositePassInputs CompositeInputs{ &CompositeItems };
-
-	FViewContext FramePassView;
-	FramePassView.Viewport = RenderDevice.GetViewport();
-	FFramePassContext FramePassContext{ *this, Frame, FramePassView, RenderDevice.GetRenderTargetView(), nullptr, &CompositeInputs, nullptr };
-	FFrameRenderPipeline FramePipeline;
-	FramePipeline.AddPass(std::make_unique<FViewportCompositePass>());
-	return FramePipeline.Execute(FramePassContext);
+	return FGameFrameRenderer::Render(*this, Request);
 }
 
 bool FRenderer::RenderScreenUIPass(
@@ -558,7 +179,7 @@ bool FRenderer::RenderScreenUIPass(
 	ID3D11RenderTargetView* RenderTargetView,
 	ID3D11DepthStencilView* DepthStencilView)
 {
-	return ScreenUIRenderer.Render(
+	return ScreenUIRenderer && ScreenUIRenderer->Render(
 		*this,
 		Frame,
 		PassInputs,
@@ -578,7 +199,7 @@ bool FRenderer::ComposeViewports(
 		return false;
 	}
 
-	return ViewportCompositor.Compose(
+	return ViewportCompositor && ViewportCompositor->Compose(
 		*this,
 		Frame,
 		View,
@@ -589,66 +210,7 @@ bool FRenderer::ComposeViewports(
 
 bool FRenderer::RenderEditorFrame(const FEditorFrameRequest& Request)
 {
-	for (const FViewportScenePassRequest& ScenePass : Request.ScenePasses)
-	{
-		if (!ScenePass.IsValid())
-		{
-			continue;
-		}
-
-		const FFrameContext Frame = BuildFrameContext(ScenePass.SceneView.TotalTimeSeconds);
-		const FViewContext View = BuildViewContext(ScenePass.SceneView, ScenePass.Viewport);
-
-		FSceneRenderTargets Targets;
-		if (!SceneTargetManager.WrapExternalSceneTargets(
-			GetDevice(),
-			ScenePass.RenderTargetView,
-			ScenePass.RenderTargetShaderResourceView,
-			ScenePass.DepthStencilView,
-			ScenePass.DepthShaderResourceView,
-			ScenePass.Viewport,
-			Targets))
-		{
-			continue;
-		}
-
-		FSceneViewData SceneViewData;
-		SceneRenderer.BuildSceneViewData(*this, ScenePass.ScenePacket, Frame, View, ScenePass.AdditionalMeshBatches, SceneViewData);
-		DecalTextureCache.ResolveTextureArray(GetDevice(), SceneViewData);
-		SceneViewData.PostProcessInputs.OutlineItems = ScenePass.OutlineRequest.Items;
-		SceneViewData.PostProcessInputs.bOutlineEnabled = ScenePass.OutlineRequest.bEnabled;
-		BuildDebugLinePassInputs(ScenePass.DebugInputs, SceneViewData.DebugInputs.LinePass);
-
-		if (!SceneRenderer.RenderSceneView(
-			*this,
-			Targets,
-			SceneViewData,
-			ScenePass.ClearColor,
-			ScenePass.bForceWireframe,
-			ScenePass.WireframeMaterial))
-		{
-			continue;
-		}
-	}
-
-	const float FrameTimeSeconds = !Request.ScenePasses.empty()
-		? Request.ScenePasses.front().SceneView.TotalTimeSeconds
-		: 0.0f;
-	const FFrameContext Frame = BuildFrameContext(FrameTimeSeconds);
-	FViewContext FramePassView;
-	FramePassView.Viewport = RenderDevice.GetViewport();
-	const FViewportCompositePassInputs CompositeInputs{ &Request.CompositeItems };
-	FScreenUIPassInputs ScreenUIInputs;
-	if (!ScreenUIRenderer.BuildPassInputs(*this, Request.ScreenDrawList, RenderDevice.GetViewport(), ScreenUIInputs))
-	{
-		return false;
-	}
-
-	FFramePassContext FramePassContext{ *this, Frame, FramePassView, RenderDevice.GetRenderTargetView(), nullptr, &CompositeInputs, &ScreenUIInputs };
-	FFrameRenderPipeline FramePipeline;
-	FramePipeline.AddPass(std::make_unique<FViewportCompositePass>());
-	FramePipeline.AddPass(std::make_unique<FScreenUIPass>());
-	return FramePipeline.Execute(FramePassContext);
+	return FEditorFrameRenderer::Render(*this, Request);
 }
 
 void FRenderer::ClearDepthBuffer(ID3D11DepthStencilView* DepthStencilView)
@@ -715,7 +277,7 @@ FDecalStats FRenderer::GetDecalStats() const
 
 size_t FRenderer::GetPrevCommandCount() const
 {
-	return SceneRenderer.GetPrevCommandCount();
+	return SceneRenderer ? SceneRenderer->GetPrevCommandCount() : 0;
 }
 
 bool FRenderer::CreateConstantBuffers()
@@ -898,48 +460,20 @@ bool FRenderer::CreateTextureFromSTB(ID3D11Device* Device, const std::filesystem
 
 	D3D11_SUBRESOURCE_DATA InitData = { Data, static_cast<UINT>(W * 4), 0 };
 	ID3D11Texture2D* Tex = nullptr;
-	HRESULT hr = Device->CreateTexture2D(&Desc, &InitData, &Tex);
+	HRESULT Hr = Device->CreateTexture2D(&Desc, &InitData, &Tex);
 	stbi_image_free(Data);
-	if (FAILED(hr)) return false;
+	if (FAILED(Hr)) return false;
 
-	hr = Device->CreateShaderResourceView(Tex, nullptr, OutSRV);
+	Hr = Device->CreateShaderResourceView(Tex, nullptr, OutSRV);
 	Tex->Release();
-	return SUCCEEDED(hr);
+	return SUCCEEDED(Hr);
 }
 
 void FRenderer::Release()
 {
-	SceneTargetManager.Release();
-	ViewportCompositor.Release();
-	if (FogFeature) FogFeature->Release();
-	if (OutlineFeature) OutlineFeature->Release();
-	if (DebugLineFeature) DebugLineFeature->Release();
-	if (TextFeature) TextFeature->Release();
-	if (SubUVFeature) SubUVFeature->Release();
-	if (BillboardFeature) BillboardFeature->Release();
-	if (DecalFeature) DecalFeature->Release();
-	if (VolumeDecalFeature) VolumeDecalFeature->Release();
-	if (FireBallFeature) FireBallFeature->Release();
-	if (FXAAFeature) FXAAFeature->Release();
-	OutlineFeature.reset();
-	DebugLineFeature.reset();
-	FogFeature.reset();
-	TextFeature.reset();
-	SubUVFeature.reset();
-	BillboardFeature.reset();
-	DecalFeature.reset();
-	VolumeDecalFeature.reset();
-	FireBallFeature.reset();
-	FXAAFeature.reset();
-	ShaderManager.Release(); FShaderMap::Get().Clear(); FMaterialManager::Get().Clear();
-	if (NormalSampler) { NormalSampler->Release(); NormalSampler = nullptr; }
-	DefaultMaterial.reset();
-	DefaultTextureMaterial.reset();
-	DecalTextureCache.Release();
-	if (FolderIconSRV) { FolderIconSRV->Release(); FolderIconSRV = nullptr; }
-	if (FileIconSRV) { FileIconSRV->Release(); FileIconSRV = nullptr; }
-	if (FrameConstantBuffer) { FrameConstantBuffer->Release(); FrameConstantBuffer = nullptr; }
-	if (ObjectConstantBuffer) { ObjectConstantBuffer->Release(); ObjectConstantBuffer = nullptr; }
+	if (SceneTargetManager) SceneTargetManager->Release();
+	if (ViewportCompositor) ViewportCompositor->Release();
+	FRendererResourceBootstrap::Release(*this);
 	RenderDevice.Release();
 }
 
@@ -951,6 +485,6 @@ bool FRenderer::IsOccluded()
 void FRenderer::OnResize(int32 W, int32 H)
 {
 	if (W == 0 || H == 0) return;
-	SceneTargetManager.Release();
+	if (SceneTargetManager) SceneTargetManager->Release();
 	RenderDevice.OnResize(W, H);
 }

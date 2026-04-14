@@ -30,6 +30,8 @@
 
 #include <algorithm>
 
+#include "Renderer/Features/Billboard/BillboardRenderer.h"
+
 namespace
 {
 	using FComponentClassGetter = UClass * (*)();

@@ -5,6 +5,7 @@
 #include "Renderer/Resources/Shader/Shader.h"
 #include "Renderer/Resources/Shader/ShaderMap.h"
 #include "Renderer/Mesh/Vertex.h"
+#include <algorithm>
 #include <chrono>
 
 namespace
@@ -158,24 +159,43 @@ bool FVolumeDecalRenderFeature::Render(
     };
     DeviceContext->PSSetSamplers(DECAL_DEPTH_SAMPLER_SLOT, 2, Samplers);
 
-    LastStats.CandidateObjects = Request.CandidateReceiverObjectCount;
-    const FVolumeDecalClock::time_point ShadingStartTime = FVolumeDecalClock::now();
+    TArray<const FDecalRenderItem*> SortedItems;
+    SortedItems.reserve(Request.Items.size());
     for (const FDecalRenderItem& Item : Request.Items)
     {
-        if (!Item.IsValid())
+        SortedItems.push_back(&Item);
+    }
+
+    std::sort(
+        SortedItems.begin(),
+        SortedItems.end(),
+        [](const FDecalRenderItem* A, const FDecalRenderItem* B)
+        {
+            if (A->Priority != B->Priority)
+            {
+                return A->Priority > B->Priority;
+            }
+            return A->TextureIndex < B->TextureIndex;
+        });
+
+    LastStats.CandidateObjects = Request.CandidateReceiverObjectCount;
+    const FVolumeDecalClock::time_point ShadingStartTime = FVolumeDecalClock::now();
+    for (const FDecalRenderItem* Item : SortedItems)
+    {
+        if (!Item || !Item->IsValid())
         {
             continue;
         }
 
-        if ((Item.Flags & DECAL_RENDER_FLAG_BaseColor) == 0u)
+        if ((Item->Flags & DECAL_RENDER_FLAG_BaseColor) == 0u)
         {
             continue;
         }
 
         ++LastStats.IntersectPassed;
 
-        Renderer.UpdateObjectConstantBuffer(Item.DecalWorld);
-        if (!UpdatePerDecalConstants(Renderer, Request, Item))
+        Renderer.UpdateObjectConstantBuffer(Item->DecalWorld);
+        if (!UpdatePerDecalConstants(Renderer, Request, *Item))
         {
             continue;
         }
@@ -359,8 +379,8 @@ bool FVolumeDecalRenderFeature::CreateShaders(FRenderer& Renderer)
     }
 
     const std::wstring ShaderDir = FPaths::ShaderDir();
-    const std::wstring VSPath = ShaderDir + L"DecalVertexShader.hlsl";
-    const std::wstring PSPath = ShaderDir + L"DecalPixelShader.hlsl";
+    const std::wstring VSPath = ShaderDir + L"VolumeDecalVertexShader.hlsl";
+    const std::wstring PSPath = ShaderDir + L"VolumeDecalPixelShader.hlsl";
 
     VolumeVS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
     VolumePS = FShaderMap::Get().GetOrCreatePixelShader(Device, PSPath.c_str());
@@ -383,9 +403,21 @@ bool FVolumeDecalRenderFeature::UpdatePerDecalConstants(
     Constants.WorldToDecal = Item.WorldToDecal.GetTransposed();
     Constants.AtlasScaleBias = Item.AtlasScaleBias;
     Constants.BaseColorTint = Item.BaseColorTint;
-    Constants.DecalExtents = Item.Extents;
-    Constants.EdgeFade = Item.EdgeFade;
-    Constants.TextureIndex = Item.TextureIndex;
+    Constants.DecalExtentsAndEdgeFade = FVector4(Item.Extents.X, Item.Extents.Y, Item.Extents.Z, Item.EdgeFade);
+
+    const float InvViewportWidth = Request.ViewportWidth > 0 ? 1.0f / static_cast<float>(Request.ViewportWidth) : 0.0f;
+    const float InvViewportHeight = Request.ViewportHeight > 0 ? 1.0f / static_cast<float>(Request.ViewportHeight) : 0.0f;
+    Constants.InvViewportSizeAndAllowAngleAndTextureIndex = FVector4(
+        InvViewportWidth,
+        InvViewportHeight,
+        Item.AllowAngle,
+        static_cast<float>(Item.TextureIndex));
+
+    const FVector DecalAxisX = FVector(
+        Item.DecalWorld.M[0][0],
+        Item.DecalWorld.M[0][1],
+        Item.DecalWorld.M[0][2]).GetSafeNormal();
+    Constants.DecalForwardWSAndPad = FVector4(DecalAxisX.X, DecalAxisX.Y, DecalAxisX.Z, 0.0f);
 
     D3D11_MAPPED_SUBRESOURCE Mapped = {};
     if (FAILED(DeviceContext->Map(PerDecalConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))

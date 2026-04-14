@@ -7,7 +7,7 @@
 #include "Renderer/Resources/Shader/ShaderMap.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/Mesh/RenderMesh.h"
-#include "Renderer/RHI/RenderStateManager.h"
+#include "Renderer/GraphicsCore/RenderStateManager.h"
 #include "Core/Paths.h"
 #include <WICTextureLoader.h>
 #include <cstring>
