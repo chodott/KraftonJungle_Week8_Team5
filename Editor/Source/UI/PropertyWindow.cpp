@@ -546,6 +546,12 @@ void FPropertyWindow::DrawRotatingMovementComponentDetails(URotatingMovementComp
 		RotatingMovementComponent->SetRotationRate(
 			FRotator(NewRotationRate.X, NewRotationRate.Y, NewRotationRate.Z));
 	}
+
+	FVector NewPivotTranslation = RotatingMovementComponent->GetPivotTranslation();
+	if (DrawVector3Control("Pivot Translation", NewPivotTranslation, NewPivotTranslation, 0.5f, "%.2f"))
+	{
+		RotatingMovementComponent->SetPivotTranslation(NewPivotTranslation);
+	}
 }
 
 void FPropertyWindow::DrawProjectileMovementComponentDetails(UProjectileMovementComponent* ProjectileMovementComponent, FEditorEngine* Engine) 

@@ -20,7 +20,7 @@ void ADecalActor::PostSpawnInitialize()
 	{
 		AddOwnedComponent(BillboardComponent);
 		BillboardComponent->AttachTo(DecalComponent);
-		BillboardComponent->SetTexturePath((FPaths::IconDir() / L"DecalActor_64x.png").wstring());
+		BillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_DecalActorIcon.png").wstring());
 		BillboardComponent->SetSize(FVector2(0.5f, 0.5f));
 		BillboardComponent->SetHiddenInGame(true);
 	}
