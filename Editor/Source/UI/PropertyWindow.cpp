@@ -857,6 +857,17 @@ void FPropertyWindow::DrawBillboardComponentDetials(UBillboardComponent* Billboa
 	if (ImGui::DragFloat2("Size", Size, 0.01f, 0.01f, 100.f, "%.2f"))
 		BillboardComponent->SetSize(FVector2(Size[0], Size[1]));
 
+	FVector4 BillboardBaseColor = BillboardComponent->GetBaseColor();
+	float BillboardColorArray[4] = { BillboardBaseColor.X, BillboardBaseColor.Y, BillboardBaseColor.Z, BillboardBaseColor.W };
+	if (ImGui::ColorEdit4("Base Color", BillboardColorArray))
+	{
+		BillboardComponent->SetBaseColor(FVector4(
+			BillboardColorArray[0],
+			BillboardColorArray[1],
+			BillboardColorArray[2],
+			BillboardColorArray[3]));
+	}
+
 	float U = BillboardComponent->GetUVMin().X;
 	float V = BillboardComponent->GetUVMin().Y;
 	float UL = BillboardComponent->GetUVMax().X;

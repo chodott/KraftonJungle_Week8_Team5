@@ -12,6 +12,7 @@ public:
 	DECLARE_RTTI(ADecalActor, AActor)
 
 	void PostSpawnInitialize() override;
+	void Serialize(FArchive& Ar) override;
 	void FixupDuplicatedReferences(UObject* DuplicatedObject, const FDuplicateContext& Context) const override;
 
 	UDecalComponent* GetDecalComponent() const { return DecalComponent; }

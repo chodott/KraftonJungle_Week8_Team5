@@ -1,10 +1,50 @@
-﻿#include "Renderer/Scene/Builders/SceneCommandSpriteBuilder.h"
+#include "Renderer/Scene/Builders/SceneCommandSpriteBuilder.h"
 
 #include "Renderer/Scene/Builders/SceneCommandBuilder.h"
 #include "Renderer/Scene/Builders/SceneCommandBuilderUtils.h"
 
 #include "Component/BillboardComponent.h"
 #include "Component/SubUVComponent.h"
+
+namespace
+{
+	FMatrix MakeAxisLockedBillboard(const FVector& Position, const FVector& CameraPosition, const FVector& LockedAxis)
+	{
+		const FVector Axis = LockedAxis.GetSafeNormal();
+		if (Axis.IsNearlyZero())
+		{
+			return FMatrix::MakeBillboard(Position, CameraPosition);
+		}
+
+		FVector Forward = CameraPosition - Position;
+		Forward -= Axis * FVector::DotProduct(Forward, Axis);
+		Forward = Forward.GetSafeNormal();
+		if (Forward.IsNearlyZero())
+		{
+			const FVector Fallback =
+				(std::fabs(Axis.Z) < 0.999f) ? FVector::ForwardVector : FVector::RightVector;
+			Forward = (Fallback - Axis * FVector::DotProduct(Fallback, Axis)).GetSafeNormal();
+		}
+
+		if (Forward.IsNearlyZero())
+		{
+			return FMatrix::MakeTranslation(Position);
+		}
+
+		const FVector Right = FVector::CrossProduct(Axis, Forward).GetSafeNormal();
+		if (Right.IsNearlyZero())
+		{
+			return FMatrix::MakeTranslation(Position);
+		}
+
+		return FMatrix(
+			Forward.X, Forward.Y, Forward.Z, 0.f,
+			-Right.X, -Right.Y, -Right.Z, 0.f,
+			Axis.X, Axis.Y, Axis.Z, 0.f,
+			Position.X, Position.Y, Position.Z, 1.f
+		);
+	}
+}
 
 void FSceneCommandSpriteBuilder::BuildSubUVInputs(
 	const FSceneCommandBuildContext& BuildContext,
@@ -137,7 +177,11 @@ void FSceneCommandSpriteBuilder::BuildBillboardInputs(
 
 		const FVector WorldPosition = BillboardComponent->GetWorldTransform().GetTranslation();
 		const FVector Scale = BillboardComponent->GetRenderWorldScale();
-		Batch.World = FMatrix::MakeScale(Scale) * FMatrix::MakeBillboard(WorldPosition, CameraPosition);
+		const FVector LockedAxis = BillboardComponent->GetBillboardAxisLockVector();
+		Batch.World = FMatrix::MakeScale(Scale)
+			* (BillboardComponent->IsAxisLockedBillboard()
+				? MakeAxisLockedBillboard(WorldPosition, CameraPosition, LockedAxis)
+				: FMatrix::MakeBillboard(WorldPosition, CameraPosition));
 		Batch.DistanceSqToCamera = (WorldPosition - CameraPosition).SizeSquared();
 
 		if (SceneCommandBuilderUtils::AddBatch(BuildContext, OutSceneViewData, std::move(Batch)))
