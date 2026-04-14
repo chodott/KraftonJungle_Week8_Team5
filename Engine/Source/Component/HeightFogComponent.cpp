@@ -12,6 +12,16 @@ void UHeightFogComponent::PostConstruct()
 	bDrawDebugBounds = false;
 }
 
+FBoxSphereBounds UHeightFogComponent::GetLocalBounds() const
+{
+	if (!IsLocalFogVolume())
+	{
+		return UPrimitiveComponent::GetLocalBounds();
+	}
+
+	return { FVector::ZeroVector, FogExtents.Size(), FogExtents };
+}
+
 void UHeightFogComponent::Serialize(FArchive& Ar)
 {
 	UPrimitiveComponent::Serialize(Ar);
@@ -25,6 +35,7 @@ void UHeightFogComponent::Serialize(FArchive& Ar)
 	Ar.Serialize("FogMaxOpacity", FogMaxOpacity);
 	Ar.Serialize("FogInscatteringColor", FogColor);
 	Ar.Serialize("FogAllowBackground", AllowBackground);
+	Ar.Serialize("FogExtents", FogExtents);
 
 	if (Ar.IsLoading())
 	{
@@ -33,6 +44,9 @@ void UHeightFogComponent::Serialize(FArchive& Ar)
 		StartDistance = (std::max)(0.0f, StartDistance);
 		FogCutoffDistance = (std::max)(0.0f, FogCutoffDistance);
 		FogMaxOpacity = std::clamp(FogMaxOpacity, 0.0f, 1.0f);
+		FogExtents.X = (std::max)(0.0f, FogExtents.X);
+		FogExtents.Y = (std::max)(0.0f, FogExtents.Y);
+		FogExtents.Z = (std::max)(0.0f, FogExtents.Z);
 		FogInscatteringColor = FLinearColor(FogColor.X, FogColor.Y, FogColor.Z, FogColor.W);
 	}
 }
@@ -49,4 +63,5 @@ void UHeightFogComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicate
 	DuplicatedFogComponent->FogMaxOpacity = FogMaxOpacity;
 	DuplicatedFogComponent->FogInscatteringColor = FogInscatteringColor;
 	DuplicatedFogComponent->AllowBackground = AllowBackground;
+	DuplicatedFogComponent->FogExtents = FogExtents;
 }

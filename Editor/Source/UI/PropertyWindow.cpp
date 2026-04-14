@@ -794,6 +794,56 @@ void FPropertyWindow::DrawHeightFogComponentDetails(UHeightFogComponent* HeightF
 	{
 		HeightFogComponent->AllowBackground = (float)AllowBackground;
 	}
+
+	ImGui::Separator();
+
+	bool bUseLocalVolume = HeightFogComponent->FogExtents.X > 0.0f
+		&& HeightFogComponent->FogExtents.Y > 0.0f
+		&& HeightFogComponent->FogExtents.Z > 0.0f;
+	if (ImGui::Checkbox("Use Local Box Volume", &bUseLocalVolume))
+	{
+		if (bUseLocalVolume)
+		{
+			if (HeightFogComponent->FogExtents.X <= 0.0f
+				|| HeightFogComponent->FogExtents.Y <= 0.0f
+				|| HeightFogComponent->FogExtents.Z <= 0.0f)
+			{
+				HeightFogComponent->FogExtents = FVector(200.0f, 200.0f, 200.0f);
+			}
+			HeightFogComponent->SetDrawDebugBounds(true);
+		}
+		else
+		{
+			HeightFogComponent->FogExtents = FVector::ZeroVector;
+			HeightFogComponent->SetDrawDebugBounds(false);
+		}
+	}
+
+	ImGui::SameLine();
+	ImGui::TextDisabled(bUseLocalVolume ? "Mode: Local Box" : "Mode: Global");
+
+	if (bUseLocalVolume)
+	{
+		float ExtentArray[3] =
+		{
+			HeightFogComponent->FogExtents.X,
+			HeightFogComponent->FogExtents.Y,
+			HeightFogComponent->FogExtents.Z
+		};
+		if (ImGui::DragFloat3("Extents", ExtentArray, 1.0f, 1.0f, 100000.0f, "%.1f"))
+		{
+			HeightFogComponent->FogExtents.X = (std::max)(1.0f, ExtentArray[0]);
+			HeightFogComponent->FogExtents.Y = (std::max)(1.0f, ExtentArray[1]);
+			HeightFogComponent->FogExtents.Z = (std::max)(1.0f, ExtentArray[2]);
+		}
+	}
+	else
+	{
+		ImGui::BeginDisabled();
+		float ZeroExtents[3] = { 0.0f, 0.0f, 0.0f };
+		ImGui::DragFloat3("Extents", ZeroExtents, 1.0f, 0.0f, 0.0f, "%.1f");
+		ImGui::EndDisabled();
+	}
 }
 
 void FPropertyWindow::DrawFireBallComponentDetails(UFireBallComponent* FireBallComponent)

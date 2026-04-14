@@ -31,6 +31,9 @@ void FSceneCommandPostProcessBuilder::BuildFogInputs(
 		Item.FogMaxOpacity = FogComponent->FogMaxOpacity;
 		Item.FogInscatteringColor = FogComponent->FogInscatteringColor;
 		Item.AllowBackground = FogComponent->AllowBackground;
+		Item.FogExtents = FogComponent->FogExtents;
+		Item.FogVolumeWorld = FTransform(FogComponent->GetWorldTransform()).ToMatrixWithScale();
+		Item.WorldToFogVolume = Item.FogVolumeWorld.GetInverse();
 	}
 }
 

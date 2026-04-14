@@ -103,6 +103,7 @@
     <ClInclude Include="Source\Platform\Windows\WindowsWindow.h" />
     <ClInclude Include="Source\Primitive\PrimitiveGizmo.h" />
     <ClInclude Include="Source\Primitive\UnrealEditorStyledGizmo.h" />
+    <ClInclude Include="Source\Renderer\Common\RenderMode.h" />
     <ClInclude Include="Source\Renderer\Features\Billboard\BillboardRenderer.h" />
     <ClInclude Include="Source\Renderer\Features\Decal\DecalProjectionMode.h" />
     <ClInclude Include="Source\Renderer\Features\Decal\DecalStats.h" />
