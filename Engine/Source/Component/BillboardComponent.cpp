@@ -95,6 +95,18 @@ void UBillboardComponent::Serialize(FArchive& Ar)
 	}
 }
 
+void UBillboardComponent::SetTexturePath(const std::wstring& InPath)
+{
+	if (InPath.empty())
+	{
+		TexturePath.clear();
+		return;
+	}
+
+	const FString AbsolutePath = FPaths::ToAbsolutePath(FPaths::FromWide(InPath));
+	TexturePath = std::filesystem::path(FPaths::ToWide(AbsolutePath)).lexically_normal().wstring();
+}
+
 FBoxSphereBounds UBillboardComponent::GetWorldBounds() const
 {
 	const FVector Center = GetWorldLocation();

@@ -189,14 +189,16 @@ std::shared_ptr<FMaterialTexture> FBillboardRenderer::GetOrLoadTexture(const std
 		return nullptr;
 	}
 
-	auto Found = TextureCache.find(Path);
+	const std::wstring NormalizedPath = std::filesystem::path(Path).lexically_normal().wstring();
+
+	auto Found = TextureCache.find(NormalizedPath);
 	if (Found != TextureCache.end())
 	{
 		return Found->second;
 	}
 
 	ID3D11ShaderResourceView* SRV = nullptr;
-	HRESULT Hr = DirectX::CreateWICTextureFromFile(Device, DeviceContext, Path.c_str(), nullptr, &SRV);
+	HRESULT Hr = DirectX::CreateWICTextureFromFile(Device, DeviceContext, NormalizedPath.c_str(), nullptr, &SRV);
 	if (FAILED(Hr) || !SRV)
 	{
 		return nullptr;
@@ -221,6 +223,6 @@ std::shared_ptr<FMaterialTexture> FBillboardRenderer::GetOrLoadTexture(const std
 	auto MaterialTexture = std::make_shared<FMaterialTexture>();
 	MaterialTexture->TextureSRV = SRV;
 	MaterialTexture->SamplerState = Sampler;
-	TextureCache[Path] = MaterialTexture;
+	TextureCache[NormalizedPath] = MaterialTexture;
 	return MaterialTexture;
 }

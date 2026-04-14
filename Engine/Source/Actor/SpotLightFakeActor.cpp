@@ -65,7 +65,7 @@ void ASpotLightFakeActor::PostSpawnInitialize()
 	{
 		AddOwnedComponent(BillboardComponent);
 		BillboardComponent->AttachTo(RootSceneComponent);
-		BillboardComponent->SetSize(FVector2(0.5f, 0.5f));
+		BillboardComponent->SetSize(FVector2(2.5f, 2.5f));
 		BillboardComponent->SetAxisLockMode(UBillboardComponent::EAxisLockMode::LocalZ);
 		BillboardComponent->SetTexturePath((FPaths::IconDir() / L"SpotLight1.png").wstring());
 		BillboardComponent->SetHiddenInGame(false);

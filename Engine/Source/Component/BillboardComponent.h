@@ -37,7 +37,7 @@ public:
 	}
 	const FVector2& GetSize() const { return Size; }
 
-	void SetTexturePath(const std::wstring& InPath) { TexturePath = InPath; }
+	void SetTexturePath(const std::wstring& InPath);
 	const std::wstring& GetTexturePath() const { return TexturePath; }
 
 	void SetUVMin(const FVector2& InUVMin) { UVMin = InUVMin; }
