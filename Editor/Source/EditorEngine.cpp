@@ -499,6 +499,7 @@ bool FEditorEngine::StartPIE()
 		PIEViewportEntry->LocalState.ViewMode = ERenderMode::Lighting;
 		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_UUID, false);
 		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, false);
+		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, false);
 		if (PIEViewportEntry->LocalState.ProjectionType == EViewportType::Perspective)
 		{
 			PIEViewportEntry->LocalState.Position = FVector::ZeroVector;
