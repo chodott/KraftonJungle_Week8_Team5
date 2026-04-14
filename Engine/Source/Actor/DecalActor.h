@@ -15,6 +15,7 @@ public:
 	void FixupDuplicatedReferences(UObject* DuplicatedObject, const FDuplicateContext& Context) const override;
 
 	UDecalComponent* GetDecalComponent() const { return DecalComponent; }
+	UStaticMeshComponent* GetArrowComponent() const { return ArrowComponent; }
 
 private:
 	UDecalComponent* DecalComponent = nullptr;

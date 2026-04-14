@@ -1,8 +1,9 @@
-﻿#include "DebugDrawManager.h"
+#include "DebugDrawManager.h"
 
 #include "Actor/Actor.h"
 #include "Component/PrimitiveComponent.h"
 #include "Core/ShowFlags.h"
+#include "Level/PrimitiveVisibilityUtils.h"
 #include "Object/Class.h"
 #include "World/World.h"
 
@@ -63,7 +64,7 @@ void FDebugDrawManager::BuildPrimitiveList(
 
 	if (ShowFlags.HasFlag(EEngineShowFlags::SF_Collision) && World)
 	{
-		DrawAllCollisionBounds(World, OutPrimitives);
+		DrawAllCollisionBounds(ShowFlags, World, OutPrimitives);
 	}
 
 	if (const FWorldDebugDrawBucket* Bucket = FindBucket(World))
@@ -93,7 +94,7 @@ void FDebugDrawManager::Clear()
 	WorldBuckets.clear();
 }
 
-void FDebugDrawManager::DrawAllCollisionBounds(UWorld* World, FDebugPrimitiveList& OutPrimitives) const
+void FDebugDrawManager::DrawAllCollisionBounds(const FShowFlags& ShowFlags, UWorld* World, FDebugPrimitiveList& OutPrimitives) const
 {
 	// 충돌 디버그 가시화는 월드의 프리미티브 컴포넌트를 순회하며 바운드를 선분으로 바꾼다.
 	TArray<AActor*> AllActors = World->GetAllActors();
@@ -113,6 +114,11 @@ void FDebugDrawManager::DrawAllCollisionBounds(UWorld* World, FDebugPrimitiveLis
 
 			UPrimitiveComponent* PrimitiveComponent = static_cast<UPrimitiveComponent*>(Component);
 			if (!PrimitiveComponent->ShouldDrawDebugBounds())
+			{
+				continue;
+			}
+
+			if (IsHiddenByArrowVisualizationShowFlags(PrimitiveComponent, ShowFlags))
 			{
 				continue;
 			}

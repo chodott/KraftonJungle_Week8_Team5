@@ -4,9 +4,11 @@
 #include "Object/Class.h"
 #include "Serializer/Archive.h"
 #include "Component/StaticMeshComponent.h"
+#include "Object/ObjectFactory.h"
 #include "Primitive/PrimitiveGizmo.h"
 #include "Renderer/Resources/Material/MaterialManager.h"
 #include "Renderer/Mesh/MeshData.h"
+#include "Math/Matrix.h"
 #include "Math/Quat.h"
 #include <cmath>
 
@@ -23,7 +25,7 @@ namespace
 		}
 
 		std::shared_ptr<FDynamicMesh> SourceMesh =
-			FPrimitiveGizmo::CreateTranslationAxisMesh(EAxis::X, FVector4(1.0f, 0.5f, 0.0f, 1.0f));
+			FPrimitiveGizmo::CreateTranslationAxisMesh(EAxis::X, FVector4(0.f, 1.0f, 1.0f, 1.0f));
 		if (!SourceMesh)
 		{
 			return nullptr;
@@ -36,7 +38,7 @@ namespace
 		StaticRenderMesh->Sections.push_back({ 0, 0, static_cast<uint32>(StaticRenderMesh->Indices.size()) });
 		StaticRenderMesh->UpdateLocalBound();
 
-		ArrowMesh = FObjectFactory::ConstructObject<UStaticMesh>(nullptr, "ProjectileVelocityArrowMesh");
+		ArrowMesh = FObjectFactory::ConstructObject<UStaticMesh>(nullptr, "VelocityArrowMesh");
 		if (!ArrowMesh)
 		{
 			return nullptr;
@@ -61,18 +63,35 @@ void UProjectileMovementComponent::PostConstruct()
 {
 	UMovementComponent::PostConstruct();
 	SetAutoStartSimulation(bAutoStartSimulation);
+	EnsureVelocityArrowComponent();
+	UpdateVelocityArrow();
+}
+
+void UProjectileMovementComponent::OnRegister()
+{
+	UMovementComponent::OnRegister();
+	EnsureVelocityArrowComponent();
+	UpdateVelocityArrow();
 }
 
 void UProjectileMovementComponent::BeginPlay()
 {
 	UMovementComponent::BeginPlay();
+	EnsureVelocityArrowComponent();
+	UpdateVelocityArrow();
 
 	bSimulationEnabled = bAutoStartSimulation && IsComponentTickEnabled() && !Velocity.IsNearlyZero();
 }
 
-void UProjectileMovementComponent::LaunchWithVelocity(const FVector& InVelocity)
+void UProjectileMovementComponent::SetVelocity(const FVector& InVelocity)
 {
 	Velocity = InVelocity;
+	UpdateVelocityArrow();
+}
+
+void UProjectileMovementComponent::LaunchWithVelocity(const FVector& InVelocity)
+{
+	SetVelocity(InVelocity);
 	StartSimulation();
 }
 
@@ -95,6 +114,8 @@ void UProjectileMovementComponent::SetAutoStartSimulation(bool bInAutoStartSimul
 	{
 		OwnerActor->SetTickInEditor(true);
 	}
+
+	UpdateVelocityArrow();
 }
 
 void UProjectileMovementComponent::Tick(float DeltaTime)
@@ -132,6 +153,7 @@ void UProjectileMovementComponent::Tick(float DeltaTime)
 		}
 	}
 
+	UpdateVelocityArrow();
 	MoveUpdatedComponent(Velocity * DeltaTime);
 }
 
@@ -145,7 +167,16 @@ void UProjectileMovementComponent::DuplicateShallow(UObject* DuplicatedObject, F
 	Duplicated->MaxSpeed = MaxSpeed;
 	Duplicated->bAutoStartSimulation = bAutoStartSimulation;
 	Duplicated->bSimulationEnabled = false;
+	Duplicated->VelocityArrowComponent = nullptr;
 	Duplicated->SetAutoStartSimulation(Duplicated->bAutoStartSimulation);
+}
+
+void UProjectileMovementComponent::FixupDuplicatedReferences(UObject* DuplicatedObject, const FDuplicateContext& Context) const
+{
+	UMovementComponent::FixupDuplicatedReferences(DuplicatedObject, Context);
+
+	UProjectileMovementComponent* Duplicated = static_cast<UProjectileMovementComponent*>(DuplicatedObject);
+	Duplicated->VelocityArrowComponent = Context.FindDuplicate(VelocityArrowComponent.Get());
 }
 
 void UProjectileMovementComponent::Serialize(FArchive& Ar)
@@ -170,5 +201,72 @@ void UProjectileMovementComponent::Serialize(FArchive& Ar)
 	{
 		SetAutoStartSimulation(bAutoStartSimulation);
 		bSimulationEnabled = false;
+		EnsureVelocityArrowComponent();
+		UpdateVelocityArrow();
 	}
+}
+
+void UProjectileMovementComponent::EnsureVelocityArrowComponent()
+{
+	AActor* OwnerActor = GetOwner();
+	if (!OwnerActor)
+	{
+		return;
+	}
+
+	if (VelocityArrowComponent == nullptr)
+	{
+		VelocityArrowComponent = FObjectFactory::ConstructObject<UStaticMeshComponent>(OwnerActor, "VelocityArrowComponent");
+		if (!VelocityArrowComponent)
+		{
+			return;
+		}
+
+		OwnerActor->AddOwnedComponent(VelocityArrowComponent);
+		VelocityArrowComponent->SetStaticMesh(GetVelocityArrowMesh());
+		VelocityArrowComponent->SetIgnoreParentScaleInRender(true);
+		VelocityArrowComponent->SetEditorVisualization(true);
+		VelocityArrowComponent->SetInstanceComponent(IsInstanceComponent());
+	}
+
+	if (!EnsureUpdatedComponent() || VelocityArrowComponent == nullptr)
+	{
+		return;
+	}
+
+	if (VelocityArrowComponent->GetAttachParent() != UpdatedComponent)
+	{
+		VelocityArrowComponent->AttachTo(UpdatedComponent);
+	}
+
+	if (!VelocityArrowComponent->IsRegistered())
+	{
+		VelocityArrowComponent->OnRegister();
+	}
+}
+
+void UProjectileMovementComponent::UpdateVelocityArrow()
+{
+	EnsureVelocityArrowComponent();
+	if (VelocityArrowComponent == nullptr)
+	{
+		return;
+	}
+
+	FQuat LocalRotation = FQuat::Identity;
+	if (!Velocity.IsNearlyZero())
+	{
+		FVector LocalDirection = Velocity.GetSafeNormal();
+		if (USceneComponent* AttachParent = VelocityArrowComponent->GetAttachParent())
+		{
+			LocalDirection = FQuat(AttachParent->GetWorldTransform()).Inverse().RotateVector(LocalDirection);
+		}
+
+		LocalRotation = FQuat(FMatrix::MakeFromX(LocalDirection));
+	}
+
+	VelocityArrowComponent->SetRelativeTransform(FTransform(
+		LocalRotation,
+		FVector::ZeroVector,
+		FVector(0.04f, 0.04f, 0.04f)));
 }

@@ -760,11 +760,19 @@ void FPropertyWindow::DrawHeightFogComponentDetails(UHeightFogComponent* HeightF
 	if (ImGui::DragFloat("Start Distance", &HeightFogComponent->StartDistance, 0.1f, 0.0f, 100000.0f, "%.2f"))
 	{
 		HeightFogComponent->StartDistance = (std::max)(0.0f, HeightFogComponent->StartDistance);
+		if (HeightFogComponent->FogCutoffDistance > 0.0f)
+		{
+			HeightFogComponent->StartDistance = (std::min)(HeightFogComponent->StartDistance, HeightFogComponent->FogCutoffDistance);
+		}
 	}
 
 	if (ImGui::DragFloat("Cutoff Distance", &HeightFogComponent->FogCutoffDistance, 0.1f, 0.0f, 100000.0f, "%.2f"))
 	{
 		HeightFogComponent->FogCutoffDistance = (std::max)(0.0f, HeightFogComponent->FogCutoffDistance);
+		if (HeightFogComponent->FogCutoffDistance > 0.0f)
+		{
+			HeightFogComponent->FogCutoffDistance = (std::max)(HeightFogComponent->FogCutoffDistance, HeightFogComponent->StartDistance);
+		}
 	}
 
 	ImGui::SliderFloat("Max Opacity", &HeightFogComponent->FogMaxOpacity, 0.0f, 1.0f, "%.2f");
