@@ -42,7 +42,7 @@ StructuredBuffer<FFogGPUData>       GlobalFogBuffer   : register(t13);
 SamplerState LinearClampSampler : register(s0);
 SamplerState DepthSampler       : register(s1);
 
-static const uint LOCAL_FOG_INTEGRATION_STEPS = 8u;
+static const uint MAX_BACKGROUND_LOCAL_FOG_CANDIDATES = 64u;
 
 float3 ReconstructWorldPosition(float2 UV, float Depth)
 {
@@ -50,6 +50,17 @@ float3 ReconstructWorldPosition(float2 UV, float Depth)
     float4 ClipPosition = float4(NdcXY, Depth, 1.0f);
     float4 WorldPosition = mul(ClipPosition, InverseViewProjection);
     return WorldPosition.xyz / max(WorldPosition.w, 1.0e-6f);
+}
+
+float3 ReconstructWorldPositionAtFarPlane(float2 UV)
+{
+    return ReconstructWorldPosition(UV, 1.0f);
+}
+
+float3 ComputeViewRayDirectionWS(float2 UV)
+{
+    float3 FarWorldPosition = ReconstructWorldPositionAtFarPlane(UV);
+    return normalize(FarWorldPosition - CameraPosition.xyz);
 }
 
 float ComputeHeightFogOpticalDepthUEApprox(
@@ -114,7 +125,10 @@ bool IntersectLocalFogVolume(FFogGPUData Fog, float3 RayOriginWS, float3 RayDirW
     return TExit >= max(TEnter, 0.0f);
 }
 
-float ComputeLocalDensity(FFogGPUData Fog, float3 WorldPosition)
+float ComputeLocalDensityFromRayDepth(
+    FFogGPUData Fog,
+    float3 WorldPosition,
+    float Depth01)
 {
     float FogDensity = max(Fog.FogParams.x, 0.0f);
     float HeightFalloff = max(Fog.FogParams.y, 0.0f);
@@ -124,25 +138,21 @@ float ComputeLocalDensity(FFogGPUData Fog, float3 WorldPosition)
         return 0.0f;
     }
 
-    if (HeightFalloff <= 1.0e-4f)
-    {
-        return FogDensity;
-    }
-
     float3 LocalPosition = mul(float4(WorldPosition, 1.0f), Fog.WorldToFogVolume).xyz;
     float Height01 = saturate(LocalPosition.z + 0.5f);
-    return FogDensity * exp2(-HeightFalloff * Height01);
+
+    float HeightTerm = (HeightFalloff > 1.0e-4f) ? exp2(-HeightFalloff * Height01) : 1.0f;
+    float DepthTerm  = (HeightFalloff > 1.0e-4f) ? exp2(-HeightFalloff * Depth01) : 1.0f;
+
+    return FogDensity * HeightTerm * DepthTerm;
 }
 
 float ComputeLocalFogAmount(
     FFogGPUData Fog,
-    float Depth,
-    float3 WorldPosition,
-    float3 ViewRay,
-    float ViewDistance)
+    bool bHasSurfaceDepth,
+    float SurfaceDistance,
+    float3 RayDirWS)
 {
-    float StartDistance = max(Fog.FogParams.z, 0.0f);
-    float CutoffDistance = max(Fog.FogParams.w, 0.0f);
     float MaxOpacity = saturate(Fog.FogParams2.x);
     bool AllowBackground = (Fog.FogParams2.y > 0.5f);
 
@@ -151,13 +161,12 @@ float ComputeLocalFogAmount(
         return 0.0f;
     }
 
-    if (!AllowBackground && Depth >= 0.999999f)
+    if (!AllowBackground && !bHasSurfaceDepth)
     {
         return 0.0f;
     }
 
     float3 RayOriginWS = CameraPosition.xyz;
-    float3 RayDirWS = (ViewDistance > 1.0e-4f) ? (ViewRay / ViewDistance) : float3(1.0f, 0.0f, 0.0f);
 
     float TEnter = 0.0f;
     float TExit = 0.0f;
@@ -166,13 +175,12 @@ float ComputeLocalFogAmount(
         return 0.0f;
     }
 
-    float SurfaceT = ViewDistance;
-    float TStart = max(max(TEnter, StartDistance), 0.0f);
-    float TEnd = min(TExit, SurfaceT);
+    float TStart = max(TEnter, 0.0f);
+    float TEnd = TExit;
 
-    if (CutoffDistance > 0.0f)
+    if (bHasSurfaceDepth)
     {
-        TEnd = min(TEnd, CutoffDistance);
+        TEnd = min(TEnd, SurfaceDistance);
     }
 
     if (TEnd <= TStart)
@@ -180,32 +188,25 @@ float ComputeLocalFogAmount(
         return 0.0f;
     }
 
-    float3 RayDirVS = mul(float4(RayDirWS, 0.0f), ViewMatrix).xyz;
-    float ViewDepthScale = max(RayDirVS.x, 1.0e-4f);
-    float EntryDepth = max(TStart * ViewDepthScale, 1.0e-4f);
-    float ExitDepth = max(TEnd * ViewDepthScale, EntryDepth + 1.0e-4f);
-    float LogEntryDepth = log2(EntryDepth);
-    float LogExitDepth = log2(ExitDepth);
-
-    float OpticalDepth = 0.0f;
-    [unroll]
-    for (uint SampleIndex = 0u; SampleIndex < LOCAL_FOG_INTEGRATION_STEPS; ++SampleIndex)
+    float SegmentLength = TEnd - TStart;
+    if (SegmentLength <= 1.0e-4f)
     {
-        float U0 = (float)SampleIndex / (float)LOCAL_FOG_INTEGRATION_STEPS;
-        float U1 = (float)(SampleIndex + 1u) / (float)LOCAL_FOG_INTEGRATION_STEPS;
-
-        float SegmentDepth0 = exp2(lerp(LogEntryDepth, LogExitDepth, U0));
-        float SegmentDepth1 = exp2(lerp(LogEntryDepth, LogExitDepth, U1));
-        float SegmentT0 = SegmentDepth0 / ViewDepthScale;
-        float SegmentT1 = SegmentDepth1 / ViewDepthScale;
-        float SegmentMidT = 0.5f * (SegmentT0 + SegmentT1);
-        float SegmentLength = max(SegmentT1 - SegmentT0, 0.0f);
-
-        float3 SampleWorldPosition = RayOriginWS + RayDirWS * SegmentMidT;
-        OpticalDepth += ComputeLocalDensity(Fog, SampleWorldPosition) * SegmentLength;
+        return 0.0f;
     }
 
+    float SampleT = 0.5f * (TStart + TEnd);
+    float Depth01 = saturate((SampleT - TEnter) / max(TExit - TEnter, 1.0e-4f));
+    float3 SampleWorldPosition = RayOriginWS + RayDirWS * SampleT;
+
+    float Density = ComputeLocalDensityFromRayDepth(Fog, SampleWorldPosition, Depth01);
+    if (Density <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    float OpticalDepth = Density * SegmentLength;
     float FogAmount = 1.0f - exp2(-OpticalDepth);
+
     FogAmount *= saturate(Fog.FogColor.a);
     FogAmount = min(FogAmount, MaxOpacity);
     return saturate(FogAmount);
@@ -217,11 +218,11 @@ float ComputeGlobalFogAmount(
     float3 ViewRay,
     float ViewDistance)
 {
-    float FogDensity     = max(Fog.FogParams.x, 0.0f);
-    float HeightFalloff  = max(Fog.FogParams.y, 0.0f);
-    float StartDistance  = max(Fog.FogParams.z, 0.0f);
-    float CutoffDistance = max(Fog.FogParams.w, 0.0f);
-    float MaxOpacity     = saturate(Fog.FogParams2.x);
+    float FogDensity      = max(Fog.FogParams.x, 0.0f);
+    float HeightFalloff   = max(Fog.FogParams.y, 0.0f);
+    float StartDistance   = max(Fog.FogParams.z, 0.0f);
+    float CutoffDistance  = max(Fog.FogParams.w, 0.0f);
+    float MaxOpacity      = saturate(Fog.FogParams2.x);
     bool  AllowBackground = (Fog.FogParams2.y > 0.5f);
 
     if (FogDensity <= 0.0f || MaxOpacity <= 0.0f)
@@ -260,79 +261,190 @@ float ComputeGlobalFogAmount(
     return saturate(FogAmount);
 }
 
-void AccumulateFog(float3 FogColor, float FogAmount, inout float3 AccumFogColor, inout float AccumFogAlpha)
-{
-    float Remaining = 1.0f - AccumFogAlpha;
-    AccumFogColor += Remaining * FogColor * FogAmount;
-    AccumFogAlpha += Remaining * FogAmount;
-}
-
 uint ComputeFogClusterIndex(float2 UV, float3 WorldPosition)
 {
-    uint TileCountX = max((uint)ClusterParams.x, 1u);
-    uint TileCountY = max((uint)ClusterParams.y, 1u);
-    uint SliceCountZ = max((uint)ClusterParams.z, 1u);
+    uint ClusterCountX = (uint)ClusterParams.x;
+    uint ClusterCountY = (uint)ClusterParams.y;
+    uint ClusterCountZ = (uint)ClusterParams.z;
 
-    uint TileX = min((uint)(UV.x * TileCountX), TileCountX - 1u);
-    uint TileY = min((uint)(UV.y * TileCountY), TileCountY - 1u);
-
-    float NearDepth = max(ClusterParams.w, 1.0e-4f);
-    float FarDepth = max(ClusterParams2.x, NearDepth + 1.0e-4f);
+    uint TileX = min((uint)(UV.x * ClusterCountX), ClusterCountX - 1u);
+    uint TileY = min((uint)(UV.y * ClusterCountY), ClusterCountY - 1u);
 
     float3 ViewPosition = mul(float4(WorldPosition, 1.0f), ViewMatrix).xyz;
-    float ViewDepth = clamp(ViewPosition.x, NearDepth, FarDepth);
+    float ViewDepth = max(ViewPosition.x, 1.0e-4f);
 
-    float DepthRatio = saturate(log(max(ViewDepth, NearDepth) / NearDepth) / log(FarDepth / NearDepth));
-    uint SliceZ = min((uint)(DepthRatio * SliceCountZ), SliceCountZ - 1u);
+    float LogZScale = ClusterParams2.y;
+    float LogZBias  = ClusterParams2.z;
+    uint TileZ = (uint)clamp(log(ViewDepth) * LogZScale + LogZBias, 0.0f, (float)(ClusterCountZ - 1u));
 
-    return (SliceZ * TileCountY + TileY) * TileCountX + TileX;
+    return TileX + TileY * ClusterCountX + TileZ * ClusterCountX * ClusterCountY;
 }
 
-float4 main(VSOutput Input) : SV_Target
+uint ComputeFogClusterIndexFromTile(uint TileX, uint TileY, uint TileZ, uint ClusterCountX, uint ClusterCountY)
+{
+    return TileX + TileY * ClusterCountX + TileZ * ClusterCountX * ClusterCountY;
+}
+
+bool ContainsFogIndex(uint FogIndices[MAX_BACKGROUND_LOCAL_FOG_CANDIDATES], uint Count, uint FogIndex)
+{
+    [loop]
+    for (uint i = 0u; i < Count; ++i)
+    {
+        if (FogIndices[i] == FogIndex)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+float4 main(VSOutput Input) : SV_TARGET
 {
     float4 SceneColor = SceneColorTexture.Sample(LinearClampSampler, Input.UV);
     float Depth = DepthTexture.Sample(DepthSampler, Input.UV).r;
 
-    float3 WorldPosition = ReconstructWorldPosition(Input.UV, Depth);
-    float3 ViewRay = WorldPosition - CameraPosition.xyz;
-    float ViewDistance = length(ViewRay);
+    bool bHasSurfaceDepth = (Depth < 0.999999f);
 
-    float3 AccumFogColor = float3(0.0f, 0.0f, 0.0f);
-    float AccumFogAlpha = 0.0f;
+    float3 RayOriginWS = CameraPosition.xyz;
+    float3 RayDirWS = ComputeViewRayDirectionWS(Input.UV);
 
-    [loop]
-    for (uint i = 0; i < (uint)ClusterParams2.y; ++i)
+    float SurfaceDistance = 0.0f;
+    float3 WorldPosition = ReconstructWorldPositionAtFarPlane(Input.UV);
+
+    if (bHasSurfaceDepth)
     {
-        FFogGPUData Fog = GlobalFogBuffer[i];
-        float FogAmount = ComputeGlobalFogAmount(Fog, Depth, ViewRay, ViewDistance);
-        AccumulateFog(Fog.FogColor.rgb, FogAmount, AccumFogColor, AccumFogAlpha);
-
-        if (AccumFogAlpha >= 0.999f)
-        {
-            break;
-        }
+        WorldPosition = ReconstructWorldPosition(Input.UV, Depth);
+        SurfaceDistance = length(WorldPosition - RayOriginWS);
     }
 
-    if (AccumFogAlpha < 0.999f && ClusterParams2.z > 0.5f)
+    float RayDistanceForGlobal = bHasSurfaceDepth ? SurfaceDistance : ClusterParams2.x;
+    float3 ViewRay = RayDirWS * RayDistanceForGlobal;
+
+    float3 AccumulatedFogColor = float3(0.0f, 0.0f, 0.0f);
+    float RemainingTransmittance = 1.0f;
+
+    uint ClusterCountX = (uint)ClusterParams.x;
+    uint ClusterCountY = (uint)ClusterParams.y;
+    uint ClusterCountZ = (uint)ClusterParams.z;
+
+    uint TileX = min((uint)(Input.UV.x * ClusterCountX), ClusterCountX - 1u);
+    uint TileY = min((uint)(Input.UV.y * ClusterCountY), ClusterCountY - 1u);
+
+    if (bHasSurfaceDepth)
     {
         uint ClusterIndex = ComputeFogClusterIndex(Input.UV, WorldPosition);
         FFogClusterHeader Header = FogClusterHeaders[ClusterIndex];
 
         [loop]
-        for (uint i = 0; i < Header.Count; ++i)
+        for (uint i = 0u; i < Header.Count; ++i)
         {
-            uint LocalFogIndex = FogClusterIndices[Header.Offset + i];
-            FFogGPUData Fog = FogDataBuffer[LocalFogIndex];
-            float FogAmount = ComputeLocalFogAmount(Fog, Depth, WorldPosition, ViewRay, ViewDistance);
-            AccumulateFog(Fog.FogColor.rgb, FogAmount, AccumFogColor, AccumFogAlpha);
+            uint FogIndex = FogClusterIndices[Header.Offset + i];
+            FFogGPUData Fog = FogDataBuffer[FogIndex];
 
-            if (AccumFogAlpha >= 0.999f)
+            float FogAmount = ComputeLocalFogAmount(
+                Fog,
+                true,
+                SurfaceDistance,
+                RayDirWS);
+
+            if (FogAmount <= 0.0f)
             {
+                continue;
+            }
+
+            float3 FogColor = Fog.FogColor.rgb;
+            AccumulatedFogColor += FogColor * FogAmount * RemainingTransmittance;
+            RemainingTransmittance *= (1.0f - FogAmount);
+
+            if (RemainingTransmittance <= 0.01f)
+            {
+                RemainingTransmittance = 0.0f;
+                break;
+            }
+        }
+    }
+    else
+    {
+        uint UniqueFogIndices[MAX_BACKGROUND_LOCAL_FOG_CANDIDATES];
+        uint UniqueFogCount = 0u;
+
+        [loop]
+        for (uint TileZ = 0u; TileZ < ClusterCountZ; ++TileZ)
+        {
+            uint ClusterIndex = ComputeFogClusterIndexFromTile(TileX, TileY, TileZ, ClusterCountX, ClusterCountY);
+            FFogClusterHeader Header = FogClusterHeaders[ClusterIndex];
+
+            [loop]
+            for (uint i = 0u; i < Header.Count; ++i)
+            {
+                uint FogIndex = FogClusterIndices[Header.Offset + i];
+
+                if (ContainsFogIndex(UniqueFogIndices, UniqueFogCount, FogIndex))
+                {
+                    continue;
+                }
+
+                if (UniqueFogCount >= MAX_BACKGROUND_LOCAL_FOG_CANDIDATES)
+                {
+                    break;
+                }
+
+                UniqueFogIndices[UniqueFogCount++] = FogIndex;
+            }
+        }
+
+        [loop]
+        for (uint i = 0u; i < UniqueFogCount; ++i)
+        {
+            uint FogIndex = UniqueFogIndices[i];
+            FFogGPUData Fog = FogDataBuffer[FogIndex];
+
+            float FogAmount = ComputeLocalFogAmount(
+                Fog,
+                false,
+                0.0f,
+                RayDirWS);
+
+            if (FogAmount <= 0.0f)
+            {
+                continue;
+            }
+
+            float3 FogColor = Fog.FogColor.rgb;
+            AccumulatedFogColor += FogColor * FogAmount * RemainingTransmittance;
+            RemainingTransmittance *= (1.0f - FogAmount);
+
+            if (RemainingTransmittance <= 0.01f)
+            {
+                RemainingTransmittance = 0.0f;
                 break;
             }
         }
     }
 
-    float3 FinalColor = SceneColor.rgb * (1.0f - AccumFogAlpha) + AccumFogColor;
+    uint GlobalFogCount = GlobalFogBuffer.Length;
+    [loop]
+    for (uint i = 0u; i < GlobalFogCount; ++i)
+    {
+        FFogGPUData Fog = GlobalFogBuffer[i];
+        float FogAmount = ComputeGlobalFogAmount(Fog, Depth, ViewRay, RayDistanceForGlobal);
+        if (FogAmount <= 0.0f)
+        {
+            continue;
+        }
+
+        float3 FogColor = Fog.FogColor.rgb;
+        AccumulatedFogColor += FogColor * FogAmount * RemainingTransmittance;
+        RemainingTransmittance *= (1.0f - FogAmount);
+
+        if (RemainingTransmittance <= 0.01f)
+        {
+            RemainingTransmittance = 0.0f;
+            break;
+        }
+    }
+
+    float3 FinalColor = SceneColor.rgb * RemainingTransmittance + AccumulatedFogColor;
     return float4(FinalColor, SceneColor.a);
 }
