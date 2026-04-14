@@ -41,6 +41,7 @@ bool FEditorFrameRenderer::Render(FRenderer& Renderer, const FEditorFrameRequest
             SceneViewData);
         Renderer.DecalTextureCache->ResolveTextureArray(Renderer.GetDevice(), SceneViewData);
         SceneViewData.ShowFlags = ScenePass.DebugInputs.ShowFlags;
+        SceneViewData.bForceWireframe = ScenePass.bForceWireframe;
         SceneViewData.PostProcessInputs.OutlineItems = ScenePass.OutlineRequest.Items;
         SceneViewData.PostProcessInputs.bOutlineEnabled = ScenePass.OutlineRequest.bEnabled;
         BuildDebugLinePassInputs(ScenePass.DebugInputs, SceneViewData.DebugInputs.LinePass);

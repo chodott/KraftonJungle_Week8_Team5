@@ -63,4 +63,5 @@ struct ENGINE_API FSceneViewData
 	FScenePostProcessInputs PostProcessInputs;
 	FSceneDebugInputs DebugInputs;
 	FShowFlags ShowFlags;
+	bool bForceWireframe = false;
 };
