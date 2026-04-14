@@ -16,7 +16,7 @@ void AHeightFogActor::PostSpawnInitialize()
 	{
 		AddOwnedComponent(BillboardComponent);
 		BillboardComponent->AttachTo(HeightFogComponent);
-		BillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_DecalActorIcon.png").wstring());
+		BillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_ExpoHeightFog.png").wstring());
 		BillboardComponent->SetSize(FVector2(0.5f, 0.5f));
 		BillboardComponent->SetIgnoreParentScaleInRender(true);
 		BillboardComponent->SetEditorVisualization(true);
