@@ -13,6 +13,18 @@
 
 bool FEditorFrameRenderer::Render(FRenderer& Renderer, const FEditorFrameRequest& Request)
 {
+    TArray<FViewportCompositeItem> CompositeItems = Request.CompositeItems;
+
+    struct FOverlaySourceBinding
+    {
+        ID3D11ShaderResourceView* SceneColorSRV = nullptr;
+        ID3D11ShaderResourceView* SceneDepthSRV = nullptr;
+        ID3D11ShaderResourceView* OverlayColorSRV = nullptr;
+    };
+
+    TArray<FOverlaySourceBinding> OverlayBindings;
+    OverlayBindings.reserve(Request.ScenePasses.size());
+
     for (const FViewportScenePassRequest& ScenePass : Request.ScenePasses)
     {
         FSceneRenderTargets Targets;
@@ -56,6 +68,25 @@ bool FEditorFrameRenderer::Render(FRenderer& Renderer, const FEditorFrameRequest
         {
             continue;
         }
+
+        OverlayBindings.push_back({
+            ScenePass.RenderTargetShaderResourceView,
+            ScenePass.DepthShaderResourceView,
+            Targets.OverlayColorSRV
+        });
+    }
+
+    for (FViewportCompositeItem& CompositeItem : CompositeItems)
+    {
+        for (const FOverlaySourceBinding& Binding : OverlayBindings)
+        {
+            if (CompositeItem.SceneColorSRV == Binding.SceneColorSRV
+                && CompositeItem.SceneDepthSRV == Binding.SceneDepthSRV)
+            {
+                CompositeItem.OverlayColorSRV = Binding.OverlayColorSRV;
+                break;
+            }
+        }
     }
 
     const float FrameTimeSeconds = !Request.ScenePasses.empty()
@@ -65,7 +96,7 @@ bool FEditorFrameRenderer::Render(FRenderer& Renderer, const FEditorFrameRequest
 
     FViewContext FramePassView;
     FramePassView.Viewport = Renderer.GetRenderDevice().GetViewport();
-    const FViewportCompositePassInputs CompositeInputs{ &Request.CompositeItems };
+    const FViewportCompositePassInputs CompositeInputs{ &CompositeItems };
 
     FScreenUIPassInputs ScreenUIInputs;
     if (!Renderer.GetScreenUIRenderer().BuildPassInputs(

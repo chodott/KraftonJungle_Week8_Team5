@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "CoreMinimal.h"
 #include "EngineAPI.h"
 enum class EEngineShowFlags : uint64
@@ -47,7 +47,8 @@ public:
 			static_cast<uint64>(EEngineShowFlags::SF_Fog) |
 			static_cast<uint64>(EEngineShowFlags::SF_Decal) |
 			static_cast<uint64>(EEngineShowFlags::SF_DecalArrow) |
-			static_cast<uint64>(EEngineShowFlags::SF_ProjectileArrow)
+			static_cast<uint64>(EEngineShowFlags::SF_ProjectileArrow) |
+			static_cast<uint64>(EEngineShowFlags::SF_WorldAxis)
 		)
 	{
 	}

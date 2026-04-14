@@ -127,6 +127,79 @@ void FSceneTargetManager::ReleaseCOM(IUnknown*& Resource)
     ReleaseCOMResource(Resource);
 }
 
+uint64 FSceneTargetManager::MakeExternalOverlayKey(
+    ID3D11RenderTargetView* RenderTargetView,
+    ID3D11DepthStencilView* DepthStencilView)
+{
+    const uint64 A = reinterpret_cast<uint64>(RenderTargetView);
+    const uint64 B = reinterpret_cast<uint64>(DepthStencilView);
+    return A ^ (B + 0x9e3779b97f4a7c15ull + (A << 6) + (A >> 2));
+}
+
+void FSceneTargetManager::ReleaseExternalOverlayTargets(FExternalOverlayTargets& Targets)
+{
+    ReleaseCOM(reinterpret_cast<IUnknown*&>(Targets.OverlayColorSRV));
+    ReleaseCOM(reinterpret_cast<IUnknown*&>(Targets.OverlayColorRTV));
+    ReleaseCOM(reinterpret_cast<IUnknown*&>(Targets.OverlayColorTexture));
+    Targets.Width = 0;
+    Targets.Height = 0;
+}
+
+void FSceneTargetManager::ReleaseAllExternalOverlayTargets()
+{
+    for (auto& It : ExternalOverlayTargetMap)
+    {
+        ReleaseExternalOverlayTargets(It.second);
+    }
+
+    ExternalOverlayTargetMap.clear();
+}
+
+bool FSceneTargetManager::EnsureExternalOverlayTargets(
+    ID3D11Device* Device,
+    ID3D11RenderTargetView* RenderTargetView,
+    ID3D11DepthStencilView* DepthStencilView,
+    uint32 Width,
+    uint32 Height,
+    FExternalOverlayTargets*& OutTargets)
+{
+    OutTargets = nullptr;
+
+    if (!Device || !RenderTargetView || !DepthStencilView || Width == 0 || Height == 0)
+    {
+        return false;
+    }
+
+    const uint64 Key = MakeExternalOverlayKey(RenderTargetView, DepthStencilView);
+    FExternalOverlayTargets& Entry = ExternalOverlayTargetMap[Key];
+
+    if (Entry.OverlayColorRTV && Entry.Width == Width && Entry.Height == Height)
+    {
+        OutTargets = &Entry;
+        return true;
+    }
+
+    ReleaseExternalOverlayTargets(Entry);
+
+    if (!CreateColorRenderTarget(
+        Device,
+        Width,
+        Height,
+        DXGI_FORMAT_R8G8B8A8_UNORM,
+        &Entry.OverlayColorTexture,
+        &Entry.OverlayColorRTV,
+        &Entry.OverlayColorSRV))
+    {
+        ExternalOverlayTargetMap.erase(Key);
+        return false;
+    }
+
+    Entry.Width = Width;
+    Entry.Height = Height;
+    OutTargets = &Entry;
+    return true;
+}
+
 void FSceneTargetManager::ReleaseSupplementalTargets()
 {
     ReleaseCOM(reinterpret_cast<IUnknown*&>(GBufferASRV));
@@ -141,6 +214,9 @@ void FSceneTargetManager::ReleaseSupplementalTargets()
     ReleaseCOM(reinterpret_cast<IUnknown*&>(SceneColorScratchSRV));
     ReleaseCOM(reinterpret_cast<IUnknown*&>(SceneColorScratchRTV));
     ReleaseCOM(reinterpret_cast<IUnknown*&>(SceneColorScratchTexture));
+    ReleaseCOM(reinterpret_cast<IUnknown*&>(OverlayColorSRV));
+    ReleaseCOM(reinterpret_cast<IUnknown*&>(OverlayColorRTV));
+    ReleaseCOM(reinterpret_cast<IUnknown*&>(OverlayColorTexture));
     ReleaseCOM(reinterpret_cast<IUnknown*&>(OutlineMaskSRV));
     ReleaseCOM(reinterpret_cast<IUnknown*&>(OutlineMaskRTV));
     ReleaseCOM(reinterpret_cast<IUnknown*&>(OutlineMaskTexture));
@@ -188,7 +264,7 @@ bool FSceneTargetManager::EnsureSupplementalTargets(ID3D11Device* Device, uint32
         return false;
     }
 
-    if (GBufferARTV && GBufferBRTV && GBufferCRTV && SceneColorScratchRTV && OutlineMaskRTV
+    if (GBufferARTV && GBufferBRTV && GBufferCRTV && SceneColorScratchRTV && OverlayColorRTV && OutlineMaskRTV
         && SupplementalTargetCacheWidth == Width
         && SupplementalTargetCacheHeight == Height)
     {
@@ -201,6 +277,7 @@ bool FSceneTargetManager::EnsureSupplementalTargets(ID3D11Device* Device, uint32
         || !CreateColorRenderTarget(Device, Width, Height, DXGI_FORMAT_R16G16B16A16_FLOAT, &GBufferBTexture, &GBufferBRTV, &GBufferBSRV)
         || !CreateColorRenderTarget(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, &GBufferCTexture, &GBufferCRTV, &GBufferCSRV)
         || !CreateColorRenderTarget(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, &SceneColorScratchTexture, &SceneColorScratchRTV, &SceneColorScratchSRV)
+        || !CreateColorRenderTarget(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, &OverlayColorTexture, &OverlayColorRTV, &OverlayColorSRV)
         || !CreateColorRenderTarget(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, &OutlineMaskTexture, &OutlineMaskRTV, &OutlineMaskSRV))
     {
         Release();
@@ -228,6 +305,9 @@ bool FSceneTargetManager::AcquireGameSceneTargets(ID3D11Device* Device, const D3
     OutTargets.SceneColorScratchTexture = SceneColorScratchTexture;
     OutTargets.SceneColorScratchRTV = SceneColorScratchRTV;
     OutTargets.SceneColorScratchSRV = SceneColorScratchSRV;
+    OutTargets.OverlayColorTexture = OverlayColorTexture;
+    OutTargets.OverlayColorRTV = OverlayColorRTV;
+    OutTargets.OverlayColorSRV = OverlayColorSRV;
     OutTargets.SceneDepthTexture = GameSceneDepthTexture;
     OutTargets.SceneDepthDSV = GameSceneDepthDSV;
     OutTargets.SceneDepthSRV = GameSceneDepthSRV;
@@ -263,6 +343,18 @@ bool FSceneTargetManager::WrapExternalSceneTargets(
         return false;
     }
 
+    FExternalOverlayTargets* ExternalOverlayTargets = nullptr;
+    if (!EnsureExternalOverlayTargets(
+        Device,
+        RenderTargetView,
+        DepthStencilView,
+        Width,
+        Height,
+        ExternalOverlayTargets))
+    {
+        return false;
+    }
+
     OutTargets = {};
     OutTargets.Width = Width;
     OutTargets.Height = Height;
@@ -271,6 +363,9 @@ bool FSceneTargetManager::WrapExternalSceneTargets(
     OutTargets.SceneColorScratchTexture = SceneColorScratchTexture;
     OutTargets.SceneColorScratchRTV = SceneColorScratchRTV;
     OutTargets.SceneColorScratchSRV = SceneColorScratchSRV;
+    OutTargets.OverlayColorTexture = ExternalOverlayTargets->OverlayColorTexture;
+    OutTargets.OverlayColorRTV = ExternalOverlayTargets->OverlayColorRTV;
+    OutTargets.OverlayColorSRV = ExternalOverlayTargets->OverlayColorSRV;
     OutTargets.SceneDepthDSV = DepthStencilView;
     OutTargets.SceneDepthSRV = DepthShaderResourceView;
     OutTargets.GBufferATexture = GBufferATexture;
@@ -299,4 +394,5 @@ void FSceneTargetManager::Release()
     GameSceneTargetCacheWidth = 0;
     GameSceneTargetCacheHeight = 0;
     ReleaseSupplementalTargets();
+    ReleaseAllExternalOverlayTargets();
 }
