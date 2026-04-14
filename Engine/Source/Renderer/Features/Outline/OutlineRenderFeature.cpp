@@ -1,8 +1,9 @@
-#include "Renderer/Features/Outline/OutlineRenderFeature.h"
+﻿#include "Renderer/Features/Outline/OutlineRenderFeature.h"
 
 #include "Core/Paths.h"
-#include "Renderer/RHI/FullscreenPass.h"
+#include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Mesh/RenderMesh.h"
+#include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/Resources/Shader/ShaderResource.h"
 

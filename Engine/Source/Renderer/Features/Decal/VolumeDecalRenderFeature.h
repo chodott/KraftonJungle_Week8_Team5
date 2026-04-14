@@ -38,12 +38,9 @@ private:
         FMatrix WorldToDecal = FMatrix::Identity;
         FVector4 AtlasScaleBias = FVector4(1, 1, 0, 0);
         FLinearColor BaseColorTint = FLinearColor::White;
-        FVector DecalExtents = FVector(50.0f, 50.0f, 50.0f);
-        float EdgeFade = 2.0f;
-        uint32 TextureIndex = 0;
-        uint32 Pad0 = 0;
-        uint32 Pad1 = 0;
-        uint32 Pad2 = 0;
+        FVector4 DecalExtentsAndEdgeFade = FVector4(50.0f, 50.0f, 50.0f, 2.0f);
+        FVector4 InvViewportSizeAndAllowAngleAndTextureIndex = FVector4(1.0f, 1.0f, 0.0f, 0.0f);
+        FVector4 DecalForwardWSAndPad = FVector4(1.0f, 0.0f, 0.0f, 0.0f);
     };
 
     bool CreateVolumeMesh(FRenderer& Renderer);

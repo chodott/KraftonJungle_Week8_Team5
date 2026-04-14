@@ -1,8 +1,8 @@
-#include "Renderer/Features/FireBall/FireBallRenderFeature.h"
+﻿#include "Renderer/Features/FireBall/FireBallRenderFeature.h"
 
 #include "Renderer/Renderer.h"
 #include "Core/Paths.h"
-#include "Renderer/RHI/FullscreenPass.h"
+#include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Resources/Shader/ShaderResource.h"
 
 namespace

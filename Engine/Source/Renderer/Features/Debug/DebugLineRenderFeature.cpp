@@ -1,6 +1,7 @@
-#include "Renderer/Features/Debug/DebugLineRenderFeature.h"
+﻿#include "Renderer/Features/Debug/DebugLineRenderFeature.h"
 
-#include "Renderer/RHI/FullscreenPass.h"
+#include "Renderer/GraphicsCore/FullscreenPass.h"
+#include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Renderer.h"
 
 FDebugLineRenderFeature::~FDebugLineRenderFeature()
