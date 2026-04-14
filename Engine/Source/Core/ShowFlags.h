@@ -17,6 +17,7 @@ enum class EEngineShowFlags : uint64
 
     SF_SceneBVH     = 1ull << 11,
     SF_MeshBVH      = 1ull << 12,
+    SF_DecalDebug   = 1ull << 13,
 };
 
 class ENGINE_API FShowFlags
