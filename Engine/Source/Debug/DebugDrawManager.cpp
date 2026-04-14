@@ -151,7 +151,7 @@ void FDebugDrawManager::DrawAllCollisionBounds(const FShowFlags& ShowFlags, UWor
 				}
 				for (const auto& Edge : Edges)
 				{
-					OutPrimitives.Lines.push_back({ WorldCorners[Edge[0]], WorldCorners[Edge[1]], FVector4(1.0f, 0.6f, 0.1f, 1.0f) });
+					OutPrimitives.Lines.push_back({ WorldCorners[Edge[0]], WorldCorners[Edge[1]], FVector4(1.0f, 0.2f, 1.0f, 1.0f) });
 				}
 				continue;
 			}

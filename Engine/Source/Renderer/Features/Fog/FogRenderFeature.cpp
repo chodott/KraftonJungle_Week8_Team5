@@ -38,7 +38,7 @@ namespace
         FVector4 CameraPosition = FVector4(0.0f, 0.0f, 0.0f, 0.0f);
         FVector4 ScreenSize = FVector4(0.0f, 0.0f, 0.0f, 0.0f);     // width, height, 1/width, 1/height
         FVector4 ClusterParams = FVector4(0.0f, 0.0f, 0.0f, 0.0f);  // tileCountX, tileCountY, sliceCountZ, nearZ
-        FVector4 ClusterParams2 = FVector4(0.0f, 0.0f, 0.0f, 0.0f); // farZ, logZScale, logZBias, reserved
+        FVector4 ClusterParams2 = FVector4(0.0f, 0.0f, 0.0f, 0.0f); // farZ, logZScale, logZBias, globalFogCount
     };
 
     struct FFogClusterConstantBuffer
@@ -349,7 +349,7 @@ bool FFogRenderFeature::UpdateFogCompositeConstantBuffer(FRenderer& Renderer, co
     CBData.ClusterParams = FVector4(static_cast<float>(FOG_CLUSTER_COUNT_X), static_cast<float>(FOG_CLUSTER_COUNT_Y), static_cast<float>(FOG_CLUSTER_COUNT_Z), View.NearZ);
     const float LogZScale = static_cast<float>(FOG_CLUSTER_COUNT_Z) / std::log(View.FarZ / View.NearZ);
     const float LogZBias = -std::log(View.NearZ) * LogZScale;
-    CBData.ClusterParams2 = FVector4(View.FarZ, LogZScale, LogZBias, 0.0f);
+    CBData.ClusterParams2 = FVector4(View.FarZ, LogZScale, LogZBias, static_cast<float>(GlobalFogCount));
 
     D3D11_MAPPED_SUBRESOURCE Mapped = {};
     if (FAILED(DeviceContext->Map(FogCompositeConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
@@ -794,7 +794,7 @@ bool FFogRenderFeature::Render(FRenderer& Renderer, const FFrameContext& Frame, 
         { FOG_CLUSTER_HEADERS_SRV_SLOT, ClusterHeaderStructuredBufferSRV },
         { FOG_CLUSTER_INDICES_SRV_SLOT, ClusterIndexStructuredBufferSRV },
         { FOG_DATA_SRV_SLOT, LocalFogStructuredBufferSRV },
-        { FOG_GLOBAL_DATA_SRV_SLOT, GlobalFogStructuredBufferSRV },
+        { FOG_GLOBAL_DATA_SRV_SLOT, PreparedGlobalFogItems.empty() ? nullptr : GlobalFogStructuredBufferSRV },
     };
     const FFullscreenPassSamplerBinding Samplers[] =
     {

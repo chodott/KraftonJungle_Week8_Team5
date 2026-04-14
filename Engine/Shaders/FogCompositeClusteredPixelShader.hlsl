@@ -423,7 +423,7 @@ float4 main(VSOutput Input) : SV_TARGET
         }
     }
 
-    uint GlobalFogCount = GlobalFogBuffer.Length;
+    uint GlobalFogCount = (uint)ClusterParams2.w;
     [loop]
     for (uint i = 0u; i < GlobalFogCount; ++i)
     {
