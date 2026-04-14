@@ -2,7 +2,7 @@
 #include "Object/ObjectFactory.h"
 #include "Component/UUIDBillboardComponent.h"
 #include "Object/Class.h"
-#include "Renderer/Material.h"
+#include "Renderer/Resources/Material/Material.h"
 #include "Component/TextComponent.h"
 #include "Component/SceneComponent.h"
 #include "Debug/EngineLog.h"

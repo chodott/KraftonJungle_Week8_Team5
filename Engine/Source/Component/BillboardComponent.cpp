@@ -1,7 +1,8 @@
-#include "BillboardComponent.h"
+#include "Component/BillboardComponent.h"
 #include "Core/Paths.h"
+#include "Component/DecalComponent.h"
 #include "Object/Class.h"
-#include "Renderer/MeshData.h"
+#include "Renderer/Mesh/MeshData.h"
 #include "Serializer/Archive.h"
 #include <cmath>
 

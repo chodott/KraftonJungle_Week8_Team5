@@ -7,7 +7,7 @@
 #include "Debug/DebugDrawManager.h"
 #include "Physics/PhysicsManager.h"
 #include "Renderer/Renderer.h"
-#include "ViewportClient.h"
+#include "Core/ViewportClient.h"
 #include "World/WorldContext.h"
 #include <memory>
 

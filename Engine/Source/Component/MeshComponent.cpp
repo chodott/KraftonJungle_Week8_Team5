@@ -1,10 +1,10 @@
 #include "Object/Class.h"
 #include "Serializer/Archive.h"
-#include "Renderer/Material.h"
-#include "MeshComponent.h"
+#include "Renderer/Resources/Material/Material.h"
+#include "Component/MeshComponent.h"
 
 #include "Debug/EngineLog.h"
-#include "Renderer/MaterialManager.h"
+#include "Renderer/Resources/Material/MaterialManager.h"
 
 namespace
 {

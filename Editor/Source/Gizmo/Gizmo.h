@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Primitive/PrimitiveGizmo.h"
 #include "EngineAPI.h"
-#include "Renderer/MeshBatch.h"
+#include "Renderer/Mesh/MeshBatch.h"
 #include <memory>
 
 class AActor;

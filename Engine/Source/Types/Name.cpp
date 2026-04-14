@@ -1,4 +1,4 @@
-#include "Name.h"
+#include "Types/Name.h"
 static FString ToLower(const FString& InString)
 {
 	FString Result = InString;
@@ -18,7 +18,7 @@ uint32 FName::FNameTable::FindOrAdd(const FString& InString)
 	LookupMap[InString] = NewIndex;
 	return NewIndex;
 }
-#include "Name.h"
+#include "Types/Name.h"
 
 void FName::SplitNameAndNumber(const FString& InString, FString& OutBase, int32& OutNumber)
 {

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "ObjectTypes.h"
+#include "Object/ObjectTypes.h"
 
 class UClass;
 class UObject;

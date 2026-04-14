@@ -1,9 +1,9 @@
-#include "SubUVComponent.h"
+#include "Component/SubUVComponent.h"
 
 #include <algorithm>
 
 #include "Object/Class.h"
-#include "Renderer/MeshData.h"
+#include "Renderer/Mesh/MeshData.h"
 #include "Serializer/Archive.h"
 
 IMPLEMENT_RTTI(USubUVComponent, UPrimitiveComponent)

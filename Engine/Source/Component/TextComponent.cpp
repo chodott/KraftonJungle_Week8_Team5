@@ -3,7 +3,7 @@
 #include <algorithm>
 
 #include "Serializer/Archive.h"
-#include "Renderer/RenderType.h"
+#include "Renderer/Common/RenderType.h"
 
 
 IMPLEMENT_RTTI(UTextRenderComponent, UPrimitiveComponent)

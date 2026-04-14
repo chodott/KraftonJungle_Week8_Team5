@@ -1,5 +1,5 @@
-#include "RandomColorComponent.h"
-#include "MeshComponent.h"
+#include "Component/RandomColorComponent.h"
+#include "Component/MeshComponent.h"
 #include "Actor/Actor.h"
 #include "Object/Class.h"
 #include <random>

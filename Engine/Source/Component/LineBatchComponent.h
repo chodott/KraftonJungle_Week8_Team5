@@ -1,9 +1,9 @@
 #pragma once
 
-#include "PrimitiveComponent.h"
+#include "Component/PrimitiveComponent.h"
 #include "Math/Vector.h"
 #include "Math/Vector4.h"
-#include "Renderer/MeshData.h"
+#include "Renderer/Mesh/MeshData.h"
 
 class ULineBatchComponent : public UPrimitiveComponent
 {

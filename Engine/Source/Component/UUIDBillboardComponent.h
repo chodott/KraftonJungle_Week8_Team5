@@ -1,6 +1,6 @@
 #pragma once
 
-#include "TextComponent.h"
+#include "Component/TextComponent.h"
 
 
 class ENGINE_API UUUIDBillboardComponent : public UTextRenderComponent

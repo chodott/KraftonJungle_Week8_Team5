@@ -32,8 +32,8 @@
 #include "Actor/DecalActor.h"
 #include "Math/MathUtility.h"
 #include "Asset/ObjManager.h"
-#include "Renderer/Material.h"
-#include "Renderer/MaterialManager.h"
+#include "Renderer/Resources/Material/Material.h"
+#include "Renderer/Resources/Material/MaterialManager.h"
 
 namespace
 {

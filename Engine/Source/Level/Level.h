@@ -3,9 +3,9 @@
 #include "Object/Object.h"
 #include "Object/ObjectFactory.h"
 #include <d3d11.h>
-#include "WorldTypes.h"
+#include "Level/WorldTypes.h"
 #include "Core/ShowFlags.h"
-#include "BVH.h"
+#include "Level/BVH.h"
 
 class AActor;
 class FCamera;
