@@ -37,6 +37,18 @@ public:
 	void SetSelectedActor(AActor* InActor);
 	// 현재 선택된 액터를 반환한다.
 	AActor* GetSelectedActor() const;
+	// 현재 선택된 액터 목록을 반환한다.
+	TArray<AActor*> GetSelectedActors() const;
+	// 지정한 액터의 선택 여부를 반환한다.
+	bool IsActorSelected(AActor* InActor) const;
+	// 기존 선택을 유지한 채 액터를 추가 선택한다.
+	void AddSelectedActor(AActor* InActor);
+	// 지정한 액터를 선택 목록에서 제거한다.
+	void RemoveSelectedActor(AActor* InActor);
+	// 지정한 액터의 선택 상태를 토글한다.
+	void ToggleSelectedActor(AActor* InActor);
+	// 모든 선택을 해제한다.
+	void ClearSelectedActors();
 	// 에디터 월드 시뮬레이션 재생 상태를 재생으로 전환한다.
 	void PlaySimulation();
 	// 에디터 월드 시뮬레이션 재생 상태를 일시정지로 전환한다.

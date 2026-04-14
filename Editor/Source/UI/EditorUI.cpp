@@ -1106,7 +1106,7 @@ void FEditorUI::Render()
             break;
         }
     }
-    Outliner.Render(Engine);
+    SceneManager.Render(Engine);
     ContentBrowser.Render();
 
     if (bRequestViewportFocusOnNextRender)

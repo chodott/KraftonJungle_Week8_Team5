@@ -183,8 +183,8 @@
     <ClCompile Include="Source\UI\ContentBrowserWindow.cpp" />
     <ClCompile Include="Source\UI\ControlPanelWindow.cpp" />
     <ClCompile Include="Source\UI\EditorUI.cpp" />
-    <ClCompile Include="Source\UI\OutlinerWindow.cpp" />
     <ClCompile Include="Source\UI\PropertyWindow.cpp" />
+    <ClCompile Include="Source\UI\SceneManagerWindow.cpp" />
     <ClCompile Include="Source\UI\StatWindow.cpp" />
     <ClCompile Include="Source\Viewport\EditorViewportClient.cpp" />
     <ClCompile Include="Source\Viewport\EditorViewportRegistry.cpp" />
@@ -245,8 +245,8 @@
     <ClInclude Include="Source\UI\ControlPanelWindow.h" />
     <ClInclude Include="Source\UI\EditorDebugState.h" />
     <ClInclude Include="Source\UI\EditorUI.h" />
-    <ClInclude Include="Source\UI\OutlinerWindow.h" />
     <ClInclude Include="Source\UI\PropertyWindow.h" />
+    <ClInclude Include="Source\UI\SceneManagerWindow.h" />
     <ClInclude Include="Source\UI\StatWindow.h" />
     <ClInclude Include="Source\Viewport\EditorViewportClient.h" />
     <ClInclude Include="Source\Viewport\EditorViewportRegistry.h" />

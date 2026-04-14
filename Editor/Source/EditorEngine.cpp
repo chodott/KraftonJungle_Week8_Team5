@@ -107,6 +107,36 @@ AActor* FEditorEngine::GetSelectedActor() const
 	return SelectionSubsystem.GetSelectedActor();
 }
 
+TArray<AActor*> FEditorEngine::GetSelectedActors() const
+{
+	return SelectionSubsystem.GetSelectedActors();
+}
+
+bool FEditorEngine::IsActorSelected(AActor* InActor) const
+{
+	return SelectionSubsystem.IsActorSelected(InActor);
+}
+
+void FEditorEngine::AddSelectedActor(AActor* InActor)
+{
+	SelectionSubsystem.AddSelectedActor(InActor);
+}
+
+void FEditorEngine::RemoveSelectedActor(AActor* InActor)
+{
+	SelectionSubsystem.RemoveSelectedActor(InActor);
+}
+
+void FEditorEngine::ToggleSelectedActor(AActor* InActor)
+{
+	SelectionSubsystem.ToggleSelectedActor(InActor);
+}
+
+void FEditorEngine::ClearSelectedActors()
+{
+	SelectionSubsystem.ClearSelection();
+}
+
 void FEditorEngine::PlaySimulation()
 {
 	if (!bIsPIEActive)
