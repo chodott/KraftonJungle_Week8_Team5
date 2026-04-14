@@ -25,8 +25,6 @@ void ULocalHeightFogComponent::Serialize(FArchive& Ar)
 
 	Ar.Serialize("FogDensity", FogDensity);
 	Ar.Serialize("FogHeightFalloff", FogHeightFalloff);
-	Ar.Serialize("StartDistance", StartDistance);
-	Ar.Serialize("FogCutoffDistance", FogCutoffDistance);
 	Ar.Serialize("FogMaxOpacity", FogMaxOpacity);
 	Ar.Serialize("FogInscatteringColor", FogColor);
 	Ar.Serialize("FogAllowBackground", AllowBackground);
@@ -36,8 +34,6 @@ void ULocalHeightFogComponent::Serialize(FArchive& Ar)
 	{
 		FogDensity = (std::max)(0.0f, FogDensity);
 		FogHeightFalloff = (std::max)(0.0f, FogHeightFalloff);
-		StartDistance = (std::max)(0.0f, StartDistance);
-		FogCutoffDistance = (std::max)(0.0f, FogCutoffDistance);
 		FogMaxOpacity = std::clamp(FogMaxOpacity, 0.0f, 1.0f);
 		FogExtents.X = (std::max)(0.0f, FogExtents.X);
 		FogExtents.Y = (std::max)(0.0f, FogExtents.Y);
@@ -53,8 +49,6 @@ void ULocalHeightFogComponent::DuplicateShallow(UObject* DuplicatedObject, FDupl
 	ULocalHeightFogComponent* DuplicatedFogComponent = static_cast<ULocalHeightFogComponent*>(DuplicatedObject);
 	DuplicatedFogComponent->FogDensity = FogDensity;
 	DuplicatedFogComponent->FogHeightFalloff = FogHeightFalloff;
-	DuplicatedFogComponent->StartDistance = StartDistance;
-	DuplicatedFogComponent->FogCutoffDistance = FogCutoffDistance;
 	DuplicatedFogComponent->FogMaxOpacity = FogMaxOpacity;
 	DuplicatedFogComponent->FogInscatteringColor = FogInscatteringColor;
 	DuplicatedFogComponent->AllowBackground = AllowBackground;

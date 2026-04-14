@@ -114,7 +114,8 @@ void FDebugDrawManager::DrawAllCollisionBounds(const FShowFlags& ShowFlags, UWor
 			}
 
 			UPrimitiveComponent* PrimitiveComponent = static_cast<UPrimitiveComponent*>(Component);
-			if (!PrimitiveComponent->ShouldDrawDebugBounds())
+			const bool bIsLocalFogComponent = PrimitiveComponent->IsA(ULocalHeightFogComponent::StaticClass());
+			if (!bIsLocalFogComponent && !PrimitiveComponent->ShouldDrawDebugBounds())
 			{
 				continue;
 			}

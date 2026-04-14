@@ -17,10 +17,8 @@ public:
 
 	float FogDensity = 0.2f;
 	float FogHeightFalloff = 0.2f;
-	float StartDistance = 0.0f;
-	float FogCutoffDistance = 0.0f;
 	float FogMaxOpacity = 1.0f;
 	float AllowBackground = 1.0f;
-	FVector FogExtents = FVector(100.0f, 100.0f, 100.0f);
+	FVector FogExtents = FVector(1.0f, 1.0f, 1.0f);
 	FLinearColor FogInscatteringColor = FLinearColor(0.75f, 0.80f, 0.90f, 0.5f);
 };

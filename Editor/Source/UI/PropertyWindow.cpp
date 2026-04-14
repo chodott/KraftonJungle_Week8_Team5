@@ -809,7 +809,7 @@ void FPropertyWindow::DrawLocalHeightFogComponentDetails(ULocalHeightFogComponen
 
 	ImGui::Spacing();
 	ImGui::TextDisabled("Local Height Fog");
-	ImGui::TextDisabled("Transform controls above affect local fog position / rotation.");
+	ImGui::TextDisabled("Transform controls above affect local fog position / rotation. Debug bounds follow show flags even when not selected.");
 
 	if (ImGui::DragFloat("Fog Density", &LocalHeightFogComponent->FogDensity, 0.001f, 0.0f, 10.0f, "%.3f"))
 	{
@@ -821,23 +821,6 @@ void FPropertyWindow::DrawLocalHeightFogComponentDetails(ULocalHeightFogComponen
 		LocalHeightFogComponent->FogHeightFalloff = (std::max)(0.0f, LocalHeightFogComponent->FogHeightFalloff);
 	}
 
-	if (ImGui::DragFloat("Start Distance", &LocalHeightFogComponent->StartDistance, 0.1f, 0.0f, 100000.0f, "%.2f"))
-	{
-		LocalHeightFogComponent->StartDistance = (std::max)(0.0f, LocalHeightFogComponent->StartDistance);
-		if (LocalHeightFogComponent->FogCutoffDistance > 0.0f)
-		{
-			LocalHeightFogComponent->StartDistance = (std::min)(LocalHeightFogComponent->StartDistance, LocalHeightFogComponent->FogCutoffDistance);
-		}
-	}
-
-	if (ImGui::DragFloat("Cutoff Distance", &LocalHeightFogComponent->FogCutoffDistance, 0.1f, 0.0f, 100000.0f, "%.2f"))
-	{
-		LocalHeightFogComponent->FogCutoffDistance = (std::max)(0.0f, LocalHeightFogComponent->FogCutoffDistance);
-		if (LocalHeightFogComponent->FogCutoffDistance > 0.0f)
-		{
-			LocalHeightFogComponent->FogCutoffDistance = (std::max)(LocalHeightFogComponent->FogCutoffDistance, LocalHeightFogComponent->StartDistance);
-		}
-	}
 
 	ImGui::SliderFloat("Max Opacity", &LocalHeightFogComponent->FogMaxOpacity, 0.0f, 1.0f, "%.2f");
 
@@ -880,11 +863,6 @@ void FPropertyWindow::DrawLocalHeightFogComponentDetails(ULocalHeightFogComponen
 		}
 	}
 
-	bool bDrawDebugBounds = LocalHeightFogComponent->ShouldDrawDebugBounds();
-	if (ImGui::Checkbox("Draw Debug Bounds", &bDrawDebugBounds))
-	{
-		LocalHeightFogComponent->SetDrawDebugBounds(bDrawDebugBounds);
-	}
 }
 
 void FPropertyWindow::DrawFireBallComponentDetails(UFireBallComponent* FireBallComponent)

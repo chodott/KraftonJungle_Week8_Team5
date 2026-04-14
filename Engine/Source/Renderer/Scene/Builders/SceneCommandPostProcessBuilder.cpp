@@ -45,8 +45,7 @@ void FSceneCommandPostProcessBuilder::BuildFogInputs(
 			const ULocalHeightFogComponent* FogComponent = static_cast<const ULocalHeightFogComponent*>(FogPrimitive);
 			Item.FogDensity = FogComponent->FogDensity;
 			Item.FogHeightFalloff = FogComponent->FogHeightFalloff;
-			Item.StartDistance = FogComponent->StartDistance;
-			Item.FogCutoffDistance = FogComponent->FogCutoffDistance;
+			Item.StartDistance = 0.0f;
 			Item.FogMaxOpacity = FogComponent->FogMaxOpacity;
 			Item.FogInscatteringColor = FogComponent->FogInscatteringColor;
 			Item.AllowBackground = FogComponent->AllowBackground;
