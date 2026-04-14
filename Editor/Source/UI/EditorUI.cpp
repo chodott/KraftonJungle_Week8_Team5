@@ -912,6 +912,8 @@ void FEditorUI::Render()
 
                     ShowFlagCheckbox("Primitives", EEngineShowFlags::SF_Primitives);
                     ShowFlagCheckbox("UUID Text", EEngineShowFlags::SF_UUID);
+                    ShowFlagCheckbox("Decal Arrow", EEngineShowFlags::SF_DecalArrow);
+                    ShowFlagCheckbox("Projectile Arrow", EEngineShowFlags::SF_ProjectileArrow);
 
                     bool bDebugDraw = ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw);
                     if (ImGui::Checkbox("Debug Line", &bDebugDraw))
@@ -980,8 +982,6 @@ void FEditorUI::Render()
                     ShowFlagCheckbox("Height Fog", EEngineShowFlags::SF_Fog);
                     ShowFlagCheckbox("Decal Projection", EEngineShowFlags::SF_Decal);
                     ShowFlagCheckbox("Depth View", EEngineShowFlags::SF_DepthView);
-                    ShowFlagCheckbox("Decal Arrow", EEngineShowFlags::SF_DecalArrow);
-                    ShowFlagCheckbox("Projectile Arrow", EEngineShowFlags::SF_ProjectileArrow);
                 }
             }
             ImGui::EndMenu();
