@@ -27,12 +27,13 @@ public:
 	DECLARE_RTTI(UPrimitiveComponent, USceneComponent)
 
 	// virtual FBoxSphereBounds GetWorldBounds() const { return Bounds; };
-	virtual FBoxSphereBounds GetWorldBounds() const { return CalcBounds(GetWorldTransform()); }
+	virtual FBoxSphereBounds GetWorldBounds() const { return CalcBounds(GetBoundsWorldTransform()); }
 	virtual void UpdateBounds();
 	virtual FBoxSphereBounds GetLocalBounds() const;
 	virtual FBoxSphereBounds CalcBounds(const FMatrix& LocalToWorld) const;
 	virtual FVector GetRenderWorldScale() const;
 	virtual FMatrix GetRenderWorldTransform() const;
+	virtual FMatrix GetBoundsWorldTransform() const;
 
 	bool ShouldDrawDebugBounds() const { return bDrawDebugBounds; }
 	void SetDrawDebugBounds(bool bEnable) { bDrawDebugBounds = bEnable; }

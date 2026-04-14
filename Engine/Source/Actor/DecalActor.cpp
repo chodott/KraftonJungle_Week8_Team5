@@ -76,7 +76,7 @@ void ADecalActor::PostSpawnInitialize()
 		BillboardComponent->SetHiddenInGame(true);
 	}
 
-	ArrowComponent = FObjectFactory::ConstructObject<UStaticMeshComponent>(this, "DecalArrowComponent");
+	ArrowComponent = FObjectFactory::ConstructObject<UStaticMeshComponent>(this, "ArrowComponent");
 	if (ArrowComponent)
 	{
 		AddOwnedComponent(ArrowComponent);

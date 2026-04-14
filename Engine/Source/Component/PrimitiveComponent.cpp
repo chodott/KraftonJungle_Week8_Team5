@@ -78,9 +78,14 @@ FMatrix UPrimitiveComponent::GetRenderWorldTransform() const
 	return RenderTransform.ToMatrixWithScale();
 }
 
+FMatrix UPrimitiveComponent::GetBoundsWorldTransform() const
+{
+	return bIgnoreParentScaleInRender ? GetRenderWorldTransform() : GetWorldTransform();
+}
+
 void UPrimitiveComponent::UpdateBounds()
 {
-	Bounds = CalcBounds(GetWorldTransform());
+	Bounds = CalcBounds(GetBoundsWorldTransform());
 }
 
 FBoxSphereBounds UPrimitiveComponent::CalcBounds(const FMatrix& LocalToWorld) const

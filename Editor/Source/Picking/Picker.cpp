@@ -266,7 +266,7 @@ AActor* FPicker::PickActor(ULevel* Scene, const FViewportEntry* Entry, int32 Scr
 
 			if (PrimComp->HasMeshIntersection())
 			{
-				const FMatrix World = PrimComp->GetWorldTransform();
+				const FMatrix World = PrimComp->GetBoundsWorldTransform();
 				const FMatrix InvWorld = World.GetInverse();
 
 				FRay LocalRay;
