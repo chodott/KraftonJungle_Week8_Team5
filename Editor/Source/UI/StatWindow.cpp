@@ -5,7 +5,7 @@
 #include "Memory/MemoryBase.h"
 #include "Viewport/ViewportTypes.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/Feature/DecalRenderFeature.h"
+#include "Renderer/DecalStats.h"
 
 #include "imgui.h"
 
@@ -256,11 +256,10 @@ void FStatWindow::RenderDecalStats(FRenderer* Renderer)
 		return;
 	}
 
-	const FDecalFrameStats& Stats = Renderer->GetDecalFrameStats();
-	const EDecalProjectionMode Mode = Renderer->GetDecalProjectionMode();
+	const FDecalStats Stats = Renderer->GetDecalStats();
 
 	const char* ModeString = "Unknown";
-	switch (Mode)
+	switch (Stats.Common.Mode)
 	{
 	case EDecalProjectionMode::VolumeDraw:
 		ModeString = "Volume Draw";
@@ -277,22 +276,36 @@ void FStatWindow::RenderDecalStats(FRenderer* Renderer)
 	ImGui::Text("Mode: %s", ModeString);
 	ImGui::Spacing();
 
-	ImGui::Text("Total Decals: %u", Stats.InputItemCount);
-	ImGui::Text("Visible Decals: %u", Stats.VisibleItemCount);
-	ImGui::Text("Cluster Count: %u", Stats.ClusterCount);
-	ImGui::Text("Total Cluster Indices: %u", Stats.TotalClusterIndices);
-	ImGui::Text("Max Items Per Cluster: %u", Stats.MaxItemsPerCluster);
-	ImGui::Text("Uploaded Decals: %u", Stats.UploadedDecalCount);
-	ImGui::Text("Uploaded Cluster Headers: %u", Stats.UploadedClusterHeaderCount);
-	ImGui::Text("Uploaded Cluster Indices: %u", Stats.UploadedClusterIndexCount);
+	ImGui::Text("Total Decals: %d", Stats.Common.TotalDecals);
+	ImGui::Text("Active Decals: %d", Stats.Common.ActiveDecals);
+	ImGui::Text("Visible Decals: %d", Stats.Common.VisibleDecals);
+	ImGui::Text("Rejected Decals: %d", Stats.Common.RejectedDecals);
+	ImGui::Text("Fade In/Out Decals: %d", Stats.Common.FadeInOutDecals);
 
 	ImGui::Spacing();
 	ImGui::Separator();
-	ImGui::Text("Prepare Time: %.3f ms", Stats.PrepareTimeMs);
-	ImGui::Text("Visible Build Time: %.3f ms", Stats.VisibleBuildTimeMs);
-	ImGui::Text("Cluster Build Time: %.3f ms", Stats.ClusterBuildTimeMs);
-	ImGui::Text("CB Update Time: %.3f ms", Stats.ConstantBufferUpdateTimeMs);
-	ImGui::Text("Upload Decal Buffer Time: %.3f ms", Stats.UploadDecalBufferTimeMs);
-	ImGui::Text("Upload Header Buffer Time: %.3f ms", Stats.UploadClusterHeaderBufferTimeMs);
-	ImGui::Text("Upload Index Buffer Time: %.3f ms", Stats.UploadClusterIndexBufferTimeMs);
+
+	ImGui::Text("Build Time: %.3f ms", Stats.Common.BuildTimeMs);
+	ImGui::Text("Cull / Intersection Time: %.3f ms", Stats.Common.CullIntersectionTimeMs);
+	ImGui::Text("Shading Pass Time: %.3f ms", Stats.Common.ShadingPassTimeMs);
+	ImGui::Text("Total Decal Time: %.3f ms", Stats.Common.TotalDecalTimeMs);
+
+	ImGui::Spacing();
+	ImGui::Separator();
+
+	if (Stats.Common.Mode == EDecalProjectionMode::VolumeDraw)
+	{
+		ImGui::Text("[Volume Draw]");
+		ImGui::Text("Candidate Objects: %d", Stats.Volume.CandidateObjects);
+		ImGui::Text("Intersect Passed: %d", Stats.Volume.IntersectPassed);
+		ImGui::Text("Decal Draw Calls: %d", Stats.Volume.DecalDrawCalls);
+	}
+	else if (Stats.Common.Mode == EDecalProjectionMode::ClusteredLookup)
+	{
+		ImGui::Text("[Clustered Lookup]");
+		ImGui::Text("Clusters Built: %d", Stats.ClusteredLookup.ClustersBuilt);
+		ImGui::Text("Decal-Cell Registrations: %d", Stats.ClusteredLookup.DecalCellRegistrations);
+		ImGui::Text("Avg Decals Per Cell: %.3f", Stats.ClusteredLookup.AvgDecalsPerCell);
+		ImGui::Text("Max Decals Per Cell: %d", Stats.ClusteredLookup.MaxDecalsPerCell);
+	}
 }
