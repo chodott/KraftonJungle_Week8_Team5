@@ -103,9 +103,9 @@ namespace
 		return OutlineItems;
 	}
 
-	static EViewportCompositeMode ResolveViewportCompositeMode(const FShowFlags& ShowFlags)
+	static EViewportCompositeMode ResolveViewportCompositeMode(ERenderMode RenderMode)
 	{
-		if (ShowFlags.HasFlag(EEngineShowFlags::SF_DepthView))
+		if (RenderMode == ERenderMode::SceneDepth)
 		{
 			return EViewportCompositeMode::DepthView;
 		}
@@ -232,6 +232,7 @@ void FEditorViewportRenderService::RenderAll(
 		ScenePass.SceneView.FarZ = Entry.LocalState.FarPlane;
 		ScenePass.SceneView.TotalTimeSeconds = Engine ? static_cast<float>(Engine->GetTimer().GetTotalTime()) : 0.0f;
 		ScenePass.AdditionalMeshBatches = std::move(AdditionalMeshBatches);
+		ScenePass.RenderMode = Entry.LocalState.ViewMode;
 		ScenePass.bForceWireframe = (Entry.LocalState.ViewMode == ERenderMode::Wireframe && WireFrameMaterial != nullptr);
 		ScenePass.WireframeMaterial = WireFrameMaterial.get();
 		ScenePass.OutlineRequest.bEnabled =
@@ -259,7 +260,7 @@ void FEditorViewportRenderService::RenderAll(
 
 		const FRect& Rect = Entry.Viewport->GetRect();
 		FViewportCompositeItem Item;
-		Item.Mode = ResolveViewportCompositeMode(Entry.LocalState.ShowFlags);
+		Item.Mode = ResolveViewportCompositeMode(Entry.LocalState.ViewMode);
 		Item.SceneColorSRV = Entry.Viewport->GetSRV();
 		Item.SceneDepthSRV = Entry.Viewport->GetDepthSRV();
 		Item.VisualizationParams.NearZ = Entry.LocalState.NearPlane;
