@@ -52,6 +52,7 @@ bool FGameFrameRenderer::Render(FRenderer& Renderer, const FGameFrameRequest& Re
     FullscreenItem.Mode = Request.CompositeMode;
     FullscreenItem.SceneColorSRV = Targets.SceneColorSRV;
     FullscreenItem.SceneDepthSRV = Targets.SceneDepthSRV;
+    FullscreenItem.OverlayColorSRV = Targets.OverlayColorSRV;
     FullscreenItem.VisualizationParams.NearZ = View.NearZ;
     FullscreenItem.VisualizationParams.FarZ = View.FarZ;
     FullscreenItem.VisualizationParams.bOrthographic = 0u;

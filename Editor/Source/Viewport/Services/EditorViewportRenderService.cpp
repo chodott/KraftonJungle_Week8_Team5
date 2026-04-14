@@ -221,8 +221,11 @@ void FEditorViewportRenderService::RenderAll(
 			GridBatch.Mesh = GridMesh;
 			GridBatch.Material = EntryGridMaterial;
 			GridBatch.World = FMatrix::Identity;
-			GridBatch.Domain = EMaterialDomain::Opaque;
-			GridBatch.PassMask = static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+			GridBatch.Domain = EMaterialDomain::Overlay;
+			GridBatch.PassMask = static_cast<uint32>(EMeshPassMask::Overlay);
+			GridBatch.bDisableDepthWrite = true;
+			GridBatch.bDisableDepthTest = false;
+			GridBatch.bDisableCulling = true;
 			AdditionalMeshBatches.push_back(GridBatch);
 		}
 
@@ -239,9 +242,11 @@ void FEditorViewportRenderService::RenderAll(
 			WorldAxisBatch.Mesh = WorldAxisMesh;
 			WorldAxisBatch.Material = EntryWorldAxisMaterial;
 			WorldAxisBatch.World = FMatrix::Identity;
-			WorldAxisBatch.Domain = EMaterialDomain::Opaque;
-			WorldAxisBatch.PassMask = static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+			WorldAxisBatch.Domain = EMaterialDomain::Overlay;
+			WorldAxisBatch.PassMask = static_cast<uint32>(EMeshPassMask::Overlay);
 			WorldAxisBatch.bDisableDepthWrite = true;
+			WorldAxisBatch.bDisableDepthTest = false;
+			WorldAxisBatch.bDisableCulling = true;
 			AdditionalMeshBatches.push_back(WorldAxisBatch);
 		}
 

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Renderer/Common/RenderFrameContext.h"
@@ -42,6 +42,7 @@ struct ENGINE_API FViewportCompositeItem
 
 	ID3D11ShaderResourceView* SceneColorSRV = nullptr;
 	ID3D11ShaderResourceView* SceneDepthSRV = nullptr;
+	ID3D11ShaderResourceView* OverlayColorSRV = nullptr;
 
 	FViewportVisualizationParams VisualizationParams = {};
 	// 장면 텍스처를 백버퍼 어디에 놓을지 나타내는 사각형이다.
@@ -90,6 +91,7 @@ private:
 	ID3D11PixelShader* BlitPixelShader = nullptr;
 	ID3D11PixelShader* DepthViewPixelShader = nullptr;
 	ID3D11SamplerState* PointSampler = nullptr;
+	ID3D11BlendState* AlphaBlendState = nullptr;
 	ID3D11DepthStencilState* NoDepthState = nullptr;
 	ID3D11RasterizerState* ScissorRasterizerState = nullptr;
 	ID3D11Buffer* VisualizationConstantBuffer = nullptr;

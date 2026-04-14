@@ -82,9 +82,22 @@ void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
 		FDepthStencilStateOption DepthStencilOption;
 		DepthStencilOption.DepthEnable = true;
 		DepthStencilOption.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+		DepthStencilOption.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
 		auto DSS = Renderer->GetRenderStateManager()->GetOrCreateDepthStencilState(DepthStencilOption);
 		GridMaterial->SetDepthStencilOption(DepthStencilOption);
 		GridMaterial->SetDepthStencilState(DSS);
+
+		FBlendStateOption BlendOption;
+		BlendOption.BlendEnable = true;
+		BlendOption.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+		BlendOption.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+		BlendOption.BlendOp = D3D11_BLEND_OP_ADD;
+		BlendOption.SrcBlendAlpha = D3D11_BLEND_ONE;
+		BlendOption.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+		BlendOption.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+		auto BS = Renderer->GetRenderStateManager()->GetOrCreateBlendState(BlendOption);
+		GridMaterial->SetBlendOption(BlendOption);
+		GridMaterial->SetBlendState(BS);
 
 		int32 SlotIndex = GridMaterial->CreateConstantBuffer(Device, 64);
 		if (SlotIndex >= 0)
@@ -155,9 +168,22 @@ void FEditorViewportClient::CreateWorldAxisResource(FRenderer* Renderer)
 		FDepthStencilStateOption DepthStencilOption;
 		DepthStencilOption.DepthEnable = true;
 		DepthStencilOption.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+		DepthStencilOption.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
 		auto DSS = Renderer->GetRenderStateManager()->GetOrCreateDepthStencilState(DepthStencilOption);
 		WorldAxisMaterial->SetDepthStencilOption(DepthStencilOption);
 		WorldAxisMaterial->SetDepthStencilState(DSS);
+
+		FBlendStateOption BlendOption;
+		BlendOption.BlendEnable = true;
+		BlendOption.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+		BlendOption.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+		BlendOption.BlendOp = D3D11_BLEND_OP_ADD;
+		BlendOption.SrcBlendAlpha = D3D11_BLEND_ONE;
+		BlendOption.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+		BlendOption.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+		auto BS = Renderer->GetRenderStateManager()->GetOrCreateBlendState(BlendOption);
+		WorldAxisMaterial->SetBlendOption(BlendOption);
+		WorldAxisMaterial->SetBlendState(BS);
 
 		int32 SlotIndex = WorldAxisMaterial->CreateConstantBuffer(Device, 64);
 		if (SlotIndex >= 0)

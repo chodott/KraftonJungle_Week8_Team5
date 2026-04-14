@@ -59,6 +59,21 @@ bool FViewportCompositor::Initialize(ID3D11Device* Device)
 		return false;
 	}
 
+	D3D11_BLEND_DESC AlphaBlendDesc = {};
+	AlphaBlendDesc.RenderTarget[0].BlendEnable = TRUE;
+	AlphaBlendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	AlphaBlendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	AlphaBlendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	AlphaBlendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+	AlphaBlendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	AlphaBlendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	AlphaBlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	if (FAILED(Device->CreateBlendState(&AlphaBlendDesc, &AlphaBlendState)))
+	{
+		Release();
+		return false;
+	}
+
 	D3D11_DEPTH_STENCIL_DESC DepthDesc = {};
 	DepthDesc.DepthEnable = FALSE;
 	DepthDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
@@ -113,6 +128,11 @@ void FViewportCompositor::Release()
 		PointSampler->Release();
 		PointSampler = nullptr;
 	}
+	if (AlphaBlendState)
+	{
+		AlphaBlendState->Release();
+		AlphaBlendState = nullptr;
+	}
 	if (NoDepthState)
 	{
 		NoDepthState->Release();
@@ -153,9 +173,12 @@ bool FViewportCompositor::Compose(
 		return bInitialized && Context != nullptr;
 	}
 
-	FFullscreenPassPipelineState PipelineState;
-	PipelineState.DepthStencilState = NoDepthState;
-	PipelineState.RasterizerState = ScissorRasterizerState;
+	FFullscreenPassPipelineState BasePipelineState;
+	BasePipelineState.DepthStencilState = NoDepthState;
+	BasePipelineState.RasterizerState = ScissorRasterizerState;
+
+	FFullscreenPassPipelineState OverlayPipelineState = BasePipelineState;
+	OverlayPipelineState.BlendState = AlphaBlendState;
 
 	for (const FViewportCompositeItem& Item : *Inputs.Items)
 	{
@@ -186,6 +209,7 @@ bool FViewportCompositor::Compose(
 		ScissorRect.top = Item.Rect.Y;
 		ScissorRect.right = Item.Rect.X + Item.Rect.Width;
 		ScissorRect.bottom = Item.Rect.Y + Item.Rect.Height;
+
 		const FFullscreenPassShaderResourceBinding ShaderResources[] =
 		{
 			{ 0, SourceSRV },
@@ -229,7 +253,7 @@ bool FViewportCompositor::Compose(
 			DepthStencilView,
 			Viewport,
 			{ BlitVertexShader, PixelShader },
-			PipelineState,
+			BasePipelineState,
 			Bindings,
 			[&](ID3D11DeviceContext& DrawContext)
 			{
@@ -239,10 +263,47 @@ bool FViewportCompositor::Compose(
 		{
 			return false;
 		}
+
+		if (Item.OverlayColorSRV)
+		{
+			const FFullscreenPassShaderResourceBinding OverlayShaderResources[] =
+			{
+				{ 0, Item.OverlayColorSRV },
+			};
+			const FFullscreenPassBindings OverlayBindings
+			{
+				nullptr,
+				0u,
+				OverlayShaderResources,
+				static_cast<uint32>(sizeof(OverlayShaderResources) / sizeof(OverlayShaderResources[0])),
+				Samplers,
+				static_cast<uint32>(sizeof(Samplers) / sizeof(Samplers[0]))
+			};
+
+			if (!ExecuteFullscreenPass(
+				Renderer,
+				Frame,
+				View,
+				RenderTargetView,
+				DepthStencilView,
+				Viewport,
+				{ BlitVertexShader, BlitPixelShader },
+				OverlayPipelineState,
+				OverlayBindings,
+				[&](ID3D11DeviceContext& DrawContext)
+				{
+					DrawContext.RSSetScissorRects(1, &ScissorRect);
+					DrawContext.Draw(3, 0);
+				}))
+			{
+				return false;
+			}
+		}
 	}
 
 	return true;
 }
+
 
 ID3D11PixelShader* FViewportCompositor::ResolvePixelShader(const FViewportCompositeItem& Item) const
 {

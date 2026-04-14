@@ -34,6 +34,7 @@ bool FClearSceneTargetsPass::Execute(FPassContext& Context)
 	if (Context.Targets.GBufferARTV) DeviceContext->ClearRenderTargetView(Context.Targets.GBufferARTV, ZeroColor);
 	if (Context.Targets.GBufferBRTV) DeviceContext->ClearRenderTargetView(Context.Targets.GBufferBRTV, ZeroColor);
 	if (Context.Targets.GBufferCRTV) DeviceContext->ClearRenderTargetView(Context.Targets.GBufferCRTV, ZeroColor);
+	if (Context.Targets.OverlayColorRTV) DeviceContext->ClearRenderTargetView(Context.Targets.OverlayColorRTV, ZeroColor);
 	if (Context.Targets.OutlineMaskRTV) DeviceContext->ClearRenderTargetView(Context.Targets.OutlineMaskRTV, ZeroColor);
 
 	BeginPass(
@@ -156,10 +157,29 @@ bool FForwardTransparentPass::Execute(FPassContext& Context)
 
 bool FOverlayPass::Execute(FPassContext& Context)
 {
-	return ExecuteMeshScenePass(
+	ID3D11RenderTargetView* OverlayRenderTarget = Context.Targets.OverlayColorRTV
+		? Context.Targets.OverlayColorRTV
+		: Context.Targets.SceneColorRTV;
+
+	if (!OverlayRenderTarget)
+	{
+		return true;
+	}
+
+	BeginPass(
 		Context.Renderer,
-		Context.Targets,
-		Context.SceneViewData,
-		Processor,
-		EMeshPassType::Overlay);
+		OverlayRenderTarget,
+		Context.Targets.SceneDepthDSV,
+		Context.SceneViewData.View.Viewport,
+		Context.SceneViewData.Frame,
+		Context.SceneViewData.View);
+	Processor.ExecutePass(Context.Renderer, Context.Targets, Context.SceneViewData, EMeshPassType::Overlay);
+	EndPass(
+		Context.Renderer,
+		Context.Targets.SceneColorRTV,
+		Context.Targets.SceneDepthDSV,
+		Context.SceneViewData.View.Viewport,
+		Context.SceneViewData.Frame,
+		Context.SceneViewData.View);
+	return true;
 }

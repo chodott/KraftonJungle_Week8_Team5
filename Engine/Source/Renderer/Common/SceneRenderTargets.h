@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 
@@ -16,6 +16,10 @@ struct ENGINE_API FSceneRenderTargets
 	ID3D11Texture2D* SceneColorScratchTexture = nullptr;
 	ID3D11RenderTargetView* SceneColorScratchRTV = nullptr;
 	ID3D11ShaderResourceView* SceneColorScratchSRV = nullptr;
+
+	ID3D11Texture2D* OverlayColorTexture = nullptr;
+	ID3D11RenderTargetView* OverlayColorRTV = nullptr;
+	ID3D11ShaderResourceView* OverlayColorSRV = nullptr;
 
 	ID3D11Texture2D* SceneDepthTexture = nullptr;
 	ID3D11DepthStencilView* SceneDepthDSV = nullptr;
