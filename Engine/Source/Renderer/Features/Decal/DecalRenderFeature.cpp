@@ -59,20 +59,6 @@ namespace
 		FMatrix InverseViewProjection = FMatrix::Identity;
 	};
 
-	struct FClusterRange
-	{
-		bool bValid = false;
-
-		uint32 MinTileX = 0;
-		uint32 MaxTileX = 0;
-
-		uint32 MinTileY = 0;
-		uint32 MaxTileY = 0;
-
-		uint32 MinSliceZ = 0;
-		uint32 MaxSliceZ = 0;
-	};
-
 	static uint32 FlattenClusterIndex(uint32 X, uint32 Y, uint32 Z, const FDecalRenderRequest& Request)
 	{
 		return X
@@ -211,7 +197,7 @@ namespace
 			OutRange.MaxTileY = Request.ClusterCountY - 1;
 			OutRange.bValid = true;
 			return true;
-}
+		}
 		if (MaxScreenX < 0.0f || MaxScreenY < 0.0f ||
 			MinScreenX >= static_cast<float>(Request.ViewportWidth) ||
 			MinScreenY >= static_cast<float>(Request.ViewportHeight))
@@ -288,9 +274,6 @@ bool FDecalRenderFeature::Render(
 		return false;
 	}
 
-	FDecalPreparedViewData PreparedData;
-	PreparedData.BaseColorTextureArraySRV = Request.BaseColorTextureArraySRV;
-
 	FDecalFrameStats FrameStats;
 	FrameStats.InputItemCount = static_cast<uint32>(Request.Items.size());
 
@@ -306,10 +289,15 @@ bool FDecalRenderFeature::Render(
 		return false;
 	}
 
-	if (!BuildFrameData(Request, PreparedData, FrameStats))
+	// BaseColorTextureArraySRV는 매 프레임 갱신 (포인터가 바뀔 수 있음)
+	CachedPreparedData.BaseColorTextureArraySRV = Request.BaseColorTextureArraySRV;
+
+	if (!BuildFrameData(Request, CachedPreparedData, FrameStats))
 	{
 		return false;
 	}
+
+	FDecalPreparedViewData& PreparedData = CachedPreparedData;
 
 	if (PreparedData.DecalGPUItems.empty() || PreparedData.ClusterIndexList.empty())
 	{
@@ -733,6 +721,18 @@ bool FDecalRenderFeature::BuildFrameData(
 	FDecalPreparedViewData& OutPreparedData,
 	FDecalFrameStats& OutFrameStats)
 {
+	const bool bViewChanged = (Request.ViewProjection != CachedViewProjection);
+	const bool bDecalCountChanged = (Request.Items.size() != CachedDecalCount);
+	
+	if (!bViewChanged && !bDecalCountChanged && bClusterDataValid)
+	{
+		return true;
+	}
+	
+	CachedDecalCount = static_cast<uint32>(Request.Items.size());
+	CachedViewProjection = Request.ViewProjection;
+	bClusterDataValid = true;
+
 	OutPreparedData.DecalGPUItems.clear();
 	OutPreparedData.ClusterHeaders.clear();
 	OutPreparedData.ClusterIndexList.clear();
@@ -866,11 +866,9 @@ bool FDecalRenderFeature::BuildClusterLists(
 
 	InOutPreparedData.ClusterHeaders.resize(ClusterCount);
 
-	TArray<FClusterRange> Ranges;
-	Ranges.resize(InOutPreparedData.VisibleSourceItems.size());
-
-	TArray<uint32> Counts;
-	Counts.resize(ClusterCount, 0);
+	CachedClusterRanges.resize(InOutPreparedData.VisibleSourceItems.size());
+	CachedCount.assign(ClusterCount, 0);
+	CachedWriteCursor.resize(ClusterCount);
 
 	for (int32 DecalIndex = 0; DecalIndex < static_cast<int32>(InOutPreparedData.VisibleSourceItems.size()); ++DecalIndex)
 	{
@@ -885,7 +883,7 @@ bool FDecalRenderFeature::BuildClusterLists(
 			continue;
 		}
 
-		Ranges[DecalIndex] = Range;
+		CachedClusterRanges[DecalIndex] = Range;
 
 		for (uint32 Z = Range.MinSliceZ; Z <= Range.MaxSliceZ; ++Z)
 		{
@@ -894,7 +892,7 @@ bool FDecalRenderFeature::BuildClusterLists(
 				for (uint32 X = Range.MinTileX; X <= Range.MaxTileX; ++X)
 				{
 					const uint32 ClusterId = FlattenClusterIndex(X, Y, Z, Request);
-					Counts[ClusterId]++;
+					CachedCount[ClusterId]++;
 				}
 			}
 		}
@@ -903,7 +901,7 @@ bool FDecalRenderFeature::BuildClusterLists(
 	uint32 RunningOffset = 0;
 	for (uint32 ClusterId = 0; ClusterId < ClusterCount; ++ClusterId)
 	{
-		const uint32 Count = Counts[ClusterId];
+		const uint32 Count = CachedCount[ClusterId];
 
 		InOutPreparedData.ClusterHeaders[ClusterId].Offset = RunningOffset;
 		InOutPreparedData.ClusterHeaders[ClusterId].Count = Count;
@@ -926,17 +924,14 @@ bool FDecalRenderFeature::BuildClusterLists(
 		return true;
 	}
 
-	TArray<uint32> WriteCursor;
-	WriteCursor.resize(ClusterCount);
-
 	for (uint32 ClusterId = 0; ClusterId < ClusterCount; ++ClusterId)
 	{
-		WriteCursor[ClusterId] = InOutPreparedData.ClusterHeaders[ClusterId].Offset;
+		CachedWriteCursor[ClusterId] = InOutPreparedData.ClusterHeaders[ClusterId].Offset;
 	}
 
 	for (int32 DecalIndex = 0; DecalIndex < static_cast<int32>(InOutPreparedData.VisibleSourceItems.size()); ++DecalIndex)
 	{
-		const FClusterRange& Range = Ranges[DecalIndex];
+		const FClusterRange& Range = CachedClusterRanges[DecalIndex];
 		if (!Range.bValid)
 		{
 			continue;
@@ -953,7 +948,7 @@ bool FDecalRenderFeature::BuildClusterLists(
 					if (Request.bClampClusterItemCount)
 					{
 						const uint32 LocalWritten =
-							WriteCursor[ClusterId] - InOutPreparedData.ClusterHeaders[ClusterId].Offset;
+							CachedWriteCursor[ClusterId] - InOutPreparedData.ClusterHeaders[ClusterId].Offset;
 
 						if (LocalWritten >= Request.MaxClusterItems)
 						{
@@ -961,7 +956,7 @@ bool FDecalRenderFeature::BuildClusterLists(
 						}
 					}
 
-					const uint32 WriteIndex = WriteCursor[ClusterId]++;
+					const uint32 WriteIndex = CachedWriteCursor[ClusterId]++;
 					InOutPreparedData.ClusterIndexList[WriteIndex] = static_cast<uint32>(DecalIndex);
 				}
 			}
@@ -972,7 +967,7 @@ bool FDecalRenderFeature::BuildClusterLists(
 	{
 		for (uint32 ClusterId = 0; ClusterId < ClusterCount; ++ClusterId)
 		{
-			const uint32 WrittenCount = WriteCursor[ClusterId] - InOutPreparedData.ClusterHeaders[ClusterId].Offset;
+			const uint32 WrittenCount = CachedWriteCursor[ClusterId] - InOutPreparedData.ClusterHeaders[ClusterId].Offset;
 			InOutPreparedData.ClusterHeaders[ClusterId].Count = WrittenCount;
 		}
 

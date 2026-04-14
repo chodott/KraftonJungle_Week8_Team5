@@ -1,4 +1,4 @@
-#include "Viewport/Services/EditorViewportRenderService.h"
+﻿#include "Viewport/Services/EditorViewportRenderService.h"
 
 #include "EditorEngine.h"
 #include "Viewport/EditorViewportRegistry.h"
@@ -130,6 +130,8 @@ void FEditorViewportRenderService::RenderAll(
 	const std::shared_ptr<FMaterial>& WireFrameMaterial,
 	FRenderMesh* GridMesh,
 	FMaterial* GridMaterials[MAX_VIEWPORTS],
+	FRenderMesh* WorldAxisMesh,
+	FMaterial* WorldAxisMaterials[MAX_VIEWPORTS],
 	const FBuildSceneRenderPacket& BuildSceneRenderPacket) const
 {
 	if (!Engine || !Renderer || !EditorEngine)
@@ -201,14 +203,14 @@ void FEditorViewportRenderService::RenderAll(
 			Gizmo.BuildMeshBatches(SelectedActor, &Entry, AdditionalMeshBatches);
 		}
 
+		FVector GridAxisU = FVector::ForwardVector;
+		FVector GridAxisV = FVector::RightVector;
+		FVector ViewForward = FVector::ForwardVector;
+		BuildGridVectors(ViewMatrix, Entry.LocalState, GridAxisU, GridAxisV, ViewForward);
+
 		FMaterial* EntryGridMaterial = (CurrentEntryIndex < MAX_VIEWPORTS) ? GridMaterials[CurrentEntryIndex] : nullptr;
 		if (Entry.LocalState.bShowGrid && GridMesh && EntryGridMaterial)
 		{
-			FVector GridAxisU = FVector::ForwardVector;
-			FVector GridAxisV = FVector::RightVector;
-			FVector ViewForward = FVector::ForwardVector;
-			BuildGridVectors(ViewMatrix, Entry.LocalState, GridAxisU, GridAxisV, ViewForward);
-
 			EntryGridMaterial->SetParameterData("GridSize", &Entry.LocalState.GridSize, 4);
 			EntryGridMaterial->SetParameterData("LineThickness", &Entry.LocalState.LineThickness, 4);
 			EntryGridMaterial->SetParameterData("GridAxisU", &GridAxisU, sizeof(FVector));
@@ -222,6 +224,25 @@ void FEditorViewportRenderService::RenderAll(
 			GridBatch.Domain = EMaterialDomain::Opaque;
 			GridBatch.PassMask = static_cast<uint32>(EMeshPassMask::ForwardOpaque);
 			AdditionalMeshBatches.push_back(GridBatch);
+		}
+
+		FMaterial* EntryWorldAxisMaterial = (CurrentEntryIndex < MAX_VIEWPORTS) ? WorldAxisMaterials[CurrentEntryIndex] : nullptr;
+		if (Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_WorldAxis) && WorldAxisMesh && EntryWorldAxisMaterial)
+		{
+			EntryWorldAxisMaterial->SetParameterData("GridSize", &Entry.LocalState.GridSize, 4);
+			EntryWorldAxisMaterial->SetParameterData("LineThickness", &Entry.LocalState.LineThickness, 4);
+			EntryWorldAxisMaterial->SetParameterData("GridAxisU", &GridAxisU, sizeof(FVector));
+			EntryWorldAxisMaterial->SetParameterData("GridAxisV", &GridAxisV, sizeof(FVector));
+			EntryWorldAxisMaterial->SetParameterData("ViewForward", &ViewForward, sizeof(FVector));
+
+			FMeshBatch WorldAxisBatch;
+			WorldAxisBatch.Mesh = WorldAxisMesh;
+			WorldAxisBatch.Material = EntryWorldAxisMaterial;
+			WorldAxisBatch.World = FMatrix::Identity;
+			WorldAxisBatch.Domain = EMaterialDomain::Opaque;
+			WorldAxisBatch.PassMask = static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+			WorldAxisBatch.bDisableDepthWrite = true;
+			AdditionalMeshBatches.push_back(WorldAxisBatch);
 		}
 
 		FViewportScenePassRequest ScenePass;

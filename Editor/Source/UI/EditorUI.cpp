@@ -1,4 +1,4 @@
-#include "EditorUI.h"
+﻿#include "EditorUI.h"
 
 #include "Actor/Actor.h"
 #include "Component/SceneComponent.h"
@@ -498,36 +498,6 @@ void FEditorUI::LoadEditorSettings()
         S.ShowFlags.SetFlag(EEngineShowFlags::SF_Fog, _wtoi(Buf) != 0);
     }
 
-    bool bAnyDebugDrawEnabled = false;
-    bool bAnyWorldAxisEnabled = false;
-    bool bAnyCollisionEnabled = false;
-    bool bAnySceneBVHEnabled = false;
-    bool bAnyMeshBVHEnabled = false;
-    bool bAnyDecalDebugEnabled = false;
-
-    for (const FViewportEntry &Entry : ViewportRegistry.GetEntries())
-    {
-        bAnyDebugDrawEnabled =
-            bAnyDebugDrawEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw);
-        bAnyWorldAxisEnabled =
-            bAnyWorldAxisEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_WorldAxis);
-        bAnyCollisionEnabled =
-            bAnyCollisionEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_Collision);
-        bAnySceneBVHEnabled = bAnySceneBVHEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_SceneBVH);
-        bAnyMeshBVHEnabled = bAnyMeshBVHEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_MeshBVH);
-        bAnyDecalDebugEnabled = bAnyDecalDebugEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalDebug);
-    }
-
-    for (FViewportEntry &Entry : ViewportRegistry.GetEntries())
-    {
-        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, bAnyDebugDrawEnabled);
-        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, bAnyWorldAxisEnabled);
-        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_Collision, bAnyCollisionEnabled);
-        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_SceneBVH, bAnySceneBVHEnabled);
-        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_MeshBVH, bAnyMeshBVHEnabled);
-        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DecalDebug, bAnyDecalDebugEnabled);
-    }
-
     FSlateApplication *Slate = Engine->GetSlateApplication();
     if (Slate)
     {
@@ -886,12 +856,7 @@ void FEditorUI::Render()
                         bool bValue = ShowFlags.HasFlag(Flag);
                         if (ImGui::Checkbox(Label, &bValue))
                         {
-                            const bool bBroadcastToAllViewports =
-                                (Flag == EEngineShowFlags::SF_DebugDraw) || (Flag == EEngineShowFlags::SF_WorldAxis) ||
-                                (Flag == EEngineShowFlags::SF_Collision) || (Flag == EEngineShowFlags::SF_SceneBVH) ||
-                                (Flag == EEngineShowFlags::SF_MeshBVH) || (Flag == EEngineShowFlags::SF_DecalDebug);
-
-                            if (bBroadcastToAllViewports)
+                            if (FShowFlags::IsGlobalScoped(Flag))
                             {
                                 for (FViewportEntry &Entry : ViewportRegistry.GetEntries())
                                 {
@@ -918,21 +883,19 @@ void FEditorUI::Render()
                     bool bDebugDraw = ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw);
                     if (ImGui::Checkbox("Debug Line", &bDebugDraw))
                     {
-                        for (FViewportEntry &Entry : ViewportRegistry.GetEntries())
-                        {
-                            Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, bDebugDraw);
+                        ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, bDebugDraw);
 
-                            if (!bDebugDraw)
-                            {
-                                Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, false);
-                                Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_Collision, false);
-                                Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_SceneBVH, false);
-                                Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_MeshBVH, false);
-                                Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DecalDebug, false);
-                            }
+                        if (!bDebugDraw)
+                        {
+                            ShowFlags.SetFlag(EEngineShowFlags::SF_Collision, false);
+                            ShowFlags.SetFlag(EEngineShowFlags::SF_SceneBVH, false);
+                            ShowFlags.SetFlag(EEngineShowFlags::SF_MeshBVH, false);
+                            ShowFlags.SetFlag(EEngineShowFlags::SF_DecalDebug, false);
                         }
                         SaveEditorSettings();
                     }
+
+                    ShowFlagCheckbox("World Axis", EEngineShowFlags::SF_WorldAxis);
 
                     ImGui::Indent();
 
@@ -941,7 +904,6 @@ void FEditorUI::Render()
                         ImGui::BeginDisabled();
                     }
 
-                    ShowFlagCheckbox("World Axis", EEngineShowFlags::SF_WorldAxis);
                     ShowFlagCheckbox("Picking Bounds (Red)", EEngineShowFlags::SF_Collision);
                     ShowFlagCheckbox("Scene BVH (Yellow)", EEngineShowFlags::SF_SceneBVH);
                     ShowFlagCheckbox("Mesh BVH (Cyan)", EEngineShowFlags::SF_MeshBVH);

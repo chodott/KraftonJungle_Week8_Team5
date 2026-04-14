@@ -1,4 +1,4 @@
-#include "DebugDrawManager.h"
+﻿#include "DebugDrawManager.h"
 
 #include "Actor/Actor.h"
 #include "Component/PrimitiveComponent.h"
@@ -28,12 +28,6 @@ const FWorldDebugDrawBucket* FDebugDrawManager::FindBucket(UWorld* World) const
 	return (Found != WorldBuckets.end()) ? &Found->second : nullptr;
 }
 
-void FDebugDrawManager::AppendWorldAxis(FDebugPrimitiveList& OutPrimitives, float AxisLength)
-{
-	OutPrimitives.Lines.push_back({ { 0, 0, 0 }, { AxisLength, 0, 0 }, { 1, 0, 0, 1 } });
-	OutPrimitives.Lines.push_back({ { 0, 0, 0 }, { 0, AxisLength, 0 }, { 0, 1, 0, 1 } });
-	OutPrimitives.Lines.push_back({ { 0, 0, 0 }, { 0, 0, AxisLength }, { 0, 0, 1, 1 } });
-}
 
 void FDebugDrawManager::DrawLine(UWorld* World, const FVector& Start, const FVector& End, const FVector4& Color)
 {
@@ -73,10 +67,6 @@ void FDebugDrawManager::BuildPrimitiveList(
 		OutPrimitives.Lines.insert(OutPrimitives.Lines.end(), Bucket->Lines.begin(), Bucket->Lines.end());
 	}
 
-	if (ShowFlags.HasFlag(EEngineShowFlags::SF_WorldAxis))
-	{
-		AppendWorldAxis(OutPrimitives, 1000.0f);
-	}
 }
 
 void FDebugDrawManager::ReleaseWorld(UWorld* World)

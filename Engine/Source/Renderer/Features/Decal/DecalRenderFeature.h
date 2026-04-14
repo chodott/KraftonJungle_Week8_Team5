@@ -12,6 +12,19 @@
 #include "Renderer/Resources/Shader/Shader.h"
 
 class FRenderer;
+struct FClusterRange
+{
+	bool bValid = false;
+
+	uint32 MinTileX = 0;
+	uint32 MaxTileX = 0;
+
+	uint32 MinTileY = 0;
+	uint32 MaxTileY = 0;
+
+	uint32 MinSliceZ = 0;
+	uint32 MaxSliceZ = 0;
+};
 
 class ENGINE_API FDecalRenderFeature
 {
@@ -65,6 +78,14 @@ private:
 	FDecalClusterBuildStats LastBuildStats;
 	FDecalFrameStats LastFrameStats;
 
+	TArray<FClusterRange>	CachedClusterRanges;
+	TArray<uint32>			CachedCount;
+	TArray<uint32>			CachedWriteCursor;
+	FMatrix					CachedViewProjection;
+	bool					bClusterDataValid = false;
+	uint32					CachedDecalCount = 0;
+	FDecalPreparedViewData	CachedPreparedData;
+	
 	// GPU resources
 	ID3D11Buffer* ClusterGlobalsConstantBuffer = nullptr;
 	ID3D11Buffer* CompositeConstantBuffer = nullptr;

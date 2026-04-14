@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "ViewportTypes.h"
 #include "Core/ViewportClient.h"
@@ -88,6 +88,11 @@ private:
 	std::unique_ptr<FDynamicMesh> GridMesh;
 	std::shared_ptr<FMaterial> GridMaterial;
 	std::unique_ptr<FDynamicMaterial> GridMaterials[MAX_VIEWPORTS];
+	std::unique_ptr<FDynamicMesh> WorldAxisMesh;
+	std::shared_ptr<FMaterial> WorldAxisMaterial;
+	std::unique_ptr<FDynamicMaterial> WorldAxisMaterials[MAX_VIEWPORTS];
 	// 에디터 그리드 렌더링에 필요한 메시와 머티리얼을 생성한다.
 	void CreateGridResource(FRenderer* Renderer);
+	// 월드 축 렌더링에 필요한 메시와 머티리얼을 생성한다.
+	void CreateWorldAxisResource(FRenderer* Renderer);
 };

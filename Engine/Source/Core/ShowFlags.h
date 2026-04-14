@@ -25,6 +25,19 @@ enum class EEngineShowFlags : uint64
 class ENGINE_API FShowFlags
 {
 public:
+	// 전역 범위 마스크: 이 마스크에 포함된 플래그는 변경 시 모든 뷰포트에 동기화됩니다.
+	// 현재는 모든 플래그가 뷰포트 단위로 동작합니다 (GlobalScopeMask = 0).
+	// 전역으로 만들고 싶은 플래그는 아래 마스크에 OR로 추가하세요.
+	// 예시: static constexpr uint64 GlobalScopeMask =
+	//           static_cast<uint64>(EEngineShowFlags::SF_DebugDraw) |
+	//           static_cast<uint64>(EEngineShowFlags::SF_WorldAxis);
+	static constexpr uint64 GlobalScopeMask = 0;
+
+	static bool IsGlobalScoped(EEngineShowFlags InFlag)
+	{
+		return (GlobalScopeMask & static_cast<uint64>(InFlag)) != 0;
+	}
+
 	FShowFlags()
 		: Flags(
 			static_cast<uint64>(EEngineShowFlags::SF_Primitives) |

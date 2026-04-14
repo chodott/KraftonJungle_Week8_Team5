@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Level/SceneRenderPacket.h"
@@ -40,5 +40,7 @@ public:
 		const std::shared_ptr<FMaterial>& WireFrameMaterial,
 		FRenderMesh* GridMesh,
 		FMaterial* GridMaterials[MAX_VIEWPORTS],
+		FRenderMesh* WorldAxisMesh,
+		FMaterial* WorldAxisMaterials[MAX_VIEWPORTS],
 		const FBuildSceneRenderPacket& BuildSceneRenderPacket) const;
 };

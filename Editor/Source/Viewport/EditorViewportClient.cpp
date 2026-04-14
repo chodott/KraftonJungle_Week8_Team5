@@ -38,6 +38,7 @@ void FEditorViewportClient::Attach(FEngine* Engine, FRenderer* Renderer)
 	EditorUI.InitializeRendererResources(Renderer);
 	WireFrameMaterial = FMaterialManager::Get().FindByName(WireframeMaterialName);
 	CreateGridResource(Renderer);
+	CreateWorldAxisResource(Renderer);
 }
 
 void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
@@ -45,8 +46,8 @@ void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
 	ID3D11Device* Device = Renderer->GetDevice();
 	if (Device)
 	{
-		// 에디터 그리드는 뷰포트마다 동적 파라미터만 달라지는 공용 메시/머티리얼 구조를 사용한다.
-		constexpr int32 GridVertexCount = 42;
+		// 에디터 그리드는 월드 축과 분리된 전용 메시/머티리얼을 사용한다.
+		constexpr int32 GridVertexCount = 6;
 
 		GridMesh = std::make_unique<FDynamicMesh>();
 		GridMesh->Topology = EMeshTopology::EMT_TriangleList;
@@ -59,8 +60,8 @@ void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
 		GridMesh->CreateVertexAndIndexBuffer(Device);
 
 		std::wstring ShaderDirW = FPaths::ShaderDir();
-		std::wstring VSPath = ShaderDirW + L"AxisVertexShader.hlsl";
-		std::wstring PSPath = ShaderDirW + L"AxisPixelShader.hlsl";
+		std::wstring VSPath = ShaderDirW + L"GridVertexShader.hlsl";
+		std::wstring PSPath = ShaderDirW + L"GridPixelShader.hlsl";
 		auto VSResource = FShaderResource::GetOrCompile(VSPath.c_str(), "main", "vs_5_0");
 		auto PSResource = FShaderResource::GetOrCompile(PSPath.c_str(), "main", "ps_5_0");
 		auto VS = FVertexShader::Create(Device, VSResource, EVertexLayoutType::MeshVertex);
@@ -113,6 +114,78 @@ void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
 	}
 }
 
+void FEditorViewportClient::CreateWorldAxisResource(FRenderer* Renderer)
+{
+	ID3D11Device* Device = Renderer->GetDevice();
+	if (Device)
+	{
+		// 월드 축은 그리드와 독립된 전용 메시/머티리얼로 렌더한다.
+		constexpr int32 AxisVertexCount = 36;
+
+		WorldAxisMesh = std::make_unique<FDynamicMesh>();
+		WorldAxisMesh->Topology = EMeshTopology::EMT_TriangleList;
+		for (int32 i = 0; i < AxisVertexCount; ++i)
+		{
+			FVertex Vertex;
+			WorldAxisMesh->Vertices.push_back(Vertex);
+			WorldAxisMesh->Indices.push_back(i);
+		}
+		WorldAxisMesh->CreateVertexAndIndexBuffer(Device);
+
+		std::wstring ShaderDirW = FPaths::ShaderDir();
+		std::wstring VSPath = ShaderDirW + L"AxisVertexShader.hlsl";
+		std::wstring PSPath = ShaderDirW + L"AxisPixelShader.hlsl";
+		auto VSResource = FShaderResource::GetOrCompile(VSPath.c_str(), "main", "vs_5_0");
+		auto PSResource = FShaderResource::GetOrCompile(PSPath.c_str(), "main", "ps_5_0");
+		auto VS = FVertexShader::Create(Device, VSResource, EVertexLayoutType::MeshVertex);
+		auto PS = FPixelShader::Create(Device, PSResource);
+
+		WorldAxisMaterial = std::make_shared<FMaterial>();
+		WorldAxisMaterial->SetOriginName("M_EditorWorldAxis");
+		WorldAxisMaterial->SetVertexShader(VS);
+		WorldAxisMaterial->SetPixelShader(PS);
+
+		FRasterizerStateOption RasterizerOption;
+		RasterizerOption.FillMode = D3D11_FILL_SOLID;
+		RasterizerOption.CullMode = D3D11_CULL_NONE;
+		auto RS = Renderer->GetRenderStateManager()->GetOrCreateRasterizerState(RasterizerOption);
+		WorldAxisMaterial->SetRasterizerOption(RasterizerOption);
+		WorldAxisMaterial->SetRasterizerState(RS);
+
+		FDepthStencilStateOption DepthStencilOption;
+		DepthStencilOption.DepthEnable = true;
+		DepthStencilOption.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+		auto DSS = Renderer->GetRenderStateManager()->GetOrCreateDepthStencilState(DepthStencilOption);
+		WorldAxisMaterial->SetDepthStencilOption(DepthStencilOption);
+		WorldAxisMaterial->SetDepthStencilState(DSS);
+
+		int32 SlotIndex = WorldAxisMaterial->CreateConstantBuffer(Device, 64);
+		if (SlotIndex >= 0)
+		{
+			WorldAxisMaterial->RegisterParameter("GridSize", SlotIndex, 0, 4);
+			WorldAxisMaterial->RegisterParameter("LineThickness", SlotIndex, 4, 4);
+			WorldAxisMaterial->RegisterParameter("GridAxisU", SlotIndex, 16, 12);
+			WorldAxisMaterial->RegisterParameter("GridAxisV", SlotIndex, 32, 12);
+			WorldAxisMaterial->RegisterParameter("ViewForward", SlotIndex, 48, 12);
+
+			float DefaultGridSize = 10.0f;
+			float DefaultLineThickness = 1.0f;
+			const FVector DefaultGridAxisU = FVector::ForwardVector;
+			const FVector DefaultGridAxisV = FVector::RightVector;
+			const FVector DefaultViewForward = FVector::ForwardVector;
+			WorldAxisMaterial->SetParameterData("GridSize", &DefaultGridSize, 4);
+			WorldAxisMaterial->SetParameterData("LineThickness", &DefaultLineThickness, 4);
+			WorldAxisMaterial->SetParameterData("GridAxisU", &DefaultGridAxisU, sizeof(FVector));
+			WorldAxisMaterial->SetParameterData("GridAxisV", &DefaultGridAxisV, sizeof(FVector));
+			WorldAxisMaterial->SetParameterData("ViewForward", &DefaultViewForward, sizeof(FVector));
+			for (int32 i = 0; i < MAX_VIEWPORTS; ++i)
+			{
+				WorldAxisMaterials[i] = WorldAxisMaterial->CreateDynamicMaterial();
+			}
+		}
+	}
+}
+
 void FEditorViewportClient::Detach(FEngine* Engine, FRenderer* Renderer)
 {
 	// 드래그 중인 기즈모와 에디터 전용 렌더 자원을 모두 해제한다.
@@ -121,9 +194,12 @@ void FEditorViewportClient::Detach(FEngine* Engine, FRenderer* Renderer)
 
 	GridMesh.reset();
 	GridMaterial.reset();
+	WorldAxisMesh.reset();
+	WorldAxisMaterial.reset();
 	for (int32 i = 0; i < MAX_VIEWPORTS; ++i)
 	{
 		GridMaterials[i].reset();
+		WorldAxisMaterials[i].reset();
 	}
 }
 
@@ -197,9 +273,11 @@ void FEditorViewportClient::Render(FEngine* Engine, FRenderer* Renderer)
 	SyncViewportRectsFromDock();
 	FEditorEngine* EditorEngine = static_cast<FEditorEngine*>(Engine);
 	FMaterial* GridMaterialPtrs[MAX_VIEWPORTS] = {};
+	FMaterial* WorldAxisMaterialPtrs[MAX_VIEWPORTS] = {};
 	for (int32 i = 0; i < MAX_VIEWPORTS; ++i)
 	{
 		GridMaterialPtrs[i] = GridMaterials[i].get();
+		WorldAxisMaterialPtrs[i] = WorldAxisMaterials[i].get();
 	}
 
 	// 에디터 프레임 조립과 실제 요청 생성은 RenderService가 담당한다.
@@ -213,6 +291,8 @@ void FEditorViewportClient::Render(FEngine* Engine, FRenderer* Renderer)
 		WireFrameMaterial,
 		GridMesh.get(),
 		GridMaterialPtrs,
+		WorldAxisMesh.get(),
+		WorldAxisMaterialPtrs,
 		[this](FEngine* InEngine, UWorld* World, const FFrustum& Frustum, const FShowFlags& Flags, FSceneRenderPacket& OutPacket)
 		{
 			BuildSceneRenderPacket(InEngine, World, Frustum, Flags, OutPacket);
