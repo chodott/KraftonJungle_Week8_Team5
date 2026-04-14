@@ -34,7 +34,7 @@ void UStaticMeshComponent::SetStaticMesh(UStaticMesh* InStaticMesh)
 
 FRenderMesh* UStaticMeshComponent::GetRenderMesh() const
 {
-	 return StaticMesh ? StaticMesh->GetRenderData() : nullptr;
+	return StaticMesh ? StaticMesh->GetRenderData() : nullptr;
 }
 
 void UStaticMeshComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const
@@ -67,7 +67,6 @@ FBoxSphereBounds UStaticMeshComponent::CalcBounds(const FMatrix& LocalToWorld) c
 
 void UStaticMeshComponent::Serialize(FArchive& Ar)
 {
-
 	if (Ar.IsSaving())
 	{
 		UMeshComponent::Serialize(Ar);
@@ -77,6 +76,7 @@ void UStaticMeshComponent::Serialize(FArchive& Ar)
 		{
 			MeshFileName = FPaths::ToRelativePath(StaticMesh->GetAssetPathFileName());
 		}
+
 		Ar.Serialize("ObjStaticMeshAsset", MeshFileName);
 	}
 	else
@@ -92,6 +92,7 @@ void UStaticMeshComponent::Serialize(FArchive& Ar)
 				SetStaticMesh(LoadedMesh);
 			}
 		}
+
 		UMeshComponent::Serialize(Ar);
 	}
 }

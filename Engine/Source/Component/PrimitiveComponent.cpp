@@ -4,8 +4,8 @@
 #include "Debug/EngineLog.h"
 #include "Actor/Actor.h"
 #include "Level/Level.h"
+#include <cmath>
 
-#include "Component/PrimitiveComponent.h"
 IMPLEMENT_RTTI(UPrimitiveComponent, USceneComponent)
 
 void UPrimitiveComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const
@@ -15,6 +15,7 @@ void UPrimitiveComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicate
 	UPrimitiveComponent* DuplicatedPrimitiveComponent = static_cast<UPrimitiveComponent*>(DuplicatedObject);
 	DuplicatedPrimitiveComponent->Bounds = {};
 	DuplicatedPrimitiveComponent->bDrawDebugBounds = bDrawDebugBounds;
+	DuplicatedPrimitiveComponent->bIgnoreParentScaleInRender = bIgnoreParentScaleInRender;
 }
 
 void UPrimitiveComponent::PostDuplicate(UObject* DuplicatedObject, const FDuplicateContext& Context) const
@@ -41,6 +42,39 @@ void UPrimitiveComponent::MarkTransformDirty()
 FBoxSphereBounds UPrimitiveComponent::GetLocalBounds() const
 {
 	return { FVector(0, 0, 0), 0.f, FVector(0, 0, 0) };
+}
+
+FVector UPrimitiveComponent::GetRenderWorldScale() const
+{
+	const FVector WorldScale = GetWorldTransform().GetScaleVector();
+	if (!bIgnoreParentScaleInRender)
+	{
+		return WorldScale;
+	}
+
+	const USceneComponent* ParentComponent = GetAttachParent();
+	if (!ParentComponent)
+	{
+		return WorldScale;
+	}
+
+	const FVector ParentScale = ParentComponent->GetWorldTransform().GetScaleVector();
+	const auto SafeDivide = [](float Value, float Divisor)
+	{
+		return std::abs(Divisor) > 1.e-6f ? (Value / Divisor) : Value;
+	};
+
+	return FVector(
+		SafeDivide(WorldScale.X, ParentScale.X),
+		SafeDivide(WorldScale.Y, ParentScale.Y),
+		SafeDivide(WorldScale.Z, ParentScale.Z));
+}
+
+FMatrix UPrimitiveComponent::GetRenderWorldTransform() const
+{
+	FTransform RenderTransform(GetWorldTransform());
+	RenderTransform.SetScale3D(GetRenderWorldScale());
+	return RenderTransform.ToMatrixWithScale();
 }
 
 void UPrimitiveComponent::UpdateBounds()
@@ -78,10 +112,9 @@ FBoxSphereBounds UPrimitiveComponent::CalcBounds(const FMatrix& LocalToWorld) co
 	return { Center, WorldBoxExtent.Size(), WorldBoxExtent };
 }
 
-/*
 void UPrimitiveComponent::Serialize(FArchive& Ar)
 {
 	USceneComponent::Serialize(Ar);
-	Ar.Serialize("bDrawDebugBounds", bDrawDebugBounds);
+	Ar.Serialize("DrawDebugBounds", bDrawDebugBounds);
+	Ar.Serialize("IgnoreParentScaleInRender", bIgnoreParentScaleInRender);
 }
-*/

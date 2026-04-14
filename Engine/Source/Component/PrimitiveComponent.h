@@ -31,9 +31,13 @@ public:
 	virtual void UpdateBounds();
 	virtual FBoxSphereBounds GetLocalBounds() const;
 	virtual FBoxSphereBounds CalcBounds(const FMatrix& LocalToWorld) const;
+	virtual FVector GetRenderWorldScale() const;
+	virtual FMatrix GetRenderWorldTransform() const;
 
 	bool ShouldDrawDebugBounds() const { return bDrawDebugBounds; }
 	void SetDrawDebugBounds(bool bEnable) { bDrawDebugBounds = bEnable; }
+	void SetIgnoreParentScaleInRender(bool bEnable) { bIgnoreParentScaleInRender = bEnable; }
+	bool IsIgnoringParentScaleInRender() const { return bIgnoreParentScaleInRender; }
 
 	virtual FRenderMesh* GetRenderMesh() const { return nullptr; }
 
@@ -43,10 +47,12 @@ public:
 	virtual bool IntersectLocalRay(const FVector& LocalOrigin, const FVector& LocalDir, float& InOutDist) const { return false; }
 	void DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
 	void PostDuplicate(UObject* DuplicatedObject, const FDuplicateContext& Context) const override;
+	void Serialize(FArchive& Ar) override;
 
 protected:
 	virtual void MarkTransformDirty() override;
 
 	FBoxSphereBounds Bounds;
 	bool bDrawDebugBounds = true;
+	bool bIgnoreParentScaleInRender = false;
 };

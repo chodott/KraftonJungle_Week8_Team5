@@ -2,8 +2,18 @@
 
 #include <algorithm>
 
-#include "Component/SubUVComponent.h"
 #include "Renderer/Resources/Material/Material.h"
+#include "Component/BillboardComponent.h"
+#include "Component/DecalComponent.h"
+#include "Component/HeightFogComponent.h"
+#include "Component/StaticMeshComponent.h"
+#include "Component/SubUVComponent.h"
+#include "Component/TextComponent.h"
+#include "Component/FireBallComponent.h"
+#include "Component/UUIDBillboardComponent.h"
+#include "Renderer/Features/FireBall/FireBallRenderFeature.h"
+#include "Renderer/Resources/Material/Material.h"
+#include "Renderer/Mesh/MeshData.h"
 
 namespace
 {

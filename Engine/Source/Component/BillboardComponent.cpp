@@ -101,21 +101,5 @@ FRenderMesh* UBillboardComponent::GetRenderMesh() const
 
 FVector UBillboardComponent::GetRenderWorldScale() const
 {
-	const FVector WorldScale = GetWorldTransform().GetScaleVector();
-	const USceneComponent* ParentComponent = GetAttachParent();
-	if (!ParentComponent || !ParentComponent->IsA(UDecalComponent::StaticClass()))
-	{
-		return WorldScale;
-	}
-
-	const FVector ParentScale = ParentComponent->GetWorldTransform().GetScaleVector();
-	const auto SafeDivide = [](float Value, float Divisor)
-	{
-		return std::abs(Divisor) > 1.e-6f ? (Value / Divisor) : Value;
-	};
-
-	return FVector(
-		SafeDivide(WorldScale.X, ParentScale.X),
-		SafeDivide(WorldScale.Y, ParentScale.Y),
-		SafeDivide(WorldScale.Z, ParentScale.Z));
+	return UPrimitiveComponent::GetRenderWorldScale();
 }

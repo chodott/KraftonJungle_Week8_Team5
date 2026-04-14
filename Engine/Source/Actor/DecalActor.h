@@ -4,6 +4,7 @@
 
 class UDecalComponent;
 class UBillboardComponent;
+class UStaticMeshComponent;
 
 class ENGINE_API ADecalActor : public AActor
 {
@@ -18,4 +19,6 @@ public:
 private:
 	UDecalComponent* DecalComponent = nullptr;
 	UBillboardComponent* BillboardComponent = nullptr;
+	UStaticMeshComponent* ArrowComponent = nullptr;
+
 };

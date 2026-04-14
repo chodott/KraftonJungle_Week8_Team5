@@ -41,7 +41,7 @@ public:
 	EVerticalTextAligment GetVerticalAlignment() const { return VerticalAlignment; }
 
 	virtual FVector GetRenderWorldPosition() const { return GetWorldLocation(); }
-	virtual FVector GetRenderWorldScale() const { return GetWorldTransform().GetScaleVector() * TextScale; }
+	virtual FVector GetRenderWorldScale() const override { return UPrimitiveComponent::GetRenderWorldScale() * TextScale; }
 
 	virtual FRenderMesh* GetRenderMesh() const override;
 	FDynamicMesh* GetTextMesh() const { return TextMesh.get(); }
