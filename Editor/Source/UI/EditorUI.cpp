@@ -880,6 +880,8 @@ void FEditorUI::Render()
                     ShowFlagCheckbox("Decal Arrow", EEngineShowFlags::SF_DecalArrow);
                     ShowFlagCheckbox("Projectile Arrow", EEngineShowFlags::SF_ProjectileArrow);
 
+                    ShowFlagCheckbox("World Axis", EEngineShowFlags::SF_WorldAxis);
+                	
                     bool bDebugDraw = ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw);
                     if (ImGui::Checkbox("Debug Line", &bDebugDraw))
                     {
@@ -894,8 +896,6 @@ void FEditorUI::Render()
                         }
                         SaveEditorSettings();
                     }
-
-                    ShowFlagCheckbox("World Axis", EEngineShowFlags::SF_WorldAxis);
 
                     ImGui::Indent();
 
