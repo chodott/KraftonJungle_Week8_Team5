@@ -543,10 +543,20 @@ void FPropertyWindow::DrawRotatingMovementComponentDetails(URotatingMovementComp
 
 	const FRotator RotationRate = RotatingMovementComponent->GetRotationRate();
 	FVector NewRotationRate(RotationRate.Pitch, RotationRate.Yaw, RotationRate.Roll);
+	ImGui::Text("Rotation Rate");
+	ImGui::NextColumn();
 	if (DrawVector3Control("Rotation Rate (Pitch/Yaw/Roll)", NewRotationRate, NewRotationRate, 0.5f, "%.2f"))
 	{
 		RotatingMovementComponent->SetRotationRate(
 			FRotator(NewRotationRate.X, NewRotationRate.Y, NewRotationRate.Z));
+	}
+
+	FVector NewPivotTranslation = RotatingMovementComponent->GetPivotTranslation();
+	ImGui::Text("Pivot Translation");
+	ImGui::NextColumn();
+	if (DrawVector3Control("Pivot Translation", NewPivotTranslation, NewPivotTranslation, 0.5f, "%.2f"))
+	{
+		RotatingMovementComponent->SetPivotTranslation(NewPivotTranslation);
 	}
 }
 
@@ -561,24 +571,32 @@ void FPropertyWindow::DrawProjectileMovementComponentDetails(UProjectileMovement
 	ImGui::TextDisabled("Projectile Movement");
 
 	FVector NewVelocity = ProjectileMovementComponent->GetVelocity();
+	ImGui::Text("Velocity");
+	ImGui::NextColumn();
 	if (DrawVector3Control("Velocity", ProjectileMovementComponent->GetVelocity(), NewVelocity, 1.0f, "%.2f"))
 	{
 		ProjectileMovementComponent->SetVelocity(NewVelocity);
 	}
 
 	float GravityScale = ProjectileMovementComponent->GetGravityScale();
+	ImGui::Text("Gravity Scale");
+	ImGui::NextColumn();
 	if (ImGui::DragFloat("Gravity Scale", &GravityScale, 0.01f, -10.0f, 10.0f, "%.2f"))
 	{
 		ProjectileMovementComponent->SetGravityScale(GravityScale);
 	}
 
 	float MaxSpeed = ProjectileMovementComponent->GetMaxSpeed();
+	ImGui::Text("Max Speed");
+	ImGui::NextColumn();
 	if (ImGui::DragFloat("Max Speed", &MaxSpeed, 1.0f, 0.0f, 100000.0f, "%.2f"))
 	{
 		ProjectileMovementComponent->SetMaxSpeed(MaxSpeed);
 	}
 
 	bool bAutoStartSimulation = ProjectileMovementComponent->IsAutoStartSimulationEnabled();
+	ImGui::Text("Auto Start Simulation");
+	ImGui::NextColumn();
 	if (ImGui::Checkbox("Auto Start Simulation", &bAutoStartSimulation))
 	{
 		ProjectileMovementComponent->SetAutoStartSimulation(bAutoStartSimulation);
