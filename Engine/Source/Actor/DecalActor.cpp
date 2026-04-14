@@ -2,9 +2,58 @@
 
 #include "Component/BillboardComponent.h"
 #include "Component/DecalComponent.h"
+#include "Component/StaticMeshComponent.h"
 #include "Core/Paths.h"
 #include "Object/Class.h"
 #include "Object/ObjectFactory.h"
+#include "Primitive/PrimitiveGizmo.h"
+#include "Renderer/MaterialManager.h"
+#include "Renderer/MeshData.h"
+
+namespace
+{
+	UStaticMesh* GetDecalArrowMesh()
+	{
+		static TObjectPtr<UStaticMesh> ArrowMesh;
+		if (ArrowMesh)
+		{
+			return ArrowMesh;
+		}
+
+		std::shared_ptr<FDynamicMesh> SourceMesh =
+			FPrimitiveGizmo::CreateTranslationAxisMesh(EAxis::X, FVector4(0.65f, 0.65f, 0.65f, 1.0f));
+		if (!SourceMesh)
+		{
+			return nullptr;
+		}
+
+		auto StaticRenderMesh = std::make_unique<FStaticMesh>();
+		StaticRenderMesh->Topology = SourceMesh->Topology;
+		StaticRenderMesh->Vertices = SourceMesh->Vertices;
+		StaticRenderMesh->Indices = SourceMesh->Indices;
+		StaticRenderMesh->Sections.push_back({ 0, 0, static_cast<uint32>(StaticRenderMesh->Indices.size()) });
+		StaticRenderMesh->UpdateLocalBound();
+
+		ArrowMesh = FObjectFactory::ConstructObject<UStaticMesh>(nullptr, "DecalArrowMesh");
+		if (!ArrowMesh)
+		{
+			return nullptr;
+		}
+
+		ArrowMesh->SetStaticMeshAsset(StaticRenderMesh.release());
+		ArrowMesh->LocalBounds.Radius = ArrowMesh->GetRenderData()->GetLocalBoundRadius();
+		ArrowMesh->LocalBounds.Center = ArrowMesh->GetRenderData()->GetCenterCoord();
+		ArrowMesh->LocalBounds.BoxExtent =
+			(ArrowMesh->GetRenderData()->GetMaxCoord() - ArrowMesh->GetRenderData()->GetMinCoord()) * 0.5f;
+
+		if (std::shared_ptr<FMaterial> GizmoMaterial = FMaterialManager::Get().FindByName("M_Gizmos"))
+		{
+			ArrowMesh->AddDefaultMaterial(GizmoMaterial);
+		}
+
+		return ArrowMesh;
+	}
+}
 
 IMPLEMENT_RTTI(ADecalActor, AActor)
 
@@ -22,7 +71,21 @@ void ADecalActor::PostSpawnInitialize()
 		BillboardComponent->AttachTo(DecalComponent);
 		BillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_DecalActorIcon.png").wstring());
 		BillboardComponent->SetSize(FVector2(0.5f, 0.5f));
+		BillboardComponent->SetIgnoreParentScaleInRender(true);
 		BillboardComponent->SetHiddenInGame(true);
+	}
+
+	ArrowComponent = FObjectFactory::ConstructObject<UStaticMeshComponent>(this, "DecalArrowComponent");
+	if (ArrowComponent)
+	{
+		AddOwnedComponent(ArrowComponent);
+		ArrowComponent->AttachTo(BillboardComponent);
+		ArrowComponent->SetRelativeTransform(FTransform(
+			FQuat::Identity,
+			FVector(0.0f, 0.0f, 0.0f),
+			FVector(0.02f, 0.02f, 0.02f)));
+		ArrowComponent->SetStaticMesh(GetDecalArrowMesh());
+		ArrowComponent->SetIgnoreParentScaleInRender(true);
 	}
 
 	AActor::PostSpawnInitialize();
@@ -34,4 +97,6 @@ void ADecalActor::FixupDuplicatedReferences(UObject* DuplicatedObject, const FDu
 	ADecalActor* DuplicatedActor = static_cast<ADecalActor*>(DuplicatedObject);
 	DuplicatedActor->DecalComponent = Context.FindDuplicate(DecalComponent);
 	DuplicatedActor->BillboardComponent = Context.FindDuplicate(BillboardComponent);
+	DuplicatedActor->ArrowComponent = Context.FindDuplicate(ArrowComponent);
+
 }

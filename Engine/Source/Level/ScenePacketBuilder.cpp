@@ -1,5 +1,6 @@
 #include "Level/ScenePacketBuilder.h"
 
+#include "Actor/DecalActor.h"
 #include "Component/BillboardComponent.h"
 #include "Component/StaticMeshComponent.h"
 #include "Component/SubUVComponent.h"
@@ -12,6 +13,23 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 	if (!Primitive || Primitive->IsPendingKill())
 	{
 		return false;
+	}
+
+	if (AActor* Owner = Primitive->GetOwner())
+	{
+		if (Owner->IsA(ADecalActor::StaticClass()))
+		{
+			ADecalActor* DecalActor = static_cast<ADecalActor*>(Owner);
+			if (UWorld* World = DecalActor->GetWorld())
+			{
+				const EWorldType WorldType = World->GetWorldType();
+				const bool bIsPlayWorld = (WorldType == EWorldType::Game || WorldType == EWorldType::PIE);
+				if (bIsPlayWorld && Primitive != DecalActor->GetDecalComponent())
+				{
+					return false;
+				}
+			}
+		}
 	}
 
 	const bool bIsUUID = Primitive->IsA(UUUIDBillboardComponent::StaticClass());
