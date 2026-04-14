@@ -21,7 +21,7 @@ namespace
 		}
 
 		std::shared_ptr<FDynamicMesh> SourceMesh =
-			FPrimitiveGizmo::CreateTranslationAxisMesh(EAxis::X, FVector4(0.65f, 0.65f, 0.65f, 1.0f));
+			FPrimitiveGizmo::CreateTranslationAxisMesh(EAxis::X, FVector4(0.f, 1.f, 1.f, 1.0f));
 		if (!SourceMesh)
 		{
 			return nullptr;
@@ -72,6 +72,7 @@ void ADecalActor::PostSpawnInitialize()
 		BillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_DecalActorIcon.png").wstring());
 		BillboardComponent->SetSize(FVector2(0.5f, 0.5f));
 		BillboardComponent->SetIgnoreParentScaleInRender(true);
+		BillboardComponent->SetEditorVisualization(true);
 		BillboardComponent->SetHiddenInGame(true);
 	}
 
@@ -86,6 +87,7 @@ void ADecalActor::PostSpawnInitialize()
 			FVector(0.02f, 0.02f, 0.02f)));
 		ArrowComponent->SetStaticMesh(GetDecalArrowMesh());
 		ArrowComponent->SetIgnoreParentScaleInRender(true);
+		ArrowComponent->SetEditorVisualization(true);
 	}
 
 	AActor::PostSpawnInitialize();

@@ -21,7 +21,7 @@ namespace
 		}
 
 		std::shared_ptr<FDynamicMesh> SourceMesh =
-			FPrimitiveGizmo::CreateTranslationAxisMesh(EAxis::X, FVector4(0.65f, 0.65f, 0.65f, 1.0f));
+			FPrimitiveGizmo::CreateTranslationAxisMesh(EAxis::X, FVector4(0.f, 1.f, 1.f, 1.0f));
 		if (!SourceMesh)
 		{
 			return nullptr;
@@ -72,6 +72,8 @@ void APlayerCameraActor::PostSpawnInitialize()
 			FVector(0.0f, 0.0f, 0.0f),
 			FVector(0.05f, 0.05f, 0.05f)));
 		VisualizerComponent->SetStaticMesh(GetPlayerCameraVisualizerMesh());
+		VisualizerComponent->SetIgnoreParentScaleInRender(true);
+		VisualizerComponent->SetEditorVisualization(true);
 	}
 
 	SyncCameraComponentState();

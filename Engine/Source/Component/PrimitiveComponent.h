@@ -38,6 +38,8 @@ public:
 	void SetDrawDebugBounds(bool bEnable) { bDrawDebugBounds = bEnable; }
 	void SetIgnoreParentScaleInRender(bool bEnable) { bIgnoreParentScaleInRender = bEnable; }
 	bool IsIgnoringParentScaleInRender() const { return bIgnoreParentScaleInRender; }
+	void SetEditorVisualization(bool bEnable) { bEditorVisualization = bEnable; }
+	bool IsEditorVisualization() const { return bEditorVisualization; }
 
 	virtual FRenderMesh* GetRenderMesh() const { return nullptr; }
 
@@ -55,4 +57,5 @@ protected:
 	FBoxSphereBounds Bounds;
 	bool bDrawDebugBounds = true;
 	bool bIgnoreParentScaleInRender = false;
+	bool bEditorVisualization = false;
 };
