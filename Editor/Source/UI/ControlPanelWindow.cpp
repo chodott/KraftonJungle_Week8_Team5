@@ -25,6 +25,7 @@
 #include "Actor/CubeActor.h"
 #include "Actor/DecalActor.h"
 #include "Actor/HeightFogActor.h"
+#include "Actor/LocalHeightFogActor.h"
 #include "Actor/PlaneActor.h"
 #include "Actor/PlayerCameraActor.h"
 #include "Actor/SphereActor.h"
@@ -200,8 +201,9 @@ void FControlPanelWindow::Render(FEditorEngine *Engine)
 
         static int32 SpawnTypeIndex = 0;
         static int32 SpawnAmount = 1;
-        const char *SpawnTypes[] = {"Cube",      "Sphere",     "Plane",     "SubUV",        "Text",
-                                    "Billboard", "StaticMesh", "HeightFog", "PlayerCamera", "Decal"};
+        const char *SpawnTypes[] = {"Cube",         "Sphere",       "Plane",        "SubUV",
+                                    "Text",         "Billboard",    "StaticMesh",   "HeightFog",
+                                    "LocalHeightFog", "PlayerCamera", "Decal"};
 
         ImGui::Combo("Type", &SpawnTypeIndex, SpawnTypes, IM_ARRAYSIZE(SpawnTypes));
         ImGui::InputInt("Count", &SpawnAmount);
@@ -296,9 +298,13 @@ void FControlPanelWindow::Render(FEditorEngine *Engine)
                 }
                 else if (SpawnTypeIndex == 8)
                 {
-                    NewActor = Scene->SpawnActor<APlayerCameraActor>(Name);
+                    NewActor = Scene->SpawnActor<ALocalHeightFogActor>(Name);
                 }
                 else if (SpawnTypeIndex == 9)
+                {
+                    NewActor = Scene->SpawnActor<APlayerCameraActor>(Name);
+                }
+                else if (SpawnTypeIndex == 10)
                 {
                     NewActor = Scene->SpawnActor<ADecalActor>(Name);
                 }

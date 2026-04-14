@@ -12,6 +12,7 @@
 #include "Component/UUIDBillboardComponent.h"
 #include "Component/BillboardComponent.h"
 #include "Component/HeightFogComponent.h"
+#include "Component/LocalHeightFogComponent.h"
 #include "Component/MoveComponent.h"
 #include "Component/DecalComponent.h"
 #include "Component/FireBallComponent.h"
@@ -55,6 +56,7 @@ namespace
 		{ "Projectile Movement Component", "ProjectileMovementComponent", &UProjectileMovementComponent::StaticClass },
 		{ "FireBall Component", "FireBallComponent", &UFireBallComponent::StaticClass},
 		{ "Decal Component", "DecalComponent", &UDecalComponent::StaticClass },
+		{ "Local Height Fog Component", "LocalHeightFogComponent", &ULocalHeightFogComponent::StaticClass },
 	};
 
 	FString BuildUniqueComponentName(AActor* SelectedActor, const FString& BaseName)
@@ -795,54 +797,93 @@ void FPropertyWindow::DrawHeightFogComponentDetails(UHeightFogComponent* HeightF
 		HeightFogComponent->AllowBackground = (float)AllowBackground;
 	}
 
-	ImGui::Separator();
+}
 
-	bool bUseLocalVolume = HeightFogComponent->FogExtents.X > 0.0f
-		&& HeightFogComponent->FogExtents.Y > 0.0f
-		&& HeightFogComponent->FogExtents.Z > 0.0f;
-	if (ImGui::Checkbox("Use Local Box Volume", &bUseLocalVolume))
+
+void FPropertyWindow::DrawLocalHeightFogComponentDetails(ULocalHeightFogComponent* LocalHeightFogComponent)
+{
+	if (!LocalHeightFogComponent)
 	{
-		if (bUseLocalVolume)
+		return;
+	}
+
+	ImGui::Spacing();
+	ImGui::TextDisabled("Local Height Fog");
+	ImGui::TextDisabled("Transform controls above affect local fog position / rotation.");
+
+	if (ImGui::DragFloat("Fog Density", &LocalHeightFogComponent->FogDensity, 0.001f, 0.0f, 10.0f, "%.3f"))
+	{
+		LocalHeightFogComponent->FogDensity = (std::max)(0.0f, LocalHeightFogComponent->FogDensity);
+	}
+
+	if (ImGui::DragFloat("Height Falloff", &LocalHeightFogComponent->FogHeightFalloff, 0.001f, 0.0f, 10.0f, "%.3f"))
+	{
+		LocalHeightFogComponent->FogHeightFalloff = (std::max)(0.0f, LocalHeightFogComponent->FogHeightFalloff);
+	}
+
+	if (ImGui::DragFloat("Start Distance", &LocalHeightFogComponent->StartDistance, 0.1f, 0.0f, 100000.0f, "%.2f"))
+	{
+		LocalHeightFogComponent->StartDistance = (std::max)(0.0f, LocalHeightFogComponent->StartDistance);
+		if (LocalHeightFogComponent->FogCutoffDistance > 0.0f)
 		{
-			if (HeightFogComponent->FogExtents.X <= 0.0f
-				|| HeightFogComponent->FogExtents.Y <= 0.0f
-				|| HeightFogComponent->FogExtents.Z <= 0.0f)
+			LocalHeightFogComponent->StartDistance = (std::min)(LocalHeightFogComponent->StartDistance, LocalHeightFogComponent->FogCutoffDistance);
+		}
+	}
+
+	if (ImGui::DragFloat("Cutoff Distance", &LocalHeightFogComponent->FogCutoffDistance, 0.1f, 0.0f, 100000.0f, "%.2f"))
+	{
+		LocalHeightFogComponent->FogCutoffDistance = (std::max)(0.0f, LocalHeightFogComponent->FogCutoffDistance);
+		if (LocalHeightFogComponent->FogCutoffDistance > 0.0f)
+		{
+			LocalHeightFogComponent->FogCutoffDistance = (std::max)(LocalHeightFogComponent->FogCutoffDistance, LocalHeightFogComponent->StartDistance);
+		}
+	}
+
+	ImGui::SliderFloat("Max Opacity", &LocalHeightFogComponent->FogMaxOpacity, 0.0f, 1.0f, "%.2f");
+
+	float ColorArray[4] =
+	{
+		LocalHeightFogComponent->FogInscatteringColor.R,
+		LocalHeightFogComponent->FogInscatteringColor.G,
+		LocalHeightFogComponent->FogInscatteringColor.B,
+		LocalHeightFogComponent->FogInscatteringColor.A
+	};
+	if (ImGui::ColorEdit4("Fog Color", ColorArray))
+	{
+		LocalHeightFogComponent->FogInscatteringColor = FLinearColor(ColorArray);
+	}
+
+	bool AllowBackground = (bool)LocalHeightFogComponent->AllowBackground;
+	if (ImGui::Checkbox("Allow Background", &AllowBackground))
+	{
+		LocalHeightFogComponent->AllowBackground = (float)AllowBackground;
+	}
+
+	float ExtentArray[3] =
+	{
+		LocalHeightFogComponent->FogExtents.X,
+		LocalHeightFogComponent->FogExtents.Y,
+		LocalHeightFogComponent->FogExtents.Z
+	};
+	if (ImGui::DragFloat3("Extents", ExtentArray, 1.0f, 1.0f, 100000.0f, "%.1f"))
+	{
+		LocalHeightFogComponent->FogExtents.X = (std::max)(1.0f, ExtentArray[0]);
+		LocalHeightFogComponent->FogExtents.Y = (std::max)(1.0f, ExtentArray[1]);
+		LocalHeightFogComponent->FogExtents.Z = (std::max)(1.0f, ExtentArray[2]);
+		LocalHeightFogComponent->UpdateBounds();
+		if (AActor* Owner = LocalHeightFogComponent->GetOwner())
+		{
+			if (ULevel* Level = Owner->GetLevel())
 			{
-				HeightFogComponent->FogExtents = FVector(200.0f, 200.0f, 200.0f);
+				Level->MarkSpatialDirty();
 			}
-			HeightFogComponent->SetDrawDebugBounds(true);
-		}
-		else
-		{
-			HeightFogComponent->FogExtents = FVector::ZeroVector;
-			HeightFogComponent->SetDrawDebugBounds(false);
 		}
 	}
 
-	ImGui::SameLine();
-	ImGui::TextDisabled(bUseLocalVolume ? "Mode: Local Box" : "Mode: Global");
-
-	if (bUseLocalVolume)
+	bool bDrawDebugBounds = LocalHeightFogComponent->ShouldDrawDebugBounds();
+	if (ImGui::Checkbox("Draw Debug Bounds", &bDrawDebugBounds))
 	{
-		float ExtentArray[3] =
-		{
-			HeightFogComponent->FogExtents.X,
-			HeightFogComponent->FogExtents.Y,
-			HeightFogComponent->FogExtents.Z
-		};
-		if (ImGui::DragFloat3("Extents", ExtentArray, 1.0f, 1.0f, 100000.0f, "%.1f"))
-		{
-			HeightFogComponent->FogExtents.X = (std::max)(1.0f, ExtentArray[0]);
-			HeightFogComponent->FogExtents.Y = (std::max)(1.0f, ExtentArray[1]);
-			HeightFogComponent->FogExtents.Z = (std::max)(1.0f, ExtentArray[2]);
-		}
-	}
-	else
-	{
-		ImGui::BeginDisabled();
-		float ZeroExtents[3] = { 0.0f, 0.0f, 0.0f };
-		ImGui::DragFloat3("Extents", ZeroExtents, 1.0f, 0.0f, 0.0f, "%.1f");
-		ImGui::EndDisabled();
+		LocalHeightFogComponent->SetDrawDebugBounds(bDrawDebugBounds);
 	}
 }
 
@@ -1142,6 +1183,11 @@ void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngi
 	if (Component->IsA(UHeightFogComponent::StaticClass()))
 	{
 		DrawHeightFogComponentDetails(static_cast<UHeightFogComponent*>(Component));
+	}
+
+	if (Component->IsA(ULocalHeightFogComponent::StaticClass()))
+	{
+		DrawLocalHeightFogComponentDetails(static_cast<ULocalHeightFogComponent*>(Component));
 	}
 
 	if (Component->IsA(UBillboardComponent::StaticClass()))

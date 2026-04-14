@@ -6,7 +6,7 @@ class UStaticMeshComponent;
 class UTextRenderComponent;
 class USubUVComponent;
 class UBillboardComponent;
-class UHeightFogComponent;
+class UPrimitiveComponent;
 class UDecalComponent;
 class UFireBallComponent;
 
@@ -36,8 +36,8 @@ struct ENGINE_API FSceneBillboardPrimitive
 
 struct ENGINE_API FSceneFogPrimitive
 {
-	// 후처리 안개 패스가 참조할 height fog 컴포넌트다.
-	UHeightFogComponent* Component = nullptr;
+	// 후처리 안개 패스가 참조할 글로벌/로컬 fog 프리미티브 컴포넌트다.
+	UPrimitiveComponent* Component = nullptr;
 };
 
 struct ENGINE_API FSceneDecalPrimitive

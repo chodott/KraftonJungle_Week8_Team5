@@ -5,10 +5,6 @@
 #include <filesystem>
 #include <fstream>
 #include <cwchar>
-#include <cassert>
-#include <cstdlib>
-#include <sstream>
-#include <Windows.h>
 
 #pragma comment(lib, "d3dcompiler.lib")
 
@@ -57,13 +53,6 @@ namespace
 		}
 
 		return Token;
-	}
-
-	[[noreturn]] void FatalShaderError(const std::wstring& Message)
-	{
-		OutputDebugStringW((L"[Shader Fatal] " + Message + L"\n").c_str());
-		assert(false && "Fatal shader error");
-		std::abort();
 	}
 }
 
@@ -226,21 +215,9 @@ std::shared_ptr<FShaderResource> FShaderResource::GetOrCompile(
 		return It->second;
 	}
 
-	if (!FilePath || !fs::exists(FilePath))
-	{
-		std::wstringstream Stream;
-		Stream << L"Shader file not found: "
-			<< (FilePath ? FilePath : L"(null)")
-			<< L" | EntryPoint=" << NarrowToWide(EntryPoint)
-			<< L" | Target=" << NarrowToWide(Target);
-		FatalShaderError(Stream.str());
-	}
-
 	const std::wstring CsoPath = MakeCsoPath(FilePath, EntryPoint, Target);
 
 	// .cso가 존재하고 hlsl보다 최신이면 cso에서 로드
-    // DEBUG 모드시 매번 쉐이더 컴파일 시도
-    #ifndef _DEBUG
 	if (!IsHlslNewer(FilePath, CsoPath.c_str()))
 	{
 		auto Resource = LoadCso(CsoPath.c_str());
@@ -250,7 +227,6 @@ std::shared_ptr<FShaderResource> FShaderResource::GetOrCompile(
 			return Resource;
 		}
 	}
-    #endif
 
 	// hlsl에서 컴파일
 	ID3DBlob* Blob = nullptr;
@@ -265,24 +241,12 @@ std::shared_ptr<FShaderResource> FShaderResource::GetOrCompile(
 
 	if (FAILED(Hr))
 	{
-		std::wstring ErrorMessage = L"Unknown shader compile error";
 		if (ErrorBlob)
 		{
-			const char* ErrorText = static_cast<const char*>(ErrorBlob->GetBufferPointer());
-			OutputDebugStringA(ErrorText);
-			ErrorMessage = NarrowToWide(ErrorText);
+			OutputDebugStringA(static_cast<const char*>(ErrorBlob->GetBufferPointer()));
 			ErrorBlob->Release();
-			ErrorBlob = nullptr;
 		}
-
-		std::wstringstream Stream;
-		Stream << L"Shader compile failed: "
-			<< FilePath
-			<< L" | EntryPoint=" << NarrowToWide(EntryPoint)
-			<< L" | Target=" << NarrowToWide(Target)
-			<< L"\n"
-			<< ErrorMessage;
-		FatalShaderError(Stream.str());
+		return nullptr;
 	}
 
 	if (ErrorBlob)
@@ -291,14 +255,7 @@ std::shared_ptr<FShaderResource> FShaderResource::GetOrCompile(
 	}
 
 	// 컴파일 결과를 .cso로 저장
-	if (!SaveCso(CsoPath.c_str(), Blob->GetBufferPointer(), Blob->GetBufferSize()))
-	{
-		std::wstringstream Stream;
-		Stream << L"Failed to save shader cso: "
-			<< CsoPath
-			<< L" | Source=" << FilePath;
-		FatalShaderError(Stream.str());
-	}
+	SaveCso(CsoPath.c_str(), Blob->GetBufferPointer(), Blob->GetBufferSize());
 
 	std::shared_ptr<FShaderResource> Resource(new FShaderResource());
 	Resource->ShaderBlob = Blob;

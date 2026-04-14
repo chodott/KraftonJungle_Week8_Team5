@@ -19,6 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\Actor\LocalHeightFogActor.h" />
+    <ClInclude Include="Source\Component\LocalHeightFogComponent.h" />
     <ClInclude Include="Source\Component\MovementComponent.h" />
     <ClInclude Include="Source\Component\ProjectileMovementComponent.h" />
     <ClInclude Include="Source\Component\RotatingMovementComponent.h" />
@@ -294,6 +296,7 @@
     <ClCompile Include="Source\Actor\CubeActor.cpp" />
     <ClCompile Include="Source\Actor\DecalActor.cpp" />
     <ClCompile Include="Source\Actor\HeightFogActor.cpp" />
+    <ClCompile Include="Source\Actor\LocalHeightFogActor.cpp" />
     <ClCompile Include="Source\Actor\PlaneActor.cpp" />
     <ClCompile Include="Source\Actor\PlayerCameraActor.cpp" />
     <ClCompile Include="Source\Actor\SkySphereActor.cpp" />
@@ -310,6 +313,7 @@
     <ClCompile Include="Source\Component\FireBallComponent.cpp" />
     <ClCompile Include="Source\Component\HeightFogComponent.cpp" />
     <ClCompile Include="Source\Component\LineBatchComponent.cpp" />
+    <ClCompile Include="Source\Component\LocalHeightFogComponent.cpp" />
     <ClCompile Include="Source\Component\MeshComponent.cpp" />
     <ClCompile Include="Source\Component\MoveComponent.cpp" />
     <ClCompile Include="Source\Component\MovementComponent.cpp" />
