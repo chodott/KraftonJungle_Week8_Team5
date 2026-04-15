@@ -1,4 +1,4 @@
-﻿#include "EditorUI.h"
+#include "EditorUI.h"
 
 #include "Actor/Actor.h"
 #include "Component/SceneComponent.h"
@@ -1041,12 +1041,32 @@ void FEditorUI::Render()
             ImGui::Text("%s", Name);
         }
 
-        ImGui::Spacing();
-        ImGui::SetCursorPosX(20);
-        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1, 1, 1, 0.1f));
-        ImGui::Separator();
-        ImGui::PopStyleColor();
-        ImGui::Spacing();
+		ImGui::SetCursorPosX(20);
+
+		ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "Fourth Contributors");
+		ImGui::SameLine();
+		ImGui::SetCursorPosX(20);
+		ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.9f, 0.7f, 0.3f, 0.5f));
+		ImGui::Separator();
+		ImGui::PopStyleColor();
+
+		ImGui::Spacing();
+
+		const char* Fourth_Contributors[] = { "김연하", "박세영", "정찬일" };
+		for (const char* Name : Fourth_Contributors)
+		{
+			ImGui::SetCursorPosX(20);
+			ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.6f, 1.0f), "-");
+			ImGui::SameLine();
+			ImGui::Text("%s", Name);
+		}
+
+		ImGui::Spacing();
+		ImGui::SetCursorPosX(20);
+		ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1, 1, 1, 0.1f));
+		ImGui::Separator();
+		ImGui::PopStyleColor();
+		ImGui::Spacing();
 
         ImGui::SetCursorPosX(20);
         ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Copyright (c) 2026  |  MIT License");
