@@ -908,11 +908,27 @@ void FEditorUI::Render()
 
                     ShowFlagCheckbox("Primitives", EEngineShowFlags::SF_Primitives);
                     ShowFlagCheckbox("UUID Text", EEngineShowFlags::SF_UUID);
+
+                    bool bShowGrid = TargetEntry->LocalState.bShowGrid;
+                    if (ImGui::Checkbox("Grid", &bShowGrid))
+                    {
+                        TargetEntry->LocalState.bShowGrid = bShowGrid;
+                        SaveEditorSettings();
+                    }
+
+                    ShowFlagCheckbox("World Axis", EEngineShowFlags::SF_WorldAxis);
+
+                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+                    ImGui::SeparatorText("Actor Helpers");
+                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+
                     ShowFlagCheckbox("Decal Arrow", EEngineShowFlags::SF_DecalArrow);
                     ShowFlagCheckbox("Projectile Arrow", EEngineShowFlags::SF_ProjectileArrow);
 
-                    ShowFlagCheckbox("World Axis", EEngineShowFlags::SF_WorldAxis);
-                	
+                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+                    ImGui::SeparatorText("Debug");
+                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+
                     bool bDebugDraw = ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw);
                     if (ImGui::Checkbox("Debug Line", &bDebugDraw))
                     {
@@ -935,7 +951,6 @@ void FEditorUI::Render()
                         ImGui::BeginDisabled();
                     }
 
-                    ShowFlagCheckbox("World Axis", EEngineShowFlags::SF_WorldAxis);
                     ShowFlagCheckbox("Picking Bounds (Magenta)", EEngineShowFlags::SF_Collision);
                     ShowFlagCheckbox("Scene BVH (Yellow)", EEngineShowFlags::SF_SceneBVH);
                     ShowFlagCheckbox("Mesh BVH (Cyan)", EEngineShowFlags::SF_MeshBVH);
@@ -947,13 +962,6 @@ void FEditorUI::Render()
                     }
 
                     ImGui::Unindent();
-
-                    bool bShowGrid = TargetEntry->LocalState.bShowGrid;
-                    if (ImGui::Checkbox("Grid", &bShowGrid))
-                    {
-                        TargetEntry->LocalState.bShowGrid = bShowGrid;
-                        SaveEditorSettings();
-                    }
 
                     ImGui::BeginDisabled(!TargetEntry->LocalState.bShowGrid);
                     if (ImGui::SliderFloat("Grid Size", &TargetEntry->LocalState.GridSize, 1.0f, 100.0f, "%.1f"))

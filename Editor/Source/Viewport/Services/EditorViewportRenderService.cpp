@@ -68,7 +68,8 @@ namespace
 			}
 
 			UPrimitiveComponent* PrimitiveComponent = static_cast<UPrimitiveComponent*>(Component);
-			if (IsHiddenByArrowVisualizationShowFlags(PrimitiveComponent, ShowFlags))
+			if (IsArrowVisualizationPrimitive(PrimitiveComponent)
+				|| IsHiddenByArrowVisualizationShowFlags(PrimitiveComponent, ShowFlags))
 			{
 				continue;
 			}
