@@ -110,6 +110,7 @@ public:
 
 		// UUID 맵으로 객체 생존 확인 완료. CachedPtr은 생성/대입 시 올바르게 설정됨.
 		// 단조 증가 UUID이므로 재사용 없음 → CachedPtr은 항상 유효.
+		CachedPtr = reinterpret_cast<T*>(It->second);
 		return CachedPtr;
 	}
 

@@ -20,6 +20,7 @@ public:
 	virtual void BeginPlay() { bBegunPlay = true; }
 	virtual void EndPlay() { bBegunPlay = false; }
 	virtual void Tick(float DeltaTime) {}
+	virtual void OnPostLoad() {}
 	bool HasBegunPlay() const { return bBegunPlay; }
 	bool IsComponentTickEnabled() const { return bTickEnabled; }
 	bool IsTickInEditor() const { return bTickInEditor; }

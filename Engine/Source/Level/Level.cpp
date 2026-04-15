@@ -136,7 +136,7 @@ void ULevel::ClearActors()
 			Actor->Destroy();
 		}
 	}
-	Actors.clear();
+	CleanupDestroyedActors();
 
 	MarkSpatialDirty();
 }
@@ -166,6 +166,7 @@ void ULevel::DestroyActor(AActor* InActor)
 		return;
 	}
 	InActor->Destroy();
+	CleanupDestroyedActors();
 	MarkSpatialDirty();
 }
 

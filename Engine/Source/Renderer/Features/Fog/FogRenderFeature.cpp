@@ -417,8 +417,6 @@ bool FFogRenderFeature::BuildFogClusters(const FViewContext& View, const TArray<
     PreparedFogItems.insert(PreparedFogItems.end(), PreparedGlobalFogItems.begin(), PreparedGlobalFogItems.end());
     PreparedFogItems.insert(PreparedFogItems.end(), PreparedLocalFogItems.begin(), PreparedLocalFogItems.end());
 
-    UE_LOG("[FogCluster] Global=%zu Local=%zu Total=%zu", PreparedGlobalFogItems.size(), PreparedLocalFogItems.size(), PreparedFogItems.size());
-
     const uint32 ClusterCount = FOG_CLUSTER_COUNT_X * FOG_CLUSTER_COUNT_Y * FOG_CLUSTER_COUNT_Z;
     std::vector<std::vector<uint32>> ClusterLists(ClusterCount);
     uint32 RegisteredLocalFogCount = 0u;
@@ -429,23 +427,8 @@ bool FFogRenderFeature::BuildFogClusters(const FViewContext& View, const TArray<
         const bool bRangeComputed = ComputeFogClusterRange(View, PreparedLocalFogItems[LocalFogIndex], Range);
         if (!bRangeComputed || !Range.bValid)
         {
-            const FVector FogOrigin = PreparedLocalFogItems[LocalFogIndex].FogOrigin;
-            UE_LOG("[FogCluster] Local[%u] Range INVALID Origin=(%.2f, %.2f, %.2f)", LocalFogIndex, FogOrigin.X, FogOrigin.Y, FogOrigin.Z);
             continue;
         }
-
-        const uint32 ClusterSpanX = Range.MaxTileX - Range.MinTileX + 1u;
-        const uint32 ClusterSpanY = Range.MaxTileY - Range.MinTileY + 1u;
-        const uint32 ClusterSpanZ = Range.MaxSliceZ - Range.MinSliceZ + 1u;
-        const uint32 CandidateClusterCount = ClusterSpanX * ClusterSpanY * ClusterSpanZ;
-        const FVector FogOrigin = PreparedLocalFogItems[LocalFogIndex].FogOrigin;
-        UE_LOG("[FogCluster] Local[%u] Origin=(%.2f, %.2f, %.2f) TilesX=%u..%u TilesY=%u..%u SlicesZ=%u..%u CandidateClusters=%u",
-            LocalFogIndex,
-            FogOrigin.X, FogOrigin.Y, FogOrigin.Z,
-            Range.MinTileX, Range.MaxTileX,
-            Range.MinTileY, Range.MaxTileY,
-            Range.MinSliceZ, Range.MaxSliceZ,
-            CandidateClusterCount);
 
         bool bRegisteredThisFog = false;
         for (uint32 Z = Range.MinSliceZ; Z <= Range.MaxSliceZ; ++Z)
@@ -500,14 +483,6 @@ bool FFogRenderFeature::BuildFogClusters(const FViewContext& View, const TArray<
             MaxItemsInSingleCluster = std::max(MaxItemsInSingleCluster, static_cast<uint32>(Cluster.size()));
         }
     }
-
-    UE_LOG("[FogCluster] RegisteredLocal=%u/%zu TouchedClusters=%u NonEmptyClusters=%u IndexCount=%zu MaxItemsPerCluster=%u",
-        RegisteredLocalFogCount,
-        PreparedLocalFogItems.size(),
-        TouchedClusterCount,
-        NonEmptyClusterCount,
-        ClusterIndexListCPU.size(),
-        MaxItemsInSingleCluster);
 
     return true;
 }
