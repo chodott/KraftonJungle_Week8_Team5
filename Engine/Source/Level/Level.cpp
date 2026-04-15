@@ -1,4 +1,4 @@
-﻿#include "Level/Level.h"
+#include "Level/Level.h"
 
 #include "Core/Paths.h"
 #include "Actor/Actor.h"
@@ -191,7 +191,7 @@ void ULevel::MarkSpatialDirty()
 	bSpatialDirty = true;
 }
 
-void ULevel::GatherPrimitiveComponents(TArray<UPrimitiveComponent*>& OutPrimitives, bool bExcludeUUIDBillboards) const
+void ULevel::GatherPrimitiveComponents(TArray<UPrimitiveComponent*>& OutPrimitives, bool bExcludeUUIDBillboards, bool bExcludeArrows) const
 {
 	for (AActor* Actor : Actors)
 	{
@@ -218,7 +218,7 @@ void ULevel::GatherPrimitiveComponents(TArray<UPrimitiveComponent*>& OutPrimitiv
 				continue;
 			}
 
-			if (IsArrowVisualizationPrimitive(PrimitiveComponent))
+			if (bExcludeArrows && IsArrowVisualizationPrimitive(PrimitiveComponent))
 			{
 				continue;
 			}
@@ -240,7 +240,7 @@ void ULevel::RebuildSpatialIfNeeded() const
 	SpatialBVH.Build(SpatialPrimitives);
 
 	TArray<UPrimitiveComponent*> DebugPrimitives;
-	GatherPrimitiveComponents(DebugPrimitives, true);
+	GatherPrimitiveComponents(DebugPrimitives,true, true);
 	DebugSpatialBVH.Build(DebugPrimitives);
 
 	bSpatialDirty = false;

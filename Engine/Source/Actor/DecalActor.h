@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "Actor/Actor.h"
 
@@ -12,7 +12,7 @@ public:
 	DECLARE_RTTI(ADecalActor, AActor)
 
 	void PostSpawnInitialize() override;
-	void Tick(float DeltaTime) override;
+	//void Tick(float DeltaTime) override;
 	void Serialize(FArchive& Ar) override;
 	void FixupDuplicatedReferences(UObject* DuplicatedObject, const FDuplicateContext& Context) const override;
 
@@ -20,7 +20,7 @@ public:
 	UStaticMeshComponent* GetArrowComponent() const { return ArrowComponent; }
 
 private:
-	void UpdateArrowVisualization();
+	//void UpdateArrowVisualization();
 
 	UDecalComponent* DecalComponent = nullptr;
 	UBillboardComponent* IconBillboardComponent = nullptr;

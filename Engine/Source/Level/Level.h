@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "Object/Object.h"
 #include "Object/ObjectFactory.h"
@@ -76,7 +76,7 @@ public:
 	void PostDuplicate(UObject* DuplicatedObject, const FDuplicateContext& Context) const override;
 
 private:
-	void GatherPrimitiveComponents(TArray<UPrimitiveComponent*>& OutPrimitives, bool bExcludeUUIDBillboards = false) const;
+	void GatherPrimitiveComponents(TArray<UPrimitiveComponent*>& OutPrimitives, bool bExcludeUUIDBillboards = false, bool bExcludeArrows = false) const;
 	void RebuildSpatialIfNeeded() const;
 
 	TArray<AActor*> Actors;

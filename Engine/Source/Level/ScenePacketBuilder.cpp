@@ -1,4 +1,4 @@
-﻿#include "Level/ScenePacketBuilder.h"
+#include "Level/ScenePacketBuilder.h"
 #include "Level/PrimitiveVisibilityUtils.h"
 #include "Actor/DecalActor.h"
 #include "Component/BillboardComponent.h"
@@ -55,9 +55,9 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 			}
 		}
 
-		if (IsHiddenByArrowVisualizationShowFlags(Primitive, ShowFlags))
+		if (IsArrowVisualizationPrimitive(Primitive))
 		{
-			return false;
+			return ShowFlags.HasFlag(EEngineShowFlags::SF_ProjectileArrow);
 		}
 	}
 
