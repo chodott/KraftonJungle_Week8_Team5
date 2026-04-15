@@ -18,6 +18,11 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 
 	if (AActor* Owner = Primitive->GetOwner())
 	{
+		if (!Owner->IsVisible())
+		{
+			return false;
+		}
+
 		if (UWorld* World = Owner->GetWorld())
 		{
 			const EWorldType WorldType = World->GetWorldType();
