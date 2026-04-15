@@ -1043,6 +1043,34 @@ void FEditorUI::Render()
             }
             ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("Stat"))
+        {
+            const bool bStatNone = DebugState.StatDisplayMode == EStatDisplayMode::None && !DebugState.FPS;
+            const bool bStatMemory = DebugState.StatDisplayMode == EStatDisplayMode::Memory;
+            const bool bStatDecal = DebugState.StatDisplayMode == EStatDisplayMode::Decal;
+
+            if (ImGui::MenuItem("None", nullptr, bStatNone))
+            {
+                DebugState.FPS = false;
+                DebugState.StatDisplayMode = EStatDisplayMode::None;
+            }
+
+            if (ImGui::MenuItem("FPS", nullptr, DebugState.FPS))
+            {
+                DebugState.FPS = !DebugState.FPS;
+            }
+
+            if (ImGui::MenuItem("Memory", nullptr, bStatMemory))
+            {
+                DebugState.StatDisplayMode = EStatDisplayMode::Memory;
+            }
+
+            if (ImGui::MenuItem("Decal", nullptr, bStatDecal))
+            {
+                DebugState.StatDisplayMode = EStatDisplayMode::Decal;
+            }
+            ImGui::EndMenu();
+        }
         if (ImGui::BeginMenu("Help"))
         {
             if (ImGui::MenuItem("About"))
