@@ -1,4 +1,4 @@
-#include "Actor/DecalActor.h"
+﻿#include "Actor/DecalActor.h"
 
 #include "Component/BillboardComponent.h"
 #include "Component/DecalComponent.h"
@@ -12,6 +12,8 @@
 #include "Renderer/Mesh/MeshData.h"
 #include "Serializer/Archive.h"
 
+#include <algorithm>
+
 namespace
 {
 	UStaticMesh* GetDecalArrowMesh()
@@ -23,7 +25,7 @@ namespace
 		}
 
 		std::shared_ptr<FDynamicMesh> SourceMesh =
-			FPrimitiveGizmo::CreateTranslationAxisMesh(EAxis::X, FVector4(0.f, 1.f, 1.f, 1.0f));
+			FPrimitiveGizmo::CreateTranslationAxisMesh(EAxis::X, FVector4(1.f, 0.f, 0.f, 1.0f));
 		if (!SourceMesh)
 		{
 			return nullptr;
@@ -90,9 +92,17 @@ void ADecalActor::PostSpawnInitialize()
 		ArrowComponent->SetStaticMesh(GetDecalArrowMesh());
 		ArrowComponent->SetIgnoreParentScaleInRender(true);
 		ArrowComponent->SetEditorVisualization(true);
+		ArrowComponent->SetDrawDebugBounds(false);
 	}
 
+	UpdateArrowVisualization();
 	AActor::PostSpawnInitialize();
+}
+
+void ADecalActor::Tick(float DeltaTime)
+{
+	AActor::Tick(DeltaTime);
+	UpdateArrowVisualization();
 }
 
 void ADecalActor::Serialize(FArchive& Ar)
@@ -143,7 +153,10 @@ void ADecalActor::Serialize(FArchive& Ar)
 		{
 			ArrowComponent->AttachTo(BillboardComponent);
 		}
+		ArrowComponent->SetDrawDebugBounds(false);
 	}
+
+	UpdateArrowVisualization();
 }
 
 void ADecalActor::FixupDuplicatedReferences(UObject* DuplicatedObject, const FDuplicateContext& Context) const
@@ -153,5 +166,49 @@ void ADecalActor::FixupDuplicatedReferences(UObject* DuplicatedObject, const FDu
 	DuplicatedActor->DecalComponent = Context.FindDuplicate(DecalComponent);
 	DuplicatedActor->BillboardComponent = Context.FindDuplicate(BillboardComponent);
 	DuplicatedActor->ArrowComponent = Context.FindDuplicate(ArrowComponent);
+	DuplicatedActor->UpdateArrowVisualization();
+}
 
+void ADecalActor::UpdateArrowVisualization()
+{
+	if (!DecalComponent || !ArrowComponent)
+	{
+		return;
+	}
+
+	UStaticMesh* ArrowMesh = ArrowComponent->GetStaticMesh();
+	if (!ArrowMesh)
+	{
+		ArrowMesh = GetDecalArrowMesh();
+		ArrowComponent->SetStaticMesh(ArrowMesh);
+	}
+
+	const float BaseArrowLength =
+		(ArrowMesh && ArrowMesh->LocalBounds.BoxExtent.X > 0.0f)
+		? (ArrowMesh->LocalBounds.BoxExtent.X * 2.0f)
+		: 1.0f;
+	const float BaseArrowRadius =
+		(ArrowMesh && ArrowMesh->LocalBounds.BoxExtent.Y > 0.0f && ArrowMesh->LocalBounds.BoxExtent.Z > 0.0f)
+		? (std::max)(ArrowMesh->LocalBounds.BoxExtent.Y, ArrowMesh->LocalBounds.BoxExtent.Z)
+		: 1.0f;
+
+	const FVector DecalExtents = DecalComponent->GetExtents();
+	const float ProjectionDepth = (std::max)(DecalComponent->GetProjectionDepth(), 1.0f);
+	const float ArrowLengthScale = ProjectionDepth / BaseArrowLength;
+
+	float DesiredArrowRadius = ProjectionDepth * 0.05f;
+	const float CrossSectionRadius = (std::max)(DecalExtents.Y, DecalExtents.Z);
+	if (CrossSectionRadius > 0.0f)
+	{
+		const float MinRadius = CrossSectionRadius * 0.12f;
+		const float MaxRadius = CrossSectionRadius * 0.35f;
+		DesiredArrowRadius = std::clamp(DesiredArrowRadius, MinRadius, (std::max)(MinRadius, MaxRadius));
+	}
+
+	const float ArrowRadiusScale = DesiredArrowRadius / BaseArrowRadius;
+
+	ArrowComponent->SetRelativeTransform(FTransform(
+		FQuat::Identity,
+		FVector(0.0f, 0.0f, 0.0f),
+		FVector(ArrowLengthScale, ArrowRadiusScale, ArrowRadiusScale)));
 }

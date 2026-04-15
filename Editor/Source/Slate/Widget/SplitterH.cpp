@@ -1,4 +1,4 @@
-#include "SplitterH.h"
+﻿#include "SplitterH.h"
 #include <algorithm>
 
 void SSplitterH::OnMouseMove(int32 X, int32 Y)

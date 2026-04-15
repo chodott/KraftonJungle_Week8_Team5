@@ -1,4 +1,4 @@
-#include "Renderer/Features/Text/FontAtlas.h"
+﻿#include "Renderer/Features/Text/FontAtlas.h"
 #include <WICTextureLoader.h>
 #include <fstream>
 #include <filesystem>

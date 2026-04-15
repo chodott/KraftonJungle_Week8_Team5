@@ -1,7 +1,7 @@
 {
   "Name": "M_Gizmos",
-  "VertexShader": "Engine/Shaders/ColorVertexShader.hlsl",
-  "PixelShader": "Engine/Shaders/ColorPixelShader.hlsl",
+  "VertexShader": "Engine/Shaders/SceneGeometry/ColorVertexShader.hlsl",
+  "PixelShader": "Engine/Shaders/SceneGeometry/ColorPixelShader.hlsl",
   "RenderState": {
     "FillMode": 3,
     "CullMode": 1,

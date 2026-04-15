@@ -1,4 +1,4 @@
-#include "Renderer/Scene/Builders/SceneCommandSpriteBuilder.h"
+﻿#include "Renderer/Scene/Builders/SceneCommandSpriteBuilder.h"
 
 #include "Renderer/Scene/Builders/SceneCommandBuilder.h"
 #include "Renderer/Scene/Builders/SceneCommandBuilderUtils.h"
@@ -169,9 +169,9 @@ void FSceneCommandSpriteBuilder::BuildBillboardInputs(
 		FMeshBatch Batch;
 		Batch.Mesh = BillboardMesh;
 		Batch.Material = BillboardMaterial;
-		Batch.Domain = BillboardComponent->IsEditorVisualization() ? EMaterialDomain::Overlay : EMaterialDomain::Transparent;
+		Batch.Domain = BillboardComponent->IsEditorVisualization() ? EMaterialDomain::EditorPrimitive : EMaterialDomain::Transparent;
 		Batch.PassMask = BillboardComponent->IsEditorVisualization()
-			? static_cast<uint32>(EMeshPassMask::Overlay)
+			? static_cast<uint32>(EMeshPassMask::EditorPrimitive)
 			: static_cast<uint32>(EMeshPassMask::ForwardTransparent);
 		Batch.bDisableDepthWrite = true;
 

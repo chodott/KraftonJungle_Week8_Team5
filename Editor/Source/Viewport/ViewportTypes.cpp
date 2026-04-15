@@ -1,4 +1,4 @@
-#include "ViewportTypes.h"
+﻿#include "ViewportTypes.h"
 
 #include <algorithm>
 #include "Math/MathUtility.h"

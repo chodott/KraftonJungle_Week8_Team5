@@ -16,7 +16,8 @@ enum class EMaterialPassType : uint8
 	OutlineMask,
 	ForwardOpaque,
 	ForwardTransparent,
-	Overlay,
+	EditorGrid,
+	EditorPrimitive,
 	Count,
 };
 

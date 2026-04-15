@@ -1,6 +1,17 @@
-﻿#include "Renderer/Frame/RenderFrameUtils.h"
+#include "Renderer/Frame/RenderFrameUtils.h"
 
 #include "Core/Engine.h"
+
+#include <cmath>
+
+namespace
+{
+	bool IsOrthographicProjection(const FMatrix& Projection)
+	{
+		return std::fabs(Projection.M[0][3]) <= 1.0e-6f
+			&& std::fabs(Projection.M[3][3] - 1.0f) <= 1.0e-6f;
+	}
+}
 
 FFrameContext BuildRenderFrameContext(float TotalTimeSeconds)
 {
@@ -22,6 +33,7 @@ FViewContext BuildRenderViewContext(const FSceneViewRenderRequest& SceneView, co
 	View.CameraPosition = SceneView.CameraPosition;
 	View.NearZ = SceneView.NearZ;
 	View.FarZ = SceneView.FarZ;
+	View.bOrthographic = IsOrthographicProjection(SceneView.ProjectionMatrix);
 	View.Viewport = Viewport;
 	return View;
 }

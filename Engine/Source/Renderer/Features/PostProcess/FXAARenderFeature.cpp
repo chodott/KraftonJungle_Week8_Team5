@@ -86,7 +86,7 @@ bool FFXAARenderFeature::Initialize(FRenderer& Renderer)
 
 	if (!FullscreenVS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"BlitVertexShader.hlsl").c_str(), "main", "vs_5_0");
+		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl").c_str(), "main", "vs_5_0");
 		if (!Resource || FAILED(Device->CreateVertexShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &FullscreenVS)))
 		{
 			return false;
@@ -95,7 +95,7 @@ bool FFXAARenderFeature::Initialize(FRenderer& Renderer)
 
 	if (!FXAAPS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"FXAAPixelShader.hlsl").c_str(), "main", "ps_5_0");
+		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/FXAAPixelShader.hlsl").c_str(), "main", "ps_5_0");
 		if (!Resource || FAILED(Device->CreatePixelShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &FXAAPS)))
 		{
 			return false;

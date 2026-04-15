@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Core/ShowFlags.h"
@@ -46,7 +46,7 @@ struct ENGINE_API FScenePostProcessInputs
 
 struct ENGINE_API FSceneDebugInputs
 {
-	FDebugLinePassInputs LinePass;
+	FEditorLinePassInputs LinePass;
 
 	void Clear()
 	{

@@ -1,4 +1,4 @@
-#include "SplitterV.h"
+﻿#include "SplitterV.h"
 #include <algorithm>
 
 void SSplitterV::OnMouseMove(int32 X, int32 Y)

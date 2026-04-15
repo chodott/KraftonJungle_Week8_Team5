@@ -1,4 +1,4 @@
-#include "Gizmo.h"
+﻿#include "Gizmo.h"
 
 #include "Actor/Actor.h"
 #include "Camera/Camera.h"
@@ -242,8 +242,8 @@ void FGizmo::BuildMeshBatches(AActor* SelectedActor, const FViewportEntry* Entry
 	const FMatrix ScreenGizmoWorld = FTransform(FQuat::Identity, WorldLocation, FVector(RenderGizmoScale, RenderGizmoScale, RenderGizmoScale)).ToMatrixWithScale();
 	FMeshBatch Command;
 	Command.World = AxisGizmoWorld;
-	Command.Domain = EMaterialDomain::Overlay;
-	Command.PassMask = static_cast<uint32>(EMeshPassMask::Overlay);
+	Command.Domain = EMaterialDomain::EditorPrimitive;
+	Command.PassMask = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
 	Command.Material = Material.get();
 	Command.bDisableDepthTest = true;
 	Command.bDisableDepthWrite = true;

@@ -464,6 +464,11 @@ void FEditorUI::LoadEditorSettings()
         GetPrivateProfileStringW(Sec, L"SF.DebugDraw", L"0", Buf, 64, Path.c_str());
         S.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, _wtoi(Buf) != 0);
 
+        const wchar_t *DefaultDebugVolumeValue =
+            S.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw) ? L"1" : L"0";
+        GetPrivateProfileStringW(Sec, L"SF.DebugVolume", DefaultDebugVolumeValue, Buf, 64, Path.c_str());
+        S.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, _wtoi(Buf) != 0);
+
         GetPrivateProfileStringW(Sec, L"SF.WorldAxis", L"0", Buf, 64, Path.c_str());
         S.ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, _wtoi(Buf) != 0);
 
@@ -482,9 +487,6 @@ void FEditorUI::LoadEditorSettings()
         GetPrivateProfileStringW(Sec, L"SF.FXAA", L"0", Buf, 64, Path.c_str());
         S.ShowFlags.SetFlag(EEngineShowFlags::SF_FXAA, _wtoi(Buf) != 0);
 
-        GetPrivateProfileStringW(Sec, L"SF.DepthView", L"0", Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_DepthView, _wtoi(Buf) != 0);
-
         GetPrivateProfileStringW(Sec, L"SF.DecalArrow", L"1", Buf, 64, Path.c_str());
         S.ShowFlags.SetFlag(EEngineShowFlags::SF_DecalArrow, _wtoi(Buf) != 0);
 
@@ -496,19 +498,33 @@ void FEditorUI::LoadEditorSettings()
 
         GetPrivateProfileStringW(Sec, L"SF.Fog", L"1", Buf, 64, Path.c_str());
         S.ShowFlags.SetFlag(EEngineShowFlags::SF_Fog, _wtoi(Buf) != 0);
+
+        GetPrivateProfileStringW(Sec, L"SF.LocalFogDebug", L"0", Buf, 64, Path.c_str());
+        S.ShowFlags.SetFlag(EEngineShowFlags::SF_LocalFogDebug, _wtoi(Buf) != 0);
     }
 
     bool bAnyDebugDrawEnabled = false;
+    bool bAnyDebugVolumeEnabled = false;
     bool bAnyWorldAxisEnabled = false;
     bool bAnyCollisionEnabled = false;
     bool bAnySceneBVHEnabled = false;
     bool bAnyMeshBVHEnabled = false;
     bool bAnyDecalDebugEnabled = false;
+    bool bAnyLocalFogDebugEnabled = false;
 
     for (const FViewportEntry &Entry : ViewportRegistry.GetEntries())
     {
         bAnyDebugDrawEnabled =
-            bAnyDebugDrawEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw);
+            bAnyDebugDrawEnabled
+            || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw)
+            || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_Collision)
+            || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_SceneBVH)
+            || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_MeshBVH);
+        bAnyDebugVolumeEnabled =
+            bAnyDebugVolumeEnabled
+            || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugVolume)
+            || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalDebug)
+            || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_LocalFogDebug);
         bAnyWorldAxisEnabled =
             bAnyWorldAxisEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_WorldAxis);
         bAnyCollisionEnabled =
@@ -517,16 +533,20 @@ void FEditorUI::LoadEditorSettings()
         bAnyMeshBVHEnabled = bAnyMeshBVHEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_MeshBVH);
         bAnyDecalDebugEnabled =
             bAnyDecalDebugEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalDebug);
+        bAnyLocalFogDebugEnabled =
+            bAnyLocalFogDebugEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_LocalFogDebug);
     }
 
     for (FViewportEntry &Entry : ViewportRegistry.GetEntries())
     {
         Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, bAnyDebugDrawEnabled);
+        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, bAnyDebugVolumeEnabled);
         Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, bAnyWorldAxisEnabled);
         Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_Collision, bAnyCollisionEnabled);
         Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_SceneBVH, bAnySceneBVHEnabled);
         Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_MeshBVH, bAnyMeshBVHEnabled);
         Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DecalDebug, bAnyDecalDebugEnabled);
+        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_LocalFogDebug, bAnyLocalFogDebugEnabled);
     }
 
     FSlateApplication *Slate = Engine->GetSlateApplication();
@@ -601,6 +621,9 @@ void FEditorUI::SaveEditorSettings()
                                    Path.c_str());
         WritePrivateProfileStringW(Sec, L"SF.DebugDraw",
                                    S.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw) ? L"1" : L"0", Path.c_str());
+        WritePrivateProfileStringW(Sec, L"SF.DebugVolume",
+                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugVolume) ? L"1" : L"0",
+                                   Path.c_str());
         WritePrivateProfileStringW(Sec, L"SF.WorldAxis",
                                    S.ShowFlags.HasFlag(EEngineShowFlags::SF_WorldAxis) ? L"1" : L"0", Path.c_str());
         WritePrivateProfileStringW(Sec, L"SF.Collision",
@@ -618,10 +641,11 @@ void FEditorUI::SaveEditorSettings()
                                    Path.c_str());
         WritePrivateProfileStringW(Sec, L"SF.Fog", S.ShowFlags.HasFlag(EEngineShowFlags::SF_Fog) ? L"1" : L"0",
                                    Path.c_str());
+        WritePrivateProfileStringW(Sec, L"SF.LocalFogDebug",
+                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_LocalFogDebug) ? L"1" : L"0",
+                                   Path.c_str());
         WritePrivateProfileStringW(Sec, L"SF.FXAA", S.ShowFlags.HasFlag(EEngineShowFlags::SF_FXAA) ? L"1" : L"0",
                                    Path.c_str());
-        WritePrivateProfileStringW(Sec, L"SF.DepthView",
-                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_DepthView) ? L"1" : L"0", Path.c_str());
         WritePrivateProfileStringW(Sec, L"SF.DecalArrow",
                                    S.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalArrow) ? L"1" : L"0", Path.c_str());
         WritePrivateProfileStringW(Sec, L"SF.ProjectileArrow",
@@ -908,43 +932,8 @@ void FEditorUI::Render()
 
                     ShowFlagCheckbox("Primitives", EEngineShowFlags::SF_Primitives);
                     ShowFlagCheckbox("UUID Text", EEngineShowFlags::SF_UUID);
-                    ShowFlagCheckbox("Decal Arrow", EEngineShowFlags::SF_DecalArrow);
-                    ShowFlagCheckbox("Projectile Arrow", EEngineShowFlags::SF_ProjectileArrow);
 
-                    bool bDebugDraw = ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw);
-                    if (ImGui::Checkbox("Debug Line", &bDebugDraw))
-                    {
-                        ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, bDebugDraw);
-
-                        if (!bDebugDraw)
-                        {
-                            ShowFlags.SetFlag(EEngineShowFlags::SF_Collision, false);
-                            ShowFlags.SetFlag(EEngineShowFlags::SF_SceneBVH, false);
-                            ShowFlags.SetFlag(EEngineShowFlags::SF_MeshBVH, false);
-                            ShowFlags.SetFlag(EEngineShowFlags::SF_DecalDebug, false);
-                        }
-                        SaveEditorSettings();
-                    }
-
-                    ImGui::Indent();
-
-                    if (!bDebugDraw)
-                    {
-                        ImGui::BeginDisabled();
-                    }
-                	
-                	ShowFlagCheckbox("World Axis", EEngineShowFlags::SF_WorldAxis);
-                    ShowFlagCheckbox("Picking Bounds (Magenta)", EEngineShowFlags::SF_Collision);
-                    ShowFlagCheckbox("Scene BVH (Yellow)", EEngineShowFlags::SF_SceneBVH);
-                    ShowFlagCheckbox("Mesh BVH (Cyan)", EEngineShowFlags::SF_MeshBVH);
-                    ShowFlagCheckbox("Decal Bounds (Orange)", EEngineShowFlags::SF_DecalDebug);
-
-                    if (!bDebugDraw)
-                    {
-                        ImGui::EndDisabled();
-                    }
-
-                    ImGui::Unindent();
+                    ShowFlagCheckbox("World Axis", EEngineShowFlags::SF_WorldAxis);
 
                     bool bShowGrid = TargetEntry->LocalState.bShowGrid;
                     if (ImGui::Checkbox("Grid", &bShowGrid))
@@ -964,6 +953,83 @@ void FEditorUI::Render()
                     {
                         SaveEditorSettings();
                     }
+
+
+                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+                    ImGui::SeparatorText("Actor Helpers");
+                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+
+                    ShowFlagCheckbox("Decal Arrow", EEngineShowFlags::SF_DecalArrow);
+                    ShowFlagCheckbox("Projectile Arrow", EEngineShowFlags::SF_ProjectileArrow);
+
+                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+                    ImGui::SeparatorText("Debug");
+                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+
+                    bool bDebugLine = ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw);
+                    if (ImGui::Checkbox("Debug Line", &bDebugLine))
+                    {
+                        ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, bDebugLine);
+
+                        if (!bDebugLine)
+                        {
+                            ShowFlags.SetFlag(EEngineShowFlags::SF_Collision, false);
+                            ShowFlags.SetFlag(EEngineShowFlags::SF_SceneBVH, false);
+                            ShowFlags.SetFlag(EEngineShowFlags::SF_MeshBVH, false);
+                        }
+                        SaveEditorSettings();
+                    }
+
+                    ImGui::Indent();
+
+                    if (!bDebugLine)
+                    {
+                        ImGui::BeginDisabled();
+                    }
+
+                    ShowFlagCheckbox("World Bounds (Magenta)", EEngineShowFlags::SF_Collision);
+                    ShowFlagCheckbox("Scene BVH (Yellow)", EEngineShowFlags::SF_SceneBVH);
+                    ShowFlagCheckbox("Mesh BVH (Cyan)", EEngineShowFlags::SF_MeshBVH);
+
+                    if (!bDebugLine)
+                    {
+                        ImGui::EndDisabled();
+                    }
+
+                    ImGui::Unindent();
+
+                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+
+                    bool bDebugVolume = ShowFlags.HasFlag(EEngineShowFlags::SF_DebugVolume);
+                    if (ImGui::Checkbox("Debug Volume", &bDebugVolume))
+                    {
+                        ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, bDebugVolume);
+
+                        if (!bDebugVolume)
+                        {
+                            ShowFlags.SetFlag(EEngineShowFlags::SF_DecalDebug, false);
+                            ShowFlags.SetFlag(EEngineShowFlags::SF_LocalFogDebug, false);
+                        }
+                        SaveEditorSettings();
+                    }
+
+                    ImGui::Indent();
+
+                    if (!bDebugVolume)
+                    {
+                        ImGui::BeginDisabled();
+                    }
+
+                    ShowFlagCheckbox("Decal Volume (Orange)", EEngineShowFlags::SF_DecalDebug);
+                    ShowFlagCheckbox("Local Fog Volume (Purple)", EEngineShowFlags::SF_LocalFogDebug);
+
+                    if (!bDebugVolume)
+                    {
+                        ImGui::EndDisabled();
+                    }
+
+                    ImGui::Unindent();
+
                     ImGui::EndDisabled();
 
                     ImGui::Dummy(ImVec2(0.0f, 5.0f));
@@ -973,7 +1039,6 @@ void FEditorUI::Render()
                     ShowFlagCheckbox("Anti-Aliasing (FXAA)", EEngineShowFlags::SF_FXAA);
                     ShowFlagCheckbox("Height Fog", EEngineShowFlags::SF_Fog);
                     ShowFlagCheckbox("Decal Projection", EEngineShowFlags::SF_Decal);
-                    ShowFlagCheckbox("Depth View", EEngineShowFlags::SF_DepthView);
                 }
             }
             ImGui::EndMenu();
