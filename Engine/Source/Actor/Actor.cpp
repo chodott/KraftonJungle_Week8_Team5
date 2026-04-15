@@ -45,6 +45,11 @@ namespace {
 				continue;
 			}
 
+			if (Child->IsA(UUUIDBillboardComponent::StaticClass()))
+			{
+				continue;
+			}
+
 			if (!Child->IsInstanceComponent() || HasNonInstanceSceneDescendant(Child))
 			{
 				return true;
@@ -63,6 +68,11 @@ namespace {
 
 		for (USceneComponent* Child : Component->GetAttachChildren())
 		{
+			if (!Child || Child->IsA(UUUIDBillboardComponent::StaticClass()))
+			{
+				continue;
+			}
+
 			GatherSceneDeletionSubtree(Child, OutComponents);
 		}
 
@@ -325,6 +335,8 @@ bool AActor::DestroyInstanceComponent(UActorComponent* InComponent)
 	{
 		Level->MarkSpatialDirty();
 	}
+
+	AttachUUIDBillboardToActorRoot(this);
 
 	return true;
 }
@@ -724,6 +736,11 @@ void AActor::Serialize(FArchive& Ar)
 				}
 				TargetComponent->UUID = SavedComponentUUID;
 				GUUIDToObjectMap[SavedComponentUUID] = TargetComponent;
+			}
+
+			if (!TargetComponent->IsA(UUUIDBillboardComponent::StaticClass()))
+			{
+				TargetComponent->SetInstanceComponent(true);
 			}
 
 			TargetComponent->Serialize(*ComponentArchive);

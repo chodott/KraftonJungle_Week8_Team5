@@ -3,14 +3,20 @@
 #include "Asset/ObjManager.h"
 #include "Core/Engine.h"
 
+struct FGameFrameRequest;
+
 class AStaticMeshActor;
 class FMaterial;
+class FObjViewerViewportSurface;
 class FObjViewerShell;
 class FObjViewerViewportClient;
 class FWindowsWindow;
 class UStaticMesh;
 class USceneComponent;
 struct FDynamicMesh;
+struct FEditorLinePassInputs;
+struct FSceneRenderTargets;
+enum class EMaterialPassType : uint8;
 
 enum class EObjImportPreset : uint8_t
 {
@@ -63,6 +69,7 @@ struct FObjViewerModelState
 struct FObjViewerGridSettings
 {
 	bool bVisible = true;
+	bool bShowWorldAxis = true;
 	float GridSize = 10.0f;
 	float LineThickness = 1.0f;
 };
@@ -110,7 +117,7 @@ public:
 
 protected:
 	void BindHost(FWindowsWindow* InMainWindow) override;
-	bool InitializeWorlds(int32 Width, int32 Height) override;
+	bool InitializeWorlds() override;
 	bool InitializeMode() override;
 	std::unique_ptr<IViewportClient> CreateViewportClient() override;
 	void TickWorlds(float DeltaTime) override;
@@ -119,9 +126,22 @@ protected:
 private:
 	void InitializeViewerCamera() const;
 	void CreateGridResources();
-	void ApplyWireframeOverride(FRenderCommandQueue& Queue) const;
+	void CreateAxisResources();
+	void RenderViewportOverlays(
+		FRenderer& Renderer,
+		const FObjViewerViewportSurface& Surface,
+		const FSceneViewRenderRequest& SceneView) const;
+	void RenderOverlayMeshBatch(
+		FRenderer& Renderer,
+		const FFrameContext& Frame,
+		const FViewContext& View,
+		const FSceneRenderTargets& Targets,
+		const FMeshBatch& MeshBatch,
+		EMaterialPassType PassType) const;
+	void ApplyWireframeOverride(FGameFrameRequest& Request) const;
 	void AppendNormalVisualizationDebugDraw();
-	void AppendGridRenderCommand(FRenderCommandQueue& Queue) const;
+	void AppendNormalVisualizationLines(FEditorLinePassInputs& LineInputs) const;
+	void AppendGridMeshBatch(FGameFrameRequest& Request) const;
 	void UpdateLoadedModelState(
 		const FString& FilePath,
 		const FObjImportSummary& ImportOptions,
@@ -135,6 +155,8 @@ private:
 	FObjViewerNormalSettings NormalSettings;
 	std::unique_ptr<FDynamicMesh> GridMesh;
 	std::shared_ptr<FMaterial> GridMaterial;
+	std::unique_ptr<FDynamicMesh> WorldAxisMesh;
+	std::shared_ptr<FMaterial> WorldAxisMaterial;
 	bool bWireframeEnabled = false;
 	const FString WireframeMaterialName = "M_Wireframe";
 	std::shared_ptr<FMaterial> WireframeMaterial = nullptr;

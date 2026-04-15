@@ -60,6 +60,11 @@ namespace
 		{ "Local Height Fog Component", "LocalHeightFogComponent", &ULocalHeightFogComponent::StaticClass },
 	};
 
+	bool IsHiddenEditorOnlyComponent(const UActorComponent* Component)
+	{
+		return Component && Component->IsA(UUUIDBillboardComponent::StaticClass());
+	}
+
 	FString BuildUniqueComponentName(AActor* SelectedActor, const FString& BaseName)
 	{
 		if (!SelectedActor)
@@ -71,7 +76,7 @@ namespace
 		{
 			for (UActorComponent* Component : SelectedActor->GetComponents())
 			{
-				if (Component && Component->GetName() == CandidateName)
+				if (Component && !IsHiddenEditorOnlyComponent(Component) && Component->GetName() == CandidateName)
 				{
 					return true;
 				}
@@ -103,6 +108,11 @@ namespace
 
 		for (USceneComponent* Child : Component->GetAttachChildren())
 		{
+			if (IsHiddenEditorOnlyComponent(Child))
+			{
+				continue;
+			}
+
 			RefreshSceneComponentHierarchy(Child);
 		}
 	}
@@ -165,6 +175,11 @@ namespace
 
 		for (UActorComponent* Component : OwnerActor->GetComponents())
 		{
+			if (IsHiddenEditorOnlyComponent(Component))
+			{
+				continue;
+			}
+
 			if (ShouldDrawUnderSceneComponent(Component, SceneComponent))
 			{
 				return true;
@@ -208,7 +223,7 @@ bool FPropertyWindow::IsComponentOwnedByActor(AActor* SelectedActor, UActorCompo
 
 	for (UActorComponent* OwnedComponent : SelectedActor->GetComponents())
 	{
-		if (OwnedComponent == Component)
+		if (OwnedComponent == Component && !IsHiddenEditorOnlyComponent(OwnedComponent))
 		{
 			return true;
 		}
@@ -1381,9 +1396,16 @@ void FPropertyWindow::DrawSceneComponentNode(USceneComponent* Component, int32 D
 	const FString ClassName = Component->GetClass() ? Component->GetClass()->GetName() : "USceneComponent";
 	const FString ComponentName = Component->GetName().empty() ? ClassName : Component->GetName();
 	const bool bIsRoot = (Component->GetAttachParent() == nullptr);
-	const TArray<USceneComponent*>& Children = Component->GetAttachChildren();
 	const bool bHasAttachedNonSceneChildren = HasAttachedNonSceneChildren(Component);
-	const bool bHasTreeChildren = !Children.empty() || bHasAttachedNonSceneChildren;
+	int32 VisibleChildCount = 0;
+	for (USceneComponent* Child : Component->GetAttachChildren())
+	{
+		if (!IsHiddenEditorOnlyComponent(Child))
+		{
+			++VisibleChildCount;
+		}
+	}
+	const bool bHasTreeChildren = VisibleChildCount > 0 || bHasAttachedNonSceneChildren;
 	ImGuiTreeNodeFlags Flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
 	if (SelectedComponent == Component)
 	{
@@ -1409,8 +1431,13 @@ void FPropertyWindow::DrawSceneComponentNode(USceneComponent* Component, int32 D
 
 	if (bOpen)
 	{
-		for (USceneComponent* Child : Children)
+		for (USceneComponent* Child : Component->GetAttachChildren())
 		{
+			if (IsHiddenEditorOnlyComponent(Child))
+			{
+				continue;
+			}
+
 			DrawSceneComponentNode(Child, Depth + 1);
 		}
 
@@ -1494,7 +1521,7 @@ void FPropertyWindow::DrawComponentSection(AActor* SelectedActor)
 	bool bHasNonSceneComponent = false;
 	for (UActorComponent* Component : SelectedActor->GetComponents())
 	{
-		if (!Component || Component->IsA(USceneComponent::StaticClass()))
+		if (!Component || IsHiddenEditorOnlyComponent(Component) || Component->IsA(USceneComponent::StaticClass()))
 		{
 			continue;
 		}
@@ -1547,7 +1574,7 @@ void FPropertyWindow::Render(FEditorEngine* Engine)
 			{
 				for (UActorComponent* Component : SelectedActor->GetComponents())
 				{
-					if (Component)
+					if (Component && !IsHiddenEditorOnlyComponent(Component))
 					{
 						SelectedComponent = Component;
 						break;
