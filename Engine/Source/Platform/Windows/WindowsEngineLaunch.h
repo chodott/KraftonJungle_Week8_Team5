@@ -12,6 +12,7 @@ struct FEngineLaunchConfig
 	const wchar_t* Title = L"Jungle";
 	int32 Width = 1280;
 	int32 Height = 720;
+	bool bShowWindow = true;
 	std::function<std::unique_ptr<FEngine>()> CreateEngine;
 };
 

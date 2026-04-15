@@ -16,6 +16,7 @@
 #include "Core/Paths.h"
 #include "Core/ViewportClient.h"
 
+#include <algorithm>
 #include <commdlg.h>
 #include <windows.h>
 
@@ -32,6 +33,101 @@ enum class EFileDialogType
     Open,
     Save
 };
+
+namespace
+{
+	FString GetNormalizedExtension(const FString& FilePath)
+	{
+		FString Extension = FPaths::FromPath(FPaths::ToPath(FilePath).extension());
+		std::transform(Extension.begin(), Extension.end(), Extension.begin(), [](unsigned char Ch)
+		{
+			return static_cast<char>(std::tolower(Ch));
+		});
+		return Extension;
+	}
+
+	std::filesystem::path FindObjViewerExecutable()
+	{
+		const std::filesystem::path ProjectRoot = FPaths::ProjectRoot();
+		const std::filesystem::path DebugPath = ProjectRoot / "ObjViewer/Bin/Debug/ObjViewer.exe";
+		if (std::filesystem::exists(DebugPath))
+		{
+			return DebugPath;
+		}
+
+		const std::filesystem::path ReleasePath = ProjectRoot / "ObjViewer/Bin/Release/ObjViewer.exe";
+		if (std::filesystem::exists(ReleasePath))
+		{
+			return ReleasePath;
+		}
+
+		return {};
+	}
+
+	FString ResolveObjViewerInputPath(const FString& FilePath)
+	{
+		const FString Extension = GetNormalizedExtension(FilePath);
+		if (Extension == ".obj")
+		{
+			return FilePath;
+		}
+
+		if (Extension == ".model")
+		{
+			const std::filesystem::path ModelPath = FPaths::ToPath(FPaths::ToAbsolutePath(FilePath)).lexically_normal();
+			const std::filesystem::path ObjPath = ModelPath.parent_path() / (ModelPath.stem().string() + ".obj");
+			if (std::filesystem::exists(ObjPath))
+			{
+				return FPaths::FromPath(ObjPath);
+			}
+		}
+
+		return "";
+	}
+
+	bool CanOpenInObjViewer(const FString& FilePath)
+	{
+		return !ResolveObjViewerInputPath(FilePath).empty();
+	}
+
+	bool LaunchObjViewer(const FString& FilePath)
+	{
+		const FString InputPath = ResolveObjViewerInputPath(FilePath);
+		const std::filesystem::path ObjViewerPath = FindObjViewerExecutable();
+		if (InputPath.empty() || ObjViewerPath.empty())
+		{
+			return false;
+		}
+
+		const std::wstring CommandLine =
+			L"\"" + ObjViewerPath.wstring() + L"\""
+			L" --input \"" + FPaths::ToWide(FPaths::ToAbsolutePath(InputPath)) + L"\"";
+		std::wstring MutableCommandLine = CommandLine;
+
+		STARTUPINFOW StartupInfo = {};
+		StartupInfo.cb = sizeof(StartupInfo);
+		PROCESS_INFORMATION ProcessInfo = {};
+		const BOOL bLaunched = ::CreateProcessW(
+			ObjViewerPath.wstring().c_str(),
+			MutableCommandLine.data(),
+			nullptr,
+			nullptr,
+			FALSE,
+			0,
+			nullptr,
+			ObjViewerPath.parent_path().wstring().c_str(),
+			&StartupInfo,
+			&ProcessInfo);
+		if (!bLaunched)
+		{
+			return false;
+		}
+
+		::CloseHandle(ProcessInfo.hThread);
+		::CloseHandle(ProcessInfo.hProcess);
+		return true;
+	}
+}
 
 std::string GetFilePathUsingDialog(EFileDialogType Type)
 {
@@ -94,9 +190,25 @@ void FEditorUI::Initialize(FEditorEngine *InEngine)
     };
 
     ContentBrowser.OnFileDoubleClickCallback = [this](const FString &FilePath) {
+        if (CanOpenInObjViewer(FilePath))
+        {
+            if (!LaunchObjViewer(FilePath))
+            {
+                MessageBoxW(nullptr, L"ObjViewer를 실행할 수 없습니다.", L"Open in ObjViewer", MB_OK | MB_ICONWARNING);
+            }
+            return;
+        }
+
         if (Engine)
         {
             Engine->GetViewportClient()->HandleFileDoubleClick(FilePath);
+        }
+    };
+
+    ContentBrowser.OnOpenInObjViewerRequested = [](const FString &FilePath) {
+        if (!LaunchObjViewer(FilePath))
+        {
+            MessageBoxW(nullptr, L"ObjViewer 실행에 실패했거나 원본 .obj를 찾을 수 없습니다.", L"Open in ObjViewer", MB_OK | MB_ICONWARNING);
         }
     };
 

@@ -37,7 +37,8 @@ void FSceneCommandResourceCache::UpdateSubUVMaterialParams(
 	FMaterial& Material,
 	int32 Columns,
 	int32 Rows,
-	int32 CurrentFrame)
+	int32 CurrentFrame,
+	const FVector4& Color)
 {
 	if (Columns <= 0 || Rows <= 0)
 	{
@@ -57,6 +58,7 @@ void FSceneCommandResourceCache::UpdateSubUVMaterialParams(
 
 	Material.SetParameterData("CellSize", &CellSize, sizeof(FVector2));
 	Material.SetParameterData("UVOffset", &UVOffset, sizeof(FVector2));
+	Material.SetParameterData("BaseColor", &Color, sizeof(FVector4));
 }
 
 FMaterial* FSceneCommandResourceCache::GetOrCreateTextMaterial(const FSceneCommandBuildContext& BuildContext, const FVector4& TextColor)
@@ -131,7 +133,8 @@ FMaterial* FSceneCommandResourceCache::GetOrCreateSubUVMaterial(
 		*Material,
 		Component->GetColumns(),
 		Component->GetRows(),
-		Component->GetCurrentFrame());
+		Component->GetCurrentFrame(),
+		Component->GetColor());
 
 	return Material;
 }

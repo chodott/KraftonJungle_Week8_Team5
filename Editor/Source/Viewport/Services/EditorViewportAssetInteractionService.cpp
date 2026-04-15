@@ -11,6 +11,7 @@
 #include "Slate/SlateApplication.h"
 #include "UI/EditorUI.h"
 #include "World/WorldContext.h"
+#include "Object/ObjectFactory.h"
 #include <Windows.h>
 #include <algorithm>
 #include <filesystem>
@@ -168,9 +169,8 @@ void FEditorViewportAssetInteractionService::HandleFileDropOnViewport(
 	NewActor->SetRootComponent(MeshComponent);
 
 	const std::filesystem::path SourcePath = FPaths::ToPath(FilePath);
-	const std::filesystem::path TargetPath = FPaths::MeshDir() / SourcePath.filename();
 	const FString PureFileName = FPaths::FromPath(SourcePath.filename());
-	UStaticMesh* LoadedMesh = FObjManager::LoadStaticMeshAsset(FPaths::FromPath(TargetPath));
+	UStaticMesh* LoadedMesh = FObjManager::LoadStaticMeshAsset(FilePath);
 
 	if (LoadedMesh)
 	{

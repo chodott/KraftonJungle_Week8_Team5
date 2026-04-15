@@ -1,6 +1,7 @@
 #include "ObjViewerEngine.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 
@@ -12,6 +13,7 @@
 
 #include "Actor/Actor.h"
 #include "Actor/StaticMeshActor.h"
+#include "Asset/StaticMeshLODBuilder.h"
 #include "Asset/ObjManager.h"
 #include "Camera/Camera.h"
 #include "Component/CameraComponent.h"
@@ -220,10 +222,39 @@ namespace
 			return D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		}
 	}
+
+	FString GetLodFilePath(const FString& MeshPathFileName, int32 LodLevel)
+	{
+		const std::filesystem::path MeshPath = FPaths::ToPath(FPaths::ToAbsolutePath(MeshPathFileName)).lexically_normal();
+		const std::filesystem::path LodPath = MeshPath.parent_path()
+			/ (MeshPath.stem().string() + "_lod" + std::to_string(LodLevel) + ".lod");
+		return FPaths::FromPath(LodPath);
+	}
+
+	uint64 GetFileWriteTimestamp(const FString& PathFileName)
+	{
+		std::error_code ErrorCode;
+		const std::filesystem::path Path = FPaths::ToPath(FPaths::ToAbsolutePath(PathFileName)).lexically_normal();
+		if (Path.empty() || !std::filesystem::exists(Path, ErrorCode))
+		{
+			return 0;
+		}
+
+		const auto FileTime = std::filesystem::last_write_time(Path, ErrorCode);
+		if (ErrorCode)
+		{
+			return 0;
+		}
+
+		const auto SystemTime = std::chrono::time_point_cast<std::chrono::nanoseconds>(
+			FileTime - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now());
+		return static_cast<uint64>(SystemTime.time_since_epoch().count());
+	}
 }
 
-FObjViewerEngine::FObjViewerEngine()
-	: ViewerShell(std::make_unique<FObjViewerShell>())
+FObjViewerEngine::FObjViewerEngine(const FObjViewerLaunchOptions& InLaunchOptions)
+	: LaunchOptions(InLaunchOptions)
+	, ViewerShell(std::make_unique<FObjViewerShell>())
 {
 }
 
@@ -301,6 +332,7 @@ bool FObjViewerEngine::LoadModelFromFile(const FString& FilePath, const FObjImpo
 	}
 
 	MeshComponent->SetStaticMesh(LoadedMesh);
+	MeshComponent->SetLODEnabled(AppliedImportOptions.bEnableLOD);
 
 	if (USceneComponent* RootComponent = DisplayActor->GetRootComponent())
 	{
@@ -338,6 +370,22 @@ bool FObjViewerEngine::LoadModelFromFile(const FString& FilePath, const FObjImpo
 	return true;
 }
 
+void FObjViewerEngine::SetLoadedModelLODEnabled(bool bEnabled)
+{
+	ModelState.bLodEnabled = bEnabled;
+	ModelState.LastImportSummary.bEnableLOD = bEnabled;
+
+	if (ModelState.DisplayActor == nullptr)
+	{
+		return;
+	}
+
+	if (UStaticMeshComponent* MeshComponent = ModelState.DisplayActor->GetComponentByClass<UStaticMeshComponent>())
+	{
+		MeshComponent->SetLODEnabled(bEnabled);
+	}
+}
+
 bool FObjViewerEngine::ExportLoadedModelAsModel(const FString& FilePath) const
 {
 	if (FilePath.empty() || !HasLoadedModel() || ModelState.Mesh == nullptr || ModelState.Mesh->GetRenderData() == nullptr)
@@ -357,9 +405,104 @@ bool FObjViewerEngine::ExportLoadedModelAsModel(const FString& FilePath) const
 		UE_LOG("[ObjViewer] Falling back to default embedded material metadata for export: %s", ModelState.SourceFilePath.c_str());
 	}
 
-	const bool bSaved = FObjManager::SaveModelStaticMeshAsset(FilePath, BakedMesh, MaterialInfos);
+	const bool bSaved = FObjManager::SaveModelStaticMeshAsset(FilePath, BakedMesh, MaterialInfos, GetFileWriteTimestamp(ModelState.SourceFilePath));
 	UE_LOG("[ObjViewer] %s .Model export: %s", bSaved ? "Succeeded" : "Failed", FilePath.c_str());
 	return bSaved;
+}
+
+bool FObjViewerEngine::GenerateLoadedModelLODs()
+{
+	if (!HasLoadedModel() || ModelState.Mesh == nullptr || ModelState.Mesh->GetRenderData() == nullptr)
+	{
+		LastOperationStatus = "LOD generation skipped: no valid mesh loaded.";
+		UE_LOG("[ObjViewer] LOD generation skipped because no valid mesh is loaded.");
+		return false;
+	}
+
+	const FString SourcePath = ModelState.SourceFilePath;
+	if (SourcePath.empty())
+	{
+		LastOperationStatus = "LOD generation skipped: source path is empty.";
+		UE_LOG("[ObjViewer] LOD generation skipped because source path is empty.");
+		return false;
+	}
+
+	const uint64 SourceTimestamp = GetFileWriteTimestamp(SourcePath);
+
+	FStaticMeshLODSettings Settings;
+	Settings.NumLODs = (std::max)(LODBuilderSettings.NumLODs, 0);
+	Settings.TriangleReductionStep = (std::clamp)(LODBuilderSettings.TriangleReductionStep, 0.01f, 0.95f);
+	Settings.ScreenSizeStep = (std::clamp)(LODBuilderSettings.ScreenSizeStep, 0.01f, 0.99f);
+
+	FStaticMeshLODBuilder::BuildLODs(*ModelState.Mesh, Settings);
+
+	const uint32 LodCount = ModelState.Mesh->GetLodCount();
+	for (uint32 LodIndex = 1; LodIndex < LodCount; ++LodIndex)
+	{
+		FStaticMesh* LodMesh = ModelState.Mesh->GetRenderData(static_cast<int32>(LodIndex));
+		if (!LodMesh)
+		{
+			continue;
+		}
+
+		const FString LodPath = GetLodFilePath(SourcePath, static_cast<int32>(LodIndex));
+		if (!FObjManager::SaveLodAsset(LodPath, *LodMesh, SourceTimestamp, ModelState.Mesh->GetLodScreenSize(static_cast<int32>(LodIndex))))
+		{
+			LastOperationStatus = "LOD generation failed while saving files.";
+			UE_LOG("[ObjViewer] Failed to save generated LOD%d: %s", static_cast<int32>(LodIndex), LodPath.c_str());
+			return false;
+		}
+	}
+
+	if (LodCount <= 1)
+	{
+		LastOperationStatus = "LOD generation completed, but no additional LODs were produced.";
+		UE_LOG("[ObjViewer] No additional LODs were generated for: %s", SourcePath.c_str());
+	}
+	else
+	{
+		LastOperationStatus = "LOD files generated successfully.";
+		UE_LOG("[ObjViewer] Generated %u LOD(s) for: %s", LodCount - 1, SourcePath.c_str());
+	}
+
+	UpdateLoadedModelState(SourcePath, ModelState.LastImportSummary, ModelState.Mesh, ModelState.DisplayActor);
+	SetLoadedModelLODEnabled(ModelState.LastImportSummary.bEnableLOD);
+	return true;
+}
+
+bool FObjViewerEngine::DeleteLoadedModelLODs()
+{
+	if (!HasLoadedModel() || ModelState.SourceFilePath.empty())
+	{
+		LastOperationStatus = "LOD deletion skipped: no valid mesh loaded.";
+		UE_LOG("[ObjViewer] LOD deletion skipped because no valid mesh is loaded.");
+		return false;
+	}
+
+	bool bDeletedAny = false;
+	for (int32 LodIndex = 1; LodIndex <= 64; ++LodIndex)
+	{
+		const std::filesystem::path LodPath = FPaths::ToPath(GetLodFilePath(ModelState.SourceFilePath, LodIndex)).lexically_normal();
+		std::error_code ErrorCode;
+		if (std::filesystem::exists(LodPath, ErrorCode) && std::filesystem::remove(LodPath, ErrorCode))
+		{
+			bDeletedAny = true;
+		}
+	}
+
+	if (!bDeletedAny)
+	{
+		LastOperationStatus = "No LOD files were found to delete.";
+		UE_LOG("[ObjViewer] No LOD files found to delete for: %s", ModelState.SourceFilePath.c_str());
+		return true;
+	}
+
+	ModelState.Mesh->ClearLods();
+	UpdateLoadedModelState(ModelState.SourceFilePath, ModelState.LastImportSummary, ModelState.Mesh, ModelState.DisplayActor);
+	SetLoadedModelLODEnabled(ModelState.LastImportSummary.bEnableLOD);
+	LastOperationStatus = "LOD files deleted.";
+	UE_LOG("[ObjViewer] Deleted LOD files for: %s", ModelState.SourceFilePath.c_str());
+	return true;
 }
 
 bool FObjViewerEngine::ReloadLoadedModel()
@@ -485,6 +628,12 @@ bool FObjViewerEngine::InitializeMode()
 	CreateGridResources();
 	CreateAxisResources();
 	return true;
+}
+
+void FObjViewerEngine::FinalizeInitialize()
+{
+	FEngine::FinalizeInitialize();
+	ProcessLaunchOptions();
 }
 
 std::unique_ptr<IViewportClient> FObjViewerEngine::CreateViewportClient()
@@ -1141,6 +1290,7 @@ void FObjViewerEngine::UpdateLoadedModelState(
 		ModelState.IndexCount = static_cast<int32>(RenderData->Indices.size());
 		ModelState.TriangleCount = static_cast<int32>(RenderData->Indices.size() / 3);
 		ModelState.SectionCount = RenderData->GetNumSection();
+		ModelState.LodCount = static_cast<int32>(Mesh->GetLodCount());
 		ModelState.bHasUV = MeshHasAnyUVs(Mesh);
 	}
 
@@ -1149,5 +1299,27 @@ void FObjViewerEngine::UpdateLoadedModelState(
 		ModelState.BoundsCenter = Mesh->LocalBounds.Center;
 		ModelState.BoundsRadius = Mesh->LocalBounds.Radius;
 		ModelState.BoundsExtent = Mesh->LocalBounds.BoxExtent;
+	}
+
+	ModelState.bLodEnabled = ImportOptions.bEnableLOD;
+}
+
+void FObjViewerEngine::ProcessLaunchOptions()
+{
+	if (LaunchOptions.InputFilePath.empty())
+	{
+		return;
+	}
+
+	bool bSucceeded = LoadModelFromFile(LaunchOptions.InputFilePath, "Command Line");
+	if (bSucceeded && !LaunchOptions.ExportModelPath.empty())
+	{
+		bSucceeded = ExportLoadedModelAsModel(LaunchOptions.ExportModelPath);
+	}
+
+	LaunchOptions.InputFilePath.clear();
+	if (LaunchOptions.bCloseWhenDone)
+	{
+		::PostQuitMessage(bSucceeded ? 0 : 1);
 	}
 }

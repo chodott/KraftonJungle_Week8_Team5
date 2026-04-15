@@ -1,5 +1,6 @@
 ﻿#include "StaticMeshComponent.h"
 
+#include <algorithm>
 #include <filesystem>
 
 #include "Object/Class.h"
@@ -32,9 +33,76 @@ void UStaticMeshComponent::SetStaticMesh(UStaticMesh* InStaticMesh)
 	}
 }
 
+void UStaticMeshComponent::SetLODEnabled(bool bEnabled)
+{
+	LODSettings.bEnabled = bEnabled;
+}
+
+bool UStaticMeshComponent::IsLODEnabled() const
+{
+	return LODSettings.bEnabled;
+}
+
+void UStaticMeshComponent::SetLODScreenSizeScale(float InScale)
+{
+	LODSettings.ScreenSizeScale = (std::max)(InScale, 0.01f);
+}
+
+float UStaticMeshComponent::GetLODScreenSizeScale() const
+{
+	return LODSettings.ScreenSizeScale;
+}
+
+void UStaticMeshComponent::SetLODScreenSizeBias(float InBias)
+{
+	LODSettings.ScreenSizeBias = InBias;
+}
+
+float UStaticMeshComponent::GetLODScreenSizeBias() const
+{
+	return LODSettings.ScreenSizeBias;
+}
+
+const FStaticMeshComponentLODSettings& UStaticMeshComponent::GetLODSettings() const
+{
+	return LODSettings;
+}
+
+void UStaticMeshComponent::SetLODSettings(const FStaticMeshComponentLODSettings& InSettings)
+{
+	LODSettings = InSettings;
+	LODSettings.ScreenSizeScale = (std::max)(LODSettings.ScreenSizeScale, 0.01f);
+}
+
 FRenderMesh* UStaticMeshComponent::GetRenderMesh() const
 {
 	return StaticMesh ? StaticMesh->GetRenderData() : nullptr;
+}
+
+FRenderMesh* UStaticMeshComponent::GetRenderMesh(const FRenderMeshSelectionContext& SelectionContext) const
+{
+	if (!StaticMesh)
+	{
+		return nullptr;
+	}
+
+	if (!LODSettings.bEnabled)
+	{
+		return StaticMesh->GetRenderData();
+	}
+
+	FStaticMeshLODSelectionContext LODSelectionContext;
+	LODSelectionContext.ScreenSize = SelectionContext.ScreenSize;
+	LODSelectionContext.ThresholdScale = LODSettings.ScreenSizeScale;
+	LODSelectionContext.ThresholdBias = LODSettings.ScreenSizeBias;
+	return StaticMesh->GetRenderDataForScreenSize(LODSelectionContext);
+}
+
+FRenderMesh* UStaticMeshComponent::GetRenderMesh(const float& Distance) const
+{
+	FRenderMeshSelectionContext SelectionContext;
+	SelectionContext.Distance = Distance;
+	return GetRenderMesh(SelectionContext);
 }
 
 void UStaticMeshComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const
@@ -43,6 +111,7 @@ void UStaticMeshComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicat
 
 	UStaticMeshComponent* DuplicatedStaticMeshComponent = static_cast<UStaticMeshComponent*>(DuplicatedObject);
 	DuplicatedStaticMeshComponent->SetStaticMesh(StaticMesh);
+	DuplicatedStaticMeshComponent->LODSettings = LODSettings;
 	DuplicateMaterialsTo(DuplicatedStaticMeshComponent);
 }
 
@@ -78,9 +147,27 @@ void UStaticMeshComponent::Serialize(FArchive& Ar)
 		}
 
 		Ar.Serialize("ObjStaticMeshAsset", MeshFileName);
+		Ar.Serialize("EnableLOD", LODSettings.bEnabled);
+		Ar.Serialize("LODScreenSizeScale", LODSettings.ScreenSizeScale);
+		Ar.Serialize("LODScreenSizeBias", LODSettings.ScreenSizeBias);
 	}
 	else
 	{
+		if (Ar.Contains("EnableLOD"))
+		{
+			Ar.Serialize("EnableLOD", LODSettings.bEnabled);
+		}
+
+		if (Ar.Contains("LODScreenSizeScale"))
+		{
+			Ar.Serialize("LODScreenSizeScale", LODSettings.ScreenSizeScale);
+		}
+
+		if (Ar.Contains("LODScreenSizeBias"))
+		{
+			Ar.Serialize("LODScreenSizeBias", LODSettings.ScreenSizeBias);
+		}
+
 		if (Ar.Contains("ObjStaticMeshAsset"))
 		{
 			FString MeshFileName;
@@ -95,4 +182,6 @@ void UStaticMeshComponent::Serialize(FArchive& Ar)
 
 		UMeshComponent::Serialize(Ar);
 	}
+
+	LODSettings.ScreenSizeScale = (std::max)(LODSettings.ScreenSizeScale, 0.01f);
 }

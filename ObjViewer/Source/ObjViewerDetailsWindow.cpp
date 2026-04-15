@@ -139,7 +139,12 @@ void FObjViewerDetailsWindow::Render(FObjViewerEngine* Engine)
 		ImGui::SameLine(120.0f);
 		ImGui::Text("%d", State.SectionCount);
 
+		ImGui::Text("LOD Count");
+		ImGui::SameLine(120.0f);
+		ImGui::Text("%d", State.LodCount);
+
 		DrawBoolValue("UV Present", State.bHasUV);
+		DrawBoolValue("LOD Enabled", State.bLodEnabled);
 	}
 
 	if (ImGui::CollapsingHeader("Bounds", ImGuiTreeNodeFlags_DefaultOpen))
@@ -161,6 +166,7 @@ void FObjViewerDetailsWindow::Render(FObjViewerEngine* Engine)
 		DrawBoolValue("Center To Origin", State.LastImportSummary.bCenterToOrigin);
 		DrawBoolValue("Place On Ground", State.LastImportSummary.bPlaceOnGround);
 		DrawBoolValue("Frame Camera", State.LastImportSummary.bFrameCameraAfterImport);
+		DrawBoolValue("Enable LOD", State.LastImportSummary.bEnableLOD);
 
 		ImGui::Text("Uniform Scale");
 		ImGui::SameLine(120.0f);
@@ -173,6 +179,12 @@ void FObjViewerDetailsWindow::Render(FObjViewerEngine* Engine)
 		if (ImGui::Checkbox("Show Wireframe", &bWireframeEnabled))
 		{
 			Engine->SetWireframeEnabled(bWireframeEnabled);
+		}
+
+		bool bEnableLOD = Engine->IsLoadedModelLODEnabled();
+		if (ImGui::Checkbox("Enable LOD", &bEnableLOD))
+		{
+			Engine->SetLoadedModelLODEnabled(bEnableLOD);
 		}
 
 		FObjViewerNormalSettings& NormalSettings = Engine->GetMutableNormalSettings();
@@ -207,6 +219,32 @@ void FObjViewerDetailsWindow::Render(FObjViewerEngine* Engine)
 		ImGui::Checkbox("Show Grid", &GridSettings.bVisible);
 		ImGui::SliderFloat("Grid Size", &GridSettings.GridSize, 1.0f, 100.0f, "%.1f");
 		ImGui::SliderFloat("Line Thickness", &GridSettings.LineThickness, 0.1f, 5.0f, "%.2f");
+	}
+
+	if (ImGui::CollapsingHeader("LOD", ImGuiTreeNodeFlags_DefaultOpen))
+	{
+		FObjViewerLODBuilderSettings& LODSettings = Engine->GetMutableLODBuilderSettings();
+		ImGui::DragInt("LOD Levels", &LODSettings.NumLODs, 1.0f, 0, 8);
+		ImGui::SliderFloat("Reduction Step", &LODSettings.TriangleReductionStep, 0.05f, 0.95f, "%.2f");
+		ImGui::SliderFloat("Screen Size Step", &LODSettings.ScreenSizeStep, 0.05f, 0.95f, "%.2f");
+
+		if (ImGui::Button("Generate LOD Files"))
+		{
+			Engine->GenerateLoadedModelLODs();
+		}
+
+		ImGui::SameLine();
+		if (ImGui::Button("Delete LOD Files"))
+		{
+			Engine->DeleteLoadedModelLODs();
+		}
+
+		const FString& Status = Engine->GetLastOperationStatus();
+		if (!Status.empty())
+		{
+			ImGui::Spacing();
+			ImGui::TextWrapped("%s", Status.c_str());
+		}
 	}
 
 	if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen))

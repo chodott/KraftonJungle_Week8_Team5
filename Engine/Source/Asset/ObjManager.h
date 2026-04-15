@@ -37,10 +37,12 @@ public:
 	static UStaticMesh* LoadObjStaticMeshAsset(const FString& PathFileName);
 	static UStaticMesh* LoadObjStaticMeshAsset(const FString& PathFileName, const FObjLoadOptions& LoadOptions);
 	static UStaticMesh* LoadModelStaticMeshAsset(const FString& PathFileName);
-	static bool SaveModelStaticMeshAsset(const FString& PathFileName, const FStaticMesh& StaticMesh, const TArray<FModelMaterialInfo>& MaterialInfos);
+	static FStaticMesh* LoadLodAsset(const FString& PathFileName, float* OutScreenSize = nullptr);
+	static bool SaveModelStaticMeshAsset(const FString& PathFileName, const FStaticMesh& StaticMesh, const TArray<FModelMaterialInfo>& MaterialInfos, uint64 SourceTimestamp = 0);
+	static bool SaveLodAsset(const FString& PathFileName, const FStaticMesh& LodMes, uint64 SourceTimestamp = 0, float ScreenSize = 0.0f);
 	static bool BuildModelMaterialInfosFromObj(const FString& ObjFilePath, const FString& ModelFilePath, const TArray<FString>& MaterialSlotNames, TArray<FModelMaterialInfo>& OutMaterialInfos);
 	static bool ParseMtlFile(const FString& MtlFIlePath);
-	static void PreloadAllObjFiles(const FString& DirecttoryPath);
+	static void PreloadAllObjFiles(const FString& DirectoryPath);
 	static void PreloadAllModelFiles(const FString& DirectoryPath);
 	static void PreloadAllMtlFiles(const FString& DirectoryPath);
 
@@ -48,4 +50,5 @@ public:
 
 private:
 	static bool ParseObjFile(const FString& FilePath, FStaticMesh* OutMesh, TArray<FString>& OutMaterialNames, const FObjLoadOptions& LoadOptions);
+	static void InvalidateCacheEntriesForAsset(const FString& PathFileName);
 };

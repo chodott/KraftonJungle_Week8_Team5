@@ -30,7 +30,8 @@ private:
 		FMaterial& Material,
 		int32 Columns,
 		int32 Rows,
-		int32 CurrentFrame);
+		int32 CurrentFrame,
+		const FVector4& Color);
 
 private:
 	TMap<uint32, std::shared_ptr<FDynamicMaterial>> TextMaterialsByColor;

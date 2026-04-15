@@ -13,6 +13,11 @@ class FArchive;
 class FMaterial;
 class Archive;
 struct FBoxSphereBounds;
+struct FRenderMeshSelectionContext
+{
+	float Distance = 0.0f;
+	float ScreenSize = 0.0f;
+};
 
 struct FBoxSphereBounds
 {
@@ -42,7 +47,9 @@ public:
 	void SetEditorVisualization(bool bEnable) { bEditorVisualization = bEnable; }
 	bool IsEditorVisualization() const { return bEditorVisualization; }
 
-	virtual FRenderMesh* GetRenderMesh() const { return nullptr; }
+	virtual FRenderMesh* GetRenderMesh() const;
+	virtual FRenderMesh* GetRenderMesh(const FRenderMeshSelectionContext& SelectionContext) const;
+	virtual FRenderMesh* GetRenderMesh(const float& Distance) const;
 
 	virtual bool IsPickable() const { return true; }
 	virtual bool UseSpherePicking() const { return false; }

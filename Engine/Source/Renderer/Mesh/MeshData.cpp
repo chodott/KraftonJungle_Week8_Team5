@@ -1,8 +1,10 @@
 ﻿#include "Renderer/Mesh/MeshData.h"
+
 #include "Object/Class.h"
 #include "Renderer/Mesh/Vertex.h"
 #include "Level/MeshBVH.h"
 #include <cstring>
+
 
 bool FStaticMesh::UpdateVertexAndIndexBuffer(ID3D11Device* Device, ID3D11DeviceContext* Context)
 {
@@ -171,6 +173,23 @@ const FString& UStaticMesh::GetAssetPathFileName() const
 	return EmptyPath;
 }
 
+void UStaticMesh::SetStaticMeshAsset(FStaticMesh* InStaticMesh)
+{
+	if (StaticMeshAsset == InStaticMesh)
+	{
+		return;
+	}
+
+	if (StaticMeshAsset)
+	{
+		delete StaticMeshAsset;
+	}
+
+	StaticMeshAsset = InStaticMesh;
+	ClearLods();
+	TriangleBVH.reset();
+}
+
 void UStaticMesh::BuildAccelerationStructureIfNeeded() const
 {
 	if (TriangleBVH || !StaticMeshAsset)
@@ -189,6 +208,97 @@ void UStaticMesh::VisitMeshBVHNodes(const FBVHNodeVisitor& Visitor) const
 	{
 		TriangleBVH->VisitNodes(Visitor);
 	}
+}
+
+
+FStaticMesh* UStaticMesh::GetRenderData(int32 LODIndex) const
+{
+	if (LODIndex <= 0)
+	{
+		return StaticMeshAsset;
+	}
+
+	const size_t ExtraLodIndex = static_cast<size_t>(LODIndex - 1);
+	if (ExtraLodIndex >= LODs.size())
+	{
+		return StaticMeshAsset;
+	}
+
+	return LODs[ExtraLodIndex].Mesh ? LODs[ExtraLodIndex].Mesh.get() : StaticMeshAsset;
+}
+
+FStaticMesh* UStaticMesh::GetRenderDataForScreenSize(const FStaticMeshLODSelectionContext& SelectionContext) const
+{
+	FStaticMesh* SelectedMesh = StaticMeshAsset;
+	if (!SelectedMesh)
+	{
+		return nullptr;
+	}
+
+	const float EffectiveScreenSize = (std::max)(SelectionContext.ScreenSize, 0.0f);
+	const float EffectiveThresholdScale = (std::max)(SelectionContext.ThresholdScale, 0.01f);
+	for (const FStaticMeshLOD& Lod : LODs)
+	{
+		if (!Lod.Mesh)
+		{
+			break;
+		}
+
+		const float EffectiveThreshold = (std::max)(Lod.ScreenSize * EffectiveThresholdScale + SelectionContext.ThresholdBias, 0.0f);
+		if (EffectiveScreenSize > EffectiveThreshold)
+		{
+			break;
+		}
+
+		SelectedMesh = Lod.Mesh.get();
+	}
+
+	return SelectedMesh;
+}
+
+void UStaticMesh::AddLod(std::unique_ptr<FStaticMesh> InMesh, float InScreenSize)
+{
+	if (!InMesh)
+	{
+		return;
+	}
+
+	FStaticMeshLOD NewLOD;
+	NewLOD.VertexCount = static_cast<uint32>(InMesh->Vertices.size());
+	NewLOD.ScreenSize = (std::max)(InScreenSize, 0.0f);
+	NewLOD.Mesh = std::move(InMesh);
+	LODs.push_back(std::move(NewLOD));
+
+	std::sort(LODs.begin(), LODs.end(), [](const FStaticMeshLOD& A, const FStaticMeshLOD& B)
+	{
+		return A.ScreenSize > B.ScreenSize;
+	});
+}
+
+void UStaticMesh::ClearLods()
+{
+	LODs.clear();
+}
+
+uint32 UStaticMesh::GetLodCount() const
+{
+	return StaticMeshAsset ? static_cast<uint32>(LODs.size() + 1) : 0;
+}
+
+float UStaticMesh::GetLodScreenSize(int32 LODIndex) const
+{
+	if (LODIndex <= 0)
+	{
+		return 0.0f;
+	}
+
+	const size_t ExtraLodIndex = static_cast<size_t>(LODIndex - 1);
+	if (ExtraLodIndex >= LODs.size())
+	{
+		return 0.0f;
+	}
+
+	return LODs[ExtraLodIndex].ScreenSize;
 }
 
 bool UStaticMesh::IntersectLocalRay(const FVector& RayOrigin, const FVector& RayDirection, float& OutDistance) const

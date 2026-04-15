@@ -6,6 +6,22 @@
 #include "Level/MeshBVH.h"
 #include <memory>
 
+struct FStaticMesh;
+
+struct FStaticMeshLODSelectionContext
+{
+	float ScreenSize = 0.0f;
+	float ThresholdScale = 1.0f;
+	float ThresholdBias = 0.0f;
+};
+
+struct FStaticMeshLOD
+{
+	std::unique_ptr<FStaticMesh> Mesh = nullptr;
+	float ScreenSize = 0.0f;
+	uint32 VertexCount = 0;
+};
+
 struct ENGINE_API FStaticMesh : public FRenderMesh
 {
 	virtual bool UpdateVertexAndIndexBuffer(ID3D11Device* Device, ID3D11DeviceContext* Context) override;
@@ -38,7 +54,7 @@ public:
 	FBoxSphereBounds LocalBounds;
 	const FString& GetAssetPathFileName() const;
 
-	void SetStaticMeshAsset(FStaticMesh* InStaticMesh) { StaticMeshAsset = InStaticMesh; }
+	void SetStaticMeshAsset(FStaticMesh* InStaticMesh);
 	FStaticMesh* GetRenderData() const { return StaticMeshAsset; }
 	int32 GetNumSections() const { return StaticMeshAsset ? StaticMeshAsset->GetNumSection() : 0; }
 
@@ -48,8 +64,16 @@ public:
 	void BuildAccelerationStructureIfNeeded() const;
 	void VisitMeshBVHNodes(const FBVHNodeVisitor& Visitor) const;
 
+	FStaticMesh* GetRenderData(int32 LODIndex) const;
+	FStaticMesh* GetRenderDataForScreenSize(const FStaticMeshLODSelectionContext& SelectionContext) const;
+	void AddLod(std::unique_ptr<FStaticMesh> InMesh, float InScreenSize);
+	void ClearLods();
+	uint32 GetLodCount() const;
+	float GetLodScreenSize(int32 LODIndex) const;
+
 private:
 	FStaticMesh* StaticMeshAsset = nullptr;
 	TArray<std::shared_ptr<FMaterial>> DefaultMaterials;
 	mutable std::unique_ptr<FMeshBVH> TriangleBVH;
+	TArray<FStaticMeshLOD> LODs;
 };

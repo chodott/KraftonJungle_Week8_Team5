@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Asset/StaticMeshLODBuilder.h"
 #include "Asset/ObjManager.h"
 #include "Core/Engine.h"
 
@@ -39,6 +40,7 @@ struct FObjImportSummary
 	bool bCenterToOrigin = true;
 	bool bPlaceOnGround = false;
 	bool bFrameCameraAfterImport = true;
+	bool bEnableLOD = true;
 	float UniformScale = 1.0f;
 };
 
@@ -57,7 +59,9 @@ struct FObjViewerModelState
 	int32 IndexCount = 0;
 	int32 TriangleCount = 0;
 	int32 SectionCount = 0;
+	int32 LodCount = 0;
 	bool bHasUV = false;
+	bool bLodEnabled = true;
 
 	FVector BoundsCenter = FVector::ZeroVector;
 	float BoundsRadius = 0.0f;
@@ -87,10 +91,24 @@ struct FObjViewerNormalSettings
 	float LengthScale = 0.05f;
 };
 
+struct FObjViewerLODBuilderSettings
+{
+	int32 NumLODs = 3;
+	float TriangleReductionStep = 0.5f;
+	float ScreenSizeStep = 0.5f;
+};
+
+struct FObjViewerLaunchOptions
+{
+	FString InputFilePath;
+	FString ExportModelPath;
+	bool bCloseWhenDone = false;
+};
+
 class FObjViewerEngine : public FEngine
 {
 public:
-	FObjViewerEngine();
+	explicit FObjViewerEngine(const FObjViewerLaunchOptions& InLaunchOptions = {});
 	~FObjViewerEngine() override;
 
 	ULevel* GetActiveScene() const override;
@@ -100,6 +118,8 @@ public:
 	bool LoadModelFromFile(const FString& FilePath, const FObjImportSummary& ImportOptions);
 	bool LoadModelFromFile(const FString& FilePath, const FString& ImportSource = "Unknown");
 	bool ExportLoadedModelAsModel(const FString& FilePath) const;
+	bool GenerateLoadedModelLODs();
+	bool DeleteLoadedModelLODs();
 	bool ReloadLoadedModel();
 	void ClearLoadedModel();
 	void FrameLoadedModel();
@@ -111,14 +131,20 @@ public:
 	FObjViewerGridSettings& GetMutableGridSettings() { return GridSettings; }
 	const FObjViewerNormalSettings& GetNormalSettings() const { return NormalSettings; }
 	FObjViewerNormalSettings& GetMutableNormalSettings() { return NormalSettings; }
+	const FObjViewerLODBuilderSettings& GetLODBuilderSettings() const { return LODBuilderSettings; }
+	FObjViewerLODBuilderSettings& GetMutableLODBuilderSettings() { return LODBuilderSettings; }
 	bool IsWireframeEnabled() const { return bWireframeEnabled; }
 	void SetWireframeEnabled(bool bEnabled) { bWireframeEnabled = bEnabled; }
+	bool IsLoadedModelLODEnabled() const { return ModelState.bLodEnabled; }
+	void SetLoadedModelLODEnabled(bool bEnabled);
+	const FString& GetLastOperationStatus() const { return LastOperationStatus; }
 	FObjViewerShell& GetShell() const;
 
 protected:
 	void BindHost(FWindowsWindow* InMainWindow) override;
 	bool InitializeWorlds() override;
 	bool InitializeMode() override;
+	void FinalizeInitialize() override;
 	std::unique_ptr<IViewportClient> CreateViewportClient() override;
 	void TickWorlds(float DeltaTime) override;
 	void RenderFrame() override;
@@ -147,17 +173,21 @@ private:
 		const FObjImportSummary& ImportOptions,
 		UStaticMesh* Mesh,
 		AStaticMeshActor* DisplayActor);
+	void ProcessLaunchOptions();
 
 	FWorldContext* ViewerWorldContext = nullptr;
 	FWindowsWindow* MainWindow = nullptr;
+	FObjViewerLaunchOptions LaunchOptions;
 	FObjViewerModelState ModelState;
 	FObjViewerGridSettings GridSettings;
 	FObjViewerNormalSettings NormalSettings;
+	FObjViewerLODBuilderSettings LODBuilderSettings;
 	std::unique_ptr<FDynamicMesh> GridMesh;
 	std::shared_ptr<FMaterial> GridMaterial;
 	std::unique_ptr<FDynamicMesh> WorldAxisMesh;
 	std::shared_ptr<FMaterial> WorldAxisMaterial;
 	bool bWireframeEnabled = false;
+	FString LastOperationStatus;
 	const FString WireframeMaterialName = "M_Wireframe";
 	std::shared_ptr<FMaterial> WireframeMaterial = nullptr;
 	std::unique_ptr<FObjViewerShell> ViewerShell;
