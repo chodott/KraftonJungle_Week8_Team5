@@ -340,6 +340,13 @@ void FDecalTextureCache::ResolveTextureArray(ID3D11Device* Device, FSceneViewDat
         CanonicalH = 1;
     }
 
+	// Slices[0] is always the 1x1 white fallback — resize it to match CanonicalW/H
+	// so all slices are uniform, as required by a Texture2DArray.
+	Slices[0].W = CanonicalW;
+	Slices[0].H = CanonicalH;
+	Slices[0].Pixels.assign(static_cast<size_t>(CanonicalW)* CanonicalH * 4u, 255u);
+
+
     for (uint32 i = 0; i < ArraySize; ++i)
     {
         if (Slices[i].Pixels.empty())
@@ -348,6 +355,15 @@ void FDecalTextureCache::ResolveTextureArray(ID3D11Device* Device, FSceneViewDat
             Slices[i].H = CanonicalH;
             Slices[i].Pixels.assign(static_cast<size_t>(CanonicalW) * CanonicalH * 4u, 255u);
         }
+		else if (SlicePaths[i] == GSpotLightFakeCircularMaskPath &&
+			(Slices[i].W != CanonicalW || Slices[i].H != CanonicalH))
+		{
+			// Circular mask was generated before CanonicalW/H was known — regenerate
+			// it at the correct size now that all textures have been processed.
+			Slices[i].W = CanonicalW;
+			Slices[i].H = CanonicalH;
+			Slices[i].Pixels = CreateCircularMaskPixels(CanonicalW, CanonicalH);
+		}
     }
 
     if (!Device)

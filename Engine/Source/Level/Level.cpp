@@ -7,6 +7,7 @@
 #include "Object/ObjectFactory.h"
 #include "Component/PrimitiveComponent.h"
 #include "Component/UUIDBillboardComponent.h"
+#include "Level/PrimitiveVisibilityUtils.h"
 #include "Object/Class.h"
 
 #include "Serializer/SceneSerializer.h"
@@ -135,7 +136,7 @@ void ULevel::ClearActors()
 			Actor->Destroy();
 		}
 	}
-	Actors.clear();
+	CleanupDestroyedActors();
 
 	MarkSpatialDirty();
 }
@@ -165,6 +166,7 @@ void ULevel::DestroyActor(AActor* InActor)
 		return;
 	}
 	InActor->Destroy();
+	CleanupDestroyedActors();
 	MarkSpatialDirty();
 }
 
@@ -212,6 +214,11 @@ void ULevel::GatherPrimitiveComponents(TArray<UPrimitiveComponent*>& OutPrimitiv
 			}
 
 			if (bExcludeUUIDBillboards && PrimitiveComponent->IsA(UUUIDBillboardComponent::StaticClass()))
+			{
+				continue;
+			}
+
+			if (IsArrowVisualizationPrimitive(PrimitiveComponent))
 			{
 				continue;
 			}

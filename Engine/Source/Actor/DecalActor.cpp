@@ -1,4 +1,4 @@
-﻿#include "Actor/DecalActor.h"
+#include "Actor/DecalActor.h"
 
 #include "Component/BillboardComponent.h"
 #include "Component/DecalComponent.h"
@@ -152,6 +152,12 @@ void ADecalActor::Serialize(FArchive& Ar)
 		if (BillboardComponent)
 		{
 			ArrowComponent->AttachTo(BillboardComponent);
+		}
+
+		// 런타임 생성 메쉬는 파일 경로가 없어 Serialize로 복원되지 않으므로 직접 재적용한다.
+		if (!ArrowComponent->GetStaticMesh())
+		{
+			ArrowComponent->SetStaticMesh(GetDecalArrowMesh());
 		}
 		ArrowComponent->SetDrawDebugBounds(false);
 	}

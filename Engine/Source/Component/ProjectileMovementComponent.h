@@ -14,6 +14,7 @@ public:
 	void OnRegister() override;
 	void BeginPlay() override;
 	void Tick(float DeltaTime) override;
+	void OnPostLoad() override;
 
 	void LaunchWithVelocity(const FVector& InVelocity);
 	void StartSimulation();

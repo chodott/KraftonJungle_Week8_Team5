@@ -80,7 +80,7 @@ public:
 	/** 루트 컴포넌트의 상대 위치를 변경해 액터 위치를 이동한다. */
 	void SetActorLocation(const FVector& InLocation);
 
-	const FTransform& GetActorTransform() const;
+	FTransform GetActorTransform() const;
 	void SetActorTransform(const FTransform& InTransform);
 
 	bool IsVisible() const { return bVisible; }

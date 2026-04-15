@@ -1,4 +1,4 @@
-﻿#include "SceneSerializer.h"
+#include "SceneSerializer.h"
 #include "ThirdParty/nlohmann/json.hpp"
 #include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Resources/Material/MaterialManager.h"
@@ -66,6 +66,27 @@ namespace
 		}
 
 		return false;
+	}
+
+	struct FLoadedActorEntry
+	{
+		AActor* Actor = nullptr;
+		json ActorJson;
+	};
+
+	void FinalizeLoadedActors(const TArray<FLoadedActorEntry>& LoadedActors)
+	{
+		for (const FLoadedActorEntry& Entry : LoadedActors)
+		{
+			if (!Entry.Actor || Entry.Actor->IsPendingDestroy() || !Entry.ActorJson.is_object())
+			{
+				continue;
+			}
+
+			FArchive Ar(false);
+			*static_cast<json*>(Ar.GetRawJson()) = Entry.ActorJson;
+			Entry.Actor->Serialize(Ar);
+		}
 	}
 
 	void LoadCameraDataFromJson(const json& RootJson, FCameraSerializeData* OutCameraData)
@@ -212,7 +233,7 @@ namespace
 		return ActorJson;
 	}
 
-	bool DeserializeActorFromJson(ULevel* Scene, const json& ActorJson, int32 ActorIndex)
+	bool DeserializeActorFromJson(ULevel* Scene, const json& ActorJson, int32 ActorIndex, FLoadedActorEntry* OutLoadedActorEntry = nullptr)
 	{
 		if (!Scene || !ActorJson.is_object())
 		{
@@ -248,13 +269,47 @@ namespace
 		}
 
 		Scene->RegisterActor(Actor);
+
+		// PostSpawnInitialize를 먼저 호출해 기본 컴포넌트 구조를 갖춘 뒤,
+		// 파일에서 복원할 때 UUID/이름 불일치로 중복 컴포넌트가 생기는 것을
+		// 막기 위해 PostSpawnInitialize로 생성된 컴포넌트를 모두 제거한다.
+		// Serialize 로드 경로가 파일 데이터를 기준으로 컴포넌트를 완전히 재구성한다.
 		Actor->PostSpawnInitialize();
+
+		{
+			TArray<UActorComponent*> ToRemove(Actor->GetComponents().begin(), Actor->GetComponents().end());
+			for (UActorComponent* Comp : ToRemove)
+			{
+				if (!Comp)
+				{
+					continue;
+				}
+
+				// GUUIDToObjectMap에서 즉시 제거한다.
+				// MarkPendingKill만 하면 delete(CollectGarbage) 전까지 UUID가 맵에
+				// 남아있어, 같은 씬의 다른 Actor 컴포넌트 복원 시 UUID 충돌이 발생한다.
+				if (Comp->UUID != 0)
+				{
+					GUUIDToObjectMap.erase(Comp->UUID);
+					Comp->UUID = 0;
+				}
+
+				Comp->MarkPendingKill();
+				Actor->RemoveOwnedComponent(Comp);
+			}
+			Actor->SetRootComponent(nullptr);
+		}
 
 		try
 		{
 			FArchive Ar(false);
 			*static_cast<json*>(Ar.GetRawJson()) = ActorJson;
 			Actor->Serialize(Ar);
+			if (OutLoadedActorEntry)
+			{
+				OutLoadedActorEntry->Actor = Actor;
+				OutLoadedActorEntry->ActorJson = ActorJson;
+			}
 			return true;
 		}
 		catch (const std::exception&)
@@ -358,6 +413,8 @@ bool FSceneSerializer::Load(ULevel* Scene, const FString& FilePath, ID3D11Device
 
 	bool bAllActorsLoaded = true;
 	int32 ActorIndex = 0;
+	TArray<FLoadedActorEntry> LoadedActors;
+	LoadedActors.reserve(Json["Primitives"].size());
 	for (auto& [Key, Value] : Json["Primitives"].items())
 	{
 		const json* ActorJson = &Value;
@@ -368,10 +425,15 @@ bool FSceneSerializer::Load(ULevel* Scene, const FString& FilePath, ID3D11Device
 			ActorJson = &LegacyActorJson;
 		}
 
-		bAllActorsLoaded &= DeserializeActorFromJson(Scene, *ActorJson, ActorIndex);
+		FLoadedActorEntry& LoadedEntry = LoadedActors.emplace_back();
+		bAllActorsLoaded &= DeserializeActorFromJson(Scene, *ActorJson, ActorIndex, &LoadedEntry);
 
 		++ActorIndex;
 	}
+
+	FinalizeLoadedActors(LoadedActors);
+	Scene->MarkSpatialDirty();
+
 	if (Json.contains("NextUUID"))
 	{
 		uint32 Saved = Json["NextUUID"].get<uint32>();
