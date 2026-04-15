@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "Component/SceneComponent.h"
 #include "Component/PrimitiveComponent.h"
 #include "Math/Frustum.h"
@@ -13,6 +13,10 @@ class FArchive;
 class FMaterial;
 class Archive;
 struct FBoxSphereBounds;
+struct FRenderMeshSelectionContext
+{
+	float Distance = 0.0f;
+};
 
 struct FBoxSphereBounds
 {
@@ -44,7 +48,9 @@ public:
 	void SetHiddenInGame(bool bInHidden) { bHiddenInGame = bInHidden; }
 	bool IsHiddenInGame() const { return bHiddenInGame; }
 
-	virtual FRenderMesh* GetRenderMesh() const { return nullptr; }
+	virtual FRenderMesh* GetRenderMesh() const;
+	virtual FRenderMesh* GetRenderMesh(const FRenderMeshSelectionContext& SelectionContext) const;
+	virtual FRenderMesh* GetRenderMesh(const float& Distance) const;
 
 	virtual bool IsPickable() const { return true; }
 	virtual bool UseSpherePicking() const { return false; }

@@ -8,6 +8,22 @@
 
 IMPLEMENT_RTTI(UPrimitiveComponent, USceneComponent)
 
+FRenderMesh* UPrimitiveComponent::GetRenderMesh() const
+{
+	return GetRenderMesh(FRenderMeshSelectionContext{});
+}
+
+FRenderMesh* UPrimitiveComponent::GetRenderMesh(const FRenderMeshSelectionContext& SelectionContext) const
+{
+	return GetRenderMesh(SelectionContext.Distance);
+}
+
+FRenderMesh* UPrimitiveComponent::GetRenderMesh(const float& Distance) const
+{
+	(void)Distance;
+	return nullptr;
+}
+
 void UPrimitiveComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const
 {
 	USceneComponent::DuplicateShallow(DuplicatedObject, Context);

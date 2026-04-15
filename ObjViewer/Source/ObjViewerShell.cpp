@@ -665,6 +665,12 @@ void FObjViewerShell::DrawMenuBar()
 				Engine->SetWireframeEnabled(bWireframeEnabled);
 			}
 
+			bool bEnableLOD = Engine->IsLoadedModelLODEnabled();
+			if (ImGui::MenuItem("Enable LOD", nullptr, &bEnableLOD, Engine->HasLoadedModel()))
+			{
+				Engine->SetLoadedModelLODEnabled(bEnableLOD);
+			}
+
 			FObjViewerNormalSettings& NormalSettings = Engine->GetMutableNormalSettings();
 			ImGui::MenuItem("Show Normals", nullptr, &NormalSettings.bVisible);
 
@@ -731,6 +737,13 @@ void FObjViewerShell::DrawToolbarWindow()
 		if (ImGui::Checkbox("Wireframe", &bWireframeEnabled))
 		{
 			Engine->SetWireframeEnabled(bWireframeEnabled);
+		}
+
+		ImGui::SameLine();
+		bool bEnableLOD = Engine->IsLoadedModelLODEnabled();
+		if (ImGui::Checkbox("LOD", &bEnableLOD))
+		{
+			Engine->SetLoadedModelLODEnabled(bEnableLOD);
 		}
 
 		ImGui::SameLine();
@@ -839,6 +852,7 @@ void FObjViewerShell::DrawImportDialog()
 	ImGui::Checkbox("Center To Origin", &PendingImportOptions.bCenterToOrigin);
 	ImGui::Checkbox("Place On Ground", &PendingImportOptions.bPlaceOnGround);
 	ImGui::Checkbox("Frame Camera After Import", &PendingImportOptions.bFrameCameraAfterImport);
+	ImGui::Checkbox("Enable LOD", &PendingImportOptions.bEnableLOD);
 	ImGui::DragFloat("Uniform Scale", &PendingImportOptions.UniformScale, 0.01f, 0.01f, 1000.0f, "%.2f");
 
 	const bool bInvalidAxisPair = GetAxisBase(PendingImportOptions.ForwardAxis) == GetAxisBase(PendingImportOptions.UpAxis);

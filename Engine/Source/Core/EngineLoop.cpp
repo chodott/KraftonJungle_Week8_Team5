@@ -96,7 +96,10 @@ bool FEngineLoop::InitializeApplication(HINSTANCE hInstance)
 		return false;
 	}
 
-	App->ShowWindow();
+	if (Config.bShowWindow)
+	{
+		App->ShowWindow();
+	}
 	return true;
 }
 

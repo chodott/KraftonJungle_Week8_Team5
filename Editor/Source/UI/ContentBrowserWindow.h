@@ -17,6 +17,7 @@ public:
 	void SetFileIcon(ID3D11ShaderResourceView* FileSRV);
 
 	std::function<void(const FString& FilePath)> OnFileDoubleClickCallback;
+	std::function<void(const FString& FilePath)> OnOpenInObjViewerRequested;
 	std::function<void(const FString& DraggingFilePath, const FString& ReleaseDirectory)> OnFileDragEnd;
 
 	bool IsHovered() const { return bIsHovered; }

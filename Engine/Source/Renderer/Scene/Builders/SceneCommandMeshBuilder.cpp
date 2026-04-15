@@ -1,4 +1,4 @@
-﻿#include "Renderer/Scene/Builders/SceneCommandMeshBuilder.h"
+#include "Renderer/Scene/Builders/SceneCommandMeshBuilder.h"
 
 #include "Renderer/Scene/Builders/SceneCommandBuilder.h"
 #include "Renderer/Scene/Builders/SceneCommandBuilderUtils.h"
@@ -6,6 +6,9 @@
 #include "Component/StaticMeshComponent.h"
 #include "Renderer/Mesh/MeshData.h"
 #include "Renderer/Resources/Material/Material.h"
+
+#include <algorithm>
+#include <cmath>
 
 void FSceneCommandMeshBuilder::BuildMeshInputs(
 	const FSceneCommandBuildContext& BuildContext,
@@ -20,7 +23,13 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			continue;
 		}
 
-		FRenderMesh* TargetMesh = MeshComponent->GetRenderMesh();
+		const FMatrix WorldTransform = MeshComponent->GetRenderWorldTransform();
+		const FBoxSphereBounds WorldBounds = MeshComponent->GetWorldBounds();
+		FRenderMeshSelectionContext SelectionContext;
+		SelectionContext.Distance = FVector::Dist(
+			OutSceneViewData.View.CameraPosition,
+			WorldBounds.Center);
+		FRenderMesh* TargetMesh = MeshComponent->GetRenderMesh(SelectionContext);
 		if (!TargetMesh)
 		{
 			continue;
@@ -31,7 +40,7 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 		{
 			FMeshBatch Batch;
 			Batch.Mesh = TargetMesh;
-			Batch.World = MeshComponent->GetRenderWorldTransform();
+			Batch.World = WorldTransform;
 			std::shared_ptr<FMaterial> Material = MeshComponent->GetMaterial(0);
 			Batch.Material = Material ? Material.get() : BuildContext.DefaultMaterial;
 			if (MeshComponent->IsEditorVisualization())
@@ -58,7 +67,7 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 
 			FMeshBatch Batch;
 			Batch.Mesh = TargetMesh;
-			Batch.World = MeshComponent->GetRenderWorldTransform();
+			Batch.World = WorldTransform;
 			Batch.SectionIndex = static_cast<uint32>(SectionIndex);
 			Batch.IndexStart = Section.StartIndex;
 			Batch.IndexCount = Section.IndexCount;

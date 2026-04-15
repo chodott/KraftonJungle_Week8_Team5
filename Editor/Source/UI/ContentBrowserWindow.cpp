@@ -183,6 +183,12 @@ void FContentBrowserWindow::DrawFileGrid()
 		ImGui::PushID(Name.c_str());
 
 		ImTextureID Icon = Entry.is_directory() ? FolderIcon : FileIcon;
+		bool bCanOpenInObjViewer = (Ext == ".obj");
+		if (!bCanOpenInObjViewer && Ext == ".model")
+		{
+			const std::filesystem::path ObjPath = Path.parent_path() / (Path.stem().string() + ".obj");
+			bCanOpenInObjViewer = std::filesystem::exists(ObjPath);
+		}
 
 		// 아이콘 버튼
 		ImGui::ImageButton(Name.c_str(), Icon, ImVec2(IconSize, IconSize));
@@ -194,6 +200,14 @@ void FContentBrowserWindow::DrawFileGrid()
 		{
 			if (ImGui::BeginPopupContextItem())
 			{
+				if (bCanOpenInObjViewer && ImGui::MenuItem("Open in ObjViewer"))
+				{
+					if (OnOpenInObjViewerRequested)
+					{
+						OnOpenInObjViewerRequested(FPaths::FromPath(Path));
+					}
+				}
+
 				if (ImGui::MenuItem("Delete"))
 				{
 					std::filesystem::remove(Path);
