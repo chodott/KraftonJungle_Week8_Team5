@@ -14,6 +14,7 @@ public:
 	void PostConstruct() override;
 	void BeginPlay() override;
 	void Serialize(FArchive& Ar) override;
+	void OnPostLoad() override;
 
 	void SetUpdatedComponent(USceneComponent* InComponent);
 	USceneComponent* GetUpdatedComponent() const { return UpdatedComponent; }
@@ -25,6 +26,8 @@ protected:
 	bool EnsureUpdatedComponent();
 	bool ShouldSkipUpdate(float DeltaTime);
 	void MoveUpdatedComponent(const FVector& DeltaLocation, const FRotator& DeltaRotation = FRotator::ZeroRotator);
+	void ResolveUpdatedComponent();
 
 	TObjectPtr<USceneComponent> UpdatedComponent;
+	uint32 PendingUpdatedComponentUUID = 0;
 };

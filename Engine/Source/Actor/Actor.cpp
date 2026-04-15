@@ -1,4 +1,4 @@
-﻿#include "Actor.h"
+#include "Actor.h"
 #include "Object/ObjectFactory.h"
 #include "Component/UUIDBillboardComponent.h"
 #include "Object/Class.h"
@@ -129,6 +129,10 @@ namespace {
 			return nullptr;
 		}
 
+		// 이름이 저장되어 있으면 클래스와 이름이 둘 다 일치해야 한다.
+		// 이름이 없는 경우에만 클래스만으로 매칭을 허용한다.
+		// 느슨한 매칭(이름 무시)을 허용하면 LastUUID 불일치 상황에서
+		// 전혀 다른 컴포넌트를 잘못 잡는 비결정적 문제가 발생한다.
 		for (UActorComponent* Component : OwnedComponents)
 		{
 			if (!Component || Component->GetClass() != ComponentClass)
@@ -136,10 +140,12 @@ namespace {
 				continue;
 			}
 
-			if (ComponentName.empty() || Component->GetName() == ComponentName)
+			if (!ComponentName.empty() && Component->GetName() != ComponentName)
 			{
-				return Component;
+				continue;
 			}
+
+			return Component;
 		}
 
 		return nullptr;
@@ -156,6 +162,26 @@ namespace {
 		}
 
 		return nullptr;
+	}
+
+	void AttachUUIDBillboardToActorRoot(AActor* Actor)
+	{
+		if (!Actor)
+		{
+			return;
+		}
+
+		USceneComponent* RootComponent = Actor->GetRootComponent();
+		UUUIDBillboardComponent* UUIDBillboard = Actor->GetComponentByClass<UUUIDBillboardComponent>();
+		if (!RootComponent || !UUIDBillboard || UUIDBillboard == RootComponent)
+		{
+			return;
+		}
+
+		if (UUIDBillboard->GetAttachParent() != RootComponent)
+		{
+			UUIDBillboard->AttachTo(RootComponent);
+		}
 	}
 
 }
@@ -407,6 +433,8 @@ void AActor::PostSpawnInitialize()
 		}
 	}
 
+	AttachUUIDBillboardToActorRoot(this);
+
 	for (UActorComponent* Component : OwnedComponents)
 	{
 		if (Component && !Component->IsRegistered())
@@ -495,6 +523,30 @@ void AActor::Destroy()
 		return;
 	}
 
+	for (UActorComponent* Comp : OwnedComponents)
+	{
+		if (!Comp)
+		{
+			continue;
+		}
+
+		if (Comp->IsA(USceneComponent::StaticClass()))
+		{
+			static_cast<USceneComponent*>(Comp)->DetachFromParent();
+		}
+
+		if (Comp->HasBegunPlay())
+		{
+			Comp->EndPlay();
+		}
+
+		if (Comp->IsRegistered())
+		{
+			Comp->OnUnregister();
+		}
+	}
+
+	RootComponent = nullptr;
 	bPendingDestroy = true;
 	MarkPendingKill();
 
@@ -658,6 +710,22 @@ void AActor::Serialize(FArchive& Ar)
 				continue;
 			}
 
+			// UUID를 Serialize 호출 전에 미리 적용한다.
+			// 이렇게 해야 이후 FindOwnedSceneComponentByUUID 및 RootComponentUUID 탐색이
+			// unordered_set 순서에 의존하지 않고 UUID 기반으로 확정적으로 동작한다.
+			if (SavedComponentUUID != 0 && TargetComponent->UUID != SavedComponentUUID)
+			{
+				GUUIDToObjectMap.erase(TargetComponent->UUID);
+				if (auto It = GUUIDToObjectMap.find(SavedComponentUUID);
+					It != GUUIDToObjectMap.end() && It->second != TargetComponent)
+				{
+					It->second->UUID = 0;
+					GUUIDToObjectMap.erase(It);
+				}
+				TargetComponent->UUID = SavedComponentUUID;
+				GUUIDToObjectMap[SavedComponentUUID] = TargetComponent;
+			}
+
 			TargetComponent->Serialize(*ComponentArchive);
 
 			if (TargetComponent->IsA(USceneComponent::StaticClass()))
@@ -699,19 +767,42 @@ void AActor::Serialize(FArchive& Ar)
 		RootComponent = FindOwnedSceneComponentByUUID(OwnedComponents, SavedRootCompUUID);
 		if (!RootComponent)
 		{
+			TArray<USceneComponent*> RootCandidates;
 			for (UActorComponent* Comp : OwnedComponents)
 			{
-				if (Comp && Comp->IsA(USceneComponent::StaticClass()) && static_cast<USceneComponent*>(Comp)->GetAttachParent() == nullptr)
+				if (Comp && Comp->IsA(USceneComponent::StaticClass()))
 				{
-					RootComponent = static_cast<USceneComponent*>(Comp);
-					break;
+					USceneComponent* SceneComp = static_cast<USceneComponent*>(Comp);
+					if (SceneComp->GetAttachParent() == nullptr)
+					{
+						RootCandidates.push_back(SceneComp);
+					}
 				}
+			}
+			std::sort(RootCandidates.begin(), RootCandidates.end(),
+				[](const USceneComponent* A, const USceneComponent* B)
+				{
+					return A->UUID < B->UUID;
+				});
+			if (!RootCandidates.empty())
+			{
+				RootComponent = RootCandidates[0];
 			}
 		}
 
 		if (RootComponent)
 		{
 			SetRootComponent(RootComponent);
+		}
+
+		AttachUUIDBillboardToActorRoot(this);
+
+		for (UActorComponent* Component : OwnedComponents)
+		{
+			if (Component)
+			{
+				Component->OnPostLoad();
+			}
 		}
 
 		for (UActorComponent* Component : OwnedComponents)
@@ -759,7 +850,7 @@ void AActor::SetActorLocation(const FVector& InLocation)
 }
 
 
-const FTransform& AActor::GetActorTransform() const
+FTransform AActor::GetActorTransform() const
 {
 	if (RootComponent == nullptr)
 	{

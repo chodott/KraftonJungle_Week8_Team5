@@ -83,6 +83,15 @@ void UProjectileMovementComponent::BeginPlay()
 	bSimulationEnabled = bAutoStartSimulation && IsComponentTickEnabled() && !Velocity.IsNearlyZero();
 }
 
+void UProjectileMovementComponent::OnPostLoad()
+{
+	UMovementComponent::OnPostLoad();
+	SetAutoStartSimulation(bAutoStartSimulation);
+	bSimulationEnabled = false;
+	EnsureVelocityArrowComponent();
+	UpdateVelocityArrow();
+}
+
 void UProjectileMovementComponent::SetVelocity(const FVector& InVelocity)
 {
 	Velocity = InVelocity;
@@ -195,14 +204,6 @@ void UProjectileMovementComponent::Serialize(FArchive& Ar)
 	else if (Ar.Contains("AutoStartSimulation"))
 	{
 		Ar.Serialize("AutoStartSimulation", bAutoStartSimulation);
-	}
-
-	if (Ar.IsLoading())
-	{
-		SetAutoStartSimulation(bAutoStartSimulation);
-		bSimulationEnabled = false;
-		EnsureVelocityArrowComponent();
-		UpdateVelocityArrow();
 	}
 }
 

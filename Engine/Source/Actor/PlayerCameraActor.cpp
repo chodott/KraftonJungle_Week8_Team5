@@ -126,6 +126,12 @@ void APlayerCameraActor::Serialize(FArchive& Ar)
 		{
 			VisualizerComponent->AttachTo(CameraComponent);
 		}
+
+		// 런타임 생성 메쉬는 파일 경로가 없어 Serialize로 복원되지 않으므로 직접 재적용한다.
+		if (!VisualizerComponent->GetStaticMesh())
+		{
+			VisualizerComponent->SetStaticMesh(GetPlayerCameraVisualizerMesh());
+		}
 	}
 
 	SyncCameraComponentState();

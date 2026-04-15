@@ -18,51 +18,29 @@ void UMovementComponent::BeginPlay()
 	EnsureUpdatedComponent();
 }
 
+void UMovementComponent::OnPostLoad()
+{
+	ResolveUpdatedComponent();
+}
+
 void UMovementComponent::Serialize(FArchive& Ar)
 {
 	UActorComponent::Serialize(Ar);
 
-	uint32 UpdatedComponentUUID = 0;
 	if (Ar.IsSaving())
 	{
-		UpdatedComponentUUID = UpdatedComponent ? UpdatedComponent->UUID : 0;
+		uint32 UpdatedComponentUUID = UpdatedComponent ? UpdatedComponent->UUID : 0;
 		Ar.Serialize("UpdatedComponentUUID", UpdatedComponentUUID);
 		return;
 	}
 
 	if (!Ar.Contains("UpdatedComponentUUID"))
 	{
-		EnsureUpdatedComponent();
+		PendingUpdatedComponentUUID = 0;
 		return;
 	}
 
-	Ar.Serialize("UpdatedComponentUUID", UpdatedComponentUUID);
-	if (UpdatedComponentUUID == 0)
-	{
-		UpdatedComponent = nullptr;
-		EnsureUpdatedComponent();
-		return;
-	}
-
-	UpdatedComponent = nullptr;
-	if (AActor* OwnerActor = GetOwner())
-	{
-		for (UActorComponent* Component : OwnerActor->GetComponents())
-		{
-			if (!Component || !Component->IsA(USceneComponent::StaticClass()))
-			{
-				continue;
-			}
-
-			if (Component->UUID == UpdatedComponentUUID)
-			{
-				UpdatedComponent = static_cast<USceneComponent*>(Component);
-				break;
-			}
-		}
-	}
-
-	EnsureUpdatedComponent();
+	Ar.Serialize("UpdatedComponentUUID", PendingUpdatedComponentUUID);
 }
 
 void UMovementComponent::SetUpdatedComponent(USceneComponent* InComponent)
@@ -83,6 +61,34 @@ bool UMovementComponent::EnsureUpdatedComponent()
 	}
 
 	return UpdatedComponent != nullptr;
+}
+
+void UMovementComponent::ResolveUpdatedComponent()
+{
+	UpdatedComponent = nullptr;
+
+	if (PendingUpdatedComponentUUID != 0)
+	{
+		if (AActor* OwnerActor = GetOwner())
+		{
+			for (UActorComponent* Component : OwnerActor->GetComponents())
+			{
+				if (!Component || !Component->IsA(USceneComponent::StaticClass()))
+				{
+					continue;
+				}
+
+				if (Component->UUID == PendingUpdatedComponentUUID)
+				{
+					UpdatedComponent = static_cast<USceneComponent*>(Component);
+					break;
+				}
+			}
+		}
+	}
+
+	EnsureUpdatedComponent();
+	PendingUpdatedComponentUUID = 0;
 }
 
 bool UMovementComponent::ShouldSkipUpdate(float DeltaTime)
