@@ -22,8 +22,7 @@ void BuildDefaultSceneRenderPipeline(FRenderPipeline& OutPipeline, const FMeshPa
     OutPipeline.AddPass(std::make_unique<FDecalCompositePass>());
     OutPipeline.AddPass(std::make_unique<FFogPostPass>());
     OutPipeline.AddPass(std::make_unique<FFireBallPass>());
-    // Inactive for the current renderer configuration. Keep the pass code and shaders, but do not execute it.
-    // OutPipeline.AddPass(std::make_unique<FForwardTransparentPass>(MeshPassProcessor));
+    OutPipeline.AddPass(std::make_unique<FForwardTransparentPass>(MeshPassProcessor));
 
     // Editor World Overlay
     OutPipeline.AddPass(std::make_unique<FEditorGridPass>(MeshPassProcessor));
