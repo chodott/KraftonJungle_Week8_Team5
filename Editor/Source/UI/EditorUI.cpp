@@ -1,4 +1,4 @@
-#include "EditorUI.h"
+﻿#include "EditorUI.h"
 
 #include "Actor/Actor.h"
 #include "Component/SceneComponent.h"
@@ -75,7 +75,9 @@ namespace
 		if (Extension == ".model")
 		{
 			const std::filesystem::path ModelPath = FPaths::ToPath(FPaths::ToAbsolutePath(FilePath)).lexically_normal();
-			const std::filesystem::path ObjPath = ModelPath.parent_path() / (ModelPath.stem().string() + ".obj");
+			std::filesystem::path ObjFileName = ModelPath.stem();
+			ObjFileName += FPaths::ToPath(".obj");
+			const std::filesystem::path ObjPath = ModelPath.parent_path() / ObjFileName;
 			if (std::filesystem::exists(ObjPath))
 			{
 				return FPaths::FromPath(ObjPath);

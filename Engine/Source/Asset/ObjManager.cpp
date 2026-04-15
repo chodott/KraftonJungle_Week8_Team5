@@ -1,4 +1,4 @@
-#include "Asset/ObjManager.h"
+﻿#include "Asset/ObjManager.h"
 
 #include <algorithm>
 #include <chrono>
@@ -41,12 +41,25 @@ namespace
 	constexpr uint32 GLODVersionDistance = 4;
 	constexpr uint32 GLODVersion = GLODVersionDistance;
 
+	std::filesystem::path BuildSiblingPathWithExtension(const std::filesystem::path& BasePath, const FString& Suffix, const FString& Extension)
+	{
+		std::filesystem::path FileName = BasePath.stem();
+		if (!Suffix.empty())
+		{
+			FileName += FPaths::ToPath(Suffix);
+		}
+		FileName += FPaths::ToPath(Extension);
+		return BasePath.parent_path() / FileName;
+	}
+
 	FString GetLodFilePath(const FString& MeshPathFileName, int32 LodLevel)
 	{
 		const std::filesystem::path MeshPath = FPaths::ToPath(FPaths::ToAbsolutePath(MeshPathFileName)).lexically_normal();
-		const std::filesystem::path LodPath = MeshPath.parent_path()
-			/ (MeshPath.stem().string() + "_lod" + std::to_string(LodLevel) + ".lod");
-		FString Result = LodPath.string();
+		const std::filesystem::path LodPath = BuildSiblingPathWithExtension(
+			MeshPath,
+			"_lod" + std::to_string(LodLevel),
+			".lod");
+		FString Result = FPaths::FromPath(LodPath);
 		std::replace(Result.begin(), Result.end(), '\\', '/');
 		return Result;
 	}
@@ -54,19 +67,25 @@ namespace
 	FString GetModelFilePath(const FString& MeshPathFileName)
 	{
 		const std::filesystem::path MeshPath = FPaths::ToPath(FPaths::ToAbsolutePath(MeshPathFileName)).lexically_normal();
-		return FPaths::FromPath(MeshPath.parent_path() / (MeshPath.stem().string() + ".Model"));
+		FString Result = FPaths::FromPath(BuildSiblingPathWithExtension(MeshPath, "", ".Model"));
+		std::replace(Result.begin(), Result.end(), '\\', '/');
+		return Result;
 	}
 
 	FString GetObjFilePathFromModelPath(const FString& ModelPathFileName)
 	{
 		const std::filesystem::path ModelPath = FPaths::ToPath(FPaths::ToAbsolutePath(ModelPathFileName)).lexically_normal();
-		return FPaths::FromPath(ModelPath.parent_path() / (ModelPath.stem().string() + ".obj"));
+		FString Result = FPaths::FromPath(BuildSiblingPathWithExtension(ModelPath, "", ".obj"));
+		std::replace(Result.begin(), Result.end(), '\\', '/');
+		return Result;
 	}
 
 	FString GetNormalizedExtension(const FString& PathFileName);
 	bool ReadModelSourceTimestamp(const FString& ModelPathFileName, uint64& OutTimestamp);
 	bool ReadLodSourceTimestamp(const FString& LodPathFileName, uint64& OutTimestamp);
 	void RemoveFileIfExists(const std::filesystem::path& Path);
+	void RemoveModelArtifact(const FString& ObjPathFileName);
+	void RemoveLodArtifacts(const FString& ObjPathFileName);
 
 	float GetDefaultLodDistance(const UStaticMesh& Asset, int32 LodLevel, float DistanceStep)
 	{
@@ -413,13 +432,23 @@ namespace
 		}
 	}
 
-	void RemoveCachedArtifacts(const FString& ObjPathFileName)
+	void RemoveModelArtifact(const FString& ObjPathFileName)
 	{
 		RemoveFileIfExists(FPaths::ToPath(GetModelFilePath(ObjPathFileName)));
+	}
+
+	void RemoveLodArtifacts(const FString& ObjPathFileName)
+	{
 		for (int32 LodLevel = 1; LodLevel <= 64; ++LodLevel)
 		{
 			RemoveFileIfExists(FPaths::ToPath(GetLodFilePath(ObjPathFileName, LodLevel)));
 		}
+	}
+
+	void RemoveCachedArtifacts(const FString& ObjPathFileName)
+	{
+		RemoveModelArtifact(ObjPathFileName);
+		RemoveLodArtifacts(ObjPathFileName);
 	}
 
 	bool ReadModelSourceTimestamp(const FString& ModelPathFileName, uint64& OutTimestamp)
@@ -1072,10 +1101,12 @@ UStaticMesh* FObjManager::LoadStaticMeshAsset(const FString& PathFileName)
 		const uint64 SourceTimestamp = GetFileWriteTimestamp(ObjFsPath);
 
 		uint64 CachedTimestamp = 0;
-		if (PathExists(ModelFsPath) && (!ReadModelSourceTimestamp(ModelPath, CachedTimestamp) || CachedTimestamp != SourceTimestamp))
+		const bool bHasValidSourceTimestamp = (SourceTimestamp != 0);
+		const bool bHasModelTimestamp = ReadModelSourceTimestamp(ModelPath, CachedTimestamp);
+		if (PathExists(ModelFsPath) && bHasValidSourceTimestamp && (!bHasModelTimestamp || CachedTimestamp != SourceTimestamp))
 		{
 			InvalidateCacheEntriesForAsset(StandardizedPath);
-			RemoveCachedArtifacts(StandardizedPath);
+			RemoveModelArtifact(StandardizedPath);
 		}
 
 		if (PathExists(ModelFsPath))
@@ -1086,7 +1117,7 @@ UStaticMesh* FObjManager::LoadStaticMeshAsset(const FString& PathFileName)
 			}
 
 			InvalidateCacheEntriesForAsset(StandardizedPath);
-			RemoveCachedArtifacts(StandardizedPath);
+			RemoveModelArtifact(StandardizedPath);
 		}
 
 		if (BuildModelCacheForObj(StandardizedPath))
@@ -1107,10 +1138,12 @@ UStaticMesh* FObjManager::LoadStaticMeshAsset(const FString& PathFileName)
 		const std::filesystem::path ModelFsPath = FPaths::ToPath(FPaths::ToAbsolutePath(StandardizedPath)).lexically_normal();
 		const uint64 SourceTimestamp = GetFileWriteTimestamp(ObjFsPath);
 		uint64 CachedTimestamp = 0;
-		if (PathExists(ObjFsPath) && PathExists(ModelFsPath) && (!ReadModelSourceTimestamp(StandardizedPath, CachedTimestamp) || CachedTimestamp != SourceTimestamp))
+		const bool bHasValidSourceTimestamp = (SourceTimestamp != 0);
+		const bool bHasModelTimestamp = ReadModelSourceTimestamp(StandardizedPath, CachedTimestamp);
+		if (PathExists(ObjFsPath) && PathExists(ModelFsPath) && bHasValidSourceTimestamp && (!bHasModelTimestamp || CachedTimestamp != SourceTimestamp))
 		{
 			InvalidateCacheEntriesForAsset(StandardizedPath);
-			RemoveCachedArtifacts(ObjPath);
+			RemoveModelArtifact(ObjPath);
 			if (BuildModelCacheForObj(ObjPath))
 			{
 				return LoadModelStaticMeshAsset(StandardizedPath);

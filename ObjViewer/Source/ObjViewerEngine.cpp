@@ -1,4 +1,4 @@
-#include "ObjViewerEngine.h"
+﻿#include "ObjViewerEngine.h"
 
 #include <algorithm>
 #include <chrono>
@@ -226,8 +226,10 @@ namespace
 	FString GetLodFilePath(const FString& MeshPathFileName, int32 LodLevel)
 	{
 		const std::filesystem::path MeshPath = FPaths::ToPath(FPaths::ToAbsolutePath(MeshPathFileName)).lexically_normal();
-		const std::filesystem::path LodPath = MeshPath.parent_path()
-			/ (MeshPath.stem().string() + "_lod" + std::to_string(LodLevel) + ".lod");
+		std::filesystem::path LodFileName = MeshPath.stem();
+		LodFileName += FPaths::ToPath("_lod" + std::to_string(LodLevel));
+		LodFileName += FPaths::ToPath(".lod");
+		const std::filesystem::path LodPath = MeshPath.parent_path() / LodFileName;
 		return FPaths::FromPath(LodPath);
 	}
 

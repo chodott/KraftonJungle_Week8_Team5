@@ -186,7 +186,9 @@ void FContentBrowserWindow::DrawFileGrid()
 		bool bCanOpenInObjViewer = (Ext == ".obj");
 		if (!bCanOpenInObjViewer && Ext == ".model")
 		{
-			const std::filesystem::path ObjPath = Path.parent_path() / (Path.stem().string() + ".obj");
+			std::filesystem::path ObjFileName = Path.stem();
+			ObjFileName += FPaths::ToPath(".obj");
+			const std::filesystem::path ObjPath = Path.parent_path() / ObjFileName;
 			bCanOpenInObjViewer = std::filesystem::exists(ObjPath);
 		}
 
