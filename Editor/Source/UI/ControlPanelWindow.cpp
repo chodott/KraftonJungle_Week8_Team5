@@ -309,7 +309,7 @@ void FControlPanelWindow::Render(FEditorEngine *Engine)
                 {
                     NewActor = Scene->SpawnActor<ADecalActor>(Name);
                 }
-                else if (SpawnTypeIndex == 10)
+                else if (SpawnTypeIndex == 11)
                 {
                     NewActor = Scene->SpawnActor<ASpotLightFakeActor>(Name);
                 }
