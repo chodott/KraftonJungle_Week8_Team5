@@ -1,4 +1,4 @@
-﻿#include "Renderer/Features/Decal/DecalRenderFeature.h"
+#include "Renderer/Features/Decal/DecalRenderFeature.h"
 
 #include "Core/Paths.h"
 #include "Renderer/GraphicsCore/FullscreenPass.h"
@@ -936,7 +936,7 @@ bool FDecalRenderFeature::BuildClusterLists(
 
 	InOutPreparedData.ClusterHeaders.resize(ClusterCount);
 
-	CachedClusterRanges.resize(InOutPreparedData.VisibleSourceItems.size());
+	CachedClusterRanges.assign(InOutPreparedData.VisibleSourceItems.size(), FClusterRange{});
 	CachedCount.assign(ClusterCount, 0);
 	CachedWriteCursor.resize(ClusterCount);
 
