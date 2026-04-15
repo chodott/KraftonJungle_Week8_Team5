@@ -3,6 +3,8 @@
 #include "Asset/ObjManager.h"
 #include "Core/Engine.h"
 
+struct FGameFrameRequest;
+
 class AStaticMeshActor;
 class FMaterial;
 class FObjViewerShell;
@@ -110,7 +112,7 @@ public:
 
 protected:
 	void BindHost(FWindowsWindow* InMainWindow) override;
-	bool InitializeWorlds(int32 Width, int32 Height) override;
+	bool InitializeWorlds() override;
 	bool InitializeMode() override;
 	std::unique_ptr<IViewportClient> CreateViewportClient() override;
 	void TickWorlds(float DeltaTime) override;
@@ -119,9 +121,9 @@ protected:
 private:
 	void InitializeViewerCamera() const;
 	void CreateGridResources();
-	void ApplyWireframeOverride(FRenderCommandQueue& Queue) const;
+	void ApplyWireframeOverride(FGameFrameRequest& Request) const;
 	void AppendNormalVisualizationDebugDraw();
-	void AppendGridRenderCommand(FRenderCommandQueue& Queue) const;
+	void AppendGridMeshBatch(FGameFrameRequest& Request) const;
 	void UpdateLoadedModelState(
 		const FString& FilePath,
 		const FObjImportSummary& ImportOptions,

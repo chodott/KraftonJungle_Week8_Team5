@@ -36,7 +36,7 @@ void FObjViewerViewportSurface::EnsureResources(ID3D11Device* Device)
 		return;
 	}
 
-	if (RenderTargetView && ShaderResourceView && DepthStencilView &&
+	if (RenderTargetView && ShaderResourceView && DepthStencilView && DepthShaderResourceView &&
 		ResourceWidth == static_cast<uint32>(Width) &&
 		ResourceHeight == static_cast<uint32>(Height))
 	{
@@ -78,10 +78,10 @@ void FObjViewerViewportSurface::EnsureResources(ID3D11Device* Device)
 	DepthDesc.Height = static_cast<uint32>(Height);
 	DepthDesc.MipLevels = 1;
 	DepthDesc.ArraySize = 1;
-	DepthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	DepthDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
 	DepthDesc.SampleDesc.Count = 1;
 	DepthDesc.Usage = D3D11_USAGE_DEFAULT;
-	DepthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	DepthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
 
 	if (FAILED(Device->CreateTexture2D(&DepthDesc, nullptr, &DepthStencilTexture)))
 	{
@@ -89,7 +89,24 @@ void FObjViewerViewportSurface::EnsureResources(ID3D11Device* Device)
 		return;
 	}
 
-	if (FAILED(Device->CreateDepthStencilView(DepthStencilTexture, nullptr, &DepthStencilView)))
+	D3D11_DEPTH_STENCIL_VIEW_DESC DSVDesc = {};
+	DSVDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	DSVDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	DSVDesc.Texture2D.MipSlice = 0;
+
+	if (FAILED(Device->CreateDepthStencilView(DepthStencilTexture, &DSVDesc, &DepthStencilView)))
+	{
+		Release();
+		return;
+	}
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC DepthSRVDesc = {};
+	DepthSRVDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+	DepthSRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	DepthSRVDesc.Texture2D.MipLevels = 1;
+	DepthSRVDesc.Texture2D.MostDetailedMip = 0;
+
+	if (FAILED(Device->CreateShaderResourceView(DepthStencilTexture, &DepthSRVDesc, &DepthShaderResourceView)))
 	{
 		Release();
 		return;
@@ -101,7 +118,11 @@ void FObjViewerViewportSurface::EnsureResources(ID3D11Device* Device)
 
 void FObjViewerViewportSurface::Release()
 {
-	IUnknown* Resource = reinterpret_cast<IUnknown*>(DepthStencilView);
+	IUnknown* Resource = reinterpret_cast<IUnknown*>(DepthShaderResourceView);
+	ReleaseIfValid(Resource);
+	DepthShaderResourceView = nullptr;
+
+	Resource = reinterpret_cast<IUnknown*>(DepthStencilView);
 	ReleaseIfValid(Resource);
 	DepthStencilView = nullptr;
 
@@ -130,5 +151,6 @@ bool FObjViewerViewportSurface::IsValid() const
 	return Width > 0 && Height > 0 &&
 		RenderTargetView != nullptr &&
 		ShaderResourceView != nullptr &&
-		DepthStencilView != nullptr;
+		DepthStencilView != nullptr &&
+		DepthShaderResourceView != nullptr;
 }

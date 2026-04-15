@@ -20,6 +20,7 @@ public:
 	ID3D11RenderTargetView* GetRTV() const { return RenderTargetView; }
 	ID3D11DepthStencilView* GetDSV() const { return DepthStencilView; }
 	ID3D11ShaderResourceView* GetSRV() const { return ShaderResourceView; }
+	ID3D11ShaderResourceView* GetDepthSRV() const { return DepthShaderResourceView; }
 
 private:
 	int32 Width = 0;
@@ -32,4 +33,5 @@ private:
 	ID3D11ShaderResourceView* ShaderResourceView = nullptr;
 	ID3D11Texture2D* DepthStencilTexture = nullptr;
 	ID3D11DepthStencilView* DepthStencilView = nullptr;
+	ID3D11ShaderResourceView* DepthShaderResourceView = nullptr;
 };

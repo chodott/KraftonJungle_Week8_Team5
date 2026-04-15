@@ -467,76 +467,55 @@ void FObjViewerShell::AttachToRenderer(FRenderer* InRenderer)
 	std::filesystem::path FontPath = FPaths::ProjectRoot() / "Content" / "Fonts" / "NotoSansKR-Bold.ttf";
 	std::wstring FontPathW = FontPath.wstring();
 
-	InRenderer->SetGUICallbacks(
-		[Hwnd, Device, DeviceContext, FontPath, FontPathW]()
-		{
-			IMGUI_CHECKVERSION();
-			ImGui::CreateContext();
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
 
-			ImGuiIO& IO = ImGui::GetIO();
-			IO.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-			IO.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-			IO.IniFilename = "imgui_objviewer.ini";
+	ImGuiIO& IO = ImGui::GetIO();
+	IO.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+	IO.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+	IO.IniFilename = "imgui_objviewer.ini";
 
-			ImFont* Font = nullptr;
-			FILE* File = nullptr;
-			_wfopen_s(&File, FontPath.c_str(), L"rb");
-			if (File)
-			{
-				fseek(File, 0, SEEK_END);
-				size_t Size = ftell(File);
-				fseek(File, 0, SEEK_SET);
+	ImFont* Font = nullptr;
+	FILE* File = nullptr;
+	_wfopen_s(&File, FontPath.c_str(), L"rb");
+	if (File)
+	{
+		fseek(File, 0, SEEK_END);
+		size_t Size = ftell(File);
+		fseek(File, 0, SEEK_SET);
 
-				void* FontData = IM_ALLOC(Size);
-				fread(FontData, 1, Size, File);
-				fclose(File);
+		void* FontData = IM_ALLOC(Size);
+		fread(FontData, 1, Size, File);
+		fclose(File);
 
-				ImFontConfig FontConfig;
-				FontConfig.OversampleH = 1;
-				FontConfig.OversampleV = 1;
-				FontConfig.PixelSnapH = true;
-				Font = IO.Fonts->AddFontFromMemoryTTF(
-					FontData,
-					static_cast<int>(Size),
-					16.0f,
-					&FontConfig,
-					IO.Fonts->GetGlyphRangesKorean());
-			}
+		ImFontConfig FontConfig;
+		FontConfig.OversampleH = 1;
+		FontConfig.OversampleV = 1;
+		FontConfig.PixelSnapH = true;
+		Font = IO.Fonts->AddFontFromMemoryTTF(
+			FontData,
+			static_cast<int>(Size),
+			16.0f,
+			&FontConfig,
+			IO.Fonts->GetGlyphRangesKorean());
+	}
 
-			if (!Font)
-			{
-				MessageBoxW(nullptr, FontPathW.c_str(), L"Failed to load font", MB_OK);
-				IO.Fonts->AddFontDefault();
-			}
+	if (!Font)
+	{
+		MessageBoxW(nullptr, FontPathW.c_str(), L"Failed to load font", MB_OK);
+		IO.Fonts->AddFontDefault();
+	}
 
-			ImGui::StyleColorsDark();
+	ImGui::StyleColorsDark();
 
-			ImGuiStyle& Style = ImGui::GetStyle();
-			Style.WindowPadding = ImVec2(0, 0);
-			Style.DisplayWindowPadding = ImVec2(0, 0);
-			Style.DisplaySafeAreaPadding = ImVec2(0, 0);
-			Style.WindowRounding = 0.0f;
+	ImGuiStyle& Style = ImGui::GetStyle();
+	Style.WindowPadding = ImVec2(0, 0);
+	Style.DisplayWindowPadding = ImVec2(0, 0);
+	Style.DisplaySafeAreaPadding = ImVec2(0, 0);
+	Style.WindowRounding = 0.0f;
 
-			ImGui_ImplWin32_Init(Hwnd);
-			ImGui_ImplDX11_Init(Device, DeviceContext);
-		},
-		[]()
-		{
-			ImGui_ImplDX11_Shutdown();
-			ImGui_ImplWin32_Shutdown();
-			ImGui::DestroyContext();
-		},
-		[]()
-		{
-			ImGui_ImplDX11_NewFrame();
-			ImGui_ImplWin32_NewFrame();
-			ImGui::NewFrame();
-		},
-		[]()
-		{
-			ImGui::Render();
-			ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-		});
+	ImGui_ImplWin32_Init(Hwnd);
+	ImGui_ImplDX11_Init(Device, DeviceContext);
 }
 
 void FObjViewerShell::DetachFromRenderer(FRenderer* InRenderer)
@@ -549,8 +528,9 @@ void FObjViewerShell::DetachFromRenderer(FRenderer* InRenderer)
 
 	if (InRenderer)
 	{
-		InRenderer->ClearSceneRenderTarget();
-		InRenderer->ClearViewportCallbacks();
+		ImGui_ImplDX11_Shutdown();
+		ImGui_ImplWin32_Shutdown();
+		ImGui::DestroyContext();
 	}
 }
 

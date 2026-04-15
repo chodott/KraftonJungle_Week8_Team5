@@ -6,6 +6,9 @@
 
 #include "ObjViewerShell.h"
 #include "ObjViewerViewportClient.h"
+#include "imgui.h"
+#include "imgui_impl_dx11.h"
+#include "imgui_impl_win32.h"
 
 #include "Actor/Actor.h"
 #include "Actor/StaticMeshActor.h"
@@ -21,13 +24,15 @@
 #include "Math/Quat.h"
 #include "Math/Frustum.h"
 #include "Platform/Windows/WindowsWindow.h"
-#include "Renderer/Material.h"
-#include "Renderer/MaterialManager.h"
-#include "Renderer/MeshData.h"
+#include "Renderer/Frame/FrameRequests.h"
+#include "Renderer/Resources/Material/Material.h"
+#include "Renderer/Resources/Material/MaterialManager.h"
+#include "Renderer/Mesh/MeshBatch.h"
+#include "Renderer/Mesh/MeshData.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/RenderStateManager.h"
-#include "Renderer/ShaderMap.h"
-#include "Scene/Scene.h"
+#include "Renderer/GraphicsCore/RenderStateManager.h"
+#include "Renderer/Resources/Shader/ShaderMap.h"
+#include "Level/Level.h"
 #include "World/World.h"
 
 namespace
@@ -438,11 +443,9 @@ void FObjViewerEngine::BindHost(FWindowsWindow* InMainWindow)
 	}
 }
 
-bool FObjViewerEngine::InitializeWorlds(int32 Width, int32 Height)
+bool FObjViewerEngine::InitializeWorlds()
 {
-	const float AspectRatio = (Height > 0)
-		? (static_cast<float>(Width) / static_cast<float>(Height))
-		: 1.0f;
+	const float AspectRatio = GetWindowAspectRatio();
 
 	ViewerWorldContext = CreateWorldContext("ObjViewerScene", EWorldType::Preview, AspectRatio, false);
 	if (!ViewerWorldContext || !ViewerWorldContext->World)
@@ -482,78 +485,127 @@ void FObjViewerEngine::RenderFrame()
 		return;
 	}
 
-	if (ViewerShell)
-	{
-		ViewerShell->PrepareViewportSurface(Renderer);
-
-		const FObjViewerViewportSurface& Surface = ViewerShell->GetViewportSurface();
-		if (Surface.IsValid())
-		{
-			D3D11_VIEWPORT SceneViewport = {};
-			SceneViewport.TopLeftX = 0.0f;
-			SceneViewport.TopLeftY = 0.0f;
-			SceneViewport.Width = static_cast<float>(Surface.GetWidth());
-			SceneViewport.Height = static_cast<float>(Surface.GetHeight());
-			SceneViewport.MinDepth = 0.0f;
-			SceneViewport.MaxDepth = 1.0f;
-
-			Renderer->SetSceneRenderTarget(Surface.GetRTV(), Surface.GetDSV(), SceneViewport);
-
-			if (UWorld* ActiveWorld = GetActiveWorld())
-			{
-				const float AspectRatio = static_cast<float>(Surface.GetWidth()) / static_cast<float>(Surface.GetHeight());
-				UpdateWorldAspectRatio(ActiveWorld, AspectRatio);
-			}
-		}
-		else
-		{
-			Renderer->ClearSceneRenderTarget();
-		}
-	}
-
-	Renderer->BeginFrame();
-
 	UWorld* ActiveWorld = GetActiveWorld();
 	ULevel* Scene = GetViewportClient() ? GetViewportClient()->ResolveScene(this) : GetActiveScene();
+
+	auto RenderShellOnly = [&]()
+	{
+		Renderer->BeginFrame();
+		if (ViewerShell)
+		{
+			ImGui_ImplDX11_NewFrame();
+			ImGui_ImplWin32_NewFrame();
+			ImGui::NewFrame();
+			ViewerShell->Render();
+			ImGui::Render();
+			ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+		}
+		Renderer->EndFrame();
+		GetDebugDrawManager().Clear();
+	};
+
+	if (!Scene || !ActiveWorld)
+	{
+		RenderShellOnly();
+		return;
+	}
+
+	UCameraComponent* ActiveCamera = ActiveWorld->GetActiveCameraComponent();
+	if (!ActiveCamera)
+	{
+		RenderShellOnly();
+		return;
+	}
+
 	FShowFlags ViewerShowFlags;
 	ViewerShowFlags.SetFlag(EEngineShowFlags::SF_UUID, false);
 	ViewerShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, NormalSettings.bVisible);
-	if (Scene && ActiveWorld)
+
+	FGameFrameRequest FrameRequest;
+	FrameRequest.SceneView.ViewMatrix = ActiveCamera->GetViewMatrix();
+	FrameRequest.SceneView.ProjectionMatrix = ActiveCamera->GetProjectionMatrix();
+	FrameRequest.SceneView.CameraPosition = FrameRequest.SceneView.ViewMatrix.GetInverse().GetTranslation();
+	FrameRequest.SceneView.NearZ = ActiveCamera->GetNearPlane();
+	FrameRequest.SceneView.FarZ = ActiveCamera->GetFarPlane();
+	FrameRequest.SceneView.TotalTimeSeconds = static_cast<float>(GetTimer().GetTotalTime());
+
+	FFrustum Frustum;
+	Frustum.ExtractFromVP(FrameRequest.SceneView.ViewMatrix * FrameRequest.SceneView.ProjectionMatrix);
+
+	if (IViewportClient* ViewportClient = GetViewportClient())
 	{
-		UCameraComponent* ActiveCamera = ActiveWorld->GetActiveCameraComponent();
-		if (ActiveCamera)
-		{
-			FRenderCommandQueue Queue;
-			Queue.Reserve(Renderer->GetPrevCommandCount());
-			Queue.ViewMatrix = ActiveCamera->GetViewMatrix();
-			Queue.ProjectionMatrix = ActiveCamera->GetProjectionMatrix();
-
-			FFrustum Frustum;
-			const FMatrix ViewProjection = Queue.ViewMatrix * Queue.ProjectionMatrix;
-			Frustum.ExtractFromVP(ViewProjection);
-
-			if (IViewportClient* ViewportClient = GetViewportClient())
-			{
-				const FVector CameraPosition = Queue.ViewMatrix.GetInverse().GetTranslation();
-				ViewportClient->BuildRenderCommands(this, Scene, Frustum, ViewerShowFlags, CameraPosition, Queue);
-			}
-			ApplyWireframeOverride(Queue);
-			AppendGridRenderCommand(Queue);
-
-			Renderer->SubmitCommands(Queue);
-			Renderer->ExecuteCommands();
-			AppendNormalVisualizationDebugDraw();
-			GetDebugDrawManager().Flush(Renderer, ViewerShowFlags, ActiveWorld);
-		}
+		ViewportClient->BuildSceneRenderPacket(this, ActiveWorld, Frustum, ViewerShowFlags, FrameRequest.ScenePacket);
 	}
+
+	FrameRequest.DebugInputs.DrawManager = &GetDebugDrawManager();
+	FrameRequest.DebugInputs.World = ActiveWorld;
+	FrameRequest.DebugInputs.ShowFlags = ViewerShowFlags;
+
+	if (bWireframeEnabled && WireframeMaterial)
+	{
+		FrameRequest.bForceWireframe = true;
+		FrameRequest.WireframeMaterial = WireframeMaterial.get();
+	}
+
+	AppendNormalVisualizationDebugDraw();
+	AppendGridMeshBatch(FrameRequest);
+
+	Renderer->BeginFrame();
 
 	if (ViewerShell)
 	{
+		ViewerShell->PrepareViewportSurface(Renderer);
+		const FObjViewerViewportSurface& Surface = ViewerShell->GetViewportSurface();
+
+		if (Surface.IsValid())
+		{
+			const float SurfaceW = static_cast<float>(Surface.GetWidth());
+			const float SurfaceH = static_cast<float>(Surface.GetHeight());
+			UpdateWorldAspectRatio(ActiveWorld, SurfaceW / SurfaceH);
+
+			FViewportScenePassRequest ScenePass;
+			ScenePass.RenderTargetView = Surface.GetRTV();
+			ScenePass.RenderTargetShaderResourceView = Surface.GetSRV();
+			ScenePass.DepthStencilView = Surface.GetDSV();
+			ScenePass.DepthShaderResourceView = Surface.GetDepthSRV();
+			ScenePass.Viewport.TopLeftX = 0.0f;
+			ScenePass.Viewport.TopLeftY = 0.0f;
+			ScenePass.Viewport.Width = SurfaceW;
+			ScenePass.Viewport.Height = SurfaceH;
+			ScenePass.Viewport.MinDepth = 0.0f;
+			ScenePass.Viewport.MaxDepth = 1.0f;
+			ScenePass.SceneView = FrameRequest.SceneView;
+			ScenePass.ScenePacket = std::move(FrameRequest.ScenePacket);
+			ScenePass.AdditionalMeshBatches = std::move(FrameRequest.AdditionalMeshBatches);
+			ScenePass.DebugInputs = FrameRequest.DebugInputs;
+			ScenePass.bForceWireframe = FrameRequest.bForceWireframe;
+			ScenePass.WireframeMaterial = FrameRequest.WireframeMaterial;
+
+			FEditorFrameRequest EditorRequest;
+			EditorRequest.ScenePasses.push_back(std::move(ScenePass));
+			Renderer->RenderEditorFrame(EditorRequest);
+		}
+		else
+		{
+			Renderer->RenderGameFrame(FrameRequest);
+		}
+
+		ImGui_ImplDX11_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+		ImGui::NewFrame();
+
 		ViewerShell->Render();
+
+		ImGui::Render();
+		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+	}
+	else
+	{
+		Renderer->RenderGameFrame(FrameRequest);
 	}
 
 	Renderer->EndFrame();
-	Renderer->ClearSceneRenderTarget();
+	GetDebugDrawManager().Clear();
 }
 
 void FObjViewerEngine::InitializeViewerCamera() const
@@ -593,7 +645,7 @@ void FObjViewerEngine::CreateGridResources()
 		return;
 	}
 
-	constexpr int32 GridVertexCount = 42;
+	constexpr int32 GridVertexCount = 6;
 
 	GridMesh = std::make_unique<FDynamicMesh>();
 	GridMesh->Topology = EMeshTopology::EMT_TriangleList;
@@ -606,8 +658,8 @@ void FObjViewerEngine::CreateGridResources()
 	GridMesh->CreateVertexAndIndexBuffer(Device);
 
 	std::wstring ShaderDirW = FPaths::ShaderDir();
-	std::wstring VSPath = ShaderDirW + L"AxisVertexShader.hlsl";
-	std::wstring PSPath = ShaderDirW + L"AxisPixelShader.hlsl";
+	std::wstring VSPath = ShaderDirW + L"GridVertexShader.hlsl";
+	std::wstring PSPath = ShaderDirW + L"GridPixelShader.hlsl";
 	auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
 	auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, PSPath.c_str());
 
@@ -638,34 +690,29 @@ void FObjViewerEngine::CreateGridResources()
 
 	GridMaterial->RegisterParameter("GridSize", SlotIndex, 0, 4);
 	GridMaterial->RegisterParameter("LineThickness", SlotIndex, 4, 4);
-	GridMaterial->RegisterParameter("GridAxisU", SlotIndex, 16, 12);
-	GridMaterial->RegisterParameter("GridAxisV", SlotIndex, 32, 12);
-	GridMaterial->RegisterParameter("ViewForward", SlotIndex, 48, 12);
+	GridMaterial->RegisterParameter("GridAxisU", SlotIndex, 16, 16);
+	GridMaterial->RegisterParameter("GridAxisV", SlotIndex, 32, 16);
+	GridMaterial->RegisterParameter("ViewForward", SlotIndex, 48, 16);
 
-	const FVector DefaultGridAxisU = FVector::ForwardVector;
-	const FVector DefaultGridAxisV = FVector::RightVector;
-	const FVector DefaultViewForward = FVector::ForwardVector;
+	const FVector4 DefaultGridAxisU = FVector4(FVector::ForwardVector, 0.0f);
+	const FVector4 DefaultGridAxisV = FVector4(FVector::RightVector, 0.0f);
+	const FVector4 DefaultViewForward = FVector4(FVector::ForwardVector, 0.0f);
 	GridMaterial->SetParameterData("GridSize", &GridSettings.GridSize, 4);
 	GridMaterial->SetParameterData("LineThickness", &GridSettings.LineThickness, 4);
-	GridMaterial->SetParameterData("GridAxisU", &DefaultGridAxisU, sizeof(FVector));
-	GridMaterial->SetParameterData("GridAxisV", &DefaultGridAxisV, sizeof(FVector));
-	GridMaterial->SetParameterData("ViewForward", &DefaultViewForward, sizeof(FVector));
+	GridMaterial->SetParameterData("GridAxisU", &DefaultGridAxisU, sizeof(FVector4));
+	GridMaterial->SetParameterData("GridAxisV", &DefaultGridAxisV, sizeof(FVector4));
+	GridMaterial->SetParameterData("ViewForward", &DefaultViewForward, sizeof(FVector4));
 }
 
-void FObjViewerEngine::ApplyWireframeOverride(FRenderCommandQueue& Queue) const
+void FObjViewerEngine::ApplyWireframeOverride(FGameFrameRequest& Request) const
 {
 	if (!bWireframeEnabled || !WireframeMaterial)
 	{
 		return;
 	}
 
-	for (FRenderCommand& Command : Queue.Commands)
-	{
-		if (Command.RenderLayer != ERenderLayer::Overlay)
-		{
-			Command.Material = WireframeMaterial.get();
-		}
-	}
+	Request.bForceWireframe = true;
+	Request.WireframeMaterial = WireframeMaterial.get();
 }
 
 void FObjViewerEngine::AppendNormalVisualizationDebugDraw()
@@ -687,6 +734,7 @@ void FObjViewerEngine::AppendNormalVisualizationDebugDraw()
 		return;
 	}
 
+	UWorld* ActiveWorld = GetActiveWorld();
 	const FStaticMesh* RenderData = ModelState.Mesh->GetRenderData();
 	const FMatrix& WorldMatrix = RootComponent->GetWorldTransform();
 	const float NormalLength = (std::max)(GetDisplayedBoundsRadius(ModelState) * NormalSettings.LengthScale, 0.001f);
@@ -715,7 +763,7 @@ void FObjViewerEngine::AppendNormalVisualizationDebugDraw()
 			}
 
 			const FVector FaceCenter = (WorldPosition0 + WorldPosition1 + WorldPosition2) / 3.0f;
-			DebugDrawManager.DrawLine(FaceCenter, FaceCenter + (FaceNormal * NormalLength), NormalColor);
+			DebugDrawManager.DrawLine(ActiveWorld, FaceCenter, FaceCenter + (FaceNormal * NormalLength), NormalColor);
 		}
 
 		return;
@@ -735,34 +783,37 @@ void FObjViewerEngine::AppendNormalVisualizationDebugDraw()
 			continue;
 		}
 
-		DebugDrawManager.DrawLine(WorldStart, WorldStart + (WorldNormal * NormalLength), NormalColor);
+		DebugDrawManager.DrawLine(ActiveWorld, WorldStart, WorldStart + (WorldNormal * NormalLength), NormalColor);
 	}
 }
 
-void FObjViewerEngine::AppendGridRenderCommand(FRenderCommandQueue& Queue) const
+void FObjViewerEngine::AppendGridMeshBatch(FGameFrameRequest& Request) const
 {
 	if (!GridSettings.bVisible || !GridMesh || !GridMaterial)
 	{
 		return;
 	}
 
-	const FMatrix ViewInverse = Queue.ViewMatrix.GetInverse();
-	const FVector GridAxisU = FVector::ForwardVector;
-	const FVector GridAxisV = FVector::RightVector;
-	const FVector ViewForward = ViewInverse.GetForwardVector().GetSafeNormal();
+	const FMatrix ViewInverse = Request.SceneView.ViewMatrix.GetInverse();
+	const FVector4 GridAxisU = FVector4(FVector::ForwardVector, 0.0f);
+	const FVector4 GridAxisV = FVector4(FVector::RightVector, 0.0f);
+	const FVector4 ViewForward = FVector4(ViewInverse.GetForwardVector().GetSafeNormal(), 0.0f);
 
 	GridMaterial->SetParameterData("GridSize", &GridSettings.GridSize, 4);
 	GridMaterial->SetParameterData("LineThickness", &GridSettings.LineThickness, 4);
-	GridMaterial->SetParameterData("GridAxisU", &GridAxisU, sizeof(FVector));
-	GridMaterial->SetParameterData("GridAxisV", &GridAxisV, sizeof(FVector));
-	GridMaterial->SetParameterData("ViewForward", &ViewForward, sizeof(FVector));
+	GridMaterial->SetParameterData("GridAxisU", &GridAxisU, sizeof(FVector4));
+	GridMaterial->SetParameterData("GridAxisV", &GridAxisV, sizeof(FVector4));
+	GridMaterial->SetParameterData("ViewForward", &ViewForward, sizeof(FVector4));
 
-	FRenderCommand GridCommand;
-	GridCommand.RenderMesh = GridMesh.get();
-	GridCommand.Material = GridMaterial.get();
-	GridCommand.WorldMatrix = FMatrix::Identity;
-	GridCommand.RenderLayer = ERenderLayer::Default;
-	Queue.AddCommand(GridCommand);
+	FMeshBatch GridBatch;
+	GridBatch.Mesh = GridMesh.get();
+	GridBatch.Material = GridMaterial.get();
+	GridBatch.World = FMatrix::Identity;
+	GridBatch.Domain = EMaterialDomain::Opaque;
+	GridBatch.PassMask = static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+	GridBatch.IndexStart = 0;
+	GridBatch.IndexCount = static_cast<uint32>(GridMesh->Indices.size());
+	Request.AdditionalMeshBatches.push_back(GridBatch);
 }
 
 void FObjViewerEngine::UpdateLoadedModelState(
