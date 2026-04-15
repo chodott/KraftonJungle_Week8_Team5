@@ -1,11 +1,106 @@
-﻿#pragma once
+#pragma once
 
 #include "Renderer/Scene/Passes/PassContext.h"
 #include "Renderer/Scene/MeshPassProcessor.h"
 #include "Renderer/Features/Decal/DecalRenderFeature.h"
 #include "Renderer/Features/Outline/OutlineRenderFeature.h"
 
-inline FDecalRenderRequest BuildDecalPassRequest(const FSceneViewData& SceneViewData)
+#include <algorithm>
+#include <cstring>
+
+namespace DecalPassExecutionUtils
+{
+	static constexpr uint64 GDecalSignatureOffsetBasis = 1469598103934665603ull;
+	static constexpr uint64 GDecalSignaturePrime = 1099511628211ull;
+
+	inline uint64 HashBytes(uint64 Hash, const void* Data, size_t Size)
+	{
+		const unsigned char* Bytes = reinterpret_cast<const unsigned char*>(Data);
+		for (size_t Index = 0; Index < Size; ++Index)
+		{
+			Hash ^= static_cast<uint64>(Bytes[Index]);
+			Hash *= GDecalSignaturePrime;
+		}
+		return Hash;
+	}
+
+	template <typename TValue>
+	inline void HashValue(uint64& InOutHash, const TValue& Value)
+	{
+		InOutHash = HashBytes(InOutHash, &Value, sizeof(TValue));
+	}
+
+	inline uint64 BuildPerItemSignatureKey(const FDecalRenderItem& Item, bool bUseVisibleRevision)
+	{
+		uint64 Hash = GDecalSignatureOffsetBasis;
+		HashValue(Hash, Item.SourceComponentId);
+		if (bUseVisibleRevision)
+		{
+			HashValue(Hash, Item.VisibleRevision);
+		}
+		else
+		{
+			HashValue(Hash, Item.ClusterRevision);
+		}
+		return Hash;
+	}
+
+	inline uint64 BuildItemRevisionSignature(const FDecalRenderRequest& Request, bool bUseVisibleRevision)
+	{
+		uint64 Hash = GDecalSignatureOffsetBasis;
+		const uint32 ItemCount = static_cast<uint32>(Request.Items.size());
+		HashValue(Hash, ItemCount);
+
+		TArray<uint64> Keys;
+		Keys.reserve(Request.Items.size());
+		for (const FDecalRenderItem& Item : Request.Items)
+		{
+			Keys.push_back(BuildPerItemSignatureKey(Item, bUseVisibleRevision));
+		}
+
+		if (Request.bSortByPriority)
+		{
+			std::sort(Keys.begin(), Keys.end());
+		}
+
+		for (const uint64 Key : Keys)
+		{
+			HashValue(Hash, Key);
+		}
+		return Hash;
+	}
+
+	inline uint64 BuildVisibleSignature(const FDecalRenderRequest& Request)
+	{
+		uint64 Hash = BuildItemRevisionSignature(Request, true);
+		HashValue(Hash, Request.bEnabled);
+		HashValue(Hash, Request.bSortByPriority);
+		HashValue(Hash, Request.ReceiverLayerMask);
+		return Hash;
+	}
+
+	inline uint64 BuildClusterSignature(const FDecalRenderRequest& Request)
+	{
+		uint64 Hash = BuildItemRevisionSignature(Request, false);
+		HashValue(Hash, Request.VisibleSignature);
+		HashValue(Hash, Request.View);
+		HashValue(Hash, Request.Projection);
+		HashValue(Hash, Request.ViewProjection);
+		HashValue(Hash, Request.ViewportWidth);
+		HashValue(Hash, Request.ViewportHeight);
+		HashValue(Hash, Request.NearZ);
+		HashValue(Hash, Request.FarZ);
+		HashValue(Hash, Request.ClusterCountX);
+		HashValue(Hash, Request.ClusterCountY);
+		HashValue(Hash, Request.ClusterCountZ);
+		HashValue(Hash, Request.bClampClusterItemCount);
+		HashValue(Hash, Request.MaxClusterItems);
+		HashValue(Hash, Request.ReceiverLayerMask);
+		return Hash;
+	}
+}
+
+inline FDecalRenderRequest BuildDecalPassRequest(const FSceneViewData& SceneViewData, EDecalDirtyFlags DirtyFlags)
 {
 	FDecalRenderRequest Request;
 	Request.Items = SceneViewData.PostProcessInputs.DecalItems;
@@ -27,6 +122,9 @@ inline FDecalRenderRequest BuildDecalPassRequest(const FSceneViewData& SceneView
 	Request.bDebugDraw = SceneViewData.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw)
 	                  && SceneViewData.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalDebug)
 	                  && !SceneViewData.bForceWireframe;
+	Request.DirtyFlags = DirtyFlags;
+	Request.VisibleSignature = DecalPassExecutionUtils::BuildVisibleSignature(Request);
+	Request.ClusterSignature = DecalPassExecutionUtils::BuildClusterSignature(Request);
 	return Request;
 }
 

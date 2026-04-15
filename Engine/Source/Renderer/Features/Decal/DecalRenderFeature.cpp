@@ -1,11 +1,10 @@
-﻿#include "Renderer/Features/Decal/DecalRenderFeature.h"
+#include "Renderer/Features/Decal/DecalRenderFeature.h"
 
 #include "Core/Paths.h"
 #include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/Resources/Shader/ShaderResource.h"
 #include <algorithm>
-#include <filesystem>
 
 #include "Renderer/Mesh/Vertex.h"
 #include "Renderer/Resources/Shader/ShaderMap.h"
@@ -93,78 +92,6 @@ namespace
 		int32 Slice = static_cast<int32>(std::floor(std::log(Depth) * LogScale + LogBias));
 		Slice = std::clamp(Slice, 0, static_cast<int32>(Request.ClusterCountZ) - 1);
 		return static_cast<uint32>(Slice);
-	}
-
-	static uint64 HashBytes(uint64 Seed, const void* Data, size_t Size)
-	{
-		const uint8* Bytes = reinterpret_cast<const uint8*>(Data);
-		uint64 Hash = Seed;
-		for (size_t Index = 0; Index < Size; ++Index)
-		{
-			Hash ^= static_cast<uint64>(Bytes[Index]);
-			Hash *= 1099511628211ull;
-		}
-		return Hash;
-	}
-
-	template <typename TValue>
-	static uint64 HashValue(uint64 Seed, const TValue& Value)
-	{
-		return HashBytes(Seed, &Value, sizeof(TValue));
-	}
-
-	static uint64 HashWideString(uint64 Seed, const std::wstring& Value)
-	{
-		if (Value.empty())
-		{
-			static const wchar_t EmptyMarker = L'\0';
-			return HashBytes(Seed, &EmptyMarker, sizeof(EmptyMarker));
-		}
-
-		const std::wstring NormalizedPath = std::filesystem::path(Value).lexically_normal().wstring();
-		return HashBytes(Seed, NormalizedPath.data(), NormalizedPath.size() * sizeof(wchar_t));
-	}
-
-	static uint64 ComputeDecalRequestSignature(const FDecalRenderRequest& Request)
-	{
-		uint64 Hash = 1469598103934665603ull;
-
-		Hash = HashValue(Hash, Request.ViewProjection);
-		Hash = HashValue(Hash, Request.ViewportWidth);
-		Hash = HashValue(Hash, Request.ViewportHeight);
-		Hash = HashValue(Hash, Request.NearZ);
-		Hash = HashValue(Hash, Request.FarZ);
-		Hash = HashValue(Hash, Request.ClusterCountX);
-		Hash = HashValue(Hash, Request.ClusterCountY);
-		Hash = HashValue(Hash, Request.ClusterCountZ);
-		Hash = HashValue(Hash, Request.ReceiverLayerMask);
-		Hash = HashValue(Hash, Request.MaxClusterItems);
-		Hash = HashValue(Hash, static_cast<uint32>(Request.bEnabled ? 1u : 0u));
-		Hash = HashValue(Hash, static_cast<uint32>(Request.bSortByPriority ? 1u : 0u));
-		Hash = HashValue(Hash, static_cast<uint32>(Request.bClampClusterItemCount ? 1u : 0u));
-		Hash = HashValue(Hash, static_cast<uint32>(Request.Items.size()));
-
-		for (const FDecalRenderItem& Item : Request.Items)
-		{
-			Hash = HashValue(Hash, Item.DecalWorld);
-			Hash = HashValue(Hash, Item.WorldToDecal);
-			Hash = HashValue(Hash, Item.Extents);
-			Hash = HashValue(Hash, Item.TextureIndex);
-			Hash = HashWideString(Hash, Item.TexturePath);
-			Hash = HashValue(Hash, Item.Flags);
-			Hash = HashValue(Hash, Item.Priority);
-			Hash = HashValue(Hash, Item.ReceiverLayerMask);
-			Hash = HashValue(Hash, Item.AtlasScaleBias);
-			Hash = HashValue(Hash, Item.BaseColorTint);
-			Hash = HashValue(Hash, Item.NormalBlend);
-			Hash = HashValue(Hash, Item.RoughnessBlend);
-			Hash = HashValue(Hash, Item.EmissiveBlend);
-			Hash = HashValue(Hash, Item.EdgeFade);
-			Hash = HashValue(Hash, static_cast<uint32>(Item.bIsFading ? 1u : 0u));
-			Hash = HashValue(Hash, Item.AllowAngle);
-		}
-
-		return Hash;
 	}
 
 	static bool ComputeDecalClusterRange(
@@ -788,41 +715,79 @@ bool FDecalRenderFeature::Initialize(FRenderer& Renderer)
 	bInitialized = true;
 	return true;
 }
-
 bool FDecalRenderFeature::BuildFrameData(
-	const FDecalRenderRequest& Request,
-	FDecalPreparedViewData& OutPreparedData,
-	FDecalFrameStats& OutFrameStats)
+    const FDecalRenderRequest& Request,
+    FDecalPreparedViewData& OutPreparedData,
+    FDecalFrameStats& OutFrameStats)
 {
-	const uint64 RequestSignature = ComputeDecalRequestSignature(Request);
-	if (bClusterDataValid && RequestSignature == CachedRequestSignature)
-	{
-		return true;
-	}
+    const bool bForceRebuild =
+        HasDecalDirtyFlag(Request.DirtyFlags, EDecalDirtyFlags::ForceRebuild);
 
-	CachedRequestSignature = RequestSignature;
-	bClusterDataValid = true;
+    const bool bVisibleDirty =
+        bForceRebuild ||
+        !bVisibleDataValid ||
+        (LastVisibleSignature != Request.VisibleSignature) ||
+        HasDecalDirtyFlag(Request.DirtyFlags, EDecalDirtyFlags::VisibleData);
 
-	OutPreparedData.DecalGPUItems.clear();
-	OutPreparedData.ClusterHeaders.clear();
-	OutPreparedData.ClusterIndexList.clear();
-	OutPreparedData.VisibleSourceItems.clear();
-	OutPreparedData.BuildStats = {};
+    const bool bClusterDirty =
+        bForceRebuild ||
+        !bClusterDataValid ||
+        bVisibleDirty ||
+        (LastClusterSignature != Request.ClusterSignature) ||
+        HasDecalDirtyFlag(Request.DirtyFlags, EDecalDirtyFlags::ClusterData);
 
-	const FDecalClock::time_point VisibleBuildStartTime = FDecalClock::now();
-	if (!BuildVisibleDecalData(Request, OutPreparedData)) return false;
-	OutFrameStats.VisibleBuildTimeMs = ToMilliseconds(FDecalClock::now() - VisibleBuildStartTime);
+    if (!bVisibleDirty && !bClusterDirty)
+    {
+        OutFrameStats.InputItemCount = OutPreparedData.BuildStats.InputItemCount;
+        OutFrameStats.VisibleItemCount = OutPreparedData.BuildStats.ValidItemCount;
+        OutFrameStats.ClusterCount = OutPreparedData.BuildStats.ClusterCount;
+        OutFrameStats.TotalClusterIndices = OutPreparedData.BuildStats.TotalClusterIndices;
+        OutFrameStats.MaxItemsPerCluster = OutPreparedData.BuildStats.MaxItemsPerCluster;
+        return true;
+    }
+	
+    if (bVisibleDirty)
+    {
+        OutPreparedData.VisibleSourceItems.clear();
+        OutPreparedData.DecalGPUItems.clear();
+        OutPreparedData.BuildStats = {};
 
-	const FDecalClock::time_point ClusterBuildStartTime = FDecalClock::now();
-	if (!BuildClusterLists(Request, OutPreparedData)) return false;
-	OutFrameStats.ClusterBuildTimeMs = ToMilliseconds(FDecalClock::now() - ClusterBuildStartTime);
+        const FDecalClock::time_point VisibleBuildStartTime = FDecalClock::now();
+        if (!BuildVisibleDecalData(Request, OutPreparedData))
+        {
+            return false;
+        }
+        OutFrameStats.VisibleBuildTimeMs =
+            ToMilliseconds(FDecalClock::now() - VisibleBuildStartTime);
 
-	OutFrameStats.InputItemCount = OutPreparedData.BuildStats.InputItemCount;
-	OutFrameStats.VisibleItemCount = OutPreparedData.BuildStats.ValidItemCount;
-	OutFrameStats.ClusterCount = OutPreparedData.BuildStats.ClusterCount;
-	OutFrameStats.TotalClusterIndices = OutPreparedData.BuildStats.TotalClusterIndices;
-	OutFrameStats.MaxItemsPerCluster = OutPreparedData.BuildStats.MaxItemsPerCluster;
-	return true;
+        bVisibleDataValid = true;
+        bClusterDataValid = false;
+        LastVisibleSignature = Request.VisibleSignature;
+    }
+	
+    if (bClusterDirty)
+    {
+        OutPreparedData.ClusterHeaders.clear();
+        OutPreparedData.ClusterIndexList.clear();
+
+        const FDecalClock::time_point ClusterBuildStartTime = FDecalClock::now();
+        if (!BuildClusterLists(Request, OutPreparedData))
+        {
+            return false;
+        }
+        OutFrameStats.ClusterBuildTimeMs =
+            ToMilliseconds(FDecalClock::now() - ClusterBuildStartTime);
+
+        bClusterDataValid = true;
+        LastClusterSignature = Request.ClusterSignature;
+    }
+
+    OutFrameStats.InputItemCount = OutPreparedData.BuildStats.InputItemCount;
+    OutFrameStats.VisibleItemCount = OutPreparedData.BuildStats.ValidItemCount;
+    OutFrameStats.ClusterCount = OutPreparedData.BuildStats.ClusterCount;
+    OutFrameStats.TotalClusterIndices = OutPreparedData.BuildStats.TotalClusterIndices;
+    OutFrameStats.MaxItemsPerCluster = OutPreparedData.BuildStats.MaxItemsPerCluster;
+    return true;
 }
 
 bool FDecalRenderFeature::BuildVisibleDecalData(
@@ -864,7 +829,11 @@ bool FDecalRenderFeature::BuildVisibleDecalData(
 				{
 					return A->Priority > B->Priority;
 				}
-				return A->TextureIndex < B->TextureIndex;
+				if (A->TextureIndex != B->TextureIndex)
+				{
+					return A->TextureIndex < B->TextureIndex;
+				}
+				return A->SourceComponentId < B->SourceComponentId;
 			});
 	}
 
@@ -873,7 +842,7 @@ bool FDecalRenderFeature::BuildVisibleDecalData(
 
 	for (const FDecalRenderItem* Item : FilteredItems)
 	{
-		InOutPreparedData.VisibleSourceItems.push_back(Item);
+		InOutPreparedData.VisibleSourceItems.push_back(*Item);
 
 		FDecalGPUData GPUItem{};
 		GPUItem.WorldToDecal = Item->WorldToDecal.GetTransposed();
@@ -919,31 +888,33 @@ bool FDecalRenderFeature::BuildClusterLists(
 
 	const uint32 ClusterCount =
 		Request.ClusterCountX * Request.ClusterCountY * Request.ClusterCountZ;
-
+	
 	InOutPreparedData.BuildStats.ClusterCount = ClusterCount;
 	InOutPreparedData.BuildStats.TotalClusterIndices = 0;
 	InOutPreparedData.BuildStats.MaxItemsPerCluster = 0;
 
+	if (ClusterCount == 0 || InOutPreparedData.VisibleSourceItems.empty()) return  true;
+		
 	if (ClusterCount == 0 || InOutPreparedData.DecalGPUItems.empty() || InOutPreparedData.VisibleSourceItems.empty())
 	{
 		return true;
 	}
-
+	
 	if (InOutPreparedData.DecalGPUItems.size() != InOutPreparedData.VisibleSourceItems.size())
 	{
 		return false;
 	}
 
+	CachedClusterRanges.assign(InOutPreparedData.VisibleSourceItems.size(), FClusterRange{});
+	CachedCount.assign(ClusterCount, 0u);
+	CachedWriteCursor.assign(ClusterCount, 0u);
+	
 	InOutPreparedData.ClusterHeaders.resize(ClusterCount);
-
-	CachedClusterRanges.resize(InOutPreparedData.VisibleSourceItems.size());
-	CachedCount.assign(ClusterCount, 0);
-	CachedWriteCursor.resize(ClusterCount);
 
 	for (int32 DecalIndex = 0; DecalIndex < static_cast<int32>(InOutPreparedData.VisibleSourceItems.size()); ++DecalIndex)
 	{
 		FClusterRange Range;
-		if (!ComputeDecalClusterRange(Request, *InOutPreparedData.VisibleSourceItems[DecalIndex], Range))
+		if (!ComputeDecalClusterRange(Request, InOutPreparedData.VisibleSourceItems[DecalIndex], Range))
 		{
 			continue;
 		}
@@ -962,7 +933,11 @@ bool FDecalRenderFeature::BuildClusterLists(
 				for (uint32 X = Range.MinTileX; X <= Range.MaxTileX; ++X)
 				{
 					const uint32 ClusterId = FlattenClusterIndex(X, Y, Z, Request);
-					CachedCount[ClusterId]++;
+					if (Request.bClampClusterItemCount)
+					{
+						if (CachedCount[ClusterId] < Request.MaxClusterItems) ++CachedCount[ClusterId];
+					}
+					else ++CachedCount[ClusterId];
 				}
 			}
 		}
@@ -983,6 +958,7 @@ bool FDecalRenderFeature::BuildClusterLists(
 			InOutPreparedData.BuildStats.MaxItemsPerCluster = Count;
 		}
 
+		CachedWriteCursor[ClusterId] = RunningOffset;
 		RunningOffset += Count;
 	}
 
@@ -992,11 +968,6 @@ bool FDecalRenderFeature::BuildClusterLists(
 	if (RunningOffset == 0)
 	{
 		return true;
-	}
-
-	for (uint32 ClusterId = 0; ClusterId < ClusterCount; ++ClusterId)
-	{
-		CachedWriteCursor[ClusterId] = InOutPreparedData.ClusterHeaders[ClusterId].Offset;
 	}
 
 	for (int32 DecalIndex = 0; DecalIndex < static_cast<int32>(InOutPreparedData.VisibleSourceItems.size()); ++DecalIndex)
@@ -1014,42 +985,19 @@ bool FDecalRenderFeature::BuildClusterLists(
 				for (uint32 X = Range.MinTileX; X <= Range.MaxTileX; ++X)
 				{
 					const uint32 ClusterId = FlattenClusterIndex(X, Y, Z, Request);
+					const FDecalClusterHeaderGPU& Header = InOutPreparedData.ClusterHeaders[ClusterId];
 
-					if (Request.bClampClusterItemCount)
+					const uint32 WriteIndex = CachedWriteCursor[ClusterId];
+					
+					if (WriteIndex < Header.Offset + Header.Count)
 					{
-						const uint32 LocalWritten =
-							CachedWriteCursor[ClusterId] - InOutPreparedData.ClusterHeaders[ClusterId].Offset;
-
-						if (LocalWritten >= Request.MaxClusterItems)
-						{
-							continue;
-						}
+						InOutPreparedData.ClusterIndexList[WriteIndex] = static_cast<uint32>(DecalIndex);
+						CachedWriteCursor[ClusterId] = WriteIndex + 1;
 					}
-
-					const uint32 WriteIndex = CachedWriteCursor[ClusterId]++;
-					InOutPreparedData.ClusterIndexList[WriteIndex] = static_cast<uint32>(DecalIndex);
 				}
 			}
 		}
 	}
-
-	if (Request.bClampClusterItemCount)
-	{
-		for (uint32 ClusterId = 0; ClusterId < ClusterCount; ++ClusterId)
-		{
-			const uint32 WrittenCount = CachedWriteCursor[ClusterId] - InOutPreparedData.ClusterHeaders[ClusterId].Offset;
-			InOutPreparedData.ClusterHeaders[ClusterId].Count = WrittenCount;
-		}
-
-		uint32 ValidTotalIndexCount = 0;
-		for (uint32 ClusterId = 0; ClusterId < ClusterCount; ++ClusterId)
-		{
-			ValidTotalIndexCount += InOutPreparedData.ClusterHeaders[ClusterId].Count;
-		}
-
-		InOutPreparedData.BuildStats.TotalClusterIndices = ValidTotalIndexCount;
-	}
-
 	return true;
 }
 
@@ -1059,6 +1007,10 @@ void FDecalRenderFeature::Release()
 	bInitialized = false;
 	LastBuildStats = {};
 	LastFrameStats = {};
+	bVisibleDataValid = false;
+	bClusterDataValid = false;
+	LastVisibleSignature = 0;
+	LastClusterSignature = 0;
 
 	if (ClusterIndexStructuredBufferSRV)
 	{

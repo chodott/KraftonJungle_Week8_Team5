@@ -8,6 +8,32 @@
 
 IMPLEMENT_RTTI(UDecalComponent, UPrimitiveComponent)
 
+void UDecalComponent::BumpRevision(uint32& InOutRevision)
+{
+	++InOutRevision;
+	if (InOutRevision == 0)
+	{
+		InOutRevision = 1;
+	}
+}
+
+void UDecalComponent::MarkDecalVisibleDirty()
+{
+	BumpRevision(VisibleRevision);
+}
+
+void UDecalComponent::MarkDecalClusterDirty()
+{
+	BumpRevision(ClusterRevision);
+}
+
+void UDecalComponent::MarkTransformDirty()
+{
+	UPrimitiveComponent::MarkTransformDirty();
+	MarkDecalVisibleDirty();
+	MarkDecalClusterDirty();
+}
+
 void UDecalComponent::PostConstruct()
 {
 	bCanEverTick = true;
@@ -34,23 +60,40 @@ void UDecalComponent::Tick(float DeltaTime)
 	if (FadeState == EDecalFadeState::FadeIn)
 	{
 		BaseColorTint.A = T;
+		MarkDecalVisibleDirty();
 		if (T >= 1.0f)
 		{
 			FadeState = EDecalFadeState::None;
+			MarkDecalVisibleDirty();
 		}
 	}
 	else // FadeOut
 	{
 		BaseColorTint.A = 1.0f - T;
+		MarkDecalVisibleDirty();
 		if (T >= 1.0f)
 		{
 			FadeState = EDecalFadeState::None;
+			MarkDecalVisibleDirty();
 			if (bDisableOnFadeOutComplete)
 			{
 				bEnabled = false;
+				MarkDecalClusterDirty();
 			}
 		}
 	}
+}
+
+void UDecalComponent::SetEnabled(bool bInEnabled)
+{
+	if (bEnabled == bInEnabled)
+	{
+		return;
+	}
+
+	bEnabled = bInEnabled;
+	MarkDecalVisibleDirty();
+	MarkDecalClusterDirty();
 }
 
 void UDecalComponent::FadeIn(float Duration)
@@ -60,6 +103,8 @@ void UDecalComponent::FadeIn(float Duration)
 	FadeDuration = Duration;
 	FadeElapsed = 0.0f;
 	BaseColorTint.A = 0.0f;
+	MarkDecalVisibleDirty();
+	MarkDecalClusterDirty();
 }
 
 void UDecalComponent::FadeOut(float Duration, bool bDisableOnComplete)
@@ -69,6 +114,218 @@ void UDecalComponent::FadeOut(float Duration, bool bDisableOnComplete)
 	FadeElapsed = 0.0f;
 	bDisableOnFadeOutComplete = bDisableOnComplete;
 	BaseColorTint.A = 1.0f;
+	MarkDecalVisibleDirty();
+	MarkDecalClusterDirty();
+}
+
+void UDecalComponent::SetFadeInDuration(float Duration)
+{
+	const float Sanitized = (std::max)(0.05f, Duration);
+	if (FadeInDuration == Sanitized)
+	{
+		return;
+	}
+
+	FadeInDuration = Sanitized;
+	MarkDecalVisibleDirty();
+}
+
+void UDecalComponent::SetFadeOutDuration(float Duration)
+{
+	const float Sanitized = (std::max)(0.05f, Duration);
+	if (FadeOutDuration == Sanitized)
+	{
+		return;
+	}
+
+	FadeOutDuration = Sanitized;
+	MarkDecalVisibleDirty();
+}
+
+void UDecalComponent::SetSize(const FVector2& InSize)
+{
+	const FVector2 Sanitized(
+		(std::max)(0.0f, InSize.X),
+		(std::max)(0.0f, InSize.Y));
+	if (Size != Sanitized)
+	{
+		Size = Sanitized;
+		UpdateBounds();
+		MarkDecalVisibleDirty();
+		MarkDecalClusterDirty();
+	}
+}
+
+void UDecalComponent::SetProjectionDepth(float InProjectionDepth)
+{
+	const float Sanitized = (std::max)(0.0f, InProjectionDepth);
+	if (ProjectionDepth != Sanitized)
+	{
+		ProjectionDepth = Sanitized;
+		UpdateBounds();
+		MarkDecalVisibleDirty();
+		MarkDecalClusterDirty();
+	}
+}
+
+void UDecalComponent::SetExtents(const FVector& InExtents)
+{
+	const FVector Sanitized(
+		(std::max)(0.0f, InExtents.X),
+		(std::max)(0.0f, InExtents.Y),
+		(std::max)(0.0f, InExtents.Z));
+
+	const float NewProjectionDepth = Sanitized.X * 2.0f;
+	const FVector2 NewSize(Sanitized.Y * 2.0f, Sanitized.Z * 2.0f);
+	if (Size != NewSize || ProjectionDepth != NewProjectionDepth)
+	{
+		Size = NewSize;
+		ProjectionDepth = NewProjectionDepth;
+		UpdateBounds();
+		MarkDecalVisibleDirty();
+		MarkDecalClusterDirty();
+	}
+}
+
+void UDecalComponent::SetUVMin(const FVector2& InUVMin)
+{
+	if (UVMin == InUVMin)
+	{
+		return;
+	}
+
+	UVMin = InUVMin;
+	MarkDecalVisibleDirty();
+}
+
+void UDecalComponent::SetUVMax(const FVector2& InUVMax)
+{
+	if (UVMax == InUVMax)
+	{
+		return;
+	}
+
+	UVMax = InUVMax;
+	MarkDecalVisibleDirty();
+}
+
+void UDecalComponent::SetTexturePath(const std::wstring& InPath)
+{
+	if (TexturePath == InPath)
+	{
+		return;
+	}
+
+	TexturePath = InPath;
+	TextureIndex = 0;
+	MarkDecalVisibleDirty();
+}
+
+void UDecalComponent::SetRenderFlags(uint32 InRenderFlags)
+{
+	if (RenderFlags == InRenderFlags)
+	{
+		return;
+	}
+
+	RenderFlags = InRenderFlags;
+	MarkDecalVisibleDirty();
+}
+
+void UDecalComponent::SetPriority(uint32 InPriority)
+{
+	if (Priority == InPriority)
+	{
+		return;
+	}
+
+	Priority = InPriority;
+	MarkDecalVisibleDirty();
+}
+
+void UDecalComponent::SetReceiverLayerMask(uint32 InReceiverLayerMask)
+{
+	if (ReceiverLayerMask == InReceiverLayerMask)
+	{
+		return;
+	}
+
+	ReceiverLayerMask = InReceiverLayerMask;
+	MarkDecalVisibleDirty();
+}
+
+void UDecalComponent::SetAllowAngle(float InDegrees)
+{
+	const float Sanitized = std::clamp(InDegrees, 0.0f, 180.0f);
+	if (AllowAngle == Sanitized)
+	{
+		return;
+	}
+
+	AllowAngle = Sanitized;
+	MarkDecalVisibleDirty();
+}
+
+void UDecalComponent::SetBaseColorTint(const FLinearColor& InBaseColorTint)
+{
+	if (BaseColorTint.R == InBaseColorTint.R
+		&& BaseColorTint.G == InBaseColorTint.G
+		&& BaseColorTint.B == InBaseColorTint.B
+		&& BaseColorTint.A == InBaseColorTint.A)
+	{
+		return;
+	}
+
+	BaseColorTint = InBaseColorTint;
+	MarkDecalVisibleDirty();
+}
+
+void UDecalComponent::SetNormalBlend(float InNormalBlend)
+{
+	const float Sanitized = std::clamp(InNormalBlend, 0.0f, 1.0f);
+	if (NormalBlend == Sanitized)
+	{
+		return;
+	}
+
+	NormalBlend = Sanitized;
+	MarkDecalVisibleDirty();
+}
+
+void UDecalComponent::SetRoughnessBlend(float InRoughnessBlend)
+{
+	const float Sanitized = std::clamp(InRoughnessBlend, 0.0f, 1.0f);
+	if (RoughnessBlend == Sanitized)
+	{
+		return;
+	}
+
+	RoughnessBlend = Sanitized;
+	MarkDecalVisibleDirty();
+}
+
+void UDecalComponent::SetEmissiveBlend(float InEmissiveBlend)
+{
+	const float Sanitized = std::clamp(InEmissiveBlend, 0.0f, 1.0f);
+	if (EmissiveBlend == Sanitized)
+	{
+		return;
+	}
+
+	EmissiveBlend = Sanitized;
+	MarkDecalVisibleDirty();
+}
+
+void UDecalComponent::SetEdgeFade(float InEdgeFade)
+{
+	const float Sanitized = (std::max)(0.0f, InEdgeFade);
+	if (EdgeFade == Sanitized)
+	{
+		return;
+	}
+
+	EdgeFade = Sanitized;
+	MarkDecalVisibleDirty();
 }
 
 FBoxSphereBounds UDecalComponent::GetLocalBounds() const
@@ -135,6 +392,8 @@ void UDecalComponent::Serialize(FArchive& Ar)
 		RoughnessBlend = std::clamp(RoughnessBlend, 0.0f, 1.0f);
 		EmissiveBlend = std::clamp(EmissiveBlend, 0.0f, 1.0f);
 		EdgeFade = (std::max)(0.0f, EdgeFade);
+		VisibleRevision = 1;
+		ClusterRevision = 1;
 
 		UpdateBounds();
 	}
@@ -161,6 +420,7 @@ void UDecalComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateCont
 	DuplicatedDecalComponent->EmissiveBlend = EmissiveBlend;
 	DuplicatedDecalComponent->EdgeFade = EdgeFade;
 	DuplicatedDecalComponent->AllowAngle = AllowAngle;
+	DuplicatedDecalComponent->VisibleRevision = 1;
+	DuplicatedDecalComponent->ClusterRevision = 1;
 	DuplicatedDecalComponent->UpdateBounds();
 }
-

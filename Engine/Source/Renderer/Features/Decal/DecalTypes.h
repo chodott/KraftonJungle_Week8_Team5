@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Math/LinearColor.h"
 
+#include <cstdint>
 #include <d3d11.h>
 
 enum ENGINE_API EDecalRenderFlags : uint32
@@ -32,6 +33,9 @@ struct ENGINE_API FDecalRenderItem
 	float EdgeFade = 2.0f;
 	bool bIsFading = false;
 	float AllowAngle = 0.0f;
+	uint64 SourceComponentId = 0;
+	uint32 VisibleRevision = 1;
+	uint32 ClusterRevision = 1;
 
 	bool IsValid() const
 	{
@@ -71,6 +75,35 @@ struct ENGINE_API FDecalGPUData
 	float AllowAngle = 0.0f;
 };
 
+enum class EDecalDirtyFlags : uint32
+{
+	None = 0,
+	VisibleData = 1u << 0,
+	ClusterData = 1u << 1,
+	ForceRebuild = 1u << 2,
+};
+
+inline EDecalDirtyFlags operator|(EDecalDirtyFlags A, EDecalDirtyFlags B)
+{
+	return static_cast<EDecalDirtyFlags>(static_cast<uint32>(A) | static_cast<uint32>(B));
+}
+
+inline EDecalDirtyFlags operator&(EDecalDirtyFlags A, EDecalDirtyFlags B)
+{
+	return static_cast<EDecalDirtyFlags>(static_cast<uint32>(A) & static_cast<uint32>(B));
+}
+
+inline EDecalDirtyFlags& operator|=(EDecalDirtyFlags& A, EDecalDirtyFlags B)
+{
+	A = A | B;
+	return A;
+}
+
+inline bool HasDecalDirtyFlag(EDecalDirtyFlags Value, EDecalDirtyFlags Flag)
+{
+	return (static_cast<uint32>(Value) & static_cast<uint32>(Flag)) != 0;
+}
+
 struct ENGINE_API FDecalRenderRequest
 {
 	TArray<FDecalRenderItem> Items;
@@ -103,6 +136,9 @@ struct ENGINE_API FDecalRenderRequest
 	}
 	
 	bool bDebugDraw = false;
+	EDecalDirtyFlags DirtyFlags = EDecalDirtyFlags::VisibleData | EDecalDirtyFlags::ClusterData;
+	uint64 VisibleSignature = 0;
+	uint64 ClusterSignature = 0;
 };
 
 struct ENGINE_API FDecalClusterBuildStats
@@ -142,7 +178,7 @@ struct ENGINE_API FDecalPreparedViewData
 	TArray<FDecalGPUData> DecalGPUItems;
 	TArray<FDecalClusterHeaderGPU> ClusterHeaders;
 	TArray<uint32> ClusterIndexList;
-	TArray<const FDecalRenderItem*> VisibleSourceItems;
+	TArray<FDecalRenderItem> VisibleSourceItems;
 
 	FDecalClusterBuildStats BuildStats;
 

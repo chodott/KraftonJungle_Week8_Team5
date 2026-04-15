@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Renderer/Features/Decal/DecalStats.h"
@@ -81,8 +81,10 @@ private:
 	TArray<FClusterRange>	CachedClusterRanges;
 	TArray<uint32>			CachedCount;
 	TArray<uint32>			CachedWriteCursor;
-	uint64					CachedRequestSignature = 0;
+	bool					bVisibleDataValid = false;
 	bool					bClusterDataValid = false;
+	uint64				LastVisibleSignature = 0;
+	uint64				LastClusterSignature = 0;
 	FDecalPreparedViewData	CachedPreparedData;
 	
 	// GPU resources

@@ -1,4 +1,4 @@
-﻿#include "Renderer/Features/Decal/DecalTextureCache.h"
+#include "Renderer/Features/Decal/DecalTextureCache.h"
 
 #include "Renderer/Scene/SceneViewData.h"
 #include "ThirdParty/stb_image.h"
@@ -12,6 +12,16 @@ namespace
 {
     static constexpr uint32 DECAL_MAX_TEXTURE_SLICES = 16;
     static const std::wstring GSpotLightFakeCircularMaskPath = L"__SpotLightFakeCircularMask__";
+
+    std::wstring NormalizeDecalTexturePath(const std::wstring& TexturePath)
+    {
+        if (TexturePath.empty() || TexturePath == GSpotLightFakeCircularMaskPath)
+        {
+            return TexturePath;
+        }
+
+        return std::filesystem::path(TexturePath).lexically_normal().wstring();
+    }
 
     std::vector<unsigned char> CreateCircularMaskPixels(uint32 Width, uint32 Height)
     {
@@ -185,10 +195,46 @@ void FDecalTextureCache::ResolveTextureArray(ID3D11Device* Device, FSceneViewDat
 {
     auto& DecalItems = InOutSceneViewData.PostProcessInputs.DecalItems;
 
+    TArray<std::wstring> UniquePaths;
+    UniquePaths.reserve(DecalItems.size());
+
+    for (const FDecalRenderItem& Item : DecalItems)
+    {
+        if (Item.TexturePath.empty())
+        {
+            continue;
+        }
+
+        UniquePaths.push_back(NormalizeDecalTexturePath(Item.TexturePath));
+    }
+
+    std::sort(UniquePaths.begin(), UniquePaths.end());
+    UniquePaths.erase(std::unique(UniquePaths.begin(), UniquePaths.end()), UniquePaths.end());
+
     TArray<std::wstring> SlicePaths;
+    SlicePaths.reserve((std::min)(UniquePaths.size() + 1, static_cast<size_t>(DECAL_MAX_TEXTURE_SLICES)));
     SlicePaths.push_back(L"");
+
     TMap<std::wstring, uint32> PathToSlice;
     PathToSlice.emplace(L"", 0u);
+
+    for (const std::wstring& Path : UniquePaths)
+    {
+        if (Path.empty())
+        {
+            continue;
+        }
+
+        if (SlicePaths.size() >= DECAL_MAX_TEXTURE_SLICES)
+        {
+            UE_LOG("[Decal] Texture array overflow (%u slices). Using fallback for %ls", static_cast<uint32>(DECAL_MAX_TEXTURE_SLICES), Path.c_str());
+            continue;
+        }
+
+        const uint32 NewIndex = static_cast<uint32>(SlicePaths.size());
+        SlicePaths.push_back(Path);
+        PathToSlice.emplace(Path, NewIndex);
+    }
 
     for (FDecalRenderItem& Item : DecalItems)
     {
@@ -198,49 +244,12 @@ void FDecalTextureCache::ResolveTextureArray(ID3D11Device* Device, FSceneViewDat
             continue;
         }
 
-        if (Item.TexturePath == GSpotLightFakeCircularMaskPath)
-        {
-            auto Found = PathToSlice.find(GSpotLightFakeCircularMaskPath);
-            if (Found != PathToSlice.end())
-            {
-                Item.TextureIndex = Found->second;
-                continue;
-            }
-
-            if (SlicePaths.size() >= DECAL_MAX_TEXTURE_SLICES)
-            {
-                PathToSlice.emplace(GSpotLightFakeCircularMaskPath, 0u);
-                Item.TextureIndex = 0;
-                continue;
-            }
-
-            const uint32 NewIndex = static_cast<uint32>(SlicePaths.size());
-            SlicePaths.push_back(GSpotLightFakeCircularMaskPath);
-            PathToSlice.emplace(GSpotLightFakeCircularMaskPath, NewIndex);
-            Item.TextureIndex = NewIndex;
-            continue;
-        }
-
-        const std::wstring NormalizedPath = std::filesystem::path(Item.TexturePath).lexically_normal().wstring();
+        const std::wstring NormalizedPath = NormalizeDecalTexturePath(Item.TexturePath);
         auto Found = PathToSlice.find(NormalizedPath);
         if (Found != PathToSlice.end())
         {
             Item.TextureIndex = Found->second;
-            continue;
         }
-
-        if (SlicePaths.size() >= DECAL_MAX_TEXTURE_SLICES)
-        {
-            UE_LOG("[Decal] Texture array overflow (%u slices). Using fallback for %ls", static_cast<uint32>(DECAL_MAX_TEXTURE_SLICES), NormalizedPath.c_str());
-            PathToSlice.emplace(NormalizedPath, 0u);
-            Item.TextureIndex = 0;
-            continue;
-        }
-
-        const uint32 NewIndex = static_cast<uint32>(SlicePaths.size());
-        SlicePaths.push_back(NormalizedPath);
-        PathToSlice.emplace(NormalizedPath, NewIndex);
-        Item.TextureIndex = NewIndex;
     }
 
     if (SlicePaths == BaseColorTextureArrayPaths && BaseColorTextureArraySRV)
@@ -320,30 +329,30 @@ void FDecalTextureCache::ResolveTextureArray(ID3D11Device* Device, FSceneViewDat
         }
         else
         {
-            UE_LOG("[Decal] Size mismatch for %ls (%ux%u vs canonical %ux%u). Using fallback.", Path.c_str(), Width, Height, CanonicalW, CanonicalH);
+            UE_LOG("[Decal] Texture array size mismatch (%ls: %ux%u, expected %ux%u). Using fallback.",
+                Path.c_str(), Width, Height, CanonicalW, CanonicalH);
         }
     }
 
-    if (CanonicalW == 0)
+    if (CanonicalW == 0 || CanonicalH == 0)
     {
         CanonicalW = 1;
         CanonicalH = 1;
     }
 
-    const std::vector<unsigned char> WhitePixels(CanonicalW * CanonicalH * 4, 255u);
     for (uint32 i = 0; i < ArraySize; ++i)
     {
-        if (Slices[i].W != CanonicalW || Slices[i].H != CanonicalH)
+        if (Slices[i].Pixels.empty())
         {
             Slices[i].W = CanonicalW;
             Slices[i].H = CanonicalH;
-            Slices[i].Pixels = WhitePixels;
+            Slices[i].Pixels.assign(static_cast<size_t>(CanonicalW) * CanonicalH * 4u, 255u);
         }
     }
 
     if (!Device)
     {
-        InOutSceneViewData.PostProcessInputs.DecalBaseColorTextureArraySRV = nullptr;
+        InOutSceneViewData.PostProcessInputs.DecalBaseColorTextureArraySRV = FallbackBaseColorSRV;
         return;
     }
 
@@ -362,18 +371,18 @@ void FDecalTextureCache::ResolveTextureArray(ID3D11Device* Device, FSceneViewDat
     {
         InitData[i].pSysMem = Slices[i].Pixels.data();
         InitData[i].SysMemPitch = CanonicalW * 4;
-        InitData[i].SysMemSlicePitch = 0;
+        InitData[i].SysMemSlicePitch = static_cast<UINT>(Slices[i].Pixels.size());
     }
 
     if (FAILED(Device->CreateTexture2D(&Desc, InitData.data(), &BaseColorTextureArrayResource)) || !BaseColorTextureArrayResource)
     {
-        UE_LOG("[Decal] Failed to create Texture2DArray (%u slices, %ux%u).", ArraySize, CanonicalW, CanonicalH);
-        InOutSceneViewData.PostProcessInputs.DecalBaseColorTextureArraySRV = nullptr;
+        BaseColorTextureArrayResource = nullptr;
+        InOutSceneViewData.PostProcessInputs.DecalBaseColorTextureArraySRV = FallbackBaseColorSRV;
         return;
     }
 
     D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
-    SRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    SRVDesc.Format = Desc.Format;
     SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
     SRVDesc.Texture2DArray.MostDetailedMip = 0;
     SRVDesc.Texture2DArray.MipLevels = 1;
@@ -382,8 +391,10 @@ void FDecalTextureCache::ResolveTextureArray(ID3D11Device* Device, FSceneViewDat
 
     if (FAILED(Device->CreateShaderResourceView(BaseColorTextureArrayResource, &SRVDesc, &BaseColorTextureArraySRV)) || !BaseColorTextureArraySRV)
     {
-        UE_LOG("[Decal] Failed to create Texture2DArray SRV.");
-        InOutSceneViewData.PostProcessInputs.DecalBaseColorTextureArraySRV = nullptr;
+        BaseColorTextureArrayResource->Release();
+        BaseColorTextureArrayResource = nullptr;
+        BaseColorTextureArraySRV = nullptr;
+        InOutSceneViewData.PostProcessInputs.DecalBaseColorTextureArraySRV = FallbackBaseColorSRV;
         return;
     }
 

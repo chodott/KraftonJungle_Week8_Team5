@@ -26,7 +26,7 @@ public:
 	void DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
 	void Tick(float DeltaTime) override;
 
-	void SetEnabled(bool bInEnabled) { bEnabled = bInEnabled; }
+	void SetEnabled(bool bInEnabled);
 	bool IsEnabled() const { return bEnabled; }
 	virtual bool IsPickable() const { return false; }
 
@@ -35,61 +35,28 @@ public:
 	void FadeOut(float Duration, bool bDisableOnComplete = true);
 	EDecalFadeState GetFadeState() const { return FadeState; }
 
-	void SetFadeInDuration(float Duration) { FadeInDuration = (std::max)(0.05f, Duration); }
+	void SetFadeInDuration(float Duration);
 	float GetFadeInDuration() const { return FadeInDuration; }
 
-	void SetFadeOutDuration(float Duration) { FadeOutDuration = (std::max)(0.05f, Duration); }
+	void SetFadeOutDuration(float Duration);
 	float GetFadeOutDuration() const { return FadeOutDuration; }
 
-	void SetSize(const FVector2& InSize)
-	{
-		const FVector2 Sanitized(
-			(std::max)(0.0f, InSize.X),
-			(std::max)(0.0f, InSize.Y));
-		if (Size != Sanitized)
-		{
-			Size = Sanitized;
-			UpdateBounds();
-		}
-	}
+	void SetSize(const FVector2& InSize);
 	const FVector2& GetSize() const { return Size; }
 
-	void SetProjectionDepth(float InProjectionDepth)
-	{
-		const float Sanitized = (std::max)(0.0f, InProjectionDepth);
-		if (ProjectionDepth != Sanitized)
-		{
-			ProjectionDepth = Sanitized;
-			UpdateBounds();
-		}
-	}
+	void SetProjectionDepth(float InProjectionDepth);
 	float GetProjectionDepth() const { return ProjectionDepth; }
 
-	void SetExtents(const FVector& InExtents)
-	{
-		const FVector Sanitized(
-			(std::max)(0.0f, InExtents.X),
-			(std::max)(0.0f, InExtents.Y),
-			(std::max)(0.0f, InExtents.Z));
-
-		const float NewProjectionDepth = Sanitized.X * 2.0f;
-		const FVector2 NewSize(Sanitized.Y * 2.0f, Sanitized.Z * 2.0f);
-		if (Size != NewSize || ProjectionDepth != NewProjectionDepth)
-		{
-			Size = NewSize;
-			ProjectionDepth = NewProjectionDepth;
-			UpdateBounds();
-		}
-	}
+	void SetExtents(const FVector& InExtents);
 	FVector GetExtents() const
 	{
 		return FVector(ProjectionDepth * 0.5f, Size.X * 0.5f, Size.Y * 0.5f);
 	}
 
-	void SetUVMin(const FVector2& InUVMin) { UVMin = InUVMin; }
+	void SetUVMin(const FVector2& InUVMin);
 	const FVector2& GetUVMin() const { return UVMin; }
 
-	void SetUVMax(const FVector2& InUVMax) { UVMax = InUVMax; }
+	void SetUVMax(const FVector2& InUVMax);
 	const FVector2& GetUVMax() const { return UVMax; }
 
 	FVector4 GetAtlasScaleBias() const
@@ -101,38 +68,49 @@ public:
 			UVMin.Y);
 	}
 
-	void SetTexturePath(const std::wstring& InPath) { TexturePath = InPath; }
+	void SetTexturePath(const std::wstring& InPath);
 	const std::wstring& GetTexturePath() const { return TexturePath; }
 
 	void SetTextureIndex(uint32 InTextureIndex) { TextureIndex = InTextureIndex; }
 	uint32 GetTextureIndex() const { return TextureIndex; }
 
-	void SetRenderFlags(uint32 InRenderFlags) { RenderFlags = InRenderFlags; }
+	void SetRenderFlags(uint32 InRenderFlags);
 	uint32 GetRenderFlags() const { return RenderFlags; }
 
-	void SetPriority(uint32 InPriority) { Priority = InPriority; }
+	void SetPriority(uint32 InPriority);
 	uint32 GetPriority() const { return Priority; }
 
-	void SetReceiverLayerMask(uint32 InReceiverLayerMask) { ReceiverLayerMask = InReceiverLayerMask; }
+	void SetReceiverLayerMask(uint32 InReceiverLayerMask);
 	uint32 GetReceiverLayerMask() const { return ReceiverLayerMask; }
 
-	void SetAllowAngle(float InDegrees) { AllowAngle = std::clamp(InDegrees, 0.0f, 180.0f); }
+	void SetAllowAngle(float InDegrees);
 	float GetAllowAngle() const { return AllowAngle; }
 
-	void SetBaseColorTint(const FLinearColor& InBaseColorTint) { BaseColorTint = InBaseColorTint; }
+	void SetBaseColorTint(const FLinearColor& InBaseColorTint);
 	const FLinearColor& GetBaseColorTint() const { return BaseColorTint; }
 
-	void SetNormalBlend(float InNormalBlend) { NormalBlend = std::clamp(InNormalBlend, 0.0f, 1.0f); }
+	void SetNormalBlend(float InNormalBlend);
 	float GetNormalBlend() const { return NormalBlend; }
 
-	void SetRoughnessBlend(float InRoughnessBlend) { RoughnessBlend = std::clamp(InRoughnessBlend, 0.0f, 1.0f); }
+	void SetRoughnessBlend(float InRoughnessBlend);
 	float GetRoughnessBlend() const { return RoughnessBlend; }
 
-	void SetEmissiveBlend(float InEmissiveBlend) { EmissiveBlend = std::clamp(InEmissiveBlend, 0.0f, 1.0f); }
+	void SetEmissiveBlend(float InEmissiveBlend);
 	float GetEmissiveBlend() const { return EmissiveBlend; }
 
-	void SetEdgeFade(float InEdgeFade) { EdgeFade = (std::max)(0.0f, InEdgeFade); }
+	void SetEdgeFade(float InEdgeFade);
 	float GetEdgeFade() const { return EdgeFade; }
+
+	uint32 GetVisibleRevision() const { return VisibleRevision; }
+	uint32 GetClusterRevision() const { return ClusterRevision; }
+
+protected:
+	void MarkTransformDirty() override;
+
+private:
+	void MarkDecalVisibleDirty();
+	void MarkDecalClusterDirty();
+	static void BumpRevision(uint32& InOutRevision);
 
 private:
 	bool bEnabled = true;
@@ -162,4 +140,6 @@ private:
 	float RoughnessBlend = 1.0f;
 	float EmissiveBlend = 1.0f;
 	float EdgeFade = 2.0f;
+	uint32 VisibleRevision = 1;
+	uint32 ClusterRevision = 1;
 };

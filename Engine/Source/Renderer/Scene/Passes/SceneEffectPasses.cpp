@@ -1,4 +1,4 @@
-﻿#include "Renderer/Scene/Passes/ScenePasses.h"
+#include "Renderer/Scene/Passes/ScenePasses.h"
 
 #include "Renderer/Features/FireBall/FireBallRenderFeature.h"
 #include "Renderer/GraphicsCore/FullscreenPass.h"
@@ -12,6 +12,7 @@
 #include "Renderer/Scene/Passes/ScenePassExecutionUtils.h"
 
 
+
 bool FDecalCompositePass::Execute(FPassContext& Context)
 {
 	if (Context.SceneViewData.PostProcessInputs.DecalItems.empty())
@@ -19,7 +20,7 @@ bool FDecalCompositePass::Execute(FPassContext& Context)
 		return true;
 	}
 
-	const FDecalRenderRequest Request = BuildDecalPassRequest(Context.SceneViewData);
+	const FDecalRenderRequest Request = BuildDecalPassRequest(Context.SceneViewData, EDecalDirtyFlags::None);
 	if (Context.Renderer.GetDecalProjectionMode() == EDecalProjectionMode::VolumeDraw)
 	{
 		FVolumeDecalRenderFeature* VolumeDecalFeature = Context.Renderer.GetVolumeDecalFeature();
