@@ -7,6 +7,7 @@
 #include "Object/ObjectFactory.h"
 #include "Component/PrimitiveComponent.h"
 #include "Component/UUIDBillboardComponent.h"
+#include "Level/PrimitiveVisibilityUtils.h"
 #include "Object/Class.h"
 
 #include "Serializer/SceneSerializer.h"
@@ -212,6 +213,11 @@ void ULevel::GatherPrimitiveComponents(TArray<UPrimitiveComponent*>& OutPrimitiv
 			}
 
 			if (bExcludeUUIDBillboards && PrimitiveComponent->IsA(UUUIDBillboardComponent::StaticClass()))
+			{
+				continue;
+			}
+
+			if (IsArrowVisualizationPrimitive(PrimitiveComponent))
 			{
 				continue;
 			}
