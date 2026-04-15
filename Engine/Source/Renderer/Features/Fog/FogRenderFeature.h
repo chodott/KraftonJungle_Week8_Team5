@@ -5,6 +5,7 @@
 #include "Renderer/Common/RenderFrameContext.h"
 #include "Renderer/Common/SceneRenderTargets.h"
 #include "Renderer/Features/Fog/FogTypes.h"
+#include "Renderer/Features/Fog/FogStats.h"
 
 #include <d3d11.h>
 
@@ -18,6 +19,7 @@ public:
               const FViewContext &View, const FSceneRenderTargets &Targets,
               const TArray<FFogRenderItem> &Items);
   void Release();
+  const FFogStats& GetStats() const { return LastStats; }
 
 private:
   bool Initialize(FRenderer &Renderer);
@@ -59,4 +61,5 @@ private:
   TArray<FFogRenderItem> PreparedLocalFogItems;
   TArray<uint32> ClusterHeadersCPU;
   TArray<uint32> ClusterIndexListCPU;
+  FFogStats LastStats;
 };

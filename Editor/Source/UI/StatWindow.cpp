@@ -6,6 +6,8 @@
 #include "Viewport/ViewportTypes.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/Features/Decal/DecalRenderFeature.h"
+#include "Renderer/Features/Fog/FogStats.h"
+#include "Renderer/GPUStats.h"
 
 #include "imgui.h"
 
@@ -151,6 +153,12 @@ void FStatWindow::Render(const FRect& AreaRect, EStatWindowMode Mode, FRenderer*
 		break;
 	case EStatWindowMode::Decal:
 		RenderDecalStats(Renderer);
+		break;
+	case EStatWindowMode::Fog:
+		RenderFogStats(Renderer);
+		break;
+	case EStatWindowMode::GPU:
+		RenderGPUStats(Renderer);
 		break;
 	default:
 		break;
@@ -308,4 +316,76 @@ void FStatWindow::RenderDecalStats(FRenderer* Renderer)
 		ImGui::Text("Avg Decals Per Cell: %.3f", Stats.ClusteredLookup.AvgDecalsPerCell);
 		ImGui::Text("Max Decals Per Cell: %d", Stats.ClusteredLookup.MaxDecalsPerCell);
 	}
+}
+
+void FStatWindow::RenderFogStats(FRenderer* Renderer)
+{
+	if (!Renderer)
+	{
+		ImGui::TextDisabled("Renderer unavailable.");
+		return;
+	}
+
+	const FFogStats Stats = Renderer->GetFogStats();
+	ImGui::Text("[Fog Stat]");
+	ImGui::Separator();
+	ImGui::Text("Total Fog Volumes: %u", Stats.Common.TotalFogVolumes);
+	ImGui::Text("Global Fog Volumes: %u", Stats.Common.GlobalFogVolumes);
+	ImGui::Text("Local Fog Volumes: %u", Stats.Common.LocalFogVolumes);
+	ImGui::Text("Registered Local Fog Volumes: %u", Stats.Common.RegisteredLocalFogVolumes);
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Text("Cluster Count: %u", Stats.Common.ClusterCount);
+	ImGui::Text("Non-Empty Clusters: %u", Stats.Common.NonEmptyClusterCount);
+	ImGui::Text("Cluster Index Count: %u", Stats.Common.ClusterIndexCount);
+	ImGui::Text("Max Fog Per Cluster: %u", Stats.Common.MaxFogPerCluster);
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Text("Fullscreen Pass Count: %u", Stats.Common.FullscreenPassCount);
+	ImGui::Text("Draw Call Count: %u", Stats.Common.DrawCallCount);
+	ImGui::Text("Cluster Build Time: %.3f ms", Stats.Common.ClusterBuildTimeMs);
+	ImGui::Text("Constant Buffer Update Time: %.3f ms", Stats.Common.ConstantBufferUpdateTimeMs);
+	ImGui::Text("Structured Buffer Upload Time: %.3f ms", Stats.Common.StructuredBufferUploadTimeMs);
+	ImGui::Text("Shading Pass Time: %.3f ms", Stats.Common.ShadingPassTimeMs);
+	ImGui::Text("Total Fog Time: %.3f ms", Stats.Common.TotalFogTimeMs);
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Text("Global Fog Buffer: %.2f KB", Stats.Common.GlobalFogBufferBytes / 1024.0);
+	ImGui::Text("Local Fog Buffer: %.2f KB", Stats.Common.LocalFogBufferBytes / 1024.0);
+	ImGui::Text("Cluster Header Buffer: %.2f KB", Stats.Common.ClusterHeaderBufferBytes / 1024.0);
+	ImGui::Text("Cluster Index Buffer: %.2f KB", Stats.Common.ClusterIndexBufferBytes / 1024.0);
+	ImGui::Text("SceneColor Copy: %.2f MB", Stats.Common.SceneColorCopyBytes / (1024.0 * 1024.0));
+	ImGui::Text("Total Upload: %.2f KB", Stats.Common.TotalUploadBytes / 1024.0);
+}
+
+void FStatWindow::RenderGPUStats(FRenderer* Renderer)
+{
+	if (!Renderer)
+	{
+		ImGui::TextDisabled("Renderer unavailable.");
+		return;
+	}
+
+	const FGPUFrameStats Stats = Renderer->GetGPUStats();
+	ImGui::Text("[GPU Stat]");
+	ImGui::Separator();
+	ImGui::Text("Geometry Draw Calls: %u", Stats.GeometryDrawCalls);
+	ImGui::Text("Fullscreen Pass Count: %u", Stats.FullscreenPassCount);
+	ImGui::Text("Total Draw Calls: %u", Stats.DrawCallCount);
+	ImGui::Text("Pass Count: %u", Stats.PassCount);
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Text("Geometry Cost: %.3f ms", Stats.GeometryTimeMs);
+	ImGui::Text("Pixel Shading Cost: %.3f ms", Stats.PixelShadingTimeMs);
+	ImGui::Text("Memory / Bandwidth Cost: %.3f ms", Stats.MemoryBandwidthTimeMs);
+	ImGui::Text("Overdraw / Fillrate Cost: %.3f ms", Stats.OverdrawFillrateTimeMs);
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Text("Decal Draw Calls: %u", Stats.DecalDrawCalls);
+	ImGui::Text("Fog Draw Calls: %u", Stats.FogDrawCalls);
+	ImGui::Text("Upload Bytes: %.2f KB", Stats.UploadBytes / 1024.0);
+	ImGui::Text("Scene Copy Bytes: %.2f MB", Stats.CopyBytes / (1024.0 * 1024.0));
+	ImGui::Text("Estimated Fullscreen Pixels: %.2f M", Stats.EstimatedFullscreenPixels / 1000000.0);
+	ImGui::Spacing();
+	ImGui::TextDisabled("Geometry/overdraw are engine-side aggregates. D3D11 hardware counters are not sampled here.");
 }

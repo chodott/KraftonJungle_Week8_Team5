@@ -1160,6 +1160,8 @@ void FEditorUI::Render()
             const bool bStatNone = DebugState.StatDisplayMode == EStatDisplayMode::None && !DebugState.FPS;
             const bool bStatMemory = DebugState.StatDisplayMode == EStatDisplayMode::Memory;
             const bool bStatDecal = DebugState.StatDisplayMode == EStatDisplayMode::Decal;
+            const bool bStatFog = DebugState.StatDisplayMode == EStatDisplayMode::Fog;
+            const bool bStatGPU = DebugState.StatDisplayMode == EStatDisplayMode::GPU;
 
             if (ImGui::MenuItem("None", nullptr, bStatNone))
             {
@@ -1180,6 +1182,15 @@ void FEditorUI::Render()
             if (ImGui::MenuItem("Decal", nullptr, bStatDecal))
             {
                 DebugState.StatDisplayMode = EStatDisplayMode::Decal;
+            }
+            if (ImGui::MenuItem("Fog", nullptr, bStatFog))
+            {
+                DebugState.StatDisplayMode = EStatDisplayMode::Fog;
+            }
+
+            if (ImGui::MenuItem("GPU", nullptr, bStatGPU))
+            {
+                DebugState.StatDisplayMode = EStatDisplayMode::GPU;
             }
             ImGui::EndMenu();
         }
@@ -1345,6 +1356,12 @@ void FEditorUI::Render()
             break;
         case EStatDisplayMode::Decal:
             Stat.Render(StatArea, EStatWindowMode::Decal, Renderer);
+            break;
+        case EStatDisplayMode::Fog:
+            Stat.Render(StatArea, EStatWindowMode::Fog, Renderer);
+            break;
+        case EStatDisplayMode::GPU:
+            Stat.Render(StatArea, EStatWindowMode::GPU, Renderer);
             break;
         default:
             break;

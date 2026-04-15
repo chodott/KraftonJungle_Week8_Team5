@@ -220,6 +220,78 @@ const FDecalFrameStats &FRenderer::GetDecalFrameStats() const
     return DecalFeature ? DecalFeature->GetFrameStats() : EmptyStats;
 }
 
+FFogStats FRenderer::GetFogStats() const
+{
+    FFogStats Stats;
+    if (FogFeature)
+    {
+        Stats = FogFeature->GetStats();
+    }
+    return Stats;
+}
+
+FGPUFrameStats FRenderer::GetGPUStats() const
+{
+    FGPUFrameStats Stats;
+    Stats.GeometryDrawCalls = static_cast<uint32>(GetPrevCommandCount());
+
+    const FDecalStats DecalStats = GetDecalStats();
+    const FFogStats FogStats = GetFogStats();
+
+    const FDecalFrameStats& DecalFrameStats = GetDecalFrameStats();
+
+    Stats.DecalDrawCalls = (DecalStats.Common.Mode == EDecalProjectionMode::VolumeDraw)
+        ? DecalStats.Volume.DecalDrawCalls
+        : (DecalStats.Common.VisibleDecals > 0u ? 1u : 0u);
+    Stats.FogDrawCalls = FogStats.Common.DrawCallCount;
+
+    Stats.GeometryTimeMs = 0.0;
+    Stats.PixelShadingTimeMs = DecalStats.Common.ShadingPassTimeMs + FogStats.Common.ShadingPassTimeMs;
+    Stats.MemoryBandwidthTimeMs = DecalFrameStats.UploadDecalBufferTimeMs
+        + DecalFrameStats.UploadClusterHeaderBufferTimeMs
+        + DecalFrameStats.UploadClusterIndexBufferTimeMs
+        + FogStats.Common.StructuredBufferUploadTimeMs;
+    Stats.OverdrawFillrateTimeMs = Stats.PixelShadingTimeMs;
+
+    Stats.UploadBytes = static_cast<uint64>(DecalFrameStats.UploadedDecalCount) * sizeof(FDecalGPUData)
+        + static_cast<uint64>(DecalFrameStats.UploadedClusterHeaderCount) * sizeof(FDecalClusterHeaderGPU)
+        + static_cast<uint64>(DecalFrameStats.UploadedClusterIndexCount) * sizeof(uint32)
+        + FogStats.Common.TotalUploadBytes;
+    Stats.CopyBytes = FogStats.Common.SceneColorCopyBytes;
+
+    Stats.FullscreenPassCount = 0;
+    if (DecalStats.Common.Mode == EDecalProjectionMode::ClusteredLookup && DecalStats.Common.VisibleDecals > 0u)
+    {
+        ++Stats.FullscreenPassCount;
+    }
+    Stats.FullscreenPassCount += FogStats.Common.FullscreenPassCount;
+
+    Stats.PassCount = 4; // clear, upload, depth prepass, forward opaque
+    if (DecalStats.Common.VisibleDecals > 0u)
+    {
+        ++Stats.PassCount;
+    }
+    if (FogStats.Common.TotalFogVolumes > 0u)
+    {
+        ++Stats.PassCount;
+    }
+    Stats.PassCount += 1; // fireball
+    Stats.PassCount += 1; // forward transparent
+    Stats.PassCount += 1; // editor grid
+    Stats.PassCount += 2; // outline
+    Stats.PassCount += 1; // fxaa
+    Stats.PassCount += 2; // editor overlay passes
+
+    Stats.DrawCallCount = Stats.GeometryDrawCalls + Stats.DecalDrawCalls + Stats.FogDrawCalls;
+    Stats.EstimatedFullscreenPixels = static_cast<uint64>(
+        FogStats.Common.FullscreenPassCount +
+        ((DecalStats.Common.Mode == EDecalProjectionMode::ClusteredLookup && DecalStats.Common.VisibleDecals > 0u) ? 1u : 0u))
+        * static_cast<uint64>(GetBackBufferViewport().Width)
+        * static_cast<uint64>(GetBackBufferViewport().Height);
+
+    return Stats;
+}
+
 FDecalStats FRenderer::GetDecalStats() const
 {
     FDecalStats Stats;

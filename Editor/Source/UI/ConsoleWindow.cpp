@@ -42,6 +42,8 @@ FConsoleWindow::FConsoleWindow()
 	Commands.push_back("stat fps");
 	Commands.push_back("stat memory");
 	Commands.push_back("stat decal");
+	Commands.push_back("stat fog");
+	Commands.push_back("stat gpu");
 	Commands.push_back("stat none");
 
 	AddLog("Welcome to Console.");
@@ -226,6 +228,20 @@ void FConsoleWindow::ExecCommand(const char* CommandLine)
 		if (DebugState)
 		{
 			DebugState->StatDisplayMode = EStatDisplayMode::Decal;
+		}
+	}
+    else if (Stricmp(CommandLine, "stat fog") == 0)
+	{
+		if (DebugState)
+		{
+			DebugState->StatDisplayMode = EStatDisplayMode::Fog;
+		}
+	}
+	else if (Stricmp(CommandLine, "stat gpu") == 0)
+	{
+		if (DebugState)
+		{
+			DebugState->StatDisplayMode = EStatDisplayMode::GPU;
 		}
 	}
 	else if (Stricmp(CommandLine, "stat fps") == 0)
