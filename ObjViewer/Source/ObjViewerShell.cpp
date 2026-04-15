@@ -670,6 +670,7 @@ void FObjViewerShell::DrawMenuBar()
 
 			FObjViewerGridSettings& GridSettings = Engine->GetMutableGridSettings();
 			ImGui::MenuItem("Show Grid", nullptr, &GridSettings.bVisible);
+			ImGui::MenuItem("Show World Axis", nullptr, &GridSettings.bShowWorldAxis);
 		}
 
 		ImGui::EndMenu();

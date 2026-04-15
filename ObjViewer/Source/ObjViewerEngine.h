@@ -65,6 +65,7 @@ struct FObjViewerModelState
 struct FObjViewerGridSettings
 {
 	bool bVisible = true;
+	bool bShowWorldAxis = true;
 	float GridSize = 10.0f;
 	float LineThickness = 1.0f;
 };
@@ -121,6 +122,7 @@ protected:
 private:
 	void InitializeViewerCamera() const;
 	void CreateGridResources();
+	void CreateAxisResources();
 	void ApplyWireframeOverride(FGameFrameRequest& Request) const;
 	void AppendNormalVisualizationDebugDraw();
 	void AppendGridMeshBatch(FGameFrameRequest& Request) const;
@@ -137,6 +139,8 @@ private:
 	FObjViewerNormalSettings NormalSettings;
 	std::unique_ptr<FDynamicMesh> GridMesh;
 	std::shared_ptr<FMaterial> GridMaterial;
+	std::unique_ptr<FDynamicMesh> WorldAxisMesh;
+	std::shared_ptr<FMaterial> WorldAxisMaterial;
 	bool bWireframeEnabled = false;
 	const FString WireframeMaterialName = "M_Wireframe";
 	std::shared_ptr<FMaterial> WireframeMaterial = nullptr;

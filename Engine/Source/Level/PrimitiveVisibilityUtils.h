@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "Core/ShowFlags.h"
 
@@ -9,11 +9,11 @@
 #include "Component/StaticMeshComponent.h"
 #include "World/World.h"
 
-inline bool IsHiddenByArrowVisualizationShowFlags(UPrimitiveComponent* Primitive, const FShowFlags& ShowFlags)
+inline bool IsArrowVisualizationPrimitive(UPrimitiveComponent* Primitive)
 {
 	if (!Primitive || Primitive->IsPendingKill())
 	{
-		return true;
+		return false;
 	}
 
 	if (AActor* Owner = Primitive->GetOwner())
@@ -21,7 +21,7 @@ inline bool IsHiddenByArrowVisualizationShowFlags(UPrimitiveComponent* Primitive
 		if (Owner->IsA(ADecalActor::StaticClass()))
 		{
 			ADecalActor* DecalActor = static_cast<ADecalActor*>(Owner);
-			if (Primitive == DecalActor->GetArrowComponent() && !ShowFlags.HasFlag(EEngineShowFlags::SF_DecalArrow))
+			if (Primitive == DecalActor->GetArrowComponent())
 			{
 				return true;
 			}
@@ -35,12 +35,36 @@ inline bool IsHiddenByArrowVisualizationShowFlags(UPrimitiveComponent* Primitive
 			}
 
 			UProjectileMovementComponent* ProjectileMovementComponent = static_cast<UProjectileMovementComponent*>(Component);
-			if (Primitive == ProjectileMovementComponent->GetVelocityArrowComponent()
-				&& !ShowFlags.HasFlag(EEngineShowFlags::SF_ProjectileArrow))
+			if (Primitive == ProjectileMovementComponent->GetVelocityArrowComponent())
 			{
 				return true;
 			}
 		}
+	}
+
+	return false;
+}
+
+inline bool IsHiddenByArrowVisualizationShowFlags(UPrimitiveComponent* Primitive, const FShowFlags& ShowFlags)
+{
+	if (!Primitive || Primitive->IsPendingKill())
+	{
+		return true;
+	}
+
+	if (!IsArrowVisualizationPrimitive(Primitive))
+	{
+		return false;
+	}
+
+	if (AActor* Owner = Primitive->GetOwner())
+	{
+		if (Owner->IsA(ADecalActor::StaticClass()))
+		{
+			return !ShowFlags.HasFlag(EEngineShowFlags::SF_DecalArrow);
+		}
+
+		return !ShowFlags.HasFlag(EEngineShowFlags::SF_ProjectileArrow);
 	}
 
 	return false;

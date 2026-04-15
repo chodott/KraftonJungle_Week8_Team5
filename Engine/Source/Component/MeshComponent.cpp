@@ -1,4 +1,4 @@
-#include "Object/Class.h"
+﻿#include "Object/Class.h"
 #include "Serializer/Archive.h"
 #include "Renderer/Resources/Material/Material.h"
 #include "Component/MeshComponent.h"

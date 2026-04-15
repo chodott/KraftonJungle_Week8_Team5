@@ -1,4 +1,4 @@
-#include "Core/ConsoleVariableManager.h"
+﻿#include "Core/ConsoleVariableManager.h"
 #include <cstdlib>
 #include <algorithm>
 

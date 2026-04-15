@@ -1,7 +1,7 @@
 {
   "Name": "M_GreenColor",
-  "VertexShader": "Engine/Shaders/VertexShader.hlsl",
-  "PixelShader": "Engine/Shaders/ColorPixelShader.hlsl",
+  "VertexShader": "Engine/Shaders/SceneGeometry/VertexShader.hlsl",
+  "PixelShader": "Engine/Shaders/SceneGeometry/ColorPixelShader.hlsl",
     "RenderState": {
     "FillMode": 3,
     "CullMode": 3,

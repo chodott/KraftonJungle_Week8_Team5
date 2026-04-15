@@ -24,21 +24,21 @@ bool FViewportCompositor::Initialize(ID3D11Device* Device)
 
 	const std::wstring ShaderDir = FPaths::ShaderDir().wstring();
 
-	auto BlitVSResource = FShaderResource::GetOrCompile((ShaderDir + L"BlitVertexShader.hlsl").c_str(), "main", "vs_5_0");
+	auto BlitVSResource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl").c_str(), "main", "vs_5_0");
 	if (!BlitVSResource || FAILED(Device->CreateVertexShader(BlitVSResource->GetBufferPointer(), BlitVSResource->GetBufferSize(), nullptr, &BlitVertexShader)))
 	{
 		Release();
 		return false;
 	}
 
-	auto BlitPSResource = FShaderResource::GetOrCompile((ShaderDir + L"BlitPixelShader.hlsl").c_str(), "main", "ps_5_0");
+	auto BlitPSResource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/BlitPixelShader.hlsl").c_str(), "main", "ps_5_0");
 	if (!BlitPSResource || FAILED(Device->CreatePixelShader(BlitPSResource->GetBufferPointer(), BlitPSResource->GetBufferSize(), nullptr, &BlitPixelShader)))
 	{
 		Release();
 		return false;
 	}
 
-	auto DepthPSResource = FShaderResource::GetOrCompile((ShaderDir + L"DepthViewPixelShader.hlsl").c_str(), "main", "ps_5_0");
+	auto DepthPSResource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/DepthViewPixelShader.hlsl").c_str(), "main", "ps_5_0");
 	if (!DepthPSResource || FAILED(Device->CreatePixelShader(DepthPSResource->GetBufferPointer(), DepthPSResource->GetBufferSize(), nullptr, &DepthViewPixelShader)))
 	{
 		Release();

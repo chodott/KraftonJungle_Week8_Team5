@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "SceneManagerWindow.h" 
 #include "ControlPanelWindow.h"
 #include "PropertyWindow.h"

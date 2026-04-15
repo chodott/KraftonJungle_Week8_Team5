@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <utility>
 
 template <typename FirstType, typename SecondType>

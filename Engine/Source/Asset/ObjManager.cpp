@@ -1,4 +1,4 @@
-#include "Asset/ObjManager.h"
+﻿#include "Asset/ObjManager.h"
 
 #include <algorithm>
 #include <cctype>
@@ -445,8 +445,8 @@ namespace
 		std::shared_ptr<FMaterial> Material = std::make_shared<FMaterial>();
 		Material->SetOriginName(MaterialName.empty() ? "M_Default" : MaterialName);
 
-		std::wstring VSPath = FPaths::ShaderDir() / L"VertexShader.hlsl";
-		std::wstring PSPath = FPaths::ShaderDir() / L"ColorPixelShader.hlsl";
+		std::wstring VSPath = FPaths::ShaderDir() / L"SceneGeometry/VertexShader.hlsl";
+		std::wstring PSPath = FPaths::ShaderDir() / L"SceneGeometry/ColorPixelShader.hlsl";
 		Material->SetVertexShader(FShaderMap::Get().GetOrCreateVertexShader(GEngine->GetRenderer()->GetDevice(), VSPath.c_str()));
 		Material->SetPixelShader(FShaderMap::Get().GetOrCreatePixelShader(GEngine->GetRenderer()->GetDevice(), PSPath.c_str()));
 
@@ -505,10 +505,10 @@ namespace
 		MaterialTexture->TextureSRV = NewSRV;
 		Material->SetMaterialTexture(MaterialTexture);
 
-		std::wstring TexPSPath = FPaths::ShaderDir() / L"TexturePixelShader.hlsl";
+		std::wstring TexPSPath = FPaths::ShaderDir() / L"SceneGeometry/TexturePixelShader.hlsl";
 		Material->SetPixelShader(FShaderMap::Get().GetOrCreatePixelShader(GEngine->GetRenderer()->GetDevice(), TexPSPath.c_str()));
 
-		std::wstring TexVSPath = FPaths::ShaderDir() / L"TextureVertexShader.hlsl";
+		std::wstring TexVSPath = FPaths::ShaderDir() / L"SceneGeometry/TextureVertexShader.hlsl";
 		Material->SetVertexShader(FShaderMap::Get().GetOrCreateVertexShader(GEngine->GetRenderer()->GetDevice(), TexVSPath.c_str()));
 		GEngine->GetRenderer()->ConfigureMaterialPasses(*Material, true);
 		UE_LOG("%s %s", LogPrefix, WideToUtf8(TexturePath.wstring()).c_str());

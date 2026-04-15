@@ -1,4 +1,4 @@
-#include "PropertyWindow.h"
+﻿#include "PropertyWindow.h"
 #include "EditorEngine.h"
 #include "Actor/Actor.h"
 #include "Actor/SpotLightFakeActor.h"

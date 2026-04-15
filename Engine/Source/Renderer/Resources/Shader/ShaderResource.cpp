@@ -1,4 +1,4 @@
-#include "Renderer/Resources/Shader/ShaderResource.h"
+﻿#include "Renderer/Resources/Shader/ShaderResource.h"
 #include "Core/Paths.h"
 #include <d3dcompiler.h>
 #include <cstring>
@@ -8,6 +8,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <sstream>
+#include <vector>
 #include <Windows.h>
 
 #pragma comment(lib, "d3dcompiler.lib")
@@ -41,6 +42,141 @@ namespace
 		}
 
 		return Path.lexically_normal().wstring();
+	}
+
+	bool PathExists(const fs::path& Path)
+	{
+		std::error_code Error;
+		return !Path.empty() && fs::exists(Path, Error);
+	}
+
+	bool TryResolveUnderShaderRoot(const fs::path& ShaderRoot, const fs::path& RequestedPath, fs::path& OutResolvedPath)
+	{
+		if (!PathExists(ShaderRoot))
+		{
+			return false;
+		}
+
+		fs::path SuffixFromShaders;
+		bool bFoundShadersSegment = false;
+		for (auto It = RequestedPath.begin(); It != RequestedPath.end(); ++It)
+		{
+			if (_wcsicmp(It->c_str(), L"Shaders") == 0)
+			{
+				bFoundShadersSegment = true;
+				++It;
+				for (; It != RequestedPath.end(); ++It)
+				{
+					SuffixFromShaders /= *It;
+				}
+				break;
+			}
+		}
+
+		if (bFoundShadersSegment && !SuffixFromShaders.empty())
+		{
+			const fs::path Candidate = (ShaderRoot / SuffixFromShaders).lexically_normal();
+			if (PathExists(Candidate))
+			{
+				OutResolvedPath = Candidate;
+				return true;
+			}
+		}
+
+		if (RequestedPath.is_relative() && !RequestedPath.empty())
+		{
+			const fs::path Candidate = (ShaderRoot / RequestedPath).lexically_normal();
+			if (PathExists(Candidate))
+			{
+				OutResolvedPath = Candidate;
+				return true;
+			}
+		}
+
+		const fs::path Filename = RequestedPath.filename();
+		if (Filename.empty())
+		{
+			return false;
+		}
+
+		const fs::path FlatCandidate = (ShaderRoot / Filename).lexically_normal();
+		if (PathExists(FlatCandidate))
+		{
+			OutResolvedPath = FlatCandidate;
+			return true;
+		}
+
+		std::error_code Error;
+		for (fs::recursive_directory_iterator It(ShaderRoot, fs::directory_options::skip_permission_denied, Error), End;
+			It != End;
+			It.increment(Error))
+		{
+			if (Error)
+			{
+				continue;
+			}
+
+			if (!It->is_regular_file(Error))
+			{
+				continue;
+			}
+
+			if (_wcsicmp(It->path().filename().c_str(), Filename.c_str()) == 0)
+			{
+				OutResolvedPath = It->path().lexically_normal();
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	std::wstring ResolveShaderPath(const wchar_t* HlslPath)
+	{
+		if (!HlslPath)
+		{
+			return {};
+		}
+
+		const fs::path RequestedPath(HlslPath);
+		if (PathExists(RequestedPath))
+		{
+			return NormalizeShaderPath(HlslPath);
+		}
+
+		std::vector<fs::path> ShaderRoots;
+		auto AddShaderRoot = [&ShaderRoots](const fs::path& RootPath)
+		{
+			if (!PathExists(RootPath))
+			{
+				return;
+			}
+
+			const fs::path NormalizedRoot = RootPath.lexically_normal();
+			for (const fs::path& ExistingRoot : ShaderRoots)
+			{
+				if (_wcsicmp(ExistingRoot.c_str(), NormalizedRoot.c_str()) == 0)
+				{
+					return;
+				}
+			}
+
+			ShaderRoots.push_back(NormalizedRoot);
+		};
+
+		AddShaderRoot(FPaths::ShaderDir());
+		AddShaderRoot(FPaths::ProjectRoot() / "Engine/Shaders/");
+
+		fs::path ResolvedPath;
+		for (const fs::path& ShaderRoot : ShaderRoots)
+		{
+			if (TryResolveUnderShaderRoot(ShaderRoot, RequestedPath.lexically_normal(), ResolvedPath))
+			{
+				return NormalizeShaderPath(ResolvedPath.c_str());
+			}
+		}
+
+		return NormalizeShaderPath(HlslPath);
 	}
 
 	std::wstring SanitizeFilenameToken(std::wstring Token)
@@ -218,7 +354,11 @@ std::shared_ptr<FShaderResource> FShaderResource::GetOrCompile(
 		SetContentDir(Temp.c_str());
 	}
 
-	const std::wstring Key = MakeCacheKey(FilePath, EntryPoint, Target);
+	const std::wstring RequestedPath = NormalizeShaderPath(FilePath);
+	const std::wstring ResolvedPath = ResolveShaderPath(FilePath);
+	const wchar_t* EffectiveFilePath = ResolvedPath.c_str();
+
+	const std::wstring Key = MakeCacheKey(EffectiveFilePath, EntryPoint, Target);
 
 	auto It = Cache.find(Key);
 	if (It != Cache.end())
@@ -226,22 +366,23 @@ std::shared_ptr<FShaderResource> FShaderResource::GetOrCompile(
 		return It->second;
 	}
 
-	if (!FilePath || !fs::exists(FilePath))
+	if (!EffectiveFilePath || !fs::exists(EffectiveFilePath))
 	{
 		std::wstringstream Stream;
 		Stream << L"Shader file not found: "
 			<< (FilePath ? FilePath : L"(null)")
+			<< L" | ResolvedPath=" << ResolvedPath
 			<< L" | EntryPoint=" << NarrowToWide(EntryPoint)
 			<< L" | Target=" << NarrowToWide(Target);
 		FatalShaderError(Stream.str());
 	}
 
-	const std::wstring CsoPath = MakeCsoPath(FilePath, EntryPoint, Target);
+	const std::wstring CsoPath = MakeCsoPath(EffectiveFilePath, EntryPoint, Target);
 
 	// .cso가 존재하고 hlsl보다 최신이면 cso에서 로드
     // DEBUG 모드시 매번 쉐이더 컴파일 시도
     #ifndef _DEBUG
-	if (!IsHlslNewer(FilePath, CsoPath.c_str()))
+	if (!IsHlslNewer(EffectiveFilePath, CsoPath.c_str()))
 	{
 		auto Resource = LoadCso(CsoPath.c_str());
 		if (Resource)
@@ -257,7 +398,7 @@ std::shared_ptr<FShaderResource> FShaderResource::GetOrCompile(
 	ID3DBlob* ErrorBlob = nullptr;
 
 	HRESULT Hr = D3DCompileFromFile(
-		FilePath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
+		EffectiveFilePath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
 		EntryPoint, Target,
 		D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION,
 		0, &Blob, &ErrorBlob
@@ -277,7 +418,7 @@ std::shared_ptr<FShaderResource> FShaderResource::GetOrCompile(
 
 		std::wstringstream Stream;
 		Stream << L"Shader compile failed: "
-			<< FilePath
+			<< EffectiveFilePath
 			<< L" | EntryPoint=" << NarrowToWide(EntryPoint)
 			<< L" | Target=" << NarrowToWide(Target)
 			<< L"\n"
@@ -296,7 +437,7 @@ std::shared_ptr<FShaderResource> FShaderResource::GetOrCompile(
 		std::wstringstream Stream;
 		Stream << L"Failed to save shader cso: "
 			<< CsoPath
-			<< L" | Source=" << FilePath;
+			<< L" | Source=" << EffectiveFilePath;
 		FatalShaderError(Stream.str());
 	}
 

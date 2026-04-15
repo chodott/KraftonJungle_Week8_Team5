@@ -1,4 +1,4 @@
-#include "StatWindow.h"
+﻿#include "StatWindow.h"
 #include "Object/Object.h"
 #include "Object/Class.h"
 #include "Object/ObjectGlobals.h"

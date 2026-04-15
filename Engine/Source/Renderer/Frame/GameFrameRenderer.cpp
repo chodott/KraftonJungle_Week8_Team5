@@ -35,7 +35,7 @@ bool FGameFrameRenderer::Render(FRenderer& Renderer, const FGameFrameRequest& Re
     Renderer.DecalTextureCache->ResolveTextureArray(Renderer.GetDevice(), SceneViewData);
     SceneViewData.ShowFlags = Request.DebugInputs.ShowFlags;
     SceneViewData.bForceWireframe = Request.bForceWireframe;
-    BuildDebugLinePassInputs(Request.DebugInputs, SceneViewData.DebugInputs.LinePass);
+    BuildEditorLinePassInputs(Request.DebugInputs, SceneViewData.DebugInputs.LinePass);
 
     if (!Renderer.GetSceneRenderer().RenderSceneView(
         Renderer,

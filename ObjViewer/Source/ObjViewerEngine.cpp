@@ -461,6 +461,7 @@ bool FObjViewerEngine::InitializeMode()
 {
 	WireframeMaterial = FMaterialManager::Get().FindByName(WireframeMaterialName);
 	CreateGridResources();
+	CreateAxisResources();
 	return true;
 }
 
@@ -704,6 +705,93 @@ void FObjViewerEngine::CreateGridResources()
 	GridMaterial->SetParameterData("ViewForward", &DefaultViewForward, sizeof(FVector4));
 }
 
+void FObjViewerEngine::CreateAxisResources()
+{
+	FRenderer* Renderer = GetRenderer();
+	if (Renderer == nullptr || WorldAxisMesh || WorldAxisMaterial)
+	{
+		return;
+	}
+
+	ID3D11Device* Device = Renderer->GetDevice();
+	if (Device == nullptr)
+	{
+		return;
+	}
+
+	// AxisVertexShader: 3축 x 2변형 x 6정점 = 36 정점을 SV_VertexID로 생성
+	constexpr int32 AxisVertexCount = 36;
+
+	WorldAxisMesh = std::make_unique<FDynamicMesh>();
+	WorldAxisMesh->Topology = EMeshTopology::EMT_TriangleList;
+	for (int32 Index = 0; Index < AxisVertexCount; ++Index)
+	{
+		FVertex Vertex;
+		WorldAxisMesh->Vertices.push_back(Vertex);
+		WorldAxisMesh->Indices.push_back(Index);
+	}
+	WorldAxisMesh->CreateVertexAndIndexBuffer(Device);
+
+	std::wstring ShaderDirW = FPaths::ShaderDir();
+	std::wstring VSPath = ShaderDirW + L"EditorScreenOverlay/AxisVertexShader.hlsl";
+	std::wstring PSPath = ShaderDirW + L"EditorScreenOverlay/AxisPixelShader.hlsl";
+	auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
+	auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, PSPath.c_str());
+
+	WorldAxisMaterial = std::make_shared<FMaterial>();
+	WorldAxisMaterial->SetOriginName("M_ObjViewerWorldAxis");
+	WorldAxisMaterial->SetVertexShader(VS);
+	WorldAxisMaterial->SetPixelShader(PS);
+
+	FRasterizerStateOption RasterizerOption;
+	RasterizerOption.FillMode = D3D11_FILL_SOLID;
+	RasterizerOption.CullMode = D3D11_CULL_NONE;
+	auto RS = Renderer->GetRenderStateManager()->GetOrCreateRasterizerState(RasterizerOption);
+	WorldAxisMaterial->SetRasterizerOption(RasterizerOption);
+	WorldAxisMaterial->SetRasterizerState(RS);
+
+	FDepthStencilStateOption DepthStencilOption;
+	DepthStencilOption.DepthEnable = true;
+	DepthStencilOption.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	DepthStencilOption.DepthFunc = D3D11_COMPARISON_LESS;
+	auto DSS = Renderer->GetRenderStateManager()->GetOrCreateDepthStencilState(DepthStencilOption);
+	WorldAxisMaterial->SetDepthStencilOption(DepthStencilOption);
+	WorldAxisMaterial->SetDepthStencilState(DSS);
+
+	FBlendStateOption BlendOption;
+	BlendOption.BlendEnable = true;
+	BlendOption.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	BlendOption.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	BlendOption.BlendOp = D3D11_BLEND_OP_ADD;
+	BlendOption.SrcBlendAlpha = D3D11_BLEND_ONE;
+	BlendOption.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	BlendOption.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	auto BS = Renderer->GetRenderStateManager()->GetOrCreateBlendState(BlendOption);
+	WorldAxisMaterial->SetBlendOption(BlendOption);
+	WorldAxisMaterial->SetBlendState(BS);
+
+	int32 SlotIndex = WorldAxisMaterial->CreateConstantBuffer(Device, 64);
+	if (SlotIndex < 0)
+	{
+		return;
+	}
+
+	WorldAxisMaterial->RegisterParameter("GridSize", SlotIndex, 0, 4);
+	WorldAxisMaterial->RegisterParameter("LineThickness", SlotIndex, 4, 4);
+	WorldAxisMaterial->RegisterParameter("GridAxisU", SlotIndex, 16, 16);
+	WorldAxisMaterial->RegisterParameter("GridAxisV", SlotIndex, 32, 16);
+	WorldAxisMaterial->RegisterParameter("ViewForward", SlotIndex, 48, 16);
+
+	const FVector4 DefaultGridAxisU = FVector4(FVector::ForwardVector, 0.0f);
+	const FVector4 DefaultGridAxisV = FVector4(FVector::RightVector, 0.0f);
+	const FVector4 DefaultViewForward = FVector4(FVector::ForwardVector, 0.0f);
+	WorldAxisMaterial->SetParameterData("GridSize", &GridSettings.GridSize, 4);
+	WorldAxisMaterial->SetParameterData("LineThickness", &GridSettings.LineThickness, 4);
+	WorldAxisMaterial->SetParameterData("GridAxisU", &DefaultGridAxisU, sizeof(FVector4));
+	WorldAxisMaterial->SetParameterData("GridAxisV", &DefaultGridAxisV, sizeof(FVector4));
+	WorldAxisMaterial->SetParameterData("ViewForward", &DefaultViewForward, sizeof(FVector4));
+}
+
 void FObjViewerEngine::ApplyWireframeOverride(FGameFrameRequest& Request) const
 {
 	if (!bWireframeEnabled || !WireframeMaterial)
@@ -789,31 +877,53 @@ void FObjViewerEngine::AppendNormalVisualizationDebugDraw()
 
 void FObjViewerEngine::AppendGridMeshBatch(FGameFrameRequest& Request) const
 {
-	if (!GridSettings.bVisible || !GridMesh || !GridMaterial)
-	{
-		return;
-	}
-
 	const FMatrix ViewInverse = Request.SceneView.ViewMatrix.GetInverse();
 	const FVector4 GridAxisU = FVector4(FVector::ForwardVector, 0.0f);
 	const FVector4 GridAxisV = FVector4(FVector::RightVector, 0.0f);
 	const FVector4 ViewForward = FVector4(ViewInverse.GetForwardVector().GetSafeNormal(), 0.0f);
 
-	GridMaterial->SetParameterData("GridSize", &GridSettings.GridSize, 4);
-	GridMaterial->SetParameterData("LineThickness", &GridSettings.LineThickness, 4);
-	GridMaterial->SetParameterData("GridAxisU", &GridAxisU, sizeof(FVector4));
-	GridMaterial->SetParameterData("GridAxisV", &GridAxisV, sizeof(FVector4));
-	GridMaterial->SetParameterData("ViewForward", &ViewForward, sizeof(FVector4));
+	if (GridSettings.bVisible && GridMesh && GridMaterial)
+	{
+		GridMaterial->SetParameterData("GridSize", &GridSettings.GridSize, 4);
+		GridMaterial->SetParameterData("LineThickness", &GridSettings.LineThickness, 4);
+		GridMaterial->SetParameterData("GridAxisU", &GridAxisU, sizeof(FVector4));
+		GridMaterial->SetParameterData("GridAxisV", &GridAxisV, sizeof(FVector4));
+		GridMaterial->SetParameterData("ViewForward", &ViewForward, sizeof(FVector4));
 
-	FMeshBatch GridBatch;
-	GridBatch.Mesh = GridMesh.get();
-	GridBatch.Material = GridMaterial.get();
-	GridBatch.World = FMatrix::Identity;
-	GridBatch.Domain = EMaterialDomain::Opaque;
-	GridBatch.PassMask = static_cast<uint32>(EMeshPassMask::ForwardOpaque);
-	GridBatch.IndexStart = 0;
-	GridBatch.IndexCount = static_cast<uint32>(GridMesh->Indices.size());
-	Request.AdditionalMeshBatches.push_back(GridBatch);
+		FMeshBatch GridBatch;
+		GridBatch.Mesh = GridMesh.get();
+		GridBatch.Material = GridMaterial.get();
+		GridBatch.World = FMatrix::Identity;
+		GridBatch.Domain = EMaterialDomain::EditorGrid;
+		GridBatch.PassMask = static_cast<uint32>(EMeshPassMask::EditorGrid);
+		GridBatch.bDisableDepthWrite = true;
+		GridBatch.bDisableCulling = true;
+		GridBatch.IndexStart = 0;
+		GridBatch.IndexCount = static_cast<uint32>(GridMesh->Indices.size());
+		Request.AdditionalMeshBatches.push_back(GridBatch);
+	}
+
+	if (GridSettings.bShowWorldAxis && WorldAxisMesh && WorldAxisMaterial)
+	{
+		WorldAxisMaterial->SetParameterData("GridSize", &GridSettings.GridSize, 4);
+		WorldAxisMaterial->SetParameterData("LineThickness", &GridSettings.LineThickness, 4);
+		WorldAxisMaterial->SetParameterData("GridAxisU", &GridAxisU, sizeof(FVector4));
+		WorldAxisMaterial->SetParameterData("GridAxisV", &GridAxisV, sizeof(FVector4));
+		WorldAxisMaterial->SetParameterData("ViewForward", &ViewForward, sizeof(FVector4));
+
+		FMeshBatch WorldAxisBatch;
+		WorldAxisBatch.Mesh = WorldAxisMesh.get();
+		WorldAxisBatch.Material = WorldAxisMaterial.get();
+		WorldAxisBatch.World = FMatrix::Identity;
+		WorldAxisBatch.Domain = EMaterialDomain::EditorPrimitive;
+		WorldAxisBatch.PassMask = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
+		WorldAxisBatch.bDisableDepthWrite = true;
+		WorldAxisBatch.bDisableDepthTest = false;
+		WorldAxisBatch.bDisableCulling = true;
+		WorldAxisBatch.IndexStart = 0;
+		WorldAxisBatch.IndexCount = static_cast<uint32>(WorldAxisMesh->Indices.size());
+		Request.AdditionalMeshBatches.push_back(WorldAxisBatch);
+	}
 }
 
 void FObjViewerEngine::UpdateLoadedModelState(
