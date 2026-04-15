@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "EngineAPI.h"
 #include "Types/Map.h"
 #include <cstdint>

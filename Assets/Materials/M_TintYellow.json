@@ -1,7 +1,7 @@
 {
   "Name": "M_TintYellow",
-  "VertexShader": "Engine/Shaders/ColorVertexShader.hlsl",
-  "PixelShader": "Engine/Shaders/PixelShader.hlsl",
+  "VertexShader": "Engine/Shaders/SceneGeometry/ColorVertexShader.hlsl",
+  "PixelShader": "Engine/Shaders/SceneGeometry/PixelShader.hlsl",
     "RenderState": {
     "FillMode": 3,
     "CullMode": 3,

@@ -1,4 +1,4 @@
-#include "Object/ObjectGlobals.h"
+﻿#include "Object/ObjectGlobals.h"
 #include "Memory/MemoryBase.h"
 #include "Object/Object.h"
 

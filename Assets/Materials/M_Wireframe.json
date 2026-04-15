@@ -1,7 +1,7 @@
 {
   "Name": "M_Wireframe",
-  "VertexShader": "Engine/Shaders/VertexShader.hlsl",
-  "PixelShader": "Engine/Shaders/WhitePixelShader.hlsl",
+  "VertexShader": "Engine/Shaders/SceneGeometry/VertexShader.hlsl",
+  "PixelShader": "Engine/Shaders/SceneGeometry/WhitePixelShader.hlsl",
   "RenderState": {
     "FillMode": 2
   },

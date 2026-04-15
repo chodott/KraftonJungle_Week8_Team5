@@ -29,15 +29,15 @@ bool FRendererResourceBootstrap::Initialize(FRenderer& Renderer)
 	}
 
 	std::wstring ShaderDirW = FPaths::ShaderDir();
-	std::wstring VSPath = ShaderDirW + L"VertexShader.hlsl";
-	std::wstring PSPath = ShaderDirW + L"PixelShader.hlsl";
+	std::wstring VSPath = ShaderDirW + L"SceneGeometry/VertexShader.hlsl";
+	std::wstring PSPath = ShaderDirW + L"SceneGeometry/PixelShader.hlsl";
 
 	if (!Renderer.ShaderManager.LoadVertexShader(Device, VSPath.c_str())) return false;
 	if (!Renderer.ShaderManager.LoadPixelShader(Device, PSPath.c_str())) return false;
 
 	{
 		auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
-		std::wstring ColorPSPath = ShaderDirW + L"ColorPixelShader.hlsl";
+		std::wstring ColorPSPath = ShaderDirW + L"SceneGeometry/ColorPixelShader.hlsl";
 		auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, ColorPSPath.c_str());
 		Renderer.DefaultMaterial = std::make_shared<FMaterial>();
 		Renderer.DefaultMaterial->SetOriginName("M_Default");
@@ -71,9 +71,9 @@ bool FRendererResourceBootstrap::Initialize(FRenderer& Renderer)
 	}
 
 	{
-		std::wstring TextureVSPath = ShaderDirW + L"TextureVertexShader.hlsl";
+		std::wstring TextureVSPath = ShaderDirW + L"SceneGeometry/TextureVertexShader.hlsl";
 		auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, TextureVSPath.c_str());
-		std::wstring TexturePSPath = ShaderDirW + L"TexturePixelShader.hlsl";
+		std::wstring TexturePSPath = ShaderDirW + L"SceneGeometry/TexturePixelShader.hlsl";
 		auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, TexturePSPath.c_str());
 		Renderer.DefaultTextureMaterial = std::make_shared<FMaterial>();
 		Renderer.DefaultTextureMaterial->SetOriginName("M_Default_Texture");

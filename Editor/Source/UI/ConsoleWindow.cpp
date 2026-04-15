@@ -1,4 +1,4 @@
-#include "ConsoleWindow.h"
+﻿#include "ConsoleWindow.h"
 #include <cstdio>
 #include <cstring>
 #include <cctype>

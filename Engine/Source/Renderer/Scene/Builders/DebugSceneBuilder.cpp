@@ -1,4 +1,4 @@
-#include "Renderer/Scene/Builders/DebugSceneBuilder.h"
+﻿#include "Renderer/Scene/Builders/DebugSceneBuilder.h"
 
 #include "Actor/Actor.h"
 #include "Component/PrimitiveComponent.h"
@@ -136,7 +136,7 @@ void AppendActorMeshBVHDebug(AActor *BoundsActor, UWorld *World, const FShowFlag
 
 } // namespace
 
-void BuildDebugLinePassInputs(const FDebugSceneBuildInputs &Inputs, FDebugLinePassInputs &OutPassInputs)
+void BuildEditorLinePassInputs(const FDebugSceneBuildInputs &Inputs, FEditorLinePassInputs &OutPassInputs)
 {
     OutPassInputs.Clear();
     if (!Inputs.DrawManager || !Inputs.World)
@@ -159,10 +159,10 @@ void BuildDebugLinePassInputs(const FDebugSceneBuildInputs &Inputs, FDebugLinePa
             AppendActorMeshBVHDebug(Inputs.BoundsActor, Inputs.World, Inputs.ShowFlags, Primitives);
         }
     }
-    BuildDebugLinePassInputs(Primitives, OutPassInputs);
+    BuildEditorLinePassInputs(Primitives, OutPassInputs);
 }
 
-void BuildDebugLinePassInputs(const FDebugPrimitiveList &Primitives, FDebugLinePassInputs &OutPassInputs)
+void BuildEditorLinePassInputs(const FDebugPrimitiveList &Primitives, FEditorLinePassInputs &OutPassInputs)
 {
     OutPassInputs.Clear();
 

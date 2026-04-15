@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "EngineAPI.h"
 #include "Renderer/Resources/Shader/Shader.h"

@@ -1,7 +1,7 @@
 {
   "Name": "M_Sky",
-  "VertexShader": "Engine/Shaders/SkyVertexShader.hlsl",
-  "PixelShader": "Engine/Shaders/SkyPixelShader.hlsl",
+  "VertexShader": "Engine/Shaders/SceneGeometry/SkyVertexShader.hlsl",
+  "PixelShader": "Engine/Shaders/SceneGeometry/SkyPixelShader.hlsl",
   "RenderState": {
     "CullMode": 1,
     "DepthTest": true,

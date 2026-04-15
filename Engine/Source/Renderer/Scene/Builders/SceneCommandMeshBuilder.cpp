@@ -36,8 +36,8 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			Batch.Material = Material ? Material.get() : BuildContext.DefaultMaterial;
 			if (MeshComponent->IsEditorVisualization())
 			{
-				Batch.Domain = EMaterialDomain::Overlay;
-				Batch.PassMask = static_cast<uint32>(EMeshPassMask::Overlay);
+				Batch.Domain = EMaterialDomain::EditorPrimitive;
+				Batch.PassMask = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
 				Batch.bDisableDepthWrite = true;
 			}
 			else
@@ -67,8 +67,8 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			Batch.Material = Material ? Material.get() : BuildContext.DefaultMaterial;
 			if (MeshComponent->IsEditorVisualization())
 			{
-				Batch.Domain = EMaterialDomain::Overlay;
-				Batch.PassMask = static_cast<uint32>(EMeshPassMask::Overlay);
+				Batch.Domain = EMaterialDomain::EditorPrimitive;
+				Batch.PassMask = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
 				Batch.bDisableDepthWrite = true;
 			}
 			else

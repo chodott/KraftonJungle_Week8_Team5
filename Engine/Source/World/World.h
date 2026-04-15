@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "CoreMinimal.h"
 #include "Object/Object.h"
 #include "Level/WorldTypes.h"

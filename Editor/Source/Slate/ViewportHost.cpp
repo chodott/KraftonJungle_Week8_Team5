@@ -1,4 +1,4 @@
-#include "ViewportHost.h"
+﻿#include "ViewportHost.h"
 #include <algorithm>
 
 FVector2 SViewportHost::ComputeMinSize() const
