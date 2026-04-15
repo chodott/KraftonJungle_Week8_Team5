@@ -1311,10 +1311,22 @@ void FObjViewerEngine::ProcessLaunchOptions()
 		return;
 	}
 
-	bool bSucceeded = LoadModelFromFile(LaunchOptions.InputFilePath, "Command Line");
-	if (bSucceeded && !LaunchOptions.ExportModelPath.empty())
+	bool bSucceeded = true;
+	if (!LaunchOptions.ExportModelPath.empty())
 	{
-		bSucceeded = ExportLoadedModelAsModel(LaunchOptions.ExportModelPath);
+		bSucceeded = LoadModelFromFile(LaunchOptions.InputFilePath, "Command Line");
+		if (bSucceeded)
+		{
+			bSucceeded = ExportLoadedModelAsModel(LaunchOptions.ExportModelPath);
+		}
+	}
+	else if (ViewerShell)
+	{
+		ViewerShell->RequestImportDialog(LaunchOptions.InputFilePath, "Open in ObjViewer");
+	}
+	else
+	{
+		bSucceeded = LoadModelFromFile(LaunchOptions.InputFilePath, "Command Line");
 	}
 
 	LaunchOptions.InputFilePath.clear();
