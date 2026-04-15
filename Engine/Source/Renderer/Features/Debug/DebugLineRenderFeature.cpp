@@ -9,6 +9,27 @@ FDebugLineRenderFeature::~FDebugLineRenderFeature()
 	Release();
 }
 
+bool FDebugLineRenderFeature::EnsureDebugDepthState(ID3D11Device* Device)
+{
+	if (DebugDepthOffState)
+	{
+		return true;
+	}
+
+	if (!Device)
+	{
+		return false;
+	}
+
+	D3D11_DEPTH_STENCIL_DESC DepthDesc = {};
+	DepthDesc.DepthEnable = FALSE;
+	DepthDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	DepthDesc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+	DepthDesc.StencilEnable = FALSE;
+
+	return SUCCEEDED(Device->CreateDepthStencilState(&DepthDesc, &DebugDepthOffState));
+}
+
 void FDebugLineRenderFeature::AppendLine(
 	FDebugLinePassInputs& PassInputs,
 	const FVector& Start,
@@ -78,10 +99,15 @@ bool FDebugLineRenderFeature::Render(
 		return false;
 	}
 
+	if (!EnsureDebugDepthState(Device))
+	{
+		return false;
+	}
+
 	BeginPass(Renderer, Targets.SceneColorRTV, Targets.SceneDepthDSV, View.Viewport, Frame, View);
 	Material->Bind(DeviceContext, EMaterialPassType::ForwardOpaque);
 	Renderer.GetRenderStateManager()->BindState(Material->GetRasterizerState());
-	Renderer.GetRenderStateManager()->BindState(Material->GetDepthStencilState());
+	DeviceContext->OMSetDepthStencilState(DebugDepthOffState, 0);
 	Renderer.GetRenderStateManager()->BindState(Material->GetBlendState());
 	if (!Material->HasPixelTextureBinding())
 	{
@@ -99,4 +125,9 @@ bool FDebugLineRenderFeature::Render(
 
 void FDebugLineRenderFeature::Release()
 {
+	if (DebugDepthOffState)
+	{
+		DebugDepthOffState->Release();
+		DebugDepthOffState = nullptr;
+	}
 }

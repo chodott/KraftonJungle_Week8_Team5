@@ -144,6 +144,9 @@
     <ClInclude Include="Source\Renderer\Features\Decal\DecalStats.h" />
     <ClInclude Include="Source\Renderer\Scene\Passes\ScenePassExecutionUtils.h" />
     <ClInclude Include="Source\Actor\SpotLightFakeActor.h" />
+    <ClInclude Include="Source\Renderer\Common\RenderMode.h" />
+    <ClInclude Include="Source\Component\LocalHeightFogComponent.h" />
+    <ClInclude Include="Source\Actor\LocalHeightFogActor.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\Actor\Actor.cpp">
@@ -511,6 +514,9 @@
     <ClCompile Include="Source\Renderer\Scene\Passes\SceneEffectPasses.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Passes\SceneOverlayPasses.cpp" />
     <ClCompile Include="Source\Actor\SpotLightFakeActor.cpp" />
+    <ClCompile Include="Source\Component\LocalHeightFogComponent.cpp" />
+    <ClCompile Include="Source\Actor\LocalHeightFogActor.cpp" />
+    <ClCompile Include="Source\Renderer\Features\FogRenderFeature.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\CoreMinimal.h">

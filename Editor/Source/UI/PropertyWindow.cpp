@@ -13,6 +13,7 @@
 #include "Component/UUIDBillboardComponent.h"
 #include "Component/BillboardComponent.h"
 #include "Component/HeightFogComponent.h"
+#include "Component/LocalHeightFogComponent.h"
 #include "Component/MoveComponent.h"
 #include "Component/DecalComponent.h"
 #include "Component/FireBallComponent.h"
@@ -56,6 +57,7 @@ namespace
 		{ "Projectile Movement Component", "ProjectileMovementComponent", &UProjectileMovementComponent::StaticClass },
 		{ "FireBall Component", "FireBallComponent", &UFireBallComponent::StaticClass},
 		{ "Decal Component", "DecalComponent", &UDecalComponent::StaticClass },
+		{ "Local Height Fog Component", "LocalHeightFogComponent", &ULocalHeightFogComponent::StaticClass },
 	};
 
 	FString BuildUniqueComponentName(AActor* SelectedActor, const FString& BaseName)
@@ -795,6 +797,73 @@ void FPropertyWindow::DrawHeightFogComponentDetails(UHeightFogComponent* HeightF
 	{
 		HeightFogComponent->AllowBackground = (float)AllowBackground;
 	}
+
+}
+
+
+void FPropertyWindow::DrawLocalHeightFogComponentDetails(ULocalHeightFogComponent* LocalHeightFogComponent)
+{
+	if (!LocalHeightFogComponent)
+	{
+		return;
+	}
+
+	ImGui::Spacing();
+	ImGui::TextDisabled("Local Height Fog");
+	ImGui::TextDisabled("Transform controls above affect local fog position / rotation. Debug bounds follow show flags even when not selected.");
+
+	if (ImGui::DragFloat("Fog Density", &LocalHeightFogComponent->FogDensity, 0.001f, 0.0f, 10.0f, "%.3f"))
+	{
+		LocalHeightFogComponent->FogDensity = (std::max)(0.0f, LocalHeightFogComponent->FogDensity);
+	}
+
+	if (ImGui::DragFloat("Height Falloff", &LocalHeightFogComponent->FogHeightFalloff, 0.001f, 0.0f, 10.0f, "%.3f"))
+	{
+		LocalHeightFogComponent->FogHeightFalloff = (std::max)(0.0f, LocalHeightFogComponent->FogHeightFalloff);
+	}
+
+
+	ImGui::SliderFloat("Max Opacity", &LocalHeightFogComponent->FogMaxOpacity, 0.0f, 1.0f, "%.2f");
+
+	float ColorArray[4] =
+	{
+		LocalHeightFogComponent->FogInscatteringColor.R,
+		LocalHeightFogComponent->FogInscatteringColor.G,
+		LocalHeightFogComponent->FogInscatteringColor.B,
+		LocalHeightFogComponent->FogInscatteringColor.A
+	};
+	if (ImGui::ColorEdit4("Fog Color", ColorArray))
+	{
+		LocalHeightFogComponent->FogInscatteringColor = FLinearColor(ColorArray);
+	}
+
+	bool AllowBackground = (bool)LocalHeightFogComponent->AllowBackground;
+	if (ImGui::Checkbox("Allow Background", &AllowBackground))
+	{
+		LocalHeightFogComponent->AllowBackground = (float)AllowBackground;
+	}
+
+	float ExtentArray[3] =
+	{
+		LocalHeightFogComponent->FogExtents.X,
+		LocalHeightFogComponent->FogExtents.Y,
+		LocalHeightFogComponent->FogExtents.Z
+	};
+	if (ImGui::DragFloat3("Extents", ExtentArray, 1.0f, 1.0f, 100000.0f, "%.1f"))
+	{
+		LocalHeightFogComponent->FogExtents.X = (std::max)(1.0f, ExtentArray[0]);
+		LocalHeightFogComponent->FogExtents.Y = (std::max)(1.0f, ExtentArray[1]);
+		LocalHeightFogComponent->FogExtents.Z = (std::max)(1.0f, ExtentArray[2]);
+		LocalHeightFogComponent->UpdateBounds();
+		if (AActor* Owner = LocalHeightFogComponent->GetOwner())
+		{
+			if (ULevel* Level = Owner->GetLevel())
+			{
+				Level->MarkSpatialDirty();
+			}
+		}
+	}
+
 }
 
 void FPropertyWindow::DrawFireBallComponentDetails(UFireBallComponent* FireBallComponent)
@@ -1139,6 +1208,11 @@ void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngi
 	if (Component->IsA(UHeightFogComponent::StaticClass()))
 	{
 		DrawHeightFogComponentDetails(static_cast<UHeightFogComponent*>(Component));
+	}
+
+	if (Component->IsA(ULocalHeightFogComponent::StaticClass()))
+	{
+		DrawLocalHeightFogComponentDetails(static_cast<ULocalHeightFogComponent*>(Component));
 	}
 
 	if (Component->IsA(UBillboardComponent::StaticClass()))

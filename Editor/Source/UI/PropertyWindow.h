@@ -39,6 +39,7 @@ private:
 	void DrawTextComponentDetails(class UTextRenderComponent* TextComponent);
 	void DrawSubUVComponentDetails(class USubUVComponent* SubUVComponent);
 	void DrawHeightFogComponentDetails(class UHeightFogComponent* HeightFogComponent);
+	void DrawLocalHeightFogComponentDetails(class ULocalHeightFogComponent* LocalHeightFogComponent);
 	void DrawBillboardComponentDetials(class UBillboardComponent* BillboardComponent, FEditorEngine* Engine);
 	void DrawDecalComponentDetails(class UDecalComponent* DecalComponent, FEditorEngine* Engine);
 	void DrawFireBallComponentDetails(class UFireBallComponent* FireBallComponent);
