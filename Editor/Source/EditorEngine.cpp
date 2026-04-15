@@ -754,13 +754,6 @@ void FEditorEngine::InitEditorConsole()
 
 			const FDecalStats Stats = Renderer->GetDecalStats();
 			FEngineLog::Get().Log("[Decal Stat]");
-			FEngineLog::Get().Log("Mode: %s", GetDecalProjectionModeLabel(Stats.Common.Mode));
-			FEngineLog::Get().Log("");
-			FEngineLog::Get().Log("Total Decals: %u", Stats.Common.TotalDecals);
-			FEngineLog::Get().Log("Active Decals: %u", Stats.Common.ActiveDecals);
-			FEngineLog::Get().Log("Visible Decals: %u", Stats.Common.VisibleDecals);
-			FEngineLog::Get().Log("Rejected Decals: %u", Stats.Common.RejectedDecals);
-			FEngineLog::Get().Log("Fade In/Out Decals: %u", Stats.Common.FadeInOutDecals);
 			FEngineLog::Get().Log("");
 			FEngineLog::Get().Log("Build Time: %.2f ms", Stats.Common.BuildTimeMs);
 			FEngineLog::Get().Log("Cull / Intersection Time: %.2f ms", Stats.Common.CullIntersectionTimeMs);

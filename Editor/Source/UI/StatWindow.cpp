@@ -1,4 +1,4 @@
-﻿#include "StatWindow.h"
+#include "StatWindow.h"
 #include "Object/Object.h"
 #include "Object/Class.h"
 #include "Object/ObjectGlobals.h"
@@ -284,15 +284,6 @@ void FStatWindow::RenderDecalStats(FRenderer* Renderer)
 	ImGui::Text("Mode: %s", ModeString);
 	ImGui::Spacing();
 
-	ImGui::Text("Total Decals: %d", Stats.Common.TotalDecals);
-	ImGui::Text("Active Decals: %d", Stats.Common.ActiveDecals);
-	ImGui::Text("Visible Decals: %d", Stats.Common.VisibleDecals);
-	ImGui::Text("Rejected Decals: %d", Stats.Common.RejectedDecals);
-	ImGui::Text("Fade In/Out Decals: %d", Stats.Common.FadeInOutDecals);
-
-	ImGui::Spacing();
-	ImGui::Separator();
-
 	ImGui::Text("Build Time: %.3f ms", Stats.Common.BuildTimeMs);
 	ImGui::Text("Cull / Intersection Time: %.3f ms", Stats.Common.CullIntersectionTimeMs);
 	ImGui::Text("Shading Pass Time: %.3f ms", Stats.Common.ShadingPassTimeMs);
@@ -307,14 +298,30 @@ void FStatWindow::RenderDecalStats(FRenderer* Renderer)
 		ImGui::Text("Candidate Objects: %d", Stats.Volume.CandidateObjects);
 		ImGui::Text("Intersect Passed: %d", Stats.Volume.IntersectPassed);
 		ImGui::Text("Decal Draw Calls: %d", Stats.Volume.DecalDrawCalls);
+		const double IntersectPassRatio = Stats.Volume.CandidateObjects > 0
+			? (static_cast<double>(Stats.Volume.IntersectPassed) / static_cast<double>(Stats.Volume.CandidateObjects)) * 100.0
+			: 0.0;
+		ImGui::Text("Intersection Pass Ratio: %.1f%%", IntersectPassRatio);
 	}
 	else if (Stats.Common.Mode == EDecalProjectionMode::ClusteredLookup)
 	{
 		ImGui::Text("[Clustered Lookup]");
 		ImGui::Text("Clusters Built: %d", Stats.ClusteredLookup.ClustersBuilt);
+		ImGui::Text("Non-Empty Clusters: %d", Stats.ClusteredLookup.NonEmptyClusters);
 		ImGui::Text("Decal-Cell Registrations: %d", Stats.ClusteredLookup.DecalCellRegistrations);
 		ImGui::Text("Avg Decals Per Cell: %.3f", Stats.ClusteredLookup.AvgDecalsPerCell);
+		ImGui::Text("Avg Decals Per Non-Empty Cell: %.3f", Stats.ClusteredLookup.AvgDecalsPerNonEmptyCell);
+		ImGui::Text("Avg Cell Registrations Per Visible Decal: %.3f", Stats.ClusteredLookup.AvgCellRegistrationsPerVisibleDecal);
 		ImGui::Text("Max Decals Per Cell: %d", Stats.ClusteredLookup.MaxDecalsPerCell);
+		ImGui::Spacing();
+		ImGui::Separator();
+		ImGui::Text("Uploaded Decal Entries: %d", Stats.ClusteredLookup.UploadedDecalCount);
+		ImGui::Text("Uploaded Cluster Headers: %d", Stats.ClusteredLookup.UploadedClusterHeaderCount);
+		ImGui::Text("Uploaded Cluster Indices: %d", Stats.ClusteredLookup.UploadedClusterIndexCount);
+		ImGui::Text("Decal Buffer: %.2f KB", Stats.ClusteredLookup.DecalBufferBytes / 1024.0);
+		ImGui::Text("Cluster Header Buffer: %.2f KB", Stats.ClusteredLookup.ClusterHeaderBufferBytes / 1024.0);
+		ImGui::Text("Cluster Index Buffer: %.2f KB", Stats.ClusteredLookup.ClusterIndexBufferBytes / 1024.0);
+		ImGui::Text("Total Upload: %.2f KB", Stats.ClusteredLookup.TotalUploadBytes / 1024.0);
 	}
 }
 

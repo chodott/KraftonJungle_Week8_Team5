@@ -31,10 +31,10 @@ public:
         ID3D11RenderTargetView* RenderTargetView);
 
     const FVolumeDecalStats& GetStats() const { return LastStats; }
+    double GetBuildTimeMs() const { return LastBuildTimeMs; }
+    double GetCullIntersectionTimeMs() const { return LastCullIntersectionTimeMs; }
     double GetShadingPassTimeMs() const { return LastShadingPassTimeMs; }
     double GetTotalTimeMs() const { return LastTotalTimeMs; }
-    uint32 GetTotalDecalCount() const { return LastTotalDecalCount; }
-    uint32 GetFadeInOutCount() const { return LastFadeInOutCount; }
 
 private:
     struct FVolumeDecalConstants
@@ -62,10 +62,10 @@ private:
 private:
     bool bInitialized = false;
     FVolumeDecalStats LastStats;
+    double LastBuildTimeMs = 0.0;
+    double LastCullIntersectionTimeMs = 0.0;
     double LastShadingPassTimeMs = 0.0;
     double LastTotalTimeMs = 0.0;
-    uint32 LastTotalDecalCount = 0;
-    uint32 LastFadeInOutCount = 0;
 
     std::shared_ptr<FVertexShader> VolumeVS;
     std::shared_ptr<FPixelShader> VolumePS;

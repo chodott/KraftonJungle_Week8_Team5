@@ -82,17 +82,10 @@ bool FVolumeDecalRenderFeature::Render(
 {
     const FVolumeDecalClock::time_point StartTime = FVolumeDecalClock::now();
     LastStats = {};
+    LastBuildTimeMs = 0.0;
+    LastCullIntersectionTimeMs = 0.0;
     LastShadingPassTimeMs = 0.0;
     LastTotalTimeMs = 0.0;
-    LastTotalDecalCount = static_cast<uint32>(Request.Items.size());
-    LastFadeInOutCount = 0;
-    for (const FDecalRenderItem& Item : Request.Items)
-    {
-        if (Item.bIsFading)
-        {
-            ++LastFadeInOutCount;
-        }
-    }
 
     if (Request.IsEmpty())
     {
@@ -162,6 +155,7 @@ bool FVolumeDecalRenderFeature::Render(
     };
     DeviceContext->PSSetSamplers(DECAL_DEPTH_SAMPLER_SLOT, 2, Samplers);
 
+    const FVolumeDecalClock::time_point BuildStartTime = FVolumeDecalClock::now();
     TArray<const FDecalRenderItem*> SortedItems;
     SortedItems.reserve(Request.Items.size());
     for (const FDecalRenderItem& Item : Request.Items)
@@ -180,9 +174,12 @@ bool FVolumeDecalRenderFeature::Render(
             }
             return A->TextureIndex < B->TextureIndex;
         });
+    LastBuildTimeMs = ToMilliseconds(FVolumeDecalClock::now() - BuildStartTime);
 
     LastStats.CandidateObjects = Request.CandidateReceiverObjectCount;
-    const FVolumeDecalClock::time_point ShadingStartTime = FVolumeDecalClock::now();
+    const FVolumeDecalClock::time_point CullStartTime = FVolumeDecalClock::now();
+    TArray<const FDecalRenderItem*> RenderableItems;
+    RenderableItems.reserve(SortedItems.size());
     for (const FDecalRenderItem* Item : SortedItems)
     {
         if (!Item || !Item->IsValid())
@@ -196,6 +193,17 @@ bool FVolumeDecalRenderFeature::Render(
         }
 
         ++LastStats.IntersectPassed;
+        RenderableItems.push_back(Item);
+    }
+    LastCullIntersectionTimeMs = ToMilliseconds(FVolumeDecalClock::now() - CullStartTime);
+
+    const FVolumeDecalClock::time_point ShadingStartTime = FVolumeDecalClock::now();
+    for (const FDecalRenderItem* Item : RenderableItems)
+    {
+        if (!Item)
+        {
+            continue;
+        }
 
         Renderer.UpdateObjectConstantBuffer(Item->DecalWorld);
         if (!UpdatePerDecalConstants(Renderer, Request, *Item))
