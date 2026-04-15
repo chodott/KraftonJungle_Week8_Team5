@@ -498,6 +498,37 @@ void FEditorUI::LoadEditorSettings()
         S.ShowFlags.SetFlag(EEngineShowFlags::SF_Fog, _wtoi(Buf) != 0);
     }
 
+    bool bAnyDebugDrawEnabled = false;
+    bool bAnyWorldAxisEnabled = false;
+    bool bAnyCollisionEnabled = false;
+    bool bAnySceneBVHEnabled = false;
+    bool bAnyMeshBVHEnabled = false;
+    bool bAnyDecalDebugEnabled = false;
+
+    for (const FViewportEntry &Entry : ViewportRegistry.GetEntries())
+    {
+        bAnyDebugDrawEnabled =
+            bAnyDebugDrawEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw);
+        bAnyWorldAxisEnabled =
+            bAnyWorldAxisEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_WorldAxis);
+        bAnyCollisionEnabled =
+            bAnyCollisionEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_Collision);
+        bAnySceneBVHEnabled = bAnySceneBVHEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_SceneBVH);
+        bAnyMeshBVHEnabled = bAnyMeshBVHEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_MeshBVH);
+        bAnyDecalDebugEnabled =
+            bAnyDecalDebugEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalDebug);
+    }
+
+    for (FViewportEntry &Entry : ViewportRegistry.GetEntries())
+    {
+        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, bAnyDebugDrawEnabled);
+        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, bAnyWorldAxisEnabled);
+        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_Collision, bAnyCollisionEnabled);
+        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_SceneBVH, bAnySceneBVHEnabled);
+        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_MeshBVH, bAnyMeshBVHEnabled);
+        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DecalDebug, bAnyDecalDebugEnabled);
+    }
+
     FSlateApplication *Slate = Engine->GetSlateApplication();
     if (Slate)
     {
@@ -580,8 +611,8 @@ void FEditorUI::SaveEditorSettings()
 
         WritePrivateProfileStringW(Sec, L"SF.MeshBVH", S.ShowFlags.HasFlag(EEngineShowFlags::SF_MeshBVH) ? L"1" : L"0",
                                    Path.c_str());
-        WritePrivateProfileStringW(Sec, L"SF.DecalDebug", S.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalDebug) ? L"1" : L"0",
-                                   Path.c_str());
+        WritePrivateProfileStringW(Sec, L"SF.DecalDebug",
+                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalDebug) ? L"1" : L"0", Path.c_str());
 
         WritePrivateProfileStringW(Sec, L"SF.Decal", S.ShowFlags.HasFlag(EEngineShowFlags::SF_Decal) ? L"1" : L"0",
                                    Path.c_str());
@@ -904,10 +935,11 @@ void FEditorUI::Render()
                         ImGui::BeginDisabled();
                     }
 
-                    ShowFlagCheckbox("Picking Bounds (Red)", EEngineShowFlags::SF_Collision);
+                    ShowFlagCheckbox("World Axis", EEngineShowFlags::SF_WorldAxis);
+                    ShowFlagCheckbox("Picking Bounds (Magenta)", EEngineShowFlags::SF_Collision);
                     ShowFlagCheckbox("Scene BVH (Yellow)", EEngineShowFlags::SF_SceneBVH);
                     ShowFlagCheckbox("Mesh BVH (Cyan)", EEngineShowFlags::SF_MeshBVH);
-                    ShowFlagCheckbox("Decal Bounds (Cyan)", EEngineShowFlags::SF_DecalDebug);
+                    ShowFlagCheckbox("Decal Bounds (Orange)", EEngineShowFlags::SF_DecalDebug);
 
                     if (!bDebugDraw)
                     {

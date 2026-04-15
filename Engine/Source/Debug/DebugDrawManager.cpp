@@ -2,6 +2,8 @@
 
 #include "Actor/Actor.h"
 #include "Component/PrimitiveComponent.h"
+#include "Component/DecalComponent.h"
+#include "Component/LocalHeightFogComponent.h"
 #include "Core/ShowFlags.h"
 #include "Level/PrimitiveVisibilityUtils.h"
 #include "Object/Class.h"
@@ -103,7 +105,8 @@ void FDebugDrawManager::DrawAllCollisionBounds(const FShowFlags& ShowFlags, UWor
 			}
 
 			UPrimitiveComponent* PrimitiveComponent = static_cast<UPrimitiveComponent*>(Component);
-			if (!PrimitiveComponent->ShouldDrawDebugBounds())
+			const bool bIsLocalFogComponent = PrimitiveComponent->IsA(ULocalHeightFogComponent::StaticClass());
+			if (!bIsLocalFogComponent && !PrimitiveComponent->ShouldDrawDebugBounds())
 			{
 				continue;
 			}
@@ -113,10 +116,44 @@ void FDebugDrawManager::DrawAllCollisionBounds(const FShowFlags& ShowFlags, UWor
 				continue;
 			}
 
+			if (PrimitiveComponent->IsA(ULocalHeightFogComponent::StaticClass()))
+			{
+				const ULocalHeightFogComponent* LocalFogComponent = static_cast<const ULocalHeightFogComponent*>(PrimitiveComponent);
+				const FTransform FogTransform = FTransform(LocalFogComponent->GetWorldTransform());
+				const FVector Extent = LocalFogComponent->FogExtents;
+				const FVector Signs[8] =
+				{
+					FVector(-Extent.X, -Extent.Y, -Extent.Z), FVector(Extent.X, -Extent.Y, -Extent.Z),
+					FVector(-Extent.X, Extent.Y, -Extent.Z),  FVector(Extent.X, Extent.Y, -Extent.Z),
+					FVector(-Extent.X, -Extent.Y, Extent.Z),  FVector(Extent.X, -Extent.Y, Extent.Z),
+					FVector(-Extent.X, Extent.Y, Extent.Z),   FVector(Extent.X, Extent.Y, Extent.Z)
+				};
+				const int Edges[12][2] =
+				{
+					{0,1},{1,3},{3,2},{2,0},
+					{4,5},{5,7},{7,6},{6,4},
+					{0,4},{1,5},{2,6},{3,7}
+				};
+				FVector WorldCorners[8];
+				for (int i = 0; i < 8; ++i)
+				{
+					WorldCorners[i] = FogTransform.TransformPosition(Signs[i]);
+				}
+				for (const auto& Edge : Edges)
+				{
+					OutPrimitives.Lines.push_back({ WorldCorners[Edge[0]], WorldCorners[Edge[1]], FVector4(1.0f, 0.2f, 1.0f, 1.0f) });
+				}
+				continue;
+			}
+
 			const FBoxSphereBounds Bounds = PrimitiveComponent->GetWorldBounds();
 			if (Bounds.BoxExtent.SizeSquared() > 0.0f)
 			{
-				OutPrimitives.Cubes.push_back({ Bounds.Center, Bounds.BoxExtent, FVector4(1.0f, 0.0f, 0.0f, 1.0f) });
+				const bool bIsDecalComponent = PrimitiveComponent->IsA(UDecalComponent::StaticClass());
+				const FVector4 Color = bIsDecalComponent
+					? FVector4(1.0f, 0.6f, 0.1f, 1.0f)   // Orange: Decal Bounds
+					: FVector4(1.0f, 0.2f, 1.0f, 1.0f);  // Magenta: Picking Bounds / generic collision bounds
+				OutPrimitives.Cubes.push_back({ Bounds.Center, Bounds.BoxExtent, Color });
 			}
 		}
 	}

@@ -11,6 +11,7 @@
 #include "Actor/Actor.h"
 #include "Component/CameraComponent.h"
 #include "Component/HeightFogComponent.h"
+#include "Component/LocalHeightFogComponent.h"
 #include "Math/Frustum.h"
 #include "Component/PrimitiveComponent.h"
 #include "Component/FireBallComponent.h"
@@ -38,12 +39,17 @@ namespace
 
 			for (UActorComponent* Component : Actor->GetComponents())
 			{
-				if (!Component || Component->IsPendingKill() || !Component->IsA(UHeightFogComponent::StaticClass()))
+				if (!Component || Component->IsPendingKill())
 				{
 					continue;
 				}
 
-				OutPacket.FogPrimitives.push_back({ static_cast<UHeightFogComponent*>(Component) });
+				if (!Component->IsA(UHeightFogComponent::StaticClass()) && !Component->IsA(ULocalHeightFogComponent::StaticClass()))
+				{
+					continue;
+				}
+
+				OutPacket.FogPrimitives.push_back({ static_cast<UPrimitiveComponent*>(Component) });
 			}
 		}
 	}

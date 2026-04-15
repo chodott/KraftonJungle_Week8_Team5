@@ -52,7 +52,7 @@ void AppendActorSceneBVHDebug(AActor *BoundsActor, UWorld *World, const FShowFla
 
                 const FVector Center = (Bounds.PMin + Bounds.PMax) * 0.5f;
                 const FVector Extent = (Bounds.PMax - Bounds.PMin) * 0.5f;
-                const FVector4 Color = bIsLeaf ? FVector4(1.0f, 1.0f, 0.0f, 1.0f) : FVector4(0.0f, 1.0f, 0.0f, 1.0f);
+                const FVector4 Color = bIsLeaf ? FVector4(1.0f, 1.0f, 0.2f, 1.0f) : FVector4(1.0f, 0.9f, 0.1f, 1.0f);
 
                 OutPrimitives.Cubes.push_back({Center, Extent, Color});
             });
@@ -128,7 +128,7 @@ void AppendActorMeshBVHDebug(AActor *BoundsActor, UWorld *World, const FShowFlag
 
         const FVector Center = (WorldMin + WorldMax) * 0.5f;
         const FVector Extent = (WorldMax - WorldMin) * 0.5f;
-        const FVector4 Color = bIsLeaf ? FVector4(0.0f, 0.5f, 1.0f, 1.0f) : FVector4(0.0f, 1.0f, 1.0f, 1.0f);
+        const FVector4 Color = bIsLeaf ? FVector4(0.2f, 1.0f, 1.0f, 1.0f) : FVector4(0.0f, 0.85f, 1.0f, 1.0f);
 
         OutPrimitives.Cubes.push_back({Center, Extent, Color});
     });
