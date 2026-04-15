@@ -15,7 +15,7 @@ namespace
 			return true;
 		}
 
-		const FDecalRenderRequest Request = BuildDecalPassRequest(Context.SceneViewData);
+		const FDecalRenderRequest Request = BuildDecalPassRequest(Context.SceneViewData, EDecalDirtyFlags::None);
 		if (!Request.bDebugDraw)
 		{
 			return true;
