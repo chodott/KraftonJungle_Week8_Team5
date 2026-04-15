@@ -1,4 +1,4 @@
-﻿#include "PropertyWindow.h"
+#include "PropertyWindow.h"
 #include "EditorEngine.h"
 #include "Actor/Actor.h"
 #include "Actor/SpotLightFakeActor.h"
@@ -401,21 +401,37 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 		MeshComponent->SetLODEnabled(bLODEnabled);
 	}
 
-	const int32 LodScreenSizeCount = MeshComponent->GetLODScreenSizeCount();
-	if (LodScreenSizeCount == 0)
+	const int32 CurrentLODIndex = MeshComponent->GetCurrentLODIndex();
+	const float CurrentLODDistance = MeshComponent->GetLastLODSelectionDistance();
+	ImGui::Text("Current LOD");
+	ImGui::SameLine(120.0f);
+	if (CurrentLODIndex <= 0)
+	{
+		ImGui::Text("LOD0 (Base Mesh)");
+	}
+	else
+	{
+		ImGui::Text("LOD%d", CurrentLODIndex);
+	}
+	ImGui::Text("View Distance");
+	ImGui::SameLine(120.0f);
+	ImGui::Text("%.2f", CurrentLODDistance);
+
+	const int32 LodDistanceCount = MeshComponent->GetLODDistanceCount();
+	if (LodDistanceCount == 0)
 	{
 		ImGui::TextDisabled("No additional LOD files loaded.");
 	}
 	else
 	{
-		for (int32 LodIndex = 1; LodIndex <= LodScreenSizeCount; ++LodIndex)
+		for (int32 LodIndex = 1; LodIndex <= LodDistanceCount; ++LodIndex)
 		{
-			float ScreenSize = MeshComponent->GetLODScreenSize(LodIndex);
-			char Label[32];
-			snprintf(Label, sizeof(Label), "LOD%d Screen Size", LodIndex);
-			if (ImGui::SliderFloat(Label, &ScreenSize, 0.0f, 1.0f, "%.3f"))
+			float Distance = MeshComponent->GetLODDistance(LodIndex);
+			char Label[48];
+			snprintf(Label, sizeof(Label), "LOD%d Start Distance", LodIndex);
+			if (ImGui::DragFloat(Label, &Distance, 1.0f, 0.0f, 1000000.0f, "%.1f"))
 			{
-				MeshComponent->SetLODScreenSize(LodIndex, ScreenSize);
+				MeshComponent->SetLODDistance(LodIndex, Distance);
 			}
 		}
 	}

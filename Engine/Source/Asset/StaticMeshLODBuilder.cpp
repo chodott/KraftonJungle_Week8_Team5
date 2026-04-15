@@ -14,10 +14,11 @@ namespace
 {
 	constexpr uint32 GInvalidIndex = (std::numeric_limits<uint32>::max)();
 
-	float GetDefaultLodScreenSize(int32 LodLevel, float ScreenSizeStep)
+	float GetDefaultLodDistance(const UStaticMesh& Asset, int32 LodLevel, float DistanceStep)
 	{
-		const float ClampedStep = (std::clamp)(ScreenSizeStep, 0.01f, 0.99f);
-		return std::pow(ClampedStep, static_cast<float>(LodLevel));
+		const float SafeBoundsRadius = (std::max)(Asset.LocalBounds.Radius, 1.0f);
+		const float ClampedStep = (std::max)(DistanceStep, 1.0f);
+		return SafeBoundsRadius * ClampedStep * static_cast<float>(LodLevel);
 	}
 
 	struct FWorkingMeshState
@@ -459,7 +460,7 @@ void FStaticMeshLODBuilder::BuildLODs(UStaticMesh& Asset, const FStaticMeshLODSe
 			break;
 		}
 
-		Asset.AddLod(std::move(LodMesh), GetDefaultLodScreenSize(LodLevel, Settings.ScreenSizeStep));
+		Asset.AddLod(std::move(LodMesh), GetDefaultLodDistance(Asset, LodLevel, Settings.DistanceStep));
 		PreviousTriCount = BuiltTriCount;
 	}
 }

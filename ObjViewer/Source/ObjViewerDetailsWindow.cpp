@@ -226,21 +226,37 @@ void FObjViewerDetailsWindow::Render(FObjViewerEngine* Engine)
 		FObjViewerLODBuilderSettings& LODSettings = Engine->GetMutableLODBuilderSettings();
 		ImGui::DragInt("LOD Levels", &LODSettings.NumLODs, 1.0f, 0, 8);
 		ImGui::SliderFloat("Reduction Step", &LODSettings.TriangleReductionStep, 0.05f, 0.95f, "%.2f");
-		ImGui::SliderFloat("Screen Size Step", &LODSettings.ScreenSizeStep, 0.05f, 0.95f, "%.2f");
+		ImGui::DragFloat("Distance Step", &LODSettings.DistanceStep, 0.5f, 1.0f, 1000.0f, "%.1f");
 
-		const int32 LodScreenSizeCount = Engine->GetLoadedModelLodScreenSizeCount();
-		if (LodScreenSizeCount > 0)
+		const int32 CurrentLODIndex = Engine->GetLoadedModelCurrentLODIndex();
+		const float CurrentLODDistance = Engine->GetLoadedModelCurrentLODDistance();
+		ImGui::Text("Current LOD");
+		ImGui::SameLine(120.0f);
+		if (CurrentLODIndex <= 0)
+		{
+			ImGui::Text("LOD0 (Base Mesh)");
+		}
+		else
+		{
+			ImGui::Text("LOD%d", CurrentLODIndex);
+		}
+		ImGui::Text("View Distance");
+		ImGui::SameLine(120.0f);
+		ImGui::Text("%.2f", CurrentLODDistance);
+
+		const int32 LodDistanceCount = Engine->GetLoadedModelLodDistanceCount();
+		if (LodDistanceCount > 0)
 		{
 			ImGui::Spacing();
 			ImGui::Separator();
-			for (int32 LodIdx = 1; LodIdx <= LodScreenSizeCount; ++LodIdx)
+			for (int32 LodIdx = 1; LodIdx <= LodDistanceCount; ++LodIdx)
 			{
-				float ScreenSize = Engine->GetLoadedModelLodScreenSize(LodIdx);
+				float Distance = Engine->GetLoadedModelLodDistance(LodIdx);
 				char Label[32];
-				snprintf(Label, sizeof(Label), "LOD %d Screen Size", LodIdx);
-				if (ImGui::SliderFloat(Label, &ScreenSize, 0.0f, 1.0f, "%.3f"))
+				snprintf(Label, sizeof(Label), "LOD %d Start Distance", LodIdx);
+				if (ImGui::DragFloat(Label, &Distance, 1.0f, 0.0f, 1000000.0f, "%.1f"))
 				{
-					Engine->SetLoadedModelLodScreenSize(LodIdx, ScreenSize);
+					Engine->SetLoadedModelLodDistance(LodIdx, Distance);
 				}
 			}
 		}

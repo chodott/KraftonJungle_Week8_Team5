@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "Component/SceneComponent.h"
 #include "Component/PrimitiveComponent.h"
 #include "Math/Frustum.h"
@@ -16,7 +16,6 @@ struct FBoxSphereBounds;
 struct FRenderMeshSelectionContext
 {
 	float Distance = 0.0f;
-	float ScreenSize = 0.0f;
 };
 
 struct FBoxSphereBounds

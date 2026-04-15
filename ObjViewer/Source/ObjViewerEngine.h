@@ -95,7 +95,7 @@ struct FObjViewerLODBuilderSettings
 {
 	int32 NumLODs = 3;
 	float TriangleReductionStep = 0.5f;
-	float ScreenSizeStep = 0.5f;
+	float DistanceStep = 8.0f;
 };
 
 struct FObjViewerLaunchOptions
@@ -137,9 +137,11 @@ public:
 	void SetWireframeEnabled(bool bEnabled) { bWireframeEnabled = bEnabled; }
 	bool IsLoadedModelLODEnabled() const { return ModelState.bLodEnabled; }
 	void SetLoadedModelLODEnabled(bool bEnabled);
-	void SetLoadedModelLodScreenSize(int32 LODIndex, float ScreenSize);
-	float GetLoadedModelLodScreenSize(int32 LODIndex) const;
-	int32 GetLoadedModelLodScreenSizeCount() const;
+	void SetLoadedModelLodDistance(int32 LODIndex, float Distance);
+	float GetLoadedModelLodDistance(int32 LODIndex) const;
+	int32 GetLoadedModelLodDistanceCount() const;
+	int32 GetLoadedModelCurrentLODIndex() const;
+	float GetLoadedModelCurrentLODDistance() const;
 	const FString& GetLastOperationStatus() const { return LastOperationStatus; }
 	FObjViewerShell& GetShell() const;
 

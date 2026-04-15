@@ -1,7 +1,8 @@
-﻿#include "StaticMeshComponent.h"
+#include "StaticMeshComponent.h"
 
 #include <algorithm>
 #include <filesystem>
+#include <limits>
 
 #include "Object/Class.h"
 #include "Component/PrimitiveComponent.h"
@@ -9,10 +10,18 @@
 #include "Asset/ObjManager.h"
 #include "Core/Paths.h"
 #include "Debug/EngineLog.h"
+#include "Renderer/Mesh/MeshData.h"
 #include "Renderer/Resources/Material/Material.h"
+
 IMPLEMENT_RTTI(UStaticMeshComponent, UMeshComponent)
 
-int32 UStaticMeshComponent::GetAssetLodScreenSizeCount() const
+namespace
+{
+	constexpr float GLegacyProjectionScaleY = 1.7320508075688772f; // 60도 수직 FOV 기준 근사치
+	constexpr float GMinLegacyScreenSize = 0.0001f;
+}
+
+int32 UStaticMeshComponent::GetAssetLodDistanceCount() const
 {
 	if (!StaticMesh)
 	{
@@ -22,30 +31,58 @@ int32 UStaticMeshComponent::GetAssetLodScreenSizeCount() const
 	return (std::max)(static_cast<int32>(StaticMesh->GetLodCount()) - 1, 0);
 }
 
-void UStaticMeshComponent::SyncLODScreenSizesWithAsset()
+void UStaticMeshComponent::SyncLODDistancesWithAsset()
 {
-	const int32 AssetLodCount = GetAssetLodScreenSizeCount();
+	const int32 AssetLodCount = GetAssetLodDistanceCount();
 	if (AssetLodCount <= 0 || !StaticMesh)
 	{
-		LODSettings.ScreenSizes.clear();
+		LODSettings.Distances.clear();
 		return;
 	}
 
-	if (static_cast<int32>(LODSettings.ScreenSizes.size()) > AssetLodCount)
+	if (static_cast<int32>(LODSettings.Distances.size()) > AssetLodCount)
 	{
-		LODSettings.ScreenSizes.resize(static_cast<size_t>(AssetLodCount));
+		LODSettings.Distances.resize(static_cast<size_t>(AssetLodCount));
 	}
 
-	for (int32 LodIndex = static_cast<int32>(LODSettings.ScreenSizes.size()) + 1; LodIndex <= AssetLodCount; ++LodIndex)
+	for (int32 LodIndex = static_cast<int32>(LODSettings.Distances.size()) + 1; LodIndex <= AssetLodCount; ++LodIndex)
 	{
-		LODSettings.ScreenSizes.push_back(StaticMesh->GetLodScreenSize(LodIndex));
+		LODSettings.Distances.push_back(StaticMesh->GetLodDistance(LodIndex));
 	}
+
+	NormalizeLODDistances();
+}
+
+void UStaticMeshComponent::NormalizeLODDistances()
+{
+	float PreviousDistance = 0.0f;
+	for (float& Distance : LODSettings.Distances)
+	{
+		Distance = (std::max)(Distance, PreviousDistance);
+		PreviousDistance = Distance;
+	}
+}
+
+float UStaticMeshComponent::ConvertLegacyScreenSizeToDistance(float ScreenSize, int32 LODIndex) const
+{
+	if (!StaticMesh)
+	{
+		return (std::max)(ScreenSize, 0.0f);
+	}
+
+	const float SafeScreenSize = (std::max)(ScreenSize, GMinLegacyScreenSize);
+	const float BoundsRadius = (std::max)(StaticMesh->LocalBounds.Radius, 1.0f);
+	const float ApproxDistance = BoundsRadius * GLegacyProjectionScaleY / SafeScreenSize;
+	const float AssetDistance = StaticMesh->GetLodDistance(LODIndex);
+	return AssetDistance > 0.0f ? AssetDistance : ApproxDistance;
 }
 
 void UStaticMeshComponent::SetStaticMesh(UStaticMesh* InStaticMesh)
 {
 	StaticMesh = InStaticMesh;
-	LODSettings.ScreenSizes.clear();
+	LODSettings.Distances.clear();
+	LastResolvedLODIndex = 0;
+	LastResolvedLODDistance = 0.0f;
 
 	if (StaticMesh)
 	{
@@ -57,8 +94,7 @@ void UStaticMeshComponent::SetStaticMesh(UStaticMesh* InStaticMesh)
 			Materials[i] = DefaultMats[i]->CreateDynamicMaterial();
 		}
 
-		SyncLODScreenSizesWithAsset();
-
+		SyncLODDistancesWithAsset();
 		UpdateBounds();
 	}
 	else
@@ -77,50 +113,74 @@ bool UStaticMeshComponent::IsLODEnabled() const
 	return LODSettings.bEnabled;
 }
 
-void UStaticMeshComponent::SetLODScreenSize(int32 LODIndex, float ScreenSize)
+void UStaticMeshComponent::SetLODDistance(int32 LODIndex, float Distance)
 {
 	if (LODIndex <= 0)
 	{
 		return;
 	}
 
-	const int32 AssetLodCount = GetAssetLodScreenSizeCount();
+	const int32 AssetLodCount = GetAssetLodDistanceCount();
 	if (AssetLodCount > 0 && LODIndex > AssetLodCount)
 	{
 		return;
 	}
 
-	SyncLODScreenSizesWithAsset();
+	SyncLODDistancesWithAsset();
 
 	const size_t Idx = static_cast<size_t>(LODIndex - 1);
-	if (Idx >= LODSettings.ScreenSizes.size())
+	if (Idx >= LODSettings.Distances.size())
 	{
 		return;
 	}
-	LODSettings.ScreenSizes[Idx] = (std::max)(ScreenSize, 0.0f);
+
+	float ClampedDistance = (std::max)(Distance, 0.0f);
+	if (Idx > 0)
+	{
+		ClampedDistance = (std::max)(ClampedDistance, LODSettings.Distances[Idx - 1]);
+	}
+	if (Idx + 1 < LODSettings.Distances.size())
+	{
+		ClampedDistance = (std::min)(ClampedDistance, LODSettings.Distances[Idx + 1]);
+	}
+
+	LODSettings.Distances[Idx] = ClampedDistance;
+	NormalizeLODDistances();
 }
 
-float UStaticMeshComponent::GetLODScreenSize(int32 LODIndex) const
+float UStaticMeshComponent::GetLODDistance(int32 LODIndex) const
 {
 	if (LODIndex <= 0)
 	{
 		return 0.0f;
 	}
+
 	const size_t Idx = static_cast<size_t>(LODIndex - 1);
-	if (Idx >= LODSettings.ScreenSizes.size())
+	if (Idx >= LODSettings.Distances.size())
 	{
-		if (StaticMesh && LODIndex <= GetAssetLodScreenSizeCount())
+		if (StaticMesh && LODIndex <= GetAssetLodDistanceCount())
 		{
-			return StaticMesh->GetLodScreenSize(LODIndex);
+			return StaticMesh->GetLodDistance(LODIndex);
 		}
 		return 0.0f;
 	}
-	return LODSettings.ScreenSizes[Idx];
+
+	return LODSettings.Distances[Idx];
 }
 
-int32 UStaticMeshComponent::GetLODScreenSizeCount() const
+int32 UStaticMeshComponent::GetLODDistanceCount() const
 {
-	return (std::max)(static_cast<int32>(LODSettings.ScreenSizes.size()), GetAssetLodScreenSizeCount());
+	return (std::max)(static_cast<int32>(LODSettings.Distances.size()), GetAssetLodDistanceCount());
+}
+
+int32 UStaticMeshComponent::GetCurrentLODIndex() const
+{
+	return LastResolvedLODIndex;
+}
+
+float UStaticMeshComponent::GetLastLODSelectionDistance() const
+{
+	return LastResolvedLODDistance;
 }
 
 const FStaticMeshComponentLODSettings& UStaticMeshComponent::GetLODSettings() const
@@ -131,7 +191,8 @@ const FStaticMeshComponentLODSettings& UStaticMeshComponent::GetLODSettings() co
 void UStaticMeshComponent::SetLODSettings(const FStaticMeshComponentLODSettings& InSettings)
 {
 	LODSettings = InSettings;
-	SyncLODScreenSizesWithAsset();
+	SyncLODDistancesWithAsset();
+	NormalizeLODDistances();
 }
 
 FRenderMesh* UStaticMeshComponent::GetRenderMesh() const
@@ -141,6 +202,9 @@ FRenderMesh* UStaticMeshComponent::GetRenderMesh() const
 
 FRenderMesh* UStaticMeshComponent::GetRenderMesh(const FRenderMeshSelectionContext& SelectionContext) const
 {
+	LastResolvedLODDistance = (std::max)(SelectionContext.Distance, 0.0f);
+	LastResolvedLODIndex = 0;
+
 	if (!StaticMesh)
 	{
 		return nullptr;
@@ -152,9 +216,9 @@ FRenderMesh* UStaticMeshComponent::GetRenderMesh(const FRenderMeshSelectionConte
 	}
 
 	FStaticMeshLODSelectionContext LODSelectionContext;
-	LODSelectionContext.ScreenSize = SelectionContext.ScreenSize;
-	LODSelectionContext.PerLODThresholds = LODSettings.ScreenSizes;
-	return StaticMesh->GetRenderDataForScreenSize(LODSelectionContext);
+	LODSelectionContext.Distance = SelectionContext.Distance;
+	LODSelectionContext.PerLODDistances = LODSettings.Distances;
+	return StaticMesh->GetRenderDataForDistance(LODSelectionContext, &LastResolvedLODIndex);
 }
 
 FRenderMesh* UStaticMeshComponent::GetRenderMesh(const float& Distance) const
@@ -207,13 +271,13 @@ void UStaticMeshComponent::Serialize(FArchive& Ar)
 
 		Ar.Serialize("ObjStaticMeshAsset", MeshFileName);
 		Ar.Serialize("EnableLOD", LODSettings.bEnabled);
-		int32 ScreenSizeCount = static_cast<int32>(LODSettings.ScreenSizes.size());
-		Ar.Serialize("LODScreenSizeCount", ScreenSizeCount);
-		for (int32 i = 0; i < ScreenSizeCount; ++i)
+		int32 DistanceCount = static_cast<int32>(LODSettings.Distances.size());
+		Ar.Serialize("LODDistanceCount", DistanceCount);
+		for (int32 i = 0; i < DistanceCount; ++i)
 		{
 			char Key[32];
-			snprintf(Key, sizeof(Key), "LODScreenSize_%d", i);
-			Ar.Serialize(Key, LODSettings.ScreenSizes[i]);
+			snprintf(Key, sizeof(Key), "LODDistance_%d", i);
+			Ar.Serialize(Key, LODSettings.Distances[i]);
 		}
 	}
 	else
@@ -231,24 +295,41 @@ void UStaticMeshComponent::Serialize(FArchive& Ar)
 			if (!MeshFileName.empty())
 			{
 				UStaticMesh* LoadedMesh = FObjManager::LoadStaticMeshAsset(MeshFileName);
-				SetStaticMesh(LoadedMesh); // ScreenSizes가 에셋 기본값으로 초기화됨
+				SetStaticMesh(LoadedMesh);
 			}
 		}
 
-		// SetStaticMesh 이후에 저장된 오버라이드값 적용
-		if (Ar.Contains("LODScreenSizeCount"))
+		if (Ar.Contains("LODDistanceCount"))
+		{
+			int32 DistanceCount = 0;
+			Ar.Serialize("LODDistanceCount", DistanceCount);
+			for (int32 i = 0; i < DistanceCount && i < static_cast<int32>(LODSettings.Distances.size()); ++i)
+			{
+				char Key[32];
+				snprintf(Key, sizeof(Key), "LODDistance_%d", i);
+				if (Ar.Contains(Key))
+				{
+					Ar.Serialize(Key, LODSettings.Distances[i]);
+				}
+			}
+			NormalizeLODDistances();
+		}
+		else if (Ar.Contains("LODScreenSizeCount"))
 		{
 			int32 ScreenSizeCount = 0;
 			Ar.Serialize("LODScreenSizeCount", ScreenSizeCount);
-			for (int32 i = 0; i < ScreenSizeCount && i < static_cast<int32>(LODSettings.ScreenSizes.size()); ++i)
+			for (int32 i = 0; i < ScreenSizeCount && i < static_cast<int32>(LODSettings.Distances.size()); ++i)
 			{
 				char Key[32];
 				snprintf(Key, sizeof(Key), "LODScreenSize_%d", i);
 				if (Ar.Contains(Key))
 				{
-					Ar.Serialize(Key, LODSettings.ScreenSizes[i]);
+					float LegacyScreenSize = 0.0f;
+					Ar.Serialize(Key, LegacyScreenSize);
+					LODSettings.Distances[i] = ConvertLegacyScreenSizeToDistance(LegacyScreenSize, i + 1);
 				}
 			}
+			NormalizeLODDistances();
 		}
 
 		UMeshComponent::Serialize(Ar);

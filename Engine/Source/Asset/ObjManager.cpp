@@ -1,4 +1,4 @@
-﻿#include "Asset/ObjManager.h"
+#include "Asset/ObjManager.h"
 
 #include <algorithm>
 #include <chrono>
@@ -38,7 +38,8 @@ namespace
 	constexpr uint32 GLODVersionLegacy = 1;
 	constexpr uint32 GLODVersionSourceTimestamp = 2;
 	constexpr uint32 GLODVersionScreenSize = 3;
-	constexpr uint32 GLODVersion = GLODVersionScreenSize;
+	constexpr uint32 GLODVersionDistance = 4;
+	constexpr uint32 GLODVersion = GLODVersionDistance;
 
 	FString GetLodFilePath(const FString& MeshPathFileName, int32 LodLevel)
 	{
@@ -67,10 +68,29 @@ namespace
 	bool ReadLodSourceTimestamp(const FString& LodPathFileName, uint64& OutTimestamp);
 	void RemoveFileIfExists(const std::filesystem::path& Path);
 
-	float GetDefaultLodScreenSize(int32 LodLevel, float ScreenSizeStep)
+	float GetDefaultLodDistance(const UStaticMesh& Asset, int32 LodLevel, float DistanceStep)
 	{
-		const float ClampedStep = (std::clamp)(ScreenSizeStep, 0.01f, 0.99f);
-		return std::pow(ClampedStep, static_cast<float>(LodLevel));
+		const float SafeBoundsRadius = (std::max)(Asset.LocalBounds.Radius, 1.0f);
+		const float ClampedStep = (std::max)(DistanceStep, 1.0f);
+		return SafeBoundsRadius * ClampedStep * static_cast<float>(LodLevel);
+	}
+
+	float ConvertLegacyScreenSizeToDistance(const UStaticMesh& Asset, float ScreenSize, int32 LodLevel)
+	{
+		const float SafeBoundsRadius = (std::max)(Asset.LocalBounds.Radius, 1.0f);
+		const float SafeScreenSize = (std::max)(ScreenSize, 0.0001f);
+		const float LegacyProjectionScaleY = 1.7320508075688772f;
+		const float ApproxDistance = SafeBoundsRadius * LegacyProjectionScaleY / SafeScreenSize;
+		const FStaticMesh* ExistingLod = Asset.GetRenderData(LodLevel);
+		if (ExistingLod != nullptr)
+		{
+			const float AssetDistance = Asset.GetLodDistance(LodLevel);
+			if (AssetDistance > 0.0f)
+			{
+				return AssetDistance;
+			}
+		}
+		return ApproxDistance;
 	}
 
 	uint64 GetFileWriteTimestamp(const std::filesystem::path& Path)
@@ -134,12 +154,12 @@ namespace
 				continue;
 			}
 
-			const float LodScreenSize = GetDefaultLodScreenSize(i, Settings.ScreenSizeStep);
-			float LoadedScreenSize = LodScreenSize;
-			FStaticMesh* LodMesh = FObjManager::LoadLodAsset(LodPath, &LoadedScreenSize);
+			const float DefaultLodDistance = GetDefaultLodDistance(Asset, i, Settings.DistanceStep);
+			float LoadedDistance = DefaultLodDistance;
+			FStaticMesh* LodMesh = FObjManager::LoadLodAsset(LodPath, &LoadedDistance);
 			if (LodMesh)
 			{
-				Asset.AddLod(std::unique_ptr<FStaticMesh>(LodMesh), LoadedScreenSize);
+				Asset.AddLod(std::unique_ptr<FStaticMesh>(LodMesh), LoadedDistance);
 			}
 		}
 	}
@@ -1293,7 +1313,7 @@ UStaticMesh* FObjManager::LoadModelStaticMeshAsset(const FString& PathFileName)
 	return NewAsset;
 }
 
-bool FObjManager::SaveLodAsset(const FString& PathFileName, const FStaticMesh& LodMesh, uint64 SourceTimestamp, float ScreenSize)
+bool FObjManager::SaveLodAsset(const FString& PathFileName, const FStaticMesh& LodMesh, uint64 SourceTimestamp, float Distance)
 {
 	const FString AbsolutePath = FPaths::ToAbsolutePath(PathFileName);
 	const std::filesystem::path FilePath = FPaths::ToPath(AbsolutePath).lexically_normal();
@@ -1314,7 +1334,7 @@ bool FObjManager::SaveLodAsset(const FString& PathFileName, const FStaticMesh& L
 	if (!WriteBinaryBytes(File, GLODMagic, sizeof(GLODMagic))
 		|| !WriteBinaryValue(File, GLODVersion)
 		|| !WriteBinaryValue(File, SourceTimestamp)
-		|| !WriteBinaryValue(File, ScreenSize)
+		|| !WriteBinaryValue(File, Distance)
 		|| !WriteBinaryValue(File, static_cast<uint32>(LodMesh.Vertices.size()))
 		|| !WriteBinaryValue(File, static_cast<uint32>(LodMesh.Indices.size()))
 		|| !WriteBinaryValue(File, static_cast<uint32>(LodMesh.Sections.size())))
@@ -1362,7 +1382,7 @@ bool FObjManager::SaveLodAsset(const FString& PathFileName, const FStaticMesh& L
 	return File.good();
 }
 
-FStaticMesh* FObjManager::LoadLodAsset(const FString& PathFileName, float* OutScreenSize)
+FStaticMesh* FObjManager::LoadLodAsset(const FString& PathFileName, float* OutDistance)
 {
 	const FString AbsolutePath = FPaths::ToAbsolutePath(PathFileName);
 	const std::filesystem::path FilePath = FPaths::ToPath(AbsolutePath).lexically_normal();
@@ -1382,7 +1402,7 @@ FStaticMesh* FObjManager::LoadLodAsset(const FString& PathFileName, float* OutSc
 
 	uint32 Version = 0;
 	uint64 SourceTimestamp = 0;
-	float ScreenSize = 0.0f;
+	float Distance = 0.0f;
 	uint32 VertexCount = 0;
 	uint32 IndexCount = 0;
 	uint32 SectionCount = 0;
@@ -1401,13 +1421,23 @@ FStaticMesh* FObjManager::LoadLodAsset(const FString& PathFileName, float* OutSc
 		}
 	}
 
-	if (Version >= GLODVersionScreenSize)
+	if (Version >= GLODVersionDistance)
 	{
-		if (!ReadBinaryValue(File, ScreenSize))
+		if (!ReadBinaryValue(File, Distance))
+		{
+			UE_LOG("[FObjManager] Failed to read .lod distance: %s", AbsolutePath.c_str());
+			return nullptr;
+		}
+	}
+	else if (Version >= GLODVersionScreenSize)
+	{
+		float LegacyScreenSize = 0.0f;
+		if (!ReadBinaryValue(File, LegacyScreenSize))
 		{
 			UE_LOG("[FObjManager] Failed to read .lod screen size: %s", AbsolutePath.c_str());
 			return nullptr;
 		}
+		Distance = LegacyScreenSize;
 	}
 
 	if (!ReadBinaryValue(File, VertexCount)
@@ -1418,7 +1448,7 @@ FStaticMesh* FObjManager::LoadLodAsset(const FString& PathFileName, float* OutSc
 		return nullptr;
 	}
 
-	if (Version != GLODVersionLegacy && Version != GLODVersionSourceTimestamp && Version != GLODVersionScreenSize)
+	if (Version != GLODVersionLegacy && Version != GLODVersionSourceTimestamp && Version != GLODVersionScreenSize && Version != GLODVersionDistance)
 	{
 		UE_LOG("[FObjManager] Unsupported .lod version %u: %s", Version, AbsolutePath.c_str());
 		return nullptr;
@@ -1479,9 +1509,9 @@ FStaticMesh* FObjManager::LoadLodAsset(const FString& PathFileName, float* OutSc
 
 	Mesh->UpdateLocalBound();
 	Mesh->bIsDirty = true;
-	if (OutScreenSize != nullptr && Version >= GLODVersionScreenSize)
+	if (OutDistance != nullptr && Version >= GLODVersionDistance)
 	{
-		*OutScreenSize = ScreenSize;
+		*OutDistance = Distance;
 	}
 	return Mesh.release();
 }

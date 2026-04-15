@@ -386,39 +386,63 @@ void FObjViewerEngine::SetLoadedModelLODEnabled(bool bEnabled)
 	}
 }
 
-void FObjViewerEngine::SetLoadedModelLodScreenSize(int32 LODIndex, float ScreenSize)
+void FObjViewerEngine::SetLoadedModelLodDistance(int32 LODIndex, float Distance)
 {
 	if (ModelState.DisplayActor)
 	{
 		if (UStaticMeshComponent* MeshComponent = ModelState.DisplayActor->GetComponentByClass<UStaticMeshComponent>())
 		{
-			MeshComponent->SetLODScreenSize(LODIndex, ScreenSize);
+			MeshComponent->SetLODDistance(LODIndex, Distance);
 		}
 	}
 }
 
-float FObjViewerEngine::GetLoadedModelLodScreenSize(int32 LODIndex) const
+float FObjViewerEngine::GetLoadedModelLodDistance(int32 LODIndex) const
 {
 	if (ModelState.DisplayActor)
 	{
 		if (UStaticMeshComponent* MeshComponent = ModelState.DisplayActor->GetComponentByClass<UStaticMeshComponent>())
 		{
-			return MeshComponent->GetLODScreenSize(LODIndex);
+			return MeshComponent->GetLODDistance(LODIndex);
 		}
 	}
 	return 0.0f;
 }
 
-int32 FObjViewerEngine::GetLoadedModelLodScreenSizeCount() const
+int32 FObjViewerEngine::GetLoadedModelLodDistanceCount() const
 {
 	if (ModelState.DisplayActor)
 	{
 		if (UStaticMeshComponent* MeshComponent = ModelState.DisplayActor->GetComponentByClass<UStaticMeshComponent>())
 		{
-			return MeshComponent->GetLODScreenSizeCount();
+			return MeshComponent->GetLODDistanceCount();
 		}
 	}
 	return 0;
+}
+
+int32 FObjViewerEngine::GetLoadedModelCurrentLODIndex() const
+{
+	if (ModelState.DisplayActor)
+	{
+		if (UStaticMeshComponent* MeshComponent = ModelState.DisplayActor->GetComponentByClass<UStaticMeshComponent>())
+		{
+			return MeshComponent->GetCurrentLODIndex();
+		}
+	}
+	return 0;
+}
+
+float FObjViewerEngine::GetLoadedModelCurrentLODDistance() const
+{
+	if (ModelState.DisplayActor)
+	{
+		if (UStaticMeshComponent* MeshComponent = ModelState.DisplayActor->GetComponentByClass<UStaticMeshComponent>())
+		{
+			return MeshComponent->GetLastLODSelectionDistance();
+		}
+	}
+	return 0.0f;
 }
 
 bool FObjViewerEngine::ExportLoadedModelAsModel(const FString& FilePath) const
@@ -467,7 +491,7 @@ bool FObjViewerEngine::GenerateLoadedModelLODs()
 	FStaticMeshLODSettings Settings;
 	Settings.NumLODs = (std::max)(LODBuilderSettings.NumLODs, 0);
 	Settings.TriangleReductionStep = (std::clamp)(LODBuilderSettings.TriangleReductionStep, 0.01f, 0.95f);
-	Settings.ScreenSizeStep = (std::clamp)(LODBuilderSettings.ScreenSizeStep, 0.01f, 0.99f);
+	Settings.DistanceStep = (std::max)(LODBuilderSettings.DistanceStep, 1.0f);
 
 	FStaticMeshLODBuilder::BuildLODs(*ModelState.Mesh, Settings);
 
@@ -481,7 +505,7 @@ bool FObjViewerEngine::GenerateLoadedModelLODs()
 		}
 
 		const FString LodPath = GetLodFilePath(SourcePath, static_cast<int32>(LodIndex));
-		if (!FObjManager::SaveLodAsset(LodPath, *LodMesh, SourceTimestamp, ModelState.Mesh->GetLodScreenSize(static_cast<int32>(LodIndex))))
+		if (!FObjManager::SaveLodAsset(LodPath, *LodMesh, SourceTimestamp, ModelState.Mesh->GetLodDistance(static_cast<int32>(LodIndex))))
 		{
 			LastOperationStatus = "LOD generation failed while saving files.";
 			UE_LOG("[ObjViewer] Failed to save generated LOD%d: %s", static_cast<int32>(LodIndex), LodPath.c_str());
