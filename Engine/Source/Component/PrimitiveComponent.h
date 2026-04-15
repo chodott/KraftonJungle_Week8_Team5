@@ -41,6 +41,8 @@ public:
 	bool IsIgnoringParentScaleInRender() const { return bIgnoreParentScaleInRender; }
 	void SetEditorVisualization(bool bEnable) { bEditorVisualization = bEnable; }
 	bool IsEditorVisualization() const { return bEditorVisualization; }
+	void SetHiddenInGame(bool bInHidden) { bHiddenInGame = bInHidden; }
+	bool IsHiddenInGame() const { return bHiddenInGame; }
 
 	virtual FRenderMesh* GetRenderMesh() const { return nullptr; }
 
@@ -59,4 +61,5 @@ protected:
 	bool bDrawDebugBounds = true;
 	bool bIgnoreParentScaleInRender = false;
 	bool bEditorVisualization = false;
+	bool bHiddenInGame = false;
 };

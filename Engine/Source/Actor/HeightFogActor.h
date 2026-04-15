@@ -14,5 +14,5 @@ class ENGINE_API AHeightFogActor : public AActor
 
 private:
 	UHeightFogComponent* HeightFogComponent = nullptr;
-	UBillboardComponent* BillboardComponent = nullptr;
+	UBillboardComponent* IconBillboardComponent = nullptr;
 };

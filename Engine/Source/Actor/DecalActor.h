@@ -23,7 +23,7 @@ private:
 	void UpdateArrowVisualization();
 
 	UDecalComponent* DecalComponent = nullptr;
-	UBillboardComponent* BillboardComponent = nullptr;
+	UBillboardComponent* IconBillboardComponent = nullptr;
 	UStaticMeshComponent* ArrowComponent = nullptr;
 
 };

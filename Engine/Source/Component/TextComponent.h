@@ -54,8 +54,6 @@ public:
 	void DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
 	void PostDuplicate(UObject* DuplicatedObject, const FDuplicateContext& Context) const override;
 
-	void SetHiddenInGame(bool bInHidden) { bHiddenInGame = bInHidden; }
-	bool IsHiddenInGame() const { return bHiddenInGame; }
 
 protected:
 	FString Text = "Text";
@@ -63,7 +61,6 @@ protected:
 	float TextScale = 1.0f;
 	bool bBillboard = false;
 
-	bool bHiddenInGame = true;
 
 	EHorizTextAligment HorizontalAlignment = EHorizTextAligment::EHTA_Center;
 	EVerticalTextAligment VerticalAlignment = EVerticalTextAligment::EVRTA_TextCenter;

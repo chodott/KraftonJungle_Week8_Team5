@@ -49,7 +49,6 @@ void UTextRenderComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicat
 	DuplicatedTextComponent->TextColor = TextColor;
 	DuplicatedTextComponent->TextScale = TextScale;
 	DuplicatedTextComponent->bBillboard = bBillboard;
-	DuplicatedTextComponent->bHiddenInGame = bHiddenInGame;
 	DuplicatedTextComponent->HorizontalAlignment = HorizontalAlignment;
 	DuplicatedTextComponent->VerticalAlignment = VerticalAlignment;
 	DuplicatedTextComponent->bTextMeshDirty = true;
@@ -86,7 +85,6 @@ void UTextRenderComponent::Serialize(FArchive& Ar)
 		Ar.Serialize("TextColor", TextColor);
 		Ar.Serialize("TextScale", TextScale);
 		Ar.Serialize("Billboard", bBillboard);
-		Ar.Serialize("HiddenInGame", bHiddenInGame);
 		Ar.Serialize("HorizontalAlignment", SavedHorizontalAlignment);
 		Ar.Serialize("VerticalAlignment", SavedVerticalAlignment);
 	}
@@ -96,7 +94,6 @@ void UTextRenderComponent::Serialize(FArchive& Ar)
 		Ar.Serialize("TextColor", TextColor);
 		Ar.Serialize("TextScale", TextScale);
 		Ar.Serialize("Billboard", bBillboard);
-		Ar.Serialize("HiddenInGame", bHiddenInGame);
 		Ar.Serialize("HorizontalAlignment", SavedHorizontalAlignment);
 		Ar.Serialize("VerticalAlignment", SavedVerticalAlignment);
 
@@ -104,7 +101,6 @@ void UTextRenderComponent::Serialize(FArchive& Ar)
 		SetTextColor(TextColor);
 		SetTextScale(TextScale);
 		SetBillboard(bBillboard);
-		SetHiddenInGame(bHiddenInGame);
 		SetHorizontalAlignment(static_cast<EHorizTextAligment>(static_cast<int32>(SavedHorizontalAlignment)));
 		SetVerticalAlignment(static_cast<EVerticalTextAligment>(static_cast<int32>(SavedVerticalAlignment)));
 	}
