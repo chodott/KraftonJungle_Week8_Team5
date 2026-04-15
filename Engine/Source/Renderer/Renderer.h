@@ -24,6 +24,7 @@
 
 struct FVertex;
 struct FRenderMesh;
+struct FMeshPassFrameStats;
 class FPixelShader;
 class FMaterial;
 class ULevel;
@@ -109,6 +110,7 @@ public:
 	FRenderDevice& GetRenderDevice() { return RenderDevice; }
 	FBillboardRenderer& GetBillboardRenderer();
 	const FDecalFrameStats& GetDecalFrameStats() const;
+	FMeshPassFrameStats GetMeshPassFrameStats() const;
 	void SetDecalProjectionMode(EDecalProjectionMode InMode) { DecalProjectionMode = InMode; }
 	EDecalProjectionMode GetDecalProjectionMode() const { return DecalProjectionMode; }
 	FDecalStats GetDecalStats() const;

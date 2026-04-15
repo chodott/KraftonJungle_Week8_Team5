@@ -24,11 +24,17 @@ void FSceneRenderer::BeginFrame()
 {
 	PrevCommandCount = (std::max)(PrevCommandCount, CurrentFramePeakCommandCount);
 	CurrentFramePeakCommandCount = 0;
+	MeshPassProcessor->BeginFrame();
 }
 
 size_t FSceneRenderer::GetPrevCommandCount() const
 {
 	return (std::max)(PrevCommandCount, CurrentFramePeakCommandCount);
+}
+
+const FMeshPassFrameStats& FSceneRenderer::GetMeshPassFrameStats() const
+{
+	return MeshPassProcessor->GetFrameStats();
 }
 
 void FSceneRenderer::BuildSceneViewData(

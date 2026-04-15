@@ -29,6 +29,7 @@
 #include "Renderer/Resources/Shader/ShaderResource.h"
 #include "Renderer/Resources/Shader/ShaderType.h"
 #include "Renderer/Scene/Builders/DebugSceneBuilder.h"
+#include "Renderer/Scene/MeshPassProcessor.h"
 #include "Renderer/Scene/SceneRenderer.h"
 #include "Renderer/UI/Screen/ScreenUIRenderer.h"
 #include "World/World.h"
@@ -220,6 +221,12 @@ const FDecalFrameStats &FRenderer::GetDecalFrameStats() const
     return DecalFeature ? DecalFeature->GetFrameStats() : EmptyStats;
 }
 
+FMeshPassFrameStats FRenderer::GetMeshPassFrameStats() const
+{
+    static const FMeshPassFrameStats EmptyStats = {};
+    return SceneRenderer ? SceneRenderer->GetMeshPassFrameStats() : EmptyStats;
+}
+
 FFogStats FRenderer::GetFogStats() const
 {
     FFogStats Stats;
@@ -233,18 +240,21 @@ FFogStats FRenderer::GetFogStats() const
 FGPUFrameStats FRenderer::GetGPUStats() const
 {
     FGPUFrameStats Stats;
-    Stats.GeometryDrawCalls = static_cast<uint32>(GetPrevCommandCount());
-
     const FDecalStats DecalStats = GetDecalStats();
     const FFogStats FogStats = GetFogStats();
-
+    const FMeshPassFrameStats MeshPassStats = GetMeshPassFrameStats();
     const FDecalFrameStats& DecalFrameStats = GetDecalFrameStats();
     const bool bHasDecalPass =
         (DecalStats.Common.Mode == EDecalProjectionMode::VolumeDraw)
             ? (DecalStats.Volume.DecalDrawCalls > 0u)
             : (DecalStats.ClusteredLookup.UploadedDecalCount > 0u && DecalStats.ClusteredLookup.DecalCellRegistrations > 0u);
 
-    Stats.GeometryTimeMs = 0.0;
+    Stats.GeometryDrawCalls = MeshPassStats.TotalDrawCalls;
+    Stats.DecalDrawCalls = (DecalStats.Common.Mode == EDecalProjectionMode::VolumeDraw)
+        ? DecalStats.Volume.DecalDrawCalls
+        : (bHasDecalPass ? 1u : 0u);
+    Stats.FogDrawCalls = FogStats.Common.DrawCallCount;
+    Stats.GeometryTimeMs = MeshPassStats.TotalTimeMs;
     Stats.PixelShadingTimeMs = DecalStats.Common.ShadingPassTimeMs + FogStats.Common.ShadingPassTimeMs;
     Stats.MemoryBandwidthTimeMs = DecalFrameStats.UploadDecalBufferTimeMs
         + DecalFrameStats.UploadClusterHeaderBufferTimeMs

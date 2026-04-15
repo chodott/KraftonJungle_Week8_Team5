@@ -11,6 +11,7 @@ class FMaterial;
 class FSceneCommandBuilder;
 class FSceneCommandResourceCache;
 class FMeshPassProcessor;
+struct FMeshPassFrameStats;
 struct FSceneRenderPacket;
 struct FSceneViewData;
 struct FSceneRenderTargets;
@@ -26,6 +27,7 @@ public:
 
 	void BeginFrame();
 	size_t GetPrevCommandCount() const;
+	const FMeshPassFrameStats& GetMeshPassFrameStats() const;
 
 	void BuildSceneViewData(
 		FRenderer& Renderer,
