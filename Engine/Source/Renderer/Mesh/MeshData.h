@@ -11,8 +11,7 @@ struct FStaticMesh;
 struct FStaticMeshLODSelectionContext
 {
 	float ScreenSize = 0.0f;
-	float ThresholdScale = 1.0f;
-	float ThresholdBias = 0.0f;
+	TArray<float> PerLODThresholds; // 컴포넌트별 per-LOD 임계값 (비어있으면 에셋 기본값 사용)
 };
 
 struct FStaticMeshLOD

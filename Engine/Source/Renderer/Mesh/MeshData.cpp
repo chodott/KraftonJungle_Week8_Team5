@@ -236,16 +236,19 @@ FStaticMesh* UStaticMesh::GetRenderDataForScreenSize(const FStaticMeshLODSelecti
 	}
 
 	const float EffectiveScreenSize = (std::max)(SelectionContext.ScreenSize, 0.0f);
-	const float EffectiveThresholdScale = (std::max)(SelectionContext.ThresholdScale, 0.01f);
-	for (const FStaticMeshLOD& Lod : LODs)
+	for (size_t i = 0; i < LODs.size(); ++i)
 	{
+		const FStaticMeshLOD& Lod = LODs[i];
 		if (!Lod.Mesh)
 		{
 			break;
 		}
 
-		const float EffectiveThreshold = (std::max)(Lod.ScreenSize * EffectiveThresholdScale + SelectionContext.ThresholdBias, 0.0f);
-		if (EffectiveScreenSize > EffectiveThreshold)
+		const float Threshold = (i < SelectionContext.PerLODThresholds.size())
+			? SelectionContext.PerLODThresholds[i]
+			: Lod.ScreenSize;
+
+		if (EffectiveScreenSize > Threshold)
 		{
 			break;
 		}
@@ -300,6 +303,7 @@ float UStaticMesh::GetLodScreenSize(int32 LODIndex) const
 
 	return LODs[ExtraLodIndex].ScreenSize;
 }
+
 
 bool UStaticMesh::IntersectLocalRay(const FVector& RayOrigin, const FVector& RayDirection, float& OutDistance) const
 {

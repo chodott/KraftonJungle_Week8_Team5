@@ -137,6 +137,9 @@ public:
 	void SetWireframeEnabled(bool bEnabled) { bWireframeEnabled = bEnabled; }
 	bool IsLoadedModelLODEnabled() const { return ModelState.bLodEnabled; }
 	void SetLoadedModelLODEnabled(bool bEnabled);
+	void SetLoadedModelLodScreenSize(int32 LODIndex, float ScreenSize);
+	float GetLoadedModelLodScreenSize(int32 LODIndex) const;
+	int32 GetLoadedModelLodScreenSizeCount() const;
 	const FString& GetLastOperationStatus() const { return LastOperationStatus; }
 	FObjViewerShell& GetShell() const;
 

@@ -9,8 +9,7 @@ class UStaticMesh;
 struct FStaticMeshComponentLODSettings
 {
 	bool bEnabled = true;
-	float ScreenSizeScale = 1.0f;
-	float ScreenSizeBias = 0.0f;
+	TArray<float> ScreenSizes; // 컴포넌트별 per-LOD 임계값, 인덱스 0 = LOD1
 };
 
 class ENGINE_API UStaticMeshComponent : public UMeshComponent
@@ -21,10 +20,9 @@ public:
 	void SetStaticMesh(UStaticMesh* InStaticMesh);
 	void SetLODEnabled(bool bEnabled);
 	bool IsLODEnabled() const;
-	void SetLODScreenSizeScale(float InScale);
-	float GetLODScreenSizeScale() const;
-	void SetLODScreenSizeBias(float InBias);
-	float GetLODScreenSizeBias() const;
+	void SetLODScreenSize(int32 LODIndex, float ScreenSize); // LODIndex 1-based
+	float GetLODScreenSize(int32 LODIndex) const;
+	int32 GetLODScreenSizeCount() const;
 	const FStaticMeshComponentLODSettings& GetLODSettings() const;
 	void SetLODSettings(const FStaticMeshComponentLODSettings& InSettings);
 	FRenderMesh* GetRenderMesh() const override;
@@ -41,6 +39,9 @@ public:
 	virtual bool IntersectLocalRay(const FVector& LocalOrigin, const FVector& LocalDir, float& InOutDist) const override;
 	
 private:
+	int32 GetAssetLodScreenSizeCount() const;
+	void SyncLODScreenSizesWithAsset();
+
 	UStaticMesh* StaticMesh = nullptr;
 	FStaticMeshComponentLODSettings LODSettings;
 };

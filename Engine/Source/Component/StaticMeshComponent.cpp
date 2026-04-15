@@ -12,9 +12,40 @@
 #include "Renderer/Resources/Material/Material.h"
 IMPLEMENT_RTTI(UStaticMeshComponent, UMeshComponent)
 
+int32 UStaticMeshComponent::GetAssetLodScreenSizeCount() const
+{
+	if (!StaticMesh)
+	{
+		return 0;
+	}
+
+	return (std::max)(static_cast<int32>(StaticMesh->GetLodCount()) - 1, 0);
+}
+
+void UStaticMeshComponent::SyncLODScreenSizesWithAsset()
+{
+	const int32 AssetLodCount = GetAssetLodScreenSizeCount();
+	if (AssetLodCount <= 0 || !StaticMesh)
+	{
+		LODSettings.ScreenSizes.clear();
+		return;
+	}
+
+	if (static_cast<int32>(LODSettings.ScreenSizes.size()) > AssetLodCount)
+	{
+		LODSettings.ScreenSizes.resize(static_cast<size_t>(AssetLodCount));
+	}
+
+	for (int32 LodIndex = static_cast<int32>(LODSettings.ScreenSizes.size()) + 1; LodIndex <= AssetLodCount; ++LodIndex)
+	{
+		LODSettings.ScreenSizes.push_back(StaticMesh->GetLodScreenSize(LodIndex));
+	}
+}
+
 void UStaticMeshComponent::SetStaticMesh(UStaticMesh* InStaticMesh)
 {
 	StaticMesh = InStaticMesh;
+	LODSettings.ScreenSizes.clear();
 
 	if (StaticMesh)
 	{
@@ -25,6 +56,9 @@ void UStaticMeshComponent::SetStaticMesh(UStaticMesh* InStaticMesh)
 		{
 			Materials[i] = DefaultMats[i]->CreateDynamicMaterial();
 		}
+
+		SyncLODScreenSizesWithAsset();
+
 		UpdateBounds();
 	}
 	else
@@ -43,24 +77,50 @@ bool UStaticMeshComponent::IsLODEnabled() const
 	return LODSettings.bEnabled;
 }
 
-void UStaticMeshComponent::SetLODScreenSizeScale(float InScale)
+void UStaticMeshComponent::SetLODScreenSize(int32 LODIndex, float ScreenSize)
 {
-	LODSettings.ScreenSizeScale = (std::max)(InScale, 0.01f);
+	if (LODIndex <= 0)
+	{
+		return;
+	}
+
+	const int32 AssetLodCount = GetAssetLodScreenSizeCount();
+	if (AssetLodCount > 0 && LODIndex > AssetLodCount)
+	{
+		return;
+	}
+
+	SyncLODScreenSizesWithAsset();
+
+	const size_t Idx = static_cast<size_t>(LODIndex - 1);
+	if (Idx >= LODSettings.ScreenSizes.size())
+	{
+		return;
+	}
+	LODSettings.ScreenSizes[Idx] = (std::max)(ScreenSize, 0.0f);
 }
 
-float UStaticMeshComponent::GetLODScreenSizeScale() const
+float UStaticMeshComponent::GetLODScreenSize(int32 LODIndex) const
 {
-	return LODSettings.ScreenSizeScale;
+	if (LODIndex <= 0)
+	{
+		return 0.0f;
+	}
+	const size_t Idx = static_cast<size_t>(LODIndex - 1);
+	if (Idx >= LODSettings.ScreenSizes.size())
+	{
+		if (StaticMesh && LODIndex <= GetAssetLodScreenSizeCount())
+		{
+			return StaticMesh->GetLodScreenSize(LODIndex);
+		}
+		return 0.0f;
+	}
+	return LODSettings.ScreenSizes[Idx];
 }
 
-void UStaticMeshComponent::SetLODScreenSizeBias(float InBias)
+int32 UStaticMeshComponent::GetLODScreenSizeCount() const
 {
-	LODSettings.ScreenSizeBias = InBias;
-}
-
-float UStaticMeshComponent::GetLODScreenSizeBias() const
-{
-	return LODSettings.ScreenSizeBias;
+	return (std::max)(static_cast<int32>(LODSettings.ScreenSizes.size()), GetAssetLodScreenSizeCount());
 }
 
 const FStaticMeshComponentLODSettings& UStaticMeshComponent::GetLODSettings() const
@@ -71,7 +131,7 @@ const FStaticMeshComponentLODSettings& UStaticMeshComponent::GetLODSettings() co
 void UStaticMeshComponent::SetLODSettings(const FStaticMeshComponentLODSettings& InSettings)
 {
 	LODSettings = InSettings;
-	LODSettings.ScreenSizeScale = (std::max)(LODSettings.ScreenSizeScale, 0.01f);
+	SyncLODScreenSizesWithAsset();
 }
 
 FRenderMesh* UStaticMeshComponent::GetRenderMesh() const
@@ -93,8 +153,7 @@ FRenderMesh* UStaticMeshComponent::GetRenderMesh(const FRenderMeshSelectionConte
 
 	FStaticMeshLODSelectionContext LODSelectionContext;
 	LODSelectionContext.ScreenSize = SelectionContext.ScreenSize;
-	LODSelectionContext.ThresholdScale = LODSettings.ScreenSizeScale;
-	LODSelectionContext.ThresholdBias = LODSettings.ScreenSizeBias;
+	LODSelectionContext.PerLODThresholds = LODSettings.ScreenSizes;
 	return StaticMesh->GetRenderDataForScreenSize(LODSelectionContext);
 }
 
@@ -111,7 +170,7 @@ void UStaticMeshComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicat
 
 	UStaticMeshComponent* DuplicatedStaticMeshComponent = static_cast<UStaticMeshComponent*>(DuplicatedObject);
 	DuplicatedStaticMeshComponent->SetStaticMesh(StaticMesh);
-	DuplicatedStaticMeshComponent->LODSettings = LODSettings;
+	DuplicatedStaticMeshComponent->SetLODSettings(LODSettings);
 	DuplicateMaterialsTo(DuplicatedStaticMeshComponent);
 }
 
@@ -148,24 +207,20 @@ void UStaticMeshComponent::Serialize(FArchive& Ar)
 
 		Ar.Serialize("ObjStaticMeshAsset", MeshFileName);
 		Ar.Serialize("EnableLOD", LODSettings.bEnabled);
-		Ar.Serialize("LODScreenSizeScale", LODSettings.ScreenSizeScale);
-		Ar.Serialize("LODScreenSizeBias", LODSettings.ScreenSizeBias);
+		int32 ScreenSizeCount = static_cast<int32>(LODSettings.ScreenSizes.size());
+		Ar.Serialize("LODScreenSizeCount", ScreenSizeCount);
+		for (int32 i = 0; i < ScreenSizeCount; ++i)
+		{
+			char Key[32];
+			snprintf(Key, sizeof(Key), "LODScreenSize_%d", i);
+			Ar.Serialize(Key, LODSettings.ScreenSizes[i]);
+		}
 	}
 	else
 	{
 		if (Ar.Contains("EnableLOD"))
 		{
 			Ar.Serialize("EnableLOD", LODSettings.bEnabled);
-		}
-
-		if (Ar.Contains("LODScreenSizeScale"))
-		{
-			Ar.Serialize("LODScreenSizeScale", LODSettings.ScreenSizeScale);
-		}
-
-		if (Ar.Contains("LODScreenSizeBias"))
-		{
-			Ar.Serialize("LODScreenSizeBias", LODSettings.ScreenSizeBias);
 		}
 
 		if (Ar.Contains("ObjStaticMeshAsset"))
@@ -176,12 +231,26 @@ void UStaticMeshComponent::Serialize(FArchive& Ar)
 			if (!MeshFileName.empty())
 			{
 				UStaticMesh* LoadedMesh = FObjManager::LoadStaticMeshAsset(MeshFileName);
-				SetStaticMesh(LoadedMesh);
+				SetStaticMesh(LoadedMesh); // ScreenSizes가 에셋 기본값으로 초기화됨
+			}
+		}
+
+		// SetStaticMesh 이후에 저장된 오버라이드값 적용
+		if (Ar.Contains("LODScreenSizeCount"))
+		{
+			int32 ScreenSizeCount = 0;
+			Ar.Serialize("LODScreenSizeCount", ScreenSizeCount);
+			for (int32 i = 0; i < ScreenSizeCount && i < static_cast<int32>(LODSettings.ScreenSizes.size()); ++i)
+			{
+				char Key[32];
+				snprintf(Key, sizeof(Key), "LODScreenSize_%d", i);
+				if (Ar.Contains(Key))
+				{
+					Ar.Serialize(Key, LODSettings.ScreenSizes[i]);
+				}
 			}
 		}
 
 		UMeshComponent::Serialize(Ar);
 	}
-
-	LODSettings.ScreenSizeScale = (std::max)(LODSettings.ScreenSizeScale, 0.01f);
 }

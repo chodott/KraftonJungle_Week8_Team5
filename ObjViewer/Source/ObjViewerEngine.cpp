@@ -386,6 +386,41 @@ void FObjViewerEngine::SetLoadedModelLODEnabled(bool bEnabled)
 	}
 }
 
+void FObjViewerEngine::SetLoadedModelLodScreenSize(int32 LODIndex, float ScreenSize)
+{
+	if (ModelState.DisplayActor)
+	{
+		if (UStaticMeshComponent* MeshComponent = ModelState.DisplayActor->GetComponentByClass<UStaticMeshComponent>())
+		{
+			MeshComponent->SetLODScreenSize(LODIndex, ScreenSize);
+		}
+	}
+}
+
+float FObjViewerEngine::GetLoadedModelLodScreenSize(int32 LODIndex) const
+{
+	if (ModelState.DisplayActor)
+	{
+		if (UStaticMeshComponent* MeshComponent = ModelState.DisplayActor->GetComponentByClass<UStaticMeshComponent>())
+		{
+			return MeshComponent->GetLODScreenSize(LODIndex);
+		}
+	}
+	return 0.0f;
+}
+
+int32 FObjViewerEngine::GetLoadedModelLodScreenSizeCount() const
+{
+	if (ModelState.DisplayActor)
+	{
+		if (UStaticMeshComponent* MeshComponent = ModelState.DisplayActor->GetComponentByClass<UStaticMeshComponent>())
+		{
+			return MeshComponent->GetLODScreenSizeCount();
+		}
+	}
+	return 0;
+}
+
 bool FObjViewerEngine::ExportLoadedModelAsModel(const FString& FilePath) const
 {
 	if (FilePath.empty() || !HasLoadedModel() || ModelState.Mesh == nullptr || ModelState.Mesh->GetRenderData() == nullptr)

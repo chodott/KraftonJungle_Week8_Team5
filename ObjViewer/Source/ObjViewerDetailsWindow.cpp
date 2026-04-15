@@ -228,6 +228,23 @@ void FObjViewerDetailsWindow::Render(FObjViewerEngine* Engine)
 		ImGui::SliderFloat("Reduction Step", &LODSettings.TriangleReductionStep, 0.05f, 0.95f, "%.2f");
 		ImGui::SliderFloat("Screen Size Step", &LODSettings.ScreenSizeStep, 0.05f, 0.95f, "%.2f");
 
+		const int32 LodScreenSizeCount = Engine->GetLoadedModelLodScreenSizeCount();
+		if (LodScreenSizeCount > 0)
+		{
+			ImGui::Spacing();
+			ImGui::Separator();
+			for (int32 LodIdx = 1; LodIdx <= LodScreenSizeCount; ++LodIdx)
+			{
+				float ScreenSize = Engine->GetLoadedModelLodScreenSize(LodIdx);
+				char Label[32];
+				snprintf(Label, sizeof(Label), "LOD %d Screen Size", LodIdx);
+				if (ImGui::SliderFloat(Label, &ScreenSize, 0.0f, 1.0f, "%.3f"))
+				{
+					Engine->SetLoadedModelLodScreenSize(LodIdx, ScreenSize);
+				}
+			}
+		}
+
 		if (ImGui::Button("Generate LOD Files"))
 		{
 			Engine->GenerateLoadedModelLODs();

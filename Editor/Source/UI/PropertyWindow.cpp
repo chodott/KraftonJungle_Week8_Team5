@@ -401,32 +401,22 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 		MeshComponent->SetLODEnabled(bLODEnabled);
 	}
 
-	float LODScreenSizeScale = MeshComponent->GetLODScreenSizeScale();
-	if (ImGui::DragFloat("LOD Threshold Scale", &LODScreenSizeScale, 0.01f, 0.05f, 8.0f, "%.2f"))
-	{
-		MeshComponent->SetLODScreenSizeScale(LODScreenSizeScale);
-	}
-
-	float LODScreenSizeBias = MeshComponent->GetLODScreenSizeBias();
-	if (ImGui::DragFloat("LOD Threshold Bias", &LODScreenSizeBias, 0.005f, -1.0f, 1.0f, "%.3f"))
-	{
-		MeshComponent->SetLODScreenSizeBias(LODScreenSizeBias);
-	}
-
-	const uint32 LodCount = CurrentMesh->GetLodCount();
-	if (LodCount <= 1)
+	const int32 LodScreenSizeCount = MeshComponent->GetLODScreenSizeCount();
+	if (LodScreenSizeCount == 0)
 	{
 		ImGui::TextDisabled("No additional LOD files loaded.");
 	}
 	else
 	{
-		for (uint32 LodIndex = 1; LodIndex < LodCount; ++LodIndex)
+		for (int32 LodIndex = 1; LodIndex <= LodScreenSizeCount; ++LodIndex)
 		{
-			const float AssetThreshold = CurrentMesh->GetLodScreenSize(static_cast<int32>(LodIndex));
-			const float EffectiveThreshold = (std::max)(
-				AssetThreshold * MeshComponent->GetLODScreenSizeScale() + MeshComponent->GetLODScreenSizeBias(),
-				0.0f);
-			ImGui::Text("LOD%u Threshold: %.3f (effective %.3f)", LodIndex, AssetThreshold, EffectiveThreshold);
+			float ScreenSize = MeshComponent->GetLODScreenSize(LodIndex);
+			char Label[32];
+			snprintf(Label, sizeof(Label), "LOD%d Screen Size", LodIndex);
+			if (ImGui::SliderFloat(Label, &ScreenSize, 0.0f, 1.0f, "%.3f"))
+			{
+				MeshComponent->SetLODScreenSize(LodIndex, ScreenSize);
+			}
 		}
 	}
 

@@ -97,13 +97,18 @@ namespace
 		const FString Extension = GetNormalizedExtension(MeshPathFileName);
 		if (Extension == ".model")
 		{
+			const std::filesystem::path ObjPath = FPaths::ToPath(FPaths::ToAbsolutePath(GetObjFilePathFromModelPath(MeshPathFileName))).lexically_normal();
+			std::error_code ErrorCode;
+			if (!ObjPath.empty() && std::filesystem::exists(ObjPath, ErrorCode) && !ErrorCode)
+			{
+				return GetFileWriteTimestamp(ObjPath);
+			}
+
 			uint64 CachedTimestamp = 0;
 			if (ReadModelSourceTimestamp(MeshPathFileName, CachedTimestamp))
 			{
 				return CachedTimestamp;
 			}
-
-			return GetFileWriteTimestamp(FPaths::ToPath(FPaths::ToAbsolutePath(GetObjFilePathFromModelPath(MeshPathFileName))).lexically_normal());
 		}
 
 		return GetFileWriteTimestamp(FPaths::ToPath(FPaths::ToAbsolutePath(MeshPathFileName)).lexically_normal());
@@ -126,15 +131,15 @@ namespace
 			uint64 CachedTimestamp = 0;
 			if (SourceTimestamp != 0 && (!ReadLodSourceTimestamp(LodPath, CachedTimestamp) || CachedTimestamp != SourceTimestamp))
 			{
-				RemoveFileIfExists(FPaths::ToPath(LodPath));
 				continue;
 			}
 
-			float LodScreenSize = GetDefaultLodScreenSize(i, Settings.ScreenSizeStep);
-			FStaticMesh* LodMesh = FObjManager::LoadLodAsset(LodPath, &LodScreenSize);
+			const float LodScreenSize = GetDefaultLodScreenSize(i, Settings.ScreenSizeStep);
+			float LoadedScreenSize = LodScreenSize;
+			FStaticMesh* LodMesh = FObjManager::LoadLodAsset(LodPath, &LoadedScreenSize);
 			if (LodMesh)
 			{
-				Asset.AddLod(std::unique_ptr<FStaticMesh>(LodMesh), LodScreenSize);
+				Asset.AddLod(std::unique_ptr<FStaticMesh>(LodMesh), LoadedScreenSize);
 			}
 		}
 	}
@@ -1111,6 +1116,10 @@ UStaticMesh* FObjManager::LoadObjStaticMeshAsset(const FString& PathFileName, co
 	auto It = ObjStaticMeshMap.find(CacheKey);
 	if (It != ObjStaticMeshMap.end())
 	{
+		if (It->second != nullptr)
+		{
+			LoadAvailableLODs(*It->second, GetStandardizedMeshPath(PathFileName));
+		}
 		return It->second;
 	}
 
@@ -1133,6 +1142,7 @@ UStaticMesh* FObjManager::LoadModelStaticMeshAsset(const FString& PathFileName)
 	auto It = ObjStaticMeshMap.find(StandardizedPath);
 	if (It != ObjStaticMeshMap.end())
 	{
+		LoadAvailableLODs(*It->second, StandardizedPath);
 		return It->second;
 	}
 
@@ -1814,7 +1824,7 @@ void FObjManager::PreloadAllModelFiles(const FString& DirectoryPath)
 		{
 			FString FullFilePath = FPaths::FromPath(Entry.path());
 
-			UStaticMesh* LoadedMesh = LoadModelStaticMeshAsset(FullFilePath.c_str());
+			UStaticMesh* LoadedMesh = LoadStaticMeshAsset(FullFilePath.c_str());
 		}
 	}
 	PreloadAllMtlFiles(FPaths::FromPath(FPaths::MaterialDir()).c_str());
@@ -1929,7 +1939,7 @@ void FObjManager::InvalidateCacheEntriesForAsset(const FString& PathFileName)
 	const FString ObjPath = (Extension == ".model")
 		? GetStandardizedMeshPath(GetObjFilePathFromModelPath(StandardizedPath))
 		: StandardizedPath;
-	const FString ModelPath = GetModelFilePath(ObjPath);
+	const FString ModelPath = GetStandardizedMeshPath(GetModelFilePath(ObjPath));
 	const FString ObjCachePrefix = ObjPath + "|OBJ|";
 
 	ObjStaticMeshMap.erase(ModelPath);
