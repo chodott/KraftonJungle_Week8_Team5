@@ -25,7 +25,7 @@ namespace
 		}
 
 		std::shared_ptr<FDynamicMesh> SourceMesh =
-			FPrimitiveGizmo::CreateTranslationAxisMesh(EAxis::X, FVector4(0.f, 1.0f, 1.0f, 1.0f));
+			FPrimitiveGizmo::CreateTranslationAxisMesh(EAxis::X, FVector4(1.f, 0.f, 0.f, 1.0f));
 		if (!SourceMesh)
 		{
 			return nullptr;
@@ -226,6 +226,7 @@ void UProjectileMovementComponent::EnsureVelocityArrowComponent()
 		VelocityArrowComponent->SetStaticMesh(GetVelocityArrowMesh());
 		VelocityArrowComponent->SetIgnoreParentScaleInRender(true);
 		VelocityArrowComponent->SetEditorVisualization(true);
+		VelocityArrowComponent->SetDrawDebugBounds(false);
 		VelocityArrowComponent->SetInstanceComponent(IsInstanceComponent());
 	}
 
@@ -252,6 +253,8 @@ void UProjectileMovementComponent::UpdateVelocityArrow()
 	{
 		return;
 	}
+
+	VelocityArrowComponent->SetDrawDebugBounds(false);
 
 	FQuat LocalRotation = FQuat::Identity;
 	if (!Velocity.IsNearlyZero())

@@ -236,7 +236,7 @@ AActor* FPicker::PickActor(ULevel* Scene, const FViewportEntry* Entry, int32 Scr
 				return;
 			}
 
-			if (IsHiddenByArrowVisualizationShowFlags(PrimComp, Entry->LocalState.ShowFlags))
+			if (IsArrowVisualizationPrimitive(PrimComp) || IsHiddenByArrowVisualizationShowFlags(PrimComp, Entry->LocalState.ShowFlags))
 			{
 				return;
 			}

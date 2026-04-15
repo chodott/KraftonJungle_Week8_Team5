@@ -228,7 +228,9 @@ bool FVolumeDecalRenderFeature::Render(
 		{
 			if (!Item || !Item->IsValid()) continue;
 			Renderer.UpdateObjectConstantBuffer(Item->DecalWorld);
-			UpdatePerDecalConstants(Renderer, Request, *Item);
+			FDecalRenderItem DebugItem = *Item;
+			DebugItem.BaseColorTint = FLinearColor(1.0f, 0.6f, 0.1f, 1.0f);
+			UpdatePerDecalConstants(Renderer, Request, DebugItem);
 			ID3D11Buffer* CBs[1] = { PerDecalConstantBuffer };
 			DeviceContext->VSSetConstantBuffers(DECAL_PER_MATERIAL_CB_SLOT, 1, CBs);
 			DeviceContext->DrawIndexed(VolumeIndexCount, 0, 0);

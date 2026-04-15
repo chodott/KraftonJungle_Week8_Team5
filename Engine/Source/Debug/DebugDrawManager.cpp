@@ -111,7 +111,7 @@ void FDebugDrawManager::DrawAllCollisionBounds(const FShowFlags& ShowFlags, UWor
 				continue;
 			}
 
-			if (IsHiddenByArrowVisualizationShowFlags(PrimitiveComponent, ShowFlags))
+			if (IsArrowVisualizationPrimitive(PrimitiveComponent) || IsHiddenByArrowVisualizationShowFlags(PrimitiveComponent, ShowFlags))
 			{
 				continue;
 			}
@@ -149,10 +149,7 @@ void FDebugDrawManager::DrawAllCollisionBounds(const FShowFlags& ShowFlags, UWor
 			const FBoxSphereBounds Bounds = PrimitiveComponent->GetWorldBounds();
 			if (Bounds.BoxExtent.SizeSquared() > 0.0f)
 			{
-				const bool bIsDecalComponent = PrimitiveComponent->IsA(UDecalComponent::StaticClass());
-				const FVector4 Color = bIsDecalComponent
-					? FVector4(1.0f, 0.6f, 0.1f, 1.0f)   // Orange: Decal Bounds
-					: FVector4(1.0f, 0.2f, 1.0f, 1.0f);  // Magenta: Picking Bounds / generic collision bounds
+				const FVector4 Color = FVector4(1.0f, 0.2f, 1.0f, 1.0f); // Magenta: Picking Bounds / generic collision bounds
 				OutPrimitives.Cubes.push_back({ Bounds.Center, Bounds.BoxExtent, Color });
 			}
 		}
