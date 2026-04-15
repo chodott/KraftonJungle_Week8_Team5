@@ -10,6 +10,8 @@
 #include "Renderer/Renderer.h"
 #include "Renderer/Features/Decal/DecalProjectionMode.h"
 #include "Renderer/Features/Decal/DecalStats.h"
+#include "Renderer/Features/Fog/FogStats.h"
+#include "Renderer/GPUStats.h"
 #include "Camera/Camera.h"
 #include "Component/CameraComponent.h"
 #include "Component/StaticMeshComponent.h"
@@ -673,6 +675,74 @@ void FEditorEngine::InitEditorConsole()
 
 	EditorUI.GetConsole().SetCommandHandler([this](const char* CommandLine)
 	{
+		if (std::strcmp(CommandLine, "stat gpu") == 0)
+		{
+			FRenderer* Renderer = GetRenderer();
+			if (!Renderer)
+			{
+				FEngineLog::Get().Log("[error] Renderer is not available.");
+				return;
+			}
+
+			const FGPUFrameStats Stats = Renderer->GetGPUStats();
+			FEngineLog::Get().Log("[GPU Stat]");
+			FEngineLog::Get().Log("Geometry Draw Calls: %u", Stats.GeometryDrawCalls);
+			FEngineLog::Get().Log("Fullscreen Pass Count: %u", Stats.FullscreenPassCount);
+			FEngineLog::Get().Log("Total Draw Calls: %u", Stats.DrawCallCount);
+			FEngineLog::Get().Log("Pass Count: %u", Stats.PassCount);
+			FEngineLog::Get().Log("");
+			FEngineLog::Get().Log("Geometry Cost: %.2f ms", Stats.GeometryTimeMs);
+			FEngineLog::Get().Log("Pixel Shading Cost: %.2f ms", Stats.PixelShadingTimeMs);
+			FEngineLog::Get().Log("Memory / Bandwidth Cost: %.2f ms", Stats.MemoryBandwidthTimeMs);
+			FEngineLog::Get().Log("Overdraw / Fillrate Cost: %.2f ms", Stats.OverdrawFillrateTimeMs);
+			FEngineLog::Get().Log("");
+			FEngineLog::Get().Log("Decal Draw Calls: %u", Stats.DecalDrawCalls);
+			FEngineLog::Get().Log("Fog Draw Calls: %u", Stats.FogDrawCalls);
+			FEngineLog::Get().Log("Upload Bytes: %.2f KB", Stats.UploadBytes / 1024.0);
+			FEngineLog::Get().Log("Scene Copy Bytes: %.2f MB", Stats.CopyBytes / (1024.0 * 1024.0));
+			FEngineLog::Get().Log("Estimated Fullscreen Pixels: %.2f M", Stats.EstimatedFullscreenPixels / 1000000.0);
+			FEngineLog::Get().Log("[note] Geometry/overdraw are engine-side aggregates. D3D11 hardware counters are not sampled here.");
+			return;
+		}
+
+		if (std::strcmp(CommandLine, "stat fog") == 0)
+		{
+			FRenderer* Renderer = GetRenderer();
+			if (!Renderer)
+			{
+				FEngineLog::Get().Log("[error] Renderer is not available.");
+				return;
+			}
+
+			const FFogStats Stats = Renderer->GetFogStats();
+			FEngineLog::Get().Log("[Fog Stat]");
+			FEngineLog::Get().Log("Total Fog Volumes: %u", Stats.Common.TotalFogVolumes);
+			FEngineLog::Get().Log("Global Fog Volumes: %u", Stats.Common.GlobalFogVolumes);
+			FEngineLog::Get().Log("Local Fog Volumes: %u", Stats.Common.LocalFogVolumes);
+			FEngineLog::Get().Log("Registered Local Fog Volumes: %u", Stats.Common.RegisteredLocalFogVolumes);
+			FEngineLog::Get().Log("");
+			FEngineLog::Get().Log("Cluster Count: %u", Stats.Common.ClusterCount);
+			FEngineLog::Get().Log("Non-Empty Clusters: %u", Stats.Common.NonEmptyClusterCount);
+			FEngineLog::Get().Log("Cluster Index Count: %u", Stats.Common.ClusterIndexCount);
+			FEngineLog::Get().Log("Max Fog Per Cluster: %u", Stats.Common.MaxFogPerCluster);
+			FEngineLog::Get().Log("");
+			FEngineLog::Get().Log("Fullscreen Pass Count: %u", Stats.Common.FullscreenPassCount);
+			FEngineLog::Get().Log("Draw Call Count: %u", Stats.Common.DrawCallCount);
+			FEngineLog::Get().Log("Cluster Build Time: %.2f ms", Stats.Common.ClusterBuildTimeMs);
+			FEngineLog::Get().Log("Constant Buffer Update Time: %.2f ms", Stats.Common.ConstantBufferUpdateTimeMs);
+			FEngineLog::Get().Log("Structured Buffer Upload Time: %.2f ms", Stats.Common.StructuredBufferUploadTimeMs);
+			FEngineLog::Get().Log("Shading Pass Time: %.2f ms", Stats.Common.ShadingPassTimeMs);
+			FEngineLog::Get().Log("Total Fog Time: %.2f ms", Stats.Common.TotalFogTimeMs);
+			FEngineLog::Get().Log("");
+			FEngineLog::Get().Log("Global Fog Buffer: %.2f KB", Stats.Common.GlobalFogBufferBytes / 1024.0);
+			FEngineLog::Get().Log("Local Fog Buffer: %.2f KB", Stats.Common.LocalFogBufferBytes / 1024.0);
+			FEngineLog::Get().Log("Cluster Header Buffer: %.2f KB", Stats.Common.ClusterHeaderBufferBytes / 1024.0);
+			FEngineLog::Get().Log("Cluster Index Buffer: %.2f KB", Stats.Common.ClusterIndexBufferBytes / 1024.0);
+			FEngineLog::Get().Log("SceneColor Copy: %.2f MB", Stats.Common.SceneColorCopyBytes / (1024.0 * 1024.0));
+			FEngineLog::Get().Log("Total Upload: %.2f KB", Stats.Common.TotalUploadBytes / 1024.0);
+			return;
+		}
+
 		if (std::strcmp(CommandLine, "stat decal") == 0)
 		{
 			FRenderer* Renderer = GetRenderer();

@@ -1,6 +1,8 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
+#include "Renderer/Features/Fog/FogStats.h"
+#include "Renderer/GPUStats.h"
 #include "Renderer/Features/Outline/OutlineTypes.h"
 #include "Renderer/Features/Decal/DecalProjectionMode.h"
 #include "Renderer/Features/Decal/DecalStats.h"
@@ -110,6 +112,8 @@ public:
 	void SetDecalProjectionMode(EDecalProjectionMode InMode) { DecalProjectionMode = InMode; }
 	EDecalProjectionMode GetDecalProjectionMode() const { return DecalProjectionMode; }
 	FDecalStats GetDecalStats() const;
+    FFogStats GetFogStats() const;
+	FGPUFrameStats GetGPUStats() const;
     ID3D11SamplerState* GetDefaultSampler() const { return NormalSampler; }
 
 	void SetConstantBuffers();
