@@ -1,4 +1,4 @@
-#include "Actor/DecalActor.h"
+﻿#include "Actor/DecalActor.h"
 
 #include "Component/BillboardComponent.h"
 #include "Component/DecalComponent.h"
@@ -187,9 +187,25 @@ void ADecalActor::UpdateArrowVisualization()
 		(ArrowMesh && ArrowMesh->LocalBounds.BoxExtent.X > 0.0f)
 		? (ArrowMesh->LocalBounds.BoxExtent.X * 2.0f)
 		: 1.0f;
+	const float BaseArrowRadius =
+		(ArrowMesh && ArrowMesh->LocalBounds.BoxExtent.Y > 0.0f && ArrowMesh->LocalBounds.BoxExtent.Z > 0.0f)
+		? (std::max)(ArrowMesh->LocalBounds.BoxExtent.Y, ArrowMesh->LocalBounds.BoxExtent.Z)
+		: 1.0f;
+
+	const FVector DecalExtents = DecalComponent->GetExtents();
 	const float ProjectionDepth = (std::max)(DecalComponent->GetProjectionDepth(), 1.0f);
 	const float ArrowLengthScale = ProjectionDepth / BaseArrowLength;
-	const float ArrowRadiusScale = 0.02f * ArrowLengthScale;
+
+	float DesiredArrowRadius = ProjectionDepth * 0.05f;
+	const float CrossSectionRadius = (std::max)(DecalExtents.Y, DecalExtents.Z);
+	if (CrossSectionRadius > 0.0f)
+	{
+		const float MinRadius = CrossSectionRadius * 0.12f;
+		const float MaxRadius = CrossSectionRadius * 0.35f;
+		DesiredArrowRadius = std::clamp(DesiredArrowRadius, MinRadius, (std::max)(MinRadius, MaxRadius));
+	}
+
+	const float ArrowRadiusScale = DesiredArrowRadius / BaseArrowRadius;
 
 	ArrowComponent->SetRelativeTransform(FTransform(
 		FQuat::Identity,

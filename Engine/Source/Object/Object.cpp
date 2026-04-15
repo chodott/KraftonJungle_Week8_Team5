@@ -1,4 +1,4 @@
-#include "Object/Object.h"
+﻿#include "Object/Object.h"
 #include "Object/Class.h"
 #include "Object/ObjectFactory.h"
 #include "Memory/MemoryBase.h"

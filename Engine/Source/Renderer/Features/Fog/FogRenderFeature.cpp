@@ -1,4 +1,4 @@
-#include "Renderer/Features/Fog/FogRenderFeature.h"
+﻿#include "Renderer/Features/Fog/FogRenderFeature.h"
 
 #include "Core/Paths.h"
 #include "Debug/EngineLog.h"

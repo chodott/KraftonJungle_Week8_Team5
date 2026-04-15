@@ -1,4 +1,4 @@
-#include "Renderer/Resources/Shader/ShaderResource.h"
+﻿#include "Renderer/Resources/Shader/ShaderResource.h"
 #include "Core/Paths.h"
 #include <d3dcompiler.h>
 #include <cstring>

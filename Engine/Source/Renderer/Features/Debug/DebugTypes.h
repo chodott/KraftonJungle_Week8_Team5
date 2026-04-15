@@ -1,17 +1,17 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Renderer/Mesh/MeshData.h"
 
 class FMaterial;
 
-struct ENGINE_API FDebugLinePassInputs
+struct ENGINE_API FEditorLinePassInputs
 {
-	FDebugLinePassInputs() = default;
-	FDebugLinePassInputs(const FDebugLinePassInputs&) = delete;
-	FDebugLinePassInputs& operator=(const FDebugLinePassInputs&) = delete;
-	FDebugLinePassInputs(FDebugLinePassInputs&&) noexcept = default;
-	FDebugLinePassInputs& operator=(FDebugLinePassInputs&&) noexcept = default;
+	FEditorLinePassInputs() = default;
+	FEditorLinePassInputs(const FEditorLinePassInputs&) = delete;
+	FEditorLinePassInputs& operator=(const FEditorLinePassInputs&) = delete;
+	FEditorLinePassInputs(FEditorLinePassInputs&&) noexcept = default;
+	FEditorLinePassInputs& operator=(FEditorLinePassInputs&&) noexcept = default;
 
 	std::unique_ptr<FDynamicMesh> LineMesh;
 	FMaterial* Material = nullptr;

@@ -31,7 +31,7 @@ bool FDebugLineRenderFeature::EnsureDebugDepthState(ID3D11Device* Device)
 }
 
 void FDebugLineRenderFeature::AppendLine(
-	FDebugLinePassInputs& PassInputs,
+	FEditorLinePassInputs& PassInputs,
 	const FVector& Start,
 	const FVector& End,
 	const FVector4& Color)
@@ -43,7 +43,7 @@ void FDebugLineRenderFeature::AppendLine(
 }
 
 void FDebugLineRenderFeature::AppendCube(
-	FDebugLinePassInputs& PassInputs,
+	FEditorLinePassInputs& PassInputs,
 	const FVector& Center,
 	const FVector& BoxExtent,
 	const FVector4& Color)
@@ -78,7 +78,7 @@ bool FDebugLineRenderFeature::Render(
 	const FFrameContext& Frame,
 	const FViewContext& View,
 	const FSceneRenderTargets& Targets,
-	FDebugLinePassInputs& PassInputs)
+	FEditorLinePassInputs& PassInputs)
 {
 	if (PassInputs.IsEmpty())
 	{

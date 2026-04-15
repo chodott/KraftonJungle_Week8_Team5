@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "Component/PrimitiveComponent.h"
 #include "Renderer/Features/Decal/DecalTypes.h"

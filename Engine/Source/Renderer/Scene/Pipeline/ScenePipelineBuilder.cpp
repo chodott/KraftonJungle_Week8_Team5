@@ -1,4 +1,4 @@
-#include "Renderer/Scene/Pipeline/ScenePipelineBuilder.h"
+﻿#include "Renderer/Scene/Pipeline/ScenePipelineBuilder.h"
 
 #include "Renderer/Scene/MeshPassProcessor.h"
 #include "Renderer/Scene/Passes/ScenePasses.h"
@@ -20,7 +20,8 @@ void BuildDefaultSceneRenderPipeline(FRenderPipeline& OutPipeline, const FMeshPa
     OutPipeline.AddPass(std::make_unique<FFireBallPass>());
     OutPipeline.AddPass(std::make_unique<FOutlineMaskPass>());
     OutPipeline.AddPass(std::make_unique<FOutlineCompositePass>());
-    OutPipeline.AddPass(std::make_unique<FOverlayPass>(MeshPassProcessor));
-    OutPipeline.AddPass(std::make_unique<FDebugLinePass>());
+    OutPipeline.AddPass(std::make_unique<FEditorGridPass>(MeshPassProcessor));
+    OutPipeline.AddPass(std::make_unique<FEditorPrimitivePass>(MeshPassProcessor));
+    OutPipeline.AddPass(std::make_unique<FEditorLinePass>());
     OutPipeline.AddPass(std::make_unique<FFXAAPass>());
 }

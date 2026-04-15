@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "Renderer/Scene/Passes/PassContext.h"
 
@@ -104,10 +104,10 @@ public:
 	bool Execute(FPassContext& Context) override;
 };
 
-class ENGINE_API FOverlayPass : public IRenderPass
+class ENGINE_API FEditorGridPass : public IRenderPass
 {
 public:
-	explicit FOverlayPass(const FMeshPassProcessor& InProcessor)
+	explicit FEditorGridPass(const FMeshPassProcessor& InProcessor)
 		: Processor(InProcessor)
 	{
 	}
@@ -118,7 +118,21 @@ private:
 	const FMeshPassProcessor& Processor;
 };
 
-class ENGINE_API FDebugLinePass : public IRenderPass
+class ENGINE_API FEditorPrimitivePass : public IRenderPass
+{
+public:
+	explicit FEditorPrimitivePass(const FMeshPassProcessor& InProcessor)
+		: Processor(InProcessor)
+	{
+	}
+
+	bool Execute(FPassContext& Context) override;
+
+private:
+	const FMeshPassProcessor& Processor;
+};
+
+class ENGINE_API FEditorLinePass : public IRenderPass
 {
 public:
 	bool Execute(FPassContext& Context) override;

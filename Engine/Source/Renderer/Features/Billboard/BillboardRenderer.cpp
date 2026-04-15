@@ -1,4 +1,4 @@
-#include "BillboardRenderer.h"
+﻿#include "BillboardRenderer.h"
 
 #include <WICTextureLoader.h>
 #include <algorithm>

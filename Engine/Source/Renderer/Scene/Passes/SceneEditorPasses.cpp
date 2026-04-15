@@ -12,7 +12,7 @@
 #include "Renderer/Scene/Passes/ScenePassExecutionUtils.h"
 
 
-bool FDebugLinePass::Execute(FPassContext& Context)
+bool FEditorLinePass::Execute(FPassContext& Context)
 {
 	FDebugLineRenderFeature* DebugLineFeature = Context.Renderer.GetDebugLineFeature();
 	if (!DebugLineFeature || Context.SceneViewData.DebugInputs.LinePass.IsEmpty())

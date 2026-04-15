@@ -1,4 +1,4 @@
-﻿#include "EditorViewportClient.h"
+#include "EditorViewportClient.h"
 
 #include "EditorEngine.h"
 #include "EditorViewportRegistry.h"
@@ -75,6 +75,7 @@ void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
 		FRasterizerStateOption RasterizerOption;
 		RasterizerOption.FillMode = D3D11_FILL_SOLID;
 		RasterizerOption.CullMode = D3D11_CULL_NONE;
+		RasterizerOption.DepthBias = -10; // 또는 -1 ~ -100 사이 튜닝
 		auto RS = Renderer->GetRenderStateManager()->GetOrCreateRasterizerState(RasterizerOption);
 		GridMaterial->SetRasterizerOption(RasterizerOption);
 		GridMaterial->SetRasterizerState(RS);
@@ -82,7 +83,7 @@ void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
 		FDepthStencilStateOption DepthStencilOption;
 		DepthStencilOption.DepthEnable = true;
 		DepthStencilOption.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-		DepthStencilOption.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+		DepthStencilOption.DepthFunc = D3D11_COMPARISON_LESS;
 		auto DSS = Renderer->GetRenderStateManager()->GetOrCreateDepthStencilState(DepthStencilOption);
 		GridMaterial->SetDepthStencilOption(DepthStencilOption);
 		GridMaterial->SetDepthStencilState(DSS);
@@ -168,7 +169,7 @@ void FEditorViewportClient::CreateWorldAxisResource(FRenderer* Renderer)
 		FDepthStencilStateOption DepthStencilOption;
 		DepthStencilOption.DepthEnable = true;
 		DepthStencilOption.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-		DepthStencilOption.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+		DepthStencilOption.DepthFunc = D3D11_COMPARISON_LESS;
 		auto DSS = Renderer->GetRenderStateManager()->GetOrCreateDepthStencilState(DepthStencilOption);
 		WorldAxisMaterial->SetDepthStencilOption(DepthStencilOption);
 		WorldAxisMaterial->SetDepthStencilState(DSS);

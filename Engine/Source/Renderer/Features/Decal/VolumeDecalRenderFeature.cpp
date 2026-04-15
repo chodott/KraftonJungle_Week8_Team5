@@ -1,4 +1,4 @@
-#include "Renderer/Features/Decal/VolumeDecalRenderFeature.h"
+﻿#include "Renderer/Features/Decal/VolumeDecalRenderFeature.h"
 
 #include "Core/Paths.h"
 #include "Renderer/Renderer.h"

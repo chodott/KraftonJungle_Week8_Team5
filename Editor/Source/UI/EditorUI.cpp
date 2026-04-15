@@ -954,7 +954,7 @@ void FEditorUI::Render()
                     ShowFlagCheckbox("Picking Bounds (Magenta)", EEngineShowFlags::SF_Collision);
                     ShowFlagCheckbox("Scene BVH (Yellow)", EEngineShowFlags::SF_SceneBVH);
                     ShowFlagCheckbox("Mesh BVH (Cyan)", EEngineShowFlags::SF_MeshBVH);
-                    ShowFlagCheckbox("Decal Bounds (Orange)", EEngineShowFlags::SF_DecalDebug);
+                    ShowFlagCheckbox("Decal Volume (Orange)", EEngineShowFlags::SF_DecalDebug);
 
                     if (!bDebugDraw)
                     {

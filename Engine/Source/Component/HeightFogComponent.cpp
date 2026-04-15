@@ -1,4 +1,4 @@
-#include "Component/HeightFogComponent.h"
+﻿#include "Component/HeightFogComponent.h"
 
 #include <algorithm>
 

@@ -512,11 +512,10 @@
     <ClCompile Include="Source\Renderer\Scene\Builders\SceneViewAssembler.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Passes\SceneBasePasses.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Passes\SceneEffectPasses.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Passes\SceneOverlayPasses.cpp" />
     <ClCompile Include="Source\Actor\SpotLightFakeActor.cpp" />
     <ClCompile Include="Source\Component\LocalHeightFogComponent.cpp" />
     <ClCompile Include="Source\Actor\LocalHeightFogActor.cpp" />
-    <ClCompile Include="Source\Renderer\Features\FogRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\SceneEditorPasses.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\CoreMinimal.h">

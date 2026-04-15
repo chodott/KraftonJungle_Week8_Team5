@@ -545,6 +545,7 @@ bool FDecalRenderFeature::Render(
   	        Renderer.UpdateObjectConstantBuffer(Item.DecalWorld);
 
   	        FDebugBoxMaterialCB MatCB;
+  	        MatCB.BaseColorTint = FLinearColor(1.0f, 0.6f, 0.1f, 1.0f);
   	        MatCB.DecalExtents = Item.Extents;   
   	                                                                                                    
   	        D3D11_MAPPED_SUBRESOURCE Mapped = {};

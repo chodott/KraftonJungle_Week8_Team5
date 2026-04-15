@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 
@@ -11,7 +11,8 @@ enum class EMaterialDomain
 {
 	Opaque,
 	Transparent,
-	Overlay,
+	EditorGrid,
+	EditorPrimitive,
 };
 
 enum class EMeshPassType : uint32
@@ -20,7 +21,8 @@ enum class EMeshPassType : uint32
 	GBuffer,
 	ForwardOpaque,
 	ForwardTransparent,
-	Overlay,
+	EditorGrid,
+	EditorPrimitive,
 	Count,
 };
 
@@ -31,7 +33,8 @@ enum class EMeshPassMask : uint32
 	GBuffer            = 1u << 1,
 	ForwardOpaque      = 1u << 2,
 	ForwardTransparent = 1u << 3,
-	Overlay            = 1u << 4,
+	EditorGrid         = 1u << 4,
+	EditorPrimitive    = 1u << 5,
 };
 
 inline uint32 operator|(EMeshPassMask A, EMeshPassMask B)

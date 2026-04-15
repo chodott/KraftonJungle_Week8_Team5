@@ -1,4 +1,4 @@
-#include "Level/ScenePacketBuilder.h"
+﻿#include "Level/ScenePacketBuilder.h"
 #include "Level/PrimitiveVisibilityUtils.h"
 #include "Actor/DecalActor.h"
 #include "Component/BillboardComponent.h"
