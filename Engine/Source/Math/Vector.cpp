@@ -1,4 +1,4 @@
-#include "Math/Vector.h"
+﻿#include "Math/Vector.h"
 
 const FVector FVector::ZeroVector(0.f, 0.f, 0.f);
 const FVector FVector::OneVector(1.0f, 1.0f, 1.0f);

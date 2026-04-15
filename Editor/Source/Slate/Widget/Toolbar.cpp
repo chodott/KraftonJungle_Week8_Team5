@@ -1,4 +1,4 @@
-#include "Toolbar.h"
+﻿#include "Toolbar.h"
 
 SToolbar::SToolbar()
 {

@@ -1,4 +1,4 @@
-#include "Renderer/Renderer.h"
+﻿#include "Renderer/Renderer.h"
 #include "Actor/Actor.h"
 #include "Component/DecalComponent.h"
 #include "Component/StaticMeshComponent.h"
@@ -371,26 +371,26 @@ void FRenderer::ConfigureMaterialPasses(FMaterial &Material, bool bTexturedMater
     if (bTexturedMaterial)
     {
         DepthPass.VS = FShaderMap::Get().GetOrCreateVertexShader(
-            Device, (ShaderDir + L"DepthOnlyTextureVertexShader.hlsl").c_str(), EVertexLayoutType::MeshVertex);
+            Device, (ShaderDir + L"SceneGeometry/DepthOnlyTextureVertexShader.hlsl").c_str(), EVertexLayoutType::MeshVertex);
         GBufferPass.VS = FShaderMap::Get().GetOrCreateVertexShader(
-            Device, (ShaderDir + L"TextureVertexShader.hlsl").c_str(), EVertexLayoutType::MeshVertex);
+            Device, (ShaderDir + L"SceneGeometry/TextureVertexShader.hlsl").c_str(), EVertexLayoutType::MeshVertex);
         GBufferPass.PS =
-            FShaderMap::Get().GetOrCreatePixelShader(Device, (ShaderDir + L"GBufferTexturePixelShader.hlsl").c_str());
+            FShaderMap::Get().GetOrCreatePixelShader(Device, (ShaderDir + L"SceneGeometry/GBufferTexturePixelShader.hlsl").c_str());
         OutlineMaskPass.VS = GBufferPass.VS;
         OutlineMaskPass.PS = FShaderMap::Get().GetOrCreatePixelShader(
-            Device, (ShaderDir + L"OutlineMaskTexturePixelShader.hlsl").c_str());
+            Device, (ShaderDir + L"SelectionHighlight/OutlineMaskTexturePixelShader.hlsl").c_str());
     }
     else
     {
         DepthPass.VS = FShaderMap::Get().GetOrCreateVertexShader(
-            Device, (ShaderDir + L"DepthOnlyVertexShader.hlsl").c_str(), EVertexLayoutType::MeshVertex);
-        GBufferPass.VS = FShaderMap::Get().GetOrCreateVertexShader(Device, (ShaderDir + L"VertexShader.hlsl").c_str(),
+            Device, (ShaderDir + L"SceneGeometry/DepthOnlyVertexShader.hlsl").c_str(), EVertexLayoutType::MeshVertex);
+        GBufferPass.VS = FShaderMap::Get().GetOrCreateVertexShader(Device, (ShaderDir + L"SceneGeometry/VertexShader.hlsl").c_str(),
                                                                    EVertexLayoutType::MeshVertex);
         GBufferPass.PS =
-            FShaderMap::Get().GetOrCreatePixelShader(Device, (ShaderDir + L"GBufferColorPixelShader.hlsl").c_str());
+            FShaderMap::Get().GetOrCreatePixelShader(Device, (ShaderDir + L"SceneGeometry/GBufferColorPixelShader.hlsl").c_str());
         OutlineMaskPass.VS = GBufferPass.VS;
         OutlineMaskPass.PS =
-            FShaderMap::Get().GetOrCreatePixelShader(Device, (ShaderDir + L"OutlineMaskPixelShader.hlsl").c_str());
+            FShaderMap::Get().GetOrCreatePixelShader(Device, (ShaderDir + L"SelectionHighlight/OutlineMaskPixelShader.hlsl").c_str());
     }
 
     Material.SetPassShaders(EMaterialPassType::DepthOnly, DepthPass);

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "Component/PrimitiveComponent.h"
 #include "Renderer/Features/Decal/DecalTypes.h"
@@ -28,7 +28,7 @@ public:
 
 	void SetEnabled(bool bInEnabled);
 	bool IsEnabled() const { return bEnabled; }
-	virtual bool IsPickable() const { return false; }
+	virtual bool IsPickable() const override { return false; }
 
 	// Fade In/Out
 	void FadeIn(float Duration);

@@ -1,4 +1,4 @@
-#include "Renderer/Scene/Builders/SceneViewAssembler.h"
+﻿#include "Renderer/Scene/Builders/SceneViewAssembler.h"
 
 #include "Renderer/Renderer.h"
 #include "Renderer/Resources/Material/Material.h"
@@ -61,7 +61,7 @@ void ApplyWireframeOverrideToSceneView(FSceneViewData& SceneViewData, FMaterial*
 
     for (FMeshBatch& Batch : SceneViewData.MeshInputs.Batches)
     {
-        if (Batch.Domain == EMaterialDomain::Overlay)
+        if (Batch.Domain == EMaterialDomain::EditorPrimitive || Batch.Domain == EMaterialDomain::EditorGrid)
         {
             continue;
         }

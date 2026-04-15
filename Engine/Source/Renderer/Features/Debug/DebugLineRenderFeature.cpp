@@ -31,7 +31,7 @@ bool FDebugLineRenderFeature::EnsureDebugDepthState(ID3D11Device* Device)
 }
 
 void FDebugLineRenderFeature::AppendLine(
-	FDebugLinePassInputs& PassInputs,
+	FEditorLinePassInputs& PassInputs,
 	const FVector& Start,
 	const FVector& End,
 	const FVector4& Color)
@@ -43,7 +43,7 @@ void FDebugLineRenderFeature::AppendLine(
 }
 
 void FDebugLineRenderFeature::AppendCube(
-	FDebugLinePassInputs& PassInputs,
+	FEditorLinePassInputs& PassInputs,
 	const FVector& Center,
 	const FVector& BoxExtent,
 	const FVector4& Color)
@@ -78,7 +78,7 @@ bool FDebugLineRenderFeature::Render(
 	const FFrameContext& Frame,
 	const FViewContext& View,
 	const FSceneRenderTargets& Targets,
-	FDebugLinePassInputs& PassInputs)
+	FEditorLinePassInputs& PassInputs)
 {
 	if (PassInputs.IsEmpty())
 	{
@@ -89,7 +89,10 @@ bool FDebugLineRenderFeature::Render(
 	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
 	FMaterial* Material = PassInputs.Material ? PassInputs.Material : Renderer.GetDefaultMaterial();
 	FDynamicMesh* LineMesh = PassInputs.LineMesh.get();
-	if (!Device || !DeviceContext || !Material || !LineMesh || !Targets.SceneColorRTV || !Targets.SceneDepthDSV)
+	ID3D11RenderTargetView* OverlayRenderTarget = Targets.OverlayColorRTV
+		? Targets.OverlayColorRTV
+		: Targets.SceneColorRTV;
+	if (!Device || !DeviceContext || !Material || !LineMesh || !OverlayRenderTarget || !Targets.SceneDepthDSV)
 	{
 		return false;
 	}
@@ -104,7 +107,7 @@ bool FDebugLineRenderFeature::Render(
 		return false;
 	}
 
-	BeginPass(Renderer, Targets.SceneColorRTV, Targets.SceneDepthDSV, View.Viewport, Frame, View);
+	BeginPass(Renderer, OverlayRenderTarget, Targets.SceneDepthDSV, View.Viewport, Frame, View);
 	Material->Bind(DeviceContext, EMaterialPassType::ForwardOpaque);
 	Renderer.GetRenderStateManager()->BindState(Material->GetRasterizerState());
 	DeviceContext->OMSetDepthStencilState(DebugDepthOffState, 0);

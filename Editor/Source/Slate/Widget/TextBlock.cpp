@@ -1,4 +1,4 @@
-#include "TextBlock.h"
+﻿#include "TextBlock.h"
 
 void STextBlock::SetText(const FString& InText)
 {

@@ -1,4 +1,4 @@
-#include "Renderer/Resources/Shader/Shader.h"
+﻿#include "Renderer/Resources/Shader/Shader.h"
 #include "Renderer/Resources/Shader/ShaderResource.h"
 
 namespace

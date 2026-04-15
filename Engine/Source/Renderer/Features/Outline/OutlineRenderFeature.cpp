@@ -154,7 +154,7 @@ bool FOutlineRenderFeature::Initialize(FRenderer& Renderer)
 	const std::wstring ShaderDir = FPaths::ShaderDir();
 	if (!OutlinePostVS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"BlitVertexShader.hlsl").c_str(), "main", "vs_5_0");
+		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl").c_str(), "main", "vs_5_0");
 		if (!Resource || FAILED(Device->CreateVertexShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &OutlinePostVS)))
 		{
 			return false;
@@ -163,7 +163,7 @@ bool FOutlineRenderFeature::Initialize(FRenderer& Renderer)
 
 	if (!OutlineMaskPS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"OutlineMaskPixelShader.hlsl").c_str(), "main", "ps_5_0");
+		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"SelectionHighlight/OutlineMaskPixelShader.hlsl").c_str(), "main", "ps_5_0");
 		if (!Resource || FAILED(Device->CreatePixelShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &OutlineMaskPS)))
 		{
 			return false;
@@ -172,7 +172,7 @@ bool FOutlineRenderFeature::Initialize(FRenderer& Renderer)
 
 	if (!OutlineSobelPS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"OutlineSobelPixelShader.hlsl").c_str(), "main", "ps_5_0");
+		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"SelectionHighlight/OutlineSobelPixelShader.hlsl").c_str(), "main", "ps_5_0");
 		if (!Resource || FAILED(Device->CreatePixelShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &OutlineSobelPS)))
 		{
 			return false;

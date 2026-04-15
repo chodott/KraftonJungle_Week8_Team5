@@ -68,7 +68,8 @@ namespace
 			}
 
 			UPrimitiveComponent* PrimitiveComponent = static_cast<UPrimitiveComponent*>(Component);
-			if (IsHiddenByArrowVisualizationShowFlags(PrimitiveComponent, ShowFlags))
+			if (IsArrowVisualizationPrimitive(PrimitiveComponent)
+				|| IsHiddenByArrowVisualizationShowFlags(PrimitiveComponent, ShowFlags))
 			{
 				continue;
 			}
@@ -221,8 +222,8 @@ void FEditorViewportRenderService::RenderAll(
 			GridBatch.Mesh = GridMesh;
 			GridBatch.Material = EntryGridMaterial;
 			GridBatch.World = FMatrix::Identity;
-			GridBatch.Domain = EMaterialDomain::Overlay;
-			GridBatch.PassMask = static_cast<uint32>(EMeshPassMask::Overlay);
+			GridBatch.Domain = EMaterialDomain::EditorGrid;
+			GridBatch.PassMask = static_cast<uint32>(EMeshPassMask::EditorGrid);
 			GridBatch.bDisableDepthWrite = true;
 			GridBatch.bDisableDepthTest = false;
 			GridBatch.bDisableCulling = true;
@@ -242,8 +243,8 @@ void FEditorViewportRenderService::RenderAll(
 			WorldAxisBatch.Mesh = WorldAxisMesh;
 			WorldAxisBatch.Material = EntryWorldAxisMaterial;
 			WorldAxisBatch.World = FMatrix::Identity;
-			WorldAxisBatch.Domain = EMaterialDomain::Overlay;
-			WorldAxisBatch.PassMask = static_cast<uint32>(EMeshPassMask::Overlay);
+			WorldAxisBatch.Domain = EMaterialDomain::EditorPrimitive;
+			WorldAxisBatch.PassMask = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
 			WorldAxisBatch.bDisableDepthWrite = true;
 			WorldAxisBatch.bDisableDepthTest = false;
 			WorldAxisBatch.bDisableCulling = true;

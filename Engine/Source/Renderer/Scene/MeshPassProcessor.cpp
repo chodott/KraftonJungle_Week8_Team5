@@ -20,8 +20,10 @@ EMaterialPassType FMeshPassProcessor::ToMaterialPassType(EMeshPassType PassType)
 		return EMaterialPassType::GBuffer;
 	case EMeshPassType::ForwardTransparent:
 		return EMaterialPassType::ForwardTransparent;
-	case EMeshPassType::Overlay:
-		return EMaterialPassType::Overlay;
+	case EMeshPassType::EditorGrid:
+		return EMaterialPassType::EditorGrid;
+	case EMeshPassType::EditorPrimitive:
+		return EMaterialPassType::EditorPrimitive;
 	case EMeshPassType::ForwardOpaque:
 	default:
 		return EMaterialPassType::ForwardOpaque;
@@ -40,8 +42,10 @@ bool FMeshPassProcessor::ShouldDrawInPass(const FMeshBatch& Batch, EMeshPassType
 		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ForwardOpaque);
 	case EMeshPassType::ForwardTransparent:
 		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ForwardTransparent);
-	case EMeshPassType::Overlay:
-		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::Overlay);
+	case EMeshPassType::EditorGrid:
+		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::EditorGrid);
+	case EMeshPassType::EditorPrimitive:
+		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::EditorPrimitive);
 	default:
 		return false;
 	}
@@ -139,7 +143,8 @@ void FMeshPassProcessor::ExecutePass(
 			});
 		break;
 
-	case EMeshPassType::Overlay:
+	case EMeshPassType::EditorGrid:
+	case EMeshPassType::EditorPrimitive:
 		std::stable_sort(
 			Batches.begin(),
 			Batches.end(),

@@ -6,5 +6,5 @@
 
 struct FDebugPrimitiveList;
 
-ENGINE_API void BuildDebugLinePassInputs(const FDebugPrimitiveList& Primitives, FDebugLinePassInputs& OutPassInputs);
-ENGINE_API void BuildDebugLinePassInputs(const FDebugSceneBuildInputs& Inputs, FDebugLinePassInputs& OutPassInputs);
+ENGINE_API void BuildEditorLinePassInputs(const FDebugPrimitiveList& Primitives, FEditorLinePassInputs& OutPassInputs);
+ENGINE_API void BuildEditorLinePassInputs(const FDebugSceneBuildInputs& Inputs, FEditorLinePassInputs& OutPassInputs);

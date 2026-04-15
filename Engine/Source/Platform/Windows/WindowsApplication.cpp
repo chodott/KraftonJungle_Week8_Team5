@@ -1,4 +1,4 @@
-#include "Platform/Windows/WindowsApplication.h"
+﻿#include "Platform/Windows/WindowsApplication.h"
 #include "Platform/Windows/PlatformGlobals.h"
 #include "Platform/Windows/WindowsWindow.h"
 

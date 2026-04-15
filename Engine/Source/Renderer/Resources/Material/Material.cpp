@@ -1,4 +1,4 @@
-#include "Renderer/Resources/Material/Material.h"
+﻿#include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Resources/Shader/Shader.h"
 #include <cstdint>
 #include <cstring>

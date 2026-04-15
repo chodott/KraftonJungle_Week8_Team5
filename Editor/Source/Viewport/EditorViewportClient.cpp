@@ -1,4 +1,4 @@
-﻿#include "EditorViewportClient.h"
+#include "EditorViewportClient.h"
 
 #include "EditorEngine.h"
 #include "EditorViewportRegistry.h"
@@ -60,8 +60,8 @@ void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
 		GridMesh->CreateVertexAndIndexBuffer(Device);
 
 		std::wstring ShaderDirW = FPaths::ShaderDir();
-		std::wstring VSPath = ShaderDirW + L"GridVertexShader.hlsl";
-		std::wstring PSPath = ShaderDirW + L"GridPixelShader.hlsl";
+		std::wstring VSPath = ShaderDirW + L"EditorWorldOverlay/GridVertexShader.hlsl";
+		std::wstring PSPath = ShaderDirW + L"EditorWorldOverlay/GridPixelShader.hlsl";
 		auto VSResource = FShaderResource::GetOrCompile(VSPath.c_str(), "main", "vs_5_0");
 		auto PSResource = FShaderResource::GetOrCompile(PSPath.c_str(), "main", "ps_5_0");
 		auto VS = FVertexShader::Create(Device, VSResource, EVertexLayoutType::MeshVertex);
@@ -75,6 +75,7 @@ void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
 		FRasterizerStateOption RasterizerOption;
 		RasterizerOption.FillMode = D3D11_FILL_SOLID;
 		RasterizerOption.CullMode = D3D11_CULL_NONE;
+		RasterizerOption.DepthBias = -10; // 또는 -1 ~ -100 사이 튜닝
 		auto RS = Renderer->GetRenderStateManager()->GetOrCreateRasterizerState(RasterizerOption);
 		GridMaterial->SetRasterizerOption(RasterizerOption);
 		GridMaterial->SetRasterizerState(RS);
@@ -82,7 +83,7 @@ void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
 		FDepthStencilStateOption DepthStencilOption;
 		DepthStencilOption.DepthEnable = true;
 		DepthStencilOption.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-		DepthStencilOption.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+		DepthStencilOption.DepthFunc = D3D11_COMPARISON_LESS;
 		auto DSS = Renderer->GetRenderStateManager()->GetOrCreateDepthStencilState(DepthStencilOption);
 		GridMaterial->SetDepthStencilOption(DepthStencilOption);
 		GridMaterial->SetDepthStencilState(DSS);
@@ -146,8 +147,8 @@ void FEditorViewportClient::CreateWorldAxisResource(FRenderer* Renderer)
 		WorldAxisMesh->CreateVertexAndIndexBuffer(Device);
 
 		std::wstring ShaderDirW = FPaths::ShaderDir();
-		std::wstring VSPath = ShaderDirW + L"AxisVertexShader.hlsl";
-		std::wstring PSPath = ShaderDirW + L"AxisPixelShader.hlsl";
+		std::wstring VSPath = ShaderDirW + L"EditorScreenOverlay/AxisVertexShader.hlsl";
+		std::wstring PSPath = ShaderDirW + L"EditorScreenOverlay/AxisPixelShader.hlsl";
 		auto VSResource = FShaderResource::GetOrCompile(VSPath.c_str(), "main", "vs_5_0");
 		auto PSResource = FShaderResource::GetOrCompile(PSPath.c_str(), "main", "ps_5_0");
 		auto VS = FVertexShader::Create(Device, VSResource, EVertexLayoutType::MeshVertex);
@@ -168,7 +169,7 @@ void FEditorViewportClient::CreateWorldAxisResource(FRenderer* Renderer)
 		FDepthStencilStateOption DepthStencilOption;
 		DepthStencilOption.DepthEnable = true;
 		DepthStencilOption.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-		DepthStencilOption.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+		DepthStencilOption.DepthFunc = D3D11_COMPARISON_LESS;
 		auto DSS = Renderer->GetRenderStateManager()->GetOrCreateDepthStencilState(DepthStencilOption);
 		WorldAxisMaterial->SetDepthStencilOption(DepthStencilOption);
 		WorldAxisMaterial->SetDepthStencilState(DSS);
