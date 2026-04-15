@@ -66,7 +66,7 @@ void ASpotLightFakeActor::PostSpawnInitialize()
         LightBillboardComponent->SetSize(FVector2(2.5f, 2.5f));
         LightBillboardComponent->SetAxisLockMode(UBillboardComponent::EAxisLockMode::LocalZ);
         LightBillboardComponent->SetTexturePath((FPaths::IconDir() / L"SpotLight1.png").wstring());
-        LightBillboardComponent->SetEditorVisualization(false);
+        LightBillboardComponent->SetEditorVisualization(true);
         LightBillboardComponent->SetHiddenInGame(false);
     }
 

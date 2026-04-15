@@ -29,7 +29,7 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 			const bool bIsPlayWorld = (WorldType == EWorldType::Game || WorldType == EWorldType::PIE);
 			if (bIsPlayWorld)
 			{
-				if (Primitive->IsEditorVisualization() || Primitive->IsHiddenInGame())
+				if (Primitive->IsHiddenInGame())
 				{
 					return false;
 				}
