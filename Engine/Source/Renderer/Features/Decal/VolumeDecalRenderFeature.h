@@ -24,6 +24,11 @@ public:
         FRenderer& Renderer,
         const FDecalRenderRequest& Request,
         const FSceneRenderTargets& Targets);
+    bool RenderDebugOverlay(
+        FRenderer& Renderer,
+        const FDecalRenderRequest& Request,
+        const FSceneRenderTargets& Targets,
+        ID3D11RenderTargetView* RenderTargetView);
 
     const FVolumeDecalStats& GetStats() const { return LastStats; }
     double GetShadingPassTimeMs() const { return LastShadingPassTimeMs; }

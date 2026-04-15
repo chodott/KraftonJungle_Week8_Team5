@@ -43,8 +43,8 @@ bool FTextMeshBuilder::Initialize(FRenderer* InRenderer)
 
 	// 전용 머티리얼 구성
 	const std::wstring ShaderDir = FPaths::ShaderDir();
-	const std::wstring VSPath = ShaderDir + L"FontVertexShader.hlsl";
-	const std::wstring PSPath = ShaderDir + L"FontPixelShader.hlsl";
+	const std::wstring VSPath = ShaderDir + L"EditorScreenOverlay/FontVertexShader.hlsl";
+	const std::wstring PSPath = ShaderDir + L"EditorScreenOverlay/FontPixelShader.hlsl";
 
 	auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
 	auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, PSPath.c_str());

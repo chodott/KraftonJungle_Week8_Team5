@@ -1,4 +1,4 @@
-﻿#include "EditorEngine.h"
+#include "EditorEngine.h"
 
 #include "imgui_impl_dx11.h"
 #include "imgui_impl_win32.h"
@@ -499,6 +499,7 @@ bool FEditorEngine::StartPIE()
 		PIEViewportEntry->LocalState.ViewMode = ERenderMode::Lighting;
 		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_UUID, false);
 		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, false);
+		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, false);
 		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, false);
 		if (PIEViewportEntry->LocalState.ProjectionType == EViewportType::Perspective)
 		{

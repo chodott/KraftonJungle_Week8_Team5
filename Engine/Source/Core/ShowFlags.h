@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "CoreMinimal.h"
 #include "EngineAPI.h"
 enum class EEngineShowFlags : uint64
@@ -17,9 +17,10 @@ enum class EEngineShowFlags : uint64
 	SF_SceneBVH        = 1ull << 11,
 	SF_MeshBVH         = 1ull << 12,
 	SF_DecalDebug      = 1ull << 13,
-	SF_DepthView       = 1ull << 14,
-	SF_DecalArrow      = 1ull << 15,
-	SF_ProjectileArrow = 1ull << 16,
+	SF_DecalArrow      = 1ull << 14,
+	SF_ProjectileArrow = 1ull << 15,
+	SF_LocalFogDebug   = 1ull << 16,
+	SF_DebugVolume     = 1ull << 17,
 };
 
 class ENGINE_API FShowFlags

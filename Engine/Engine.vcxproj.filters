@@ -147,6 +147,12 @@
     <ClInclude Include="Source\Renderer\Common\RenderMode.h" />
     <ClInclude Include="Source\Component\LocalHeightFogComponent.h" />
     <ClInclude Include="Source\Actor\LocalHeightFogActor.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\EditorScreenOverlayPasses.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\EditorWorldOverlayPasses.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\FinalImagePostProcessPasses.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\SceneEffectsPasses.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\SceneGeometryPasses.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\SelectionHighlightPasses.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\Actor\Actor.cpp">
@@ -510,12 +516,15 @@
     <ClCompile Include="Source\Component\RotatingMovementComponent.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Pipeline\ScenePipelineBuilder.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Builders\SceneViewAssembler.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Passes\SceneBasePasses.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Passes\SceneEffectPasses.cpp" />
     <ClCompile Include="Source\Actor\SpotLightFakeActor.cpp" />
     <ClCompile Include="Source\Component\LocalHeightFogComponent.cpp" />
     <ClCompile Include="Source\Actor\LocalHeightFogActor.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Passes\SceneEditorPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\EditorScreenOverlayPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\EditorWorldOverlayPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\FinalImagePostProcessPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\SceneGeometryPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\SceneEffectsPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\SelectionHighlightPasses.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\CoreMinimal.h">

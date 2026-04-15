@@ -122,8 +122,14 @@
     <ClInclude Include="Source\Renderer\Mesh\MeshBatch.h" />
     <ClInclude Include="Source\Renderer\Mesh\MeshData.h" />
     <ClInclude Include="Source\Renderer\Scene\MeshPassProcessor.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\EditorScreenOverlayPasses.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\EditorWorldOverlayPasses.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\FinalImagePostProcessPasses.h" />
     <ClInclude Include="Source\Renderer\Scene\Passes\PassContext.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\SceneEffectsPasses.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\SceneGeometryPasses.h" />
     <ClInclude Include="Source\Renderer\Scene\Passes\ScenePassExecutionUtils.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\SelectionHighlightPasses.h" />
     <ClInclude Include="Source\Renderer\Scene\Pipeline\PassPipeline.h" />
     <ClInclude Include="Source\Renderer\GraphicsCore\RenderDevice.h" />
     <ClInclude Include="Source\Renderer\Common\RenderFeatureInterfaces.h" />
@@ -377,7 +383,12 @@
     <ClCompile Include="Source\Renderer\Mesh\MeshData.cpp" />
     <ClCompile Include="Source\Renderer\Scene\MeshPassProcessor.cpp" />
     <ClCompile Include="Source\Renderer\Mesh\RenderMesh.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Passes\SceneEditorPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\EditorScreenOverlayPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\EditorWorldOverlayPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\FinalImagePostProcessPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\SceneEffectsPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\SceneGeometryPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\SelectionHighlightPasses.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Pipeline\RenderPipeline.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Pipeline\ScenePipelineBuilder.cpp" />
     <ClCompile Include="Source\Renderer\GraphicsCore\RenderState.cpp" />
@@ -399,8 +410,6 @@
     <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandSpriteBuilder.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandTextBuilder.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Passes\ScenePasses.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Passes\SceneBasePasses.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Passes\SceneEffectPasses.cpp" />
     <ClCompile Include="Source\Renderer\Scene\SceneRenderer.cpp" />
     <ClCompile Include="Source\Renderer\UI\Screen\ScreenUIRenderer.cpp" />
     <ClCompile Include="Source\Renderer\Resources\Shader\Shader.cpp" />

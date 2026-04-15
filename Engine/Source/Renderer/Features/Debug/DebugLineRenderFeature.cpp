@@ -89,7 +89,10 @@ bool FDebugLineRenderFeature::Render(
 	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
 	FMaterial* Material = PassInputs.Material ? PassInputs.Material : Renderer.GetDefaultMaterial();
 	FDynamicMesh* LineMesh = PassInputs.LineMesh.get();
-	if (!Device || !DeviceContext || !Material || !LineMesh || !Targets.SceneColorRTV || !Targets.SceneDepthDSV)
+	ID3D11RenderTargetView* OverlayRenderTarget = Targets.OverlayColorRTV
+		? Targets.OverlayColorRTV
+		: Targets.SceneColorRTV;
+	if (!Device || !DeviceContext || !Material || !LineMesh || !OverlayRenderTarget || !Targets.SceneDepthDSV)
 	{
 		return false;
 	}
@@ -104,7 +107,7 @@ bool FDebugLineRenderFeature::Render(
 		return false;
 	}
 
-	BeginPass(Renderer, Targets.SceneColorRTV, Targets.SceneDepthDSV, View.Viewport, Frame, View);
+	BeginPass(Renderer, OverlayRenderTarget, Targets.SceneDepthDSV, View.Viewport, Frame, View);
 	Material->Bind(DeviceContext, EMaterialPassType::ForwardOpaque);
 	Renderer.GetRenderStateManager()->BindState(Material->GetRasterizerState());
 	DeviceContext->OMSetDepthStencilState(DebugDepthOffState, 0);

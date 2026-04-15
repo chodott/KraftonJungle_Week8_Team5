@@ -214,31 +214,104 @@ bool FVolumeDecalRenderFeature::Render(
 
     ID3D11ShaderResourceView* NullSRVs[2] = { nullptr, nullptr };
     DeviceContext->PSSetShaderResources(DECAL_DEPTH_TEXTURE_SLOT, 2, NullSRVs);
-	
-	if (Request.bDebugDraw && DebugPS && DebugDepthState)
-	{
-		DeviceContext->OMSetRenderTargets(1, &Targets.SceneColorRTV, Targets.SceneDepthDSV);
-		DeviceContext->OMSetDepthStencilState(DebugDepthState, 0);
-		DeviceContext->OMSetBlendState(VolumeBlendState, nullptr, 0xFFFFFFFFu);
-		DeviceContext->RSSetState(VolumeRasterizerState);
-		VolumeVS->Bind(DeviceContext);
-		DebugPS->Bind(DeviceContext);
-		
-		for (const FDecalRenderItem* Item : SortedItems)
-		{
-			if (!Item || !Item->IsValid()) continue;
-			Renderer.UpdateObjectConstantBuffer(Item->DecalWorld);
-			FDecalRenderItem DebugItem = *Item;
-			DebugItem.BaseColorTint = FLinearColor(1.0f, 0.6f, 0.1f, 1.0f);
-			UpdatePerDecalConstants(Renderer, Request, DebugItem);
-			ID3D11Buffer* CBs[1] = { PerDecalConstantBuffer };
-			DeviceContext->VSSetConstantBuffers(DECAL_PER_MATERIAL_CB_SLOT, 1, CBs);
-			DeviceContext->DrawIndexed(VolumeIndexCount, 0, 0);
-		}
-		DeviceContext->OMSetRenderTargets(1, &Targets.SceneColorRTV, nullptr);
-	}
 
     LastTotalTimeMs = ToMilliseconds(FVolumeDecalClock::now() - StartTime);
+    return true;
+}
+
+bool FVolumeDecalRenderFeature::RenderDebugOverlay(
+    FRenderer& Renderer,
+    const FDecalRenderRequest& Request,
+    const FSceneRenderTargets& Targets,
+    ID3D11RenderTargetView* RenderTargetView)
+{
+    if (!Request.bDebugDraw || Request.Items.empty())
+    {
+        return true;
+    }
+
+    if (!RenderTargetView || !Targets.SceneDepthDSV)
+    {
+        return true;
+    }
+
+    if (!Initialize(Renderer) || !DebugPS || !DebugDepthState || !VolumeVS || !VolumeVertexBuffer || !VolumeIndexBuffer)
+    {
+        return false;
+    }
+
+    ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
+    if (!DeviceContext)
+    {
+        return false;
+    }
+
+    const D3D11_VIEWPORT Viewport =
+    {
+        0.0f,
+        0.0f,
+        static_cast<float>(Request.ViewportWidth),
+        static_cast<float>(Request.ViewportHeight),
+        0.0f,
+        1.0f
+    };
+
+    Renderer.SetConstantBuffers();
+    DeviceContext->RSSetViewports(1, &Viewport);
+    DeviceContext->OMSetRenderTargets(1, &RenderTargetView, Targets.SceneDepthDSV);
+    DeviceContext->OMSetDepthStencilState(DebugDepthState, 0);
+    DeviceContext->OMSetBlendState(VolumeBlendState, nullptr, 0xFFFFFFFFu);
+    DeviceContext->RSSetState(VolumeRasterizerState);
+    VolumeVS->Bind(DeviceContext);
+    DebugPS->Bind(DeviceContext);
+
+    UINT Stride = sizeof(FVertex);
+    UINT Offset = 0;
+    DeviceContext->IASetVertexBuffers(0, 1, &VolumeVertexBuffer, &Stride, &Offset);
+    DeviceContext->IASetIndexBuffer(VolumeIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+    DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    TArray<const FDecalRenderItem*> SortedItems;
+    SortedItems.reserve(Request.Items.size());
+    for (const FDecalRenderItem& Item : Request.Items)
+    {
+        SortedItems.push_back(&Item);
+    }
+
+    std::sort(
+        SortedItems.begin(),
+        SortedItems.end(),
+        [](const FDecalRenderItem* A, const FDecalRenderItem* B)
+        {
+            if (A->Priority != B->Priority)
+            {
+                return A->Priority > B->Priority;
+            }
+            return A->TextureIndex < B->TextureIndex;
+        });
+
+    for (const FDecalRenderItem* Item : SortedItems)
+    {
+        if (!Item || !Item->IsValid())
+        {
+            continue;
+        }
+
+        Renderer.UpdateObjectConstantBuffer(Item->DecalWorld);
+
+        FDecalRenderItem DebugItem = *Item;
+        DebugItem.BaseColorTint = FLinearColor(1.0f, 0.6f, 0.1f, 1.0f);
+        if (!UpdatePerDecalConstants(Renderer, Request, DebugItem))
+        {
+            continue;
+        }
+
+        ID3D11Buffer* ConstantBuffers[1] = { PerDecalConstantBuffer };
+        DeviceContext->VSSetConstantBuffers(DECAL_PER_MATERIAL_CB_SLOT, 1, ConstantBuffers);
+        DeviceContext->PSSetConstantBuffers(DECAL_PER_MATERIAL_CB_SLOT, 1, ConstantBuffers);
+        DeviceContext->DrawIndexed(VolumeIndexCount, 0, 0);
+    }
+
     return true;
 }
 
@@ -415,9 +488,9 @@ bool FVolumeDecalRenderFeature::CreateShaders(FRenderer& Renderer)
     }
 
     const std::wstring ShaderDir = FPaths::ShaderDir();
-    const std::wstring VSPath = ShaderDir + L"VolumeDecalVertexShader.hlsl";
-    const std::wstring PSPath = ShaderDir + L"VolumeDecalPixelShader.hlsl";
-	const std::wstring DebugPSPath = ShaderDir + L"DecalDebugPixelShader.hlsl";
+    const std::wstring VSPath = ShaderDir + L"SceneEffects/VolumeDecalVertexShader.hlsl";
+    const std::wstring PSPath = ShaderDir + L"SceneEffects/VolumeDecalPixelShader.hlsl";
+	const std::wstring DebugPSPath = ShaderDir + L"SceneEffects/DecalDebugPixelShader.hlsl";
 
     VolumeVS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
     VolumePS = FShaderMap::Get().GetOrCreatePixelShader(Device, PSPath.c_str());

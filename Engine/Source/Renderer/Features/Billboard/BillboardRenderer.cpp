@@ -45,8 +45,8 @@ bool FBillboardRenderer::Initialize(FRenderer& InRenderer)
 	}
 
 	const std::wstring ShaderDir = FPaths::ShaderDir();
-	const std::wstring VSPath = ShaderDir + L"SubUVVertexShader.hlsl";
-	const std::wstring PSPath = ShaderDir + L"SubUVPixelShader.hlsl";
+	const std::wstring VSPath = ShaderDir + L"EditorScreenOverlay/SubUVVertexShader.hlsl";
+	const std::wstring PSPath = ShaderDir + L"EditorScreenOverlay/SubUVPixelShader.hlsl";
 
 	auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
 	auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, PSPath.c_str());

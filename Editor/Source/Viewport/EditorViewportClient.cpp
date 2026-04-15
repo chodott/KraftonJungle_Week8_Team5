@@ -60,8 +60,8 @@ void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
 		GridMesh->CreateVertexAndIndexBuffer(Device);
 
 		std::wstring ShaderDirW = FPaths::ShaderDir();
-		std::wstring VSPath = ShaderDirW + L"GridVertexShader.hlsl";
-		std::wstring PSPath = ShaderDirW + L"GridPixelShader.hlsl";
+		std::wstring VSPath = ShaderDirW + L"EditorWorldOverlay/GridVertexShader.hlsl";
+		std::wstring PSPath = ShaderDirW + L"EditorWorldOverlay/GridPixelShader.hlsl";
 		auto VSResource = FShaderResource::GetOrCompile(VSPath.c_str(), "main", "vs_5_0");
 		auto PSResource = FShaderResource::GetOrCompile(PSPath.c_str(), "main", "ps_5_0");
 		auto VS = FVertexShader::Create(Device, VSResource, EVertexLayoutType::MeshVertex);
@@ -147,8 +147,8 @@ void FEditorViewportClient::CreateWorldAxisResource(FRenderer* Renderer)
 		WorldAxisMesh->CreateVertexAndIndexBuffer(Device);
 
 		std::wstring ShaderDirW = FPaths::ShaderDir();
-		std::wstring VSPath = ShaderDirW + L"AxisVertexShader.hlsl";
-		std::wstring PSPath = ShaderDirW + L"AxisPixelShader.hlsl";
+		std::wstring VSPath = ShaderDirW + L"EditorScreenOverlay/AxisVertexShader.hlsl";
+		std::wstring PSPath = ShaderDirW + L"EditorScreenOverlay/AxisPixelShader.hlsl";
 		auto VSResource = FShaderResource::GetOrCompile(VSPath.c_str(), "main", "vs_5_0");
 		auto PSResource = FShaderResource::GetOrCompile(PSPath.c_str(), "main", "ps_5_0");
 		auto VS = FVertexShader::Create(Device, VSResource, EVertexLayoutType::MeshVertex);

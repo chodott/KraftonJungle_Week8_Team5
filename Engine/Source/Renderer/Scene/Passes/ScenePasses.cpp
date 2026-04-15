@@ -1,6 +1,9 @@
-﻿#include "Renderer/Scene/Passes/ScenePasses.h"
+#include "Renderer/Scene/Passes/ScenePasses.h"
 
-// Pass implementations are intentionally split across:
-// - SceneBasePasses.cpp
-// - SceneEffectPasses.cpp
-// - SceneEditorPasses.cpp
+// Pass implementations are split across dedicated compile units:
+// - SceneGeometryPasses.cpp
+// - SceneEffectsPasses.cpp
+// - EditorWorldOverlayPasses.cpp
+// - SelectionHighlightPasses.cpp
+// - FinalImagePostProcessPasses.cpp
+// - EditorScreenOverlayPasses.cpp

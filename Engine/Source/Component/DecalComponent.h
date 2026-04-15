@@ -28,7 +28,7 @@ public:
 
 	void SetEnabled(bool bInEnabled) { bEnabled = bInEnabled; }
 	bool IsEnabled() const { return bEnabled; }
-	virtual bool IsPickable() const { return false; }
+	virtual bool IsPickable() const override { return false; }
 
 	// Fade In/Out
 	void FadeIn(float Duration);

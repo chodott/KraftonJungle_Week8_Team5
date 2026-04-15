@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 
@@ -22,6 +22,7 @@ struct ENGINE_API FViewContext
 	FVector CameraPosition = FVector::ZeroVector;
 	float NearZ = 0.1f;
 	float FarZ = 1000.0f;
+	bool bOrthographic = false;
 
 	D3D11_VIEWPORT Viewport = {};
 };
