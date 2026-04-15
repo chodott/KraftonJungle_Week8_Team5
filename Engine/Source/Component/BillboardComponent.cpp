@@ -30,7 +30,6 @@ void UBillboardComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicate
 	UPrimitiveComponent::DuplicateShallow(DuplicatedObject, Context);
 
 	UBillboardComponent* DuplicatedBillboardComponent = static_cast<UBillboardComponent*>(DuplicatedObject);
-	DuplicatedBillboardComponent->bHiddenInGame = bHiddenInGame;
 	DuplicatedBillboardComponent->TexturePath = TexturePath;
 	DuplicatedBillboardComponent->Size = Size;
 	DuplicatedBillboardComponent->UVMin = UVMin;
@@ -62,7 +61,6 @@ void UBillboardComponent::Serialize(FArchive& Ar)
 	if (Ar.IsSaving())
 	{
 		Ar.Serialize("TexturePath", TexturePathString);
-		Ar.Serialize("HiddenInGame", bHiddenInGame);
 		Ar.Serialize("Size", Size);
 		Ar.Serialize("UVMin", UVMin);
 		Ar.Serialize("UVMax", UVMax);
@@ -73,7 +71,6 @@ void UBillboardComponent::Serialize(FArchive& Ar)
 	else
 	{
 		Ar.Serialize("TexturePath", TexturePathString);
-		Ar.Serialize("HiddenInGame", bHiddenInGame);
 		Ar.Serialize("Size", Size);
 		Ar.Serialize("UVMin", UVMin);
 		Ar.Serialize("UVMax", UVMax);

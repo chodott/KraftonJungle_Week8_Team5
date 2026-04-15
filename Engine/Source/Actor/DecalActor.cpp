@@ -1,4 +1,4 @@
-#include "Actor/DecalActor.h"
+﻿#include "Actor/DecalActor.h"
 
 #include "Component/BillboardComponent.h"
 #include "Component/DecalComponent.h"
@@ -68,23 +68,23 @@ void ADecalActor::PostSpawnInitialize()
 	DecalComponent = FObjectFactory::ConstructObject<UDecalComponent>(this, "DecalComponent");
 	AddOwnedComponent(DecalComponent);
 
-	BillboardComponent = FObjectFactory::ConstructObject<UBillboardComponent>(this, "BillboardComponent");
-	if (BillboardComponent)
+	IconBillboardComponent = FObjectFactory::ConstructObject<UBillboardComponent>(this, "IconBillboardComponent");
+	if (IconBillboardComponent)
 	{
-		AddOwnedComponent(BillboardComponent);
-		BillboardComponent->AttachTo(DecalComponent);
-		BillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_DecalActorIcon.png").wstring());
-		BillboardComponent->SetSize(FVector2(0.5f, 0.5f));
-		BillboardComponent->SetIgnoreParentScaleInRender(true);
-		BillboardComponent->SetEditorVisualization(true);
-		BillboardComponent->SetHiddenInGame(true);
+		AddOwnedComponent(IconBillboardComponent);
+		IconBillboardComponent->AttachTo(DecalComponent);
+		IconBillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_DecalActorIcon.png").wstring());
+		IconBillboardComponent->SetSize(FVector2(0.5f, 0.5f));
+		IconBillboardComponent->SetIgnoreParentScaleInRender(true);
+		IconBillboardComponent->SetEditorVisualization(true);
+		IconBillboardComponent->SetHiddenInGame(true);
 	}
 
 	ArrowComponent = FObjectFactory::ConstructObject<UStaticMeshComponent>(this, "ArrowComponent");
 	if (ArrowComponent)
 	{
 		AddOwnedComponent(ArrowComponent);
-		ArrowComponent->AttachTo(BillboardComponent);
+		ArrowComponent->AttachTo(IconBillboardComponent);
 		ArrowComponent->SetRelativeTransform(FTransform(
 			FQuat::Identity,
 			FVector(0.0f, 0.0f, 0.0f),
@@ -116,7 +116,7 @@ void ADecalActor::Serialize(FArchive& Ar)
 
 	DecalComponent = GetComponentByClass<UDecalComponent>();
 
-	BillboardComponent = nullptr;
+	IconBillboardComponent = nullptr;
 	ArrowComponent = nullptr;
 	for (UActorComponent* Component : GetComponents())
 	{
@@ -125,9 +125,9 @@ void ADecalActor::Serialize(FArchive& Ar)
 			continue;
 		}
 
-		if (!BillboardComponent && Component->IsA(UBillboardComponent::StaticClass()) && Component->GetName() == "BillboardComponent")
+		if (!IconBillboardComponent && Component->IsA(UBillboardComponent::StaticClass()) && (Component->GetName() == "IconBillboardComponent" || Component->GetName() == "BillboardComponent"))
 		{
-			BillboardComponent = static_cast<UBillboardComponent*>(Component);
+			IconBillboardComponent = static_cast<UBillboardComponent*>(Component);
 			continue;
 		}
 
@@ -137,21 +137,21 @@ void ADecalActor::Serialize(FArchive& Ar)
 		}
 	}
 
-	if (BillboardComponent)
+	if (IconBillboardComponent)
 	{
-		BillboardComponent->DetachFromParent();
+		IconBillboardComponent->DetachFromParent();
 		if (DecalComponent)
 		{
-			BillboardComponent->AttachTo(DecalComponent);
+			IconBillboardComponent->AttachTo(DecalComponent);
 		}
 	}
 
 	if (ArrowComponent)
 	{
 		ArrowComponent->DetachFromParent();
-		if (BillboardComponent)
+		if (IconBillboardComponent)
 		{
-			ArrowComponent->AttachTo(BillboardComponent);
+			ArrowComponent->AttachTo(IconBillboardComponent);
 		}
 
 		// 런타임 생성 메쉬는 파일 경로가 없어 Serialize로 복원되지 않으므로 직접 재적용한다.
@@ -170,7 +170,7 @@ void ADecalActor::FixupDuplicatedReferences(UObject* DuplicatedObject, const FDu
 	AActor::FixupDuplicatedReferences(DuplicatedObject, Context);
 	ADecalActor* DuplicatedActor = static_cast<ADecalActor*>(DuplicatedObject);
 	DuplicatedActor->DecalComponent = Context.FindDuplicate(DecalComponent);
-	DuplicatedActor->BillboardComponent = Context.FindDuplicate(BillboardComponent);
+	DuplicatedActor->IconBillboardComponent = Context.FindDuplicate(IconBillboardComponent);
 	DuplicatedActor->ArrowComponent = Context.FindDuplicate(ArrowComponent);
 	DuplicatedActor->UpdateArrowVisualization();
 }

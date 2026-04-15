@@ -51,8 +51,6 @@ public:
 
 	FDynamicMesh* GetBillboardMesh() const { return BillboardMesh.get(); }
 
-	void SetHiddenInGame(bool bInHidden) { bHiddenInGame = bInHidden; }
-	bool IsHiddenInGame() const { return bHiddenInGame; }
 
 	void SetAxisLockMode(EAxisLockMode InMode) { AxisLockMode = InMode; }
 	EAxisLockMode GetAxisLockMode() const { return AxisLockMode; }
@@ -65,7 +63,6 @@ public:
 	FVector GetRenderWorldScale() const;
 
 private:
-	bool bHiddenInGame = true;
 	EAxisLockMode AxisLockMode = EAxisLockMode::None;
 
 	std::wstring TexturePath;

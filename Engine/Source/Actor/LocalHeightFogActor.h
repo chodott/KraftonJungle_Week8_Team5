@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Actor/Actor.h"
@@ -18,5 +18,5 @@ public:
 
 private:
 	ULocalHeightFogComponent* LocalHeightFogComponent = nullptr;
-	UBillboardComponent* BillboardComponent = nullptr;
+	UBillboardComponent* IconBillboardComponent = nullptr;
 };

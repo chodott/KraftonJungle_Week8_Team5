@@ -1,4 +1,4 @@
-#include "Actor/LocalHeightFogActor.h"
+﻿#include "Actor/LocalHeightFogActor.h"
 
 #include "Component/BillboardComponent.h"
 #include "Core/Paths.h"
@@ -31,25 +31,25 @@ namespace
 		return nullptr;
 	}
 
-	void ConfigureLocalFogBillboard(UBillboardComponent* BillboardComponent, ULocalHeightFogComponent* LocalHeightFogComponent)
+	void ConfigureLocalFogBillboard(UBillboardComponent* IconBillboardComponent, ULocalHeightFogComponent* LocalHeightFogComponent)
 	{
-		if (!BillboardComponent)
+		if (!IconBillboardComponent)
 		{
 			return;
 		}
 
-		BillboardComponent->DetachFromParent();
+		IconBillboardComponent->DetachFromParent();
 		if (LocalHeightFogComponent)
 		{
-			BillboardComponent->AttachTo(LocalHeightFogComponent);
+			IconBillboardComponent->AttachTo(LocalHeightFogComponent);
 		}
 
-		BillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_ExpoHeightFog.png").wstring());
-		BillboardComponent->SetSize(FVector2(0.5f, 0.5f));
-		BillboardComponent->SetIgnoreParentScaleInRender(true);
-		BillboardComponent->SetEditorVisualization(true);
-		BillboardComponent->SetHiddenInGame(true);
-		BillboardComponent->UpdateBounds();
+		IconBillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_ExpoHeightFog.png").wstring());
+		IconBillboardComponent->SetSize(FVector2(0.5f, 0.5f));
+		IconBillboardComponent->SetIgnoreParentScaleInRender(true);
+		IconBillboardComponent->SetEditorVisualization(true);
+		IconBillboardComponent->SetHiddenInGame(true);
+		IconBillboardComponent->UpdateBounds();
 	}
 }
 
@@ -58,11 +58,11 @@ void ALocalHeightFogActor::PostSpawnInitialize()
 	LocalHeightFogComponent = FObjectFactory::ConstructObject<ULocalHeightFogComponent>(this, "LocalHeightFogComponent");
 	AddOwnedComponent(LocalHeightFogComponent);
 
-	BillboardComponent = FObjectFactory::ConstructObject<UBillboardComponent>(this, "BillboardComponent");
-	if (BillboardComponent)
+	IconBillboardComponent = FObjectFactory::ConstructObject<UBillboardComponent>(this, "IconBillboardComponent");
+	if (IconBillboardComponent)
 	{
-		AddOwnedComponent(BillboardComponent);
-		ConfigureLocalFogBillboard(BillboardComponent, LocalHeightFogComponent);
+		AddOwnedComponent(IconBillboardComponent);
+		ConfigureLocalFogBillboard(IconBillboardComponent, LocalHeightFogComponent);
 	}
 
 	AActor::PostSpawnInitialize();
@@ -78,22 +78,26 @@ void ALocalHeightFogActor::Serialize(FArchive& Ar)
 	}
 
 	LocalHeightFogComponent = GetComponentByClass<ULocalHeightFogComponent>();
-	BillboardComponent = FindLocalHeightFogComponentByName<UBillboardComponent>(this, "BillboardComponent");
-
-	if (!BillboardComponent)
+	IconBillboardComponent = FindLocalHeightFogComponentByName<UBillboardComponent>(this, "IconBillboardComponent");
+	if (!IconBillboardComponent)
 	{
-		BillboardComponent = FObjectFactory::ConstructObject<UBillboardComponent>(this, "BillboardComponent");
-		if (BillboardComponent)
+		IconBillboardComponent = FindLocalHeightFogComponentByName<UBillboardComponent>(this, "BillboardComponent");
+	}
+
+	if (!IconBillboardComponent)
+	{
+		IconBillboardComponent = FObjectFactory::ConstructObject<UBillboardComponent>(this, "IconBillboardComponent");
+		if (IconBillboardComponent)
 		{
-			AddOwnedComponent(BillboardComponent);
-			if (!BillboardComponent->IsRegistered())
+			AddOwnedComponent(IconBillboardComponent);
+			if (!IconBillboardComponent->IsRegistered())
 			{
-				BillboardComponent->OnRegister();
+				IconBillboardComponent->OnRegister();
 			}
 		}
 	}
 
-	ConfigureLocalFogBillboard(BillboardComponent, LocalHeightFogComponent);
+	ConfigureLocalFogBillboard(IconBillboardComponent, LocalHeightFogComponent);
 }
 
 void ALocalHeightFogActor::FixupDuplicatedReferences(UObject* DuplicatedObject, const FDuplicateContext& Context) const
@@ -101,5 +105,5 @@ void ALocalHeightFogActor::FixupDuplicatedReferences(UObject* DuplicatedObject, 
 	AActor::FixupDuplicatedReferences(DuplicatedObject, Context);
 	ALocalHeightFogActor* DuplicatedActor = static_cast<ALocalHeightFogActor*>(DuplicatedObject);
 	DuplicatedActor->LocalHeightFogComponent = Context.FindDuplicate(LocalHeightFogComponent);
-	DuplicatedActor->BillboardComponent = Context.FindDuplicate(BillboardComponent);
+	DuplicatedActor->IconBillboardComponent = Context.FindDuplicate(IconBillboardComponent);
 }

@@ -1,4 +1,0 @@
-#ifndef SHADER_COMMON_HLSLI
-#define SHADER_COMMON_HLSLI
-
-#endif

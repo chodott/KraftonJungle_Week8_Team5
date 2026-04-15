@@ -11,16 +11,16 @@ void AHeightFogActor::PostSpawnInitialize()
 	HeightFogComponent = FObjectFactory::ConstructObject<UHeightFogComponent>(this, "HeightFogComponent");
 	AddOwnedComponent(HeightFogComponent);
 
-	BillboardComponent = FObjectFactory::ConstructObject<UBillboardComponent>(this, "BillboardComponent");
-	if (BillboardComponent)
+	IconBillboardComponent = FObjectFactory::ConstructObject<UBillboardComponent>(this, "IconBillboardComponent");
+	if (IconBillboardComponent)
 	{
-		AddOwnedComponent(BillboardComponent);
-		BillboardComponent->AttachTo(HeightFogComponent);
-		BillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_ExpoHeightFog.png").wstring());
-		BillboardComponent->SetSize(FVector2(0.5f, 0.5f));
-		BillboardComponent->SetIgnoreParentScaleInRender(true);
-		BillboardComponent->SetEditorVisualization(true);
-		BillboardComponent->SetHiddenInGame(true);
+		AddOwnedComponent(IconBillboardComponent);
+		IconBillboardComponent->AttachTo(HeightFogComponent);
+		IconBillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_ExpoHeightFog.png").wstring());
+		IconBillboardComponent->SetSize(FVector2(0.5f, 0.5f));
+		IconBillboardComponent->SetIgnoreParentScaleInRender(true);
+		IconBillboardComponent->SetEditorVisualization(true);
+		IconBillboardComponent->SetHiddenInGame(true);
 	}
 
 	AActor::PostSpawnInitialize();
@@ -29,5 +29,7 @@ void AHeightFogActor::PostSpawnInitialize()
 void AHeightFogActor::FixupDuplicatedReferences(UObject* DuplicatedObject, const FDuplicateContext& Context) const
 {
 	AActor::FixupDuplicatedReferences(DuplicatedObject, Context);
-	static_cast<AHeightFogActor*>(DuplicatedObject)->HeightFogComponent = Context.FindDuplicate(HeightFogComponent);
+	AHeightFogActor* DuplicatedActor = static_cast<AHeightFogActor*>(DuplicatedObject);
+	DuplicatedActor->HeightFogComponent = Context.FindDuplicate(HeightFogComponent);
+	DuplicatedActor->IconBillboardComponent = Context.FindDuplicate(IconBillboardComponent);
 }

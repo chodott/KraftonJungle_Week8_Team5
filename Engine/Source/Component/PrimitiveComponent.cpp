@@ -33,6 +33,7 @@ void UPrimitiveComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicate
 	DuplicatedPrimitiveComponent->bDrawDebugBounds = bDrawDebugBounds;
 	DuplicatedPrimitiveComponent->bIgnoreParentScaleInRender = bIgnoreParentScaleInRender;
 	DuplicatedPrimitiveComponent->bEditorVisualization = bEditorVisualization;
+	DuplicatedPrimitiveComponent->bHiddenInGame = bHiddenInGame;
 }
 
 void UPrimitiveComponent::PostDuplicate(UObject* DuplicatedObject, const FDuplicateContext& Context) const
@@ -140,4 +141,5 @@ void UPrimitiveComponent::Serialize(FArchive& Ar)
 	Ar.Serialize("DrawDebugBounds", bDrawDebugBounds);
 	Ar.Serialize("IgnoreParentScaleInRender", bIgnoreParentScaleInRender);
 	Ar.Serialize("EditorVisualization", bEditorVisualization);
+	Ar.Serialize("HiddenInGame", bHiddenInGame);
 }
