@@ -141,11 +141,21 @@ float ComputeLocalDensityFromRayDepth(
     float3 LocalPosition = mul(float4(WorldPosition, 1.0f), Fog.WorldToFogVolume).xyz;
     float Height01 = saturate(LocalPosition.z + 0.5f);
 
-    float HeightTerm = (HeightFalloff > 1.0e-4f) ? exp2(-HeightFalloff * Height01) : 1.0f;
-    float DepthTerm  = (HeightFalloff > 1.0e-4f) ? exp2(-HeightFalloff * Depth01) : 1.0f;
+    // 로컬 전용 falloff 증폭
+    const float LocalHeightFalloffScale = 3.0f;
+    const float LocalDepthFalloffScale  = 2.0f;
+
+    float HeightTerm = (HeightFalloff > 1.0e-4f)
+        ? exp2(-(HeightFalloff * LocalHeightFalloffScale) * Height01)
+        : 1.0f;
+
+    float DepthTerm = (HeightFalloff > 1.0e-4f)
+        ? exp2(-(HeightFalloff * LocalDepthFalloffScale) * Depth01)
+        : 1.0f;
 
     return FogDensity * HeightTerm * DepthTerm;
 }
+
 
 float ComputeLocalFogAmount(
     FFogGPUData Fog,
@@ -194,17 +204,29 @@ float ComputeLocalFogAmount(
         return 0.0f;
     }
 
-    float SampleT = 0.5f * (TStart + TEnd);
-    float Depth01 = saturate((SampleT - TEnter) / max(TExit - TEnter, 1.0e-4f));
-    float3 SampleWorldPosition = RayOriginWS + RayDirWS * SampleT;
+    float FullRange = max(TExit - TEnter, 1.0e-4f);
 
-    float Density = ComputeLocalDensityFromRayDepth(Fog, SampleWorldPosition, Depth01);
-    if (Density <= 0.0f)
-    {
-        return 0.0f;
-    }
+    // 두 샘플 위치
+    float SampleT0 = lerp(TStart, TEnd, 0.25f);
+    float SampleT1 = lerp(TStart, TEnd, 0.75f);
 
-    float OpticalDepth = Density * SegmentLength;
+    // 월드 위치
+    float3 SampleWorldPosition0 = RayOriginWS + RayDirWS * SampleT0;
+    float3 SampleWorldPosition1 = RayOriginWS + RayDirWS * SampleT1;
+
+    // depth 정규화
+    float Depth010 = saturate((SampleT0 - TEnter) / FullRange);
+    float Depth011 = saturate((SampleT1 - TEnter) / FullRange);
+
+    // density 계산
+    float Density0 = ComputeLocalDensityFromRayDepth(Fog, SampleWorldPosition0, Depth010);
+    float Density1 = ComputeLocalDensityFromRayDepth(Fog, SampleWorldPosition1, Depth011);
+
+    // 평균 density
+    float AverageDensity = 0.5f * (Density0 + Density1);
+
+    // optical depth
+    float OpticalDepth = AverageDensity * SegmentLength;
     float FogAmount = 1.0f - exp2(-OpticalDepth);
 
     FogAmount *= saturate(Fog.FogColor.a);
