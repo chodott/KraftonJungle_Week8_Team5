@@ -147,11 +147,7 @@ void ASpotLightFakeActor::Serialize(FArchive& Ar)
             {
                 IconBillboardComponent->AttachTo(RootSceneComponent);
             }
-
-            IconBillboardComponent->SetRelativeLocation(FVector::ZeroVector);
         }
-
-        UpdateBillboardPlacement();
     }
 }
 
