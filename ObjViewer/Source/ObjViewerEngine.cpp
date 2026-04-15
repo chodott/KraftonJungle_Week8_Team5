@@ -25,8 +25,12 @@
 #include "Math/Frustum.h"
 #include "Platform/Windows/WindowsWindow.h"
 #include "Renderer/Frame/FrameRequests.h"
+#include "Renderer/Frame/RenderFrameUtils.h"
 #include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Resources/Material/MaterialManager.h"
+#include "Renderer/Features/Debug/DebugLineRenderFeature.h"
+#include "Renderer/Features/Debug/DebugTypes.h"
+#include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Mesh/MeshBatch.h"
 #include "Renderer/Mesh/MeshData.h"
 #include "Renderer/Renderer.h"
@@ -196,6 +200,24 @@ namespace
 		case EObjViewerNormalVisualizationMode::Vertex:
 		default:
 			return FVector4(0.15f, 0.85f, 1.0f, 1.0f);
+		}
+	}
+
+	D3D11_PRIMITIVE_TOPOLOGY ToD3DTopology(EMeshTopology Topology)
+	{
+		switch (Topology)
+		{
+		case EMeshTopology::EMT_Point:
+			return D3D11_PRIMITIVE_TOPOLOGY_POINTLIST;
+		case EMeshTopology::EMT_LineList:
+			return D3D11_PRIMITIVE_TOPOLOGY_LINELIST;
+		case EMeshTopology::EMT_LineStrip:
+			return D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP;
+		case EMeshTopology::EMT_TriangleStrip:
+			return D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+		case EMeshTopology::EMT_TriangleList:
+		default:
+			return D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		}
 	}
 }
@@ -520,7 +542,7 @@ void FObjViewerEngine::RenderFrame()
 
 	FShowFlags ViewerShowFlags;
 	ViewerShowFlags.SetFlag(EEngineShowFlags::SF_UUID, false);
-	ViewerShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, NormalSettings.bVisible);
+	ViewerShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, false);
 
 	FGameFrameRequest FrameRequest;
 	FrameRequest.SceneView.ViewMatrix = ActiveCamera->GetViewMatrix();
@@ -548,7 +570,6 @@ void FObjViewerEngine::RenderFrame()
 		FrameRequest.WireframeMaterial = WireframeMaterial.get();
 	}
 
-	AppendNormalVisualizationDebugDraw();
 	AppendGridMeshBatch(FrameRequest);
 
 	Renderer->BeginFrame();
@@ -585,9 +606,13 @@ void FObjViewerEngine::RenderFrame()
 			FEditorFrameRequest EditorRequest;
 			EditorRequest.ScenePasses.push_back(std::move(ScenePass));
 			Renderer->RenderEditorFrame(EditorRequest);
+			RenderViewportOverlays(*Renderer, Surface, FrameRequest.SceneView);
+			Renderer->GetRenderDevice().BindSwapChainRTV();
 		}
 		else
 		{
+			FrameRequest.DebugInputs.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, NormalSettings.bVisible);
+			AppendNormalVisualizationDebugDraw();
 			Renderer->RenderGameFrame(FrameRequest);
 		}
 
@@ -602,6 +627,8 @@ void FObjViewerEngine::RenderFrame()
 	}
 	else
 	{
+		FrameRequest.DebugInputs.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, NormalSettings.bVisible);
+		AppendNormalVisualizationDebugDraw();
 		Renderer->RenderGameFrame(FrameRequest);
 	}
 
@@ -803,7 +830,159 @@ void FObjViewerEngine::ApplyWireframeOverride(FGameFrameRequest& Request) const
 	Request.WireframeMaterial = WireframeMaterial.get();
 }
 
+void FObjViewerEngine::RenderViewportOverlays(
+	FRenderer& Renderer,
+	const FObjViewerViewportSurface& Surface,
+	const FSceneViewRenderRequest& SceneView) const
+{
+	if (!Surface.IsValid())
+	{
+		return;
+	}
+
+	FSceneRenderTargets Targets;
+	Targets.Width = static_cast<uint32>(Surface.GetWidth());
+	Targets.Height = static_cast<uint32>(Surface.GetHeight());
+	Targets.SceneColorRTV = Surface.GetRTV();
+	Targets.SceneColorSRV = Surface.GetSRV();
+	Targets.SceneDepthDSV = Surface.GetDSV();
+	Targets.SceneDepthSRV = Surface.GetDepthSRV();
+
+	D3D11_VIEWPORT Viewport = {};
+	Viewport.TopLeftX = 0.0f;
+	Viewport.TopLeftY = 0.0f;
+	Viewport.Width = static_cast<float>(Surface.GetWidth());
+	Viewport.Height = static_cast<float>(Surface.GetHeight());
+	Viewport.MinDepth = 0.0f;
+	Viewport.MaxDepth = 1.0f;
+
+	const FFrameContext Frame = BuildRenderFrameContext(SceneView.TotalTimeSeconds);
+	const FViewContext View = BuildRenderViewContext(SceneView, Viewport);
+	const FMatrix ViewInverse = SceneView.ViewMatrix.GetInverse();
+	const FVector4 GridAxisU = FVector4(FVector::ForwardVector, 0.0f);
+	const FVector4 GridAxisV = FVector4(FVector::RightVector, 0.0f);
+	const FVector4 ViewForward = FVector4(ViewInverse.GetForwardVector().GetSafeNormal(), 0.0f);
+
+	if (GridSettings.bVisible && GridMesh && GridMaterial)
+	{
+		GridMaterial->SetParameterData("GridSize", &GridSettings.GridSize, 4);
+		GridMaterial->SetParameterData("LineThickness", &GridSettings.LineThickness, 4);
+		GridMaterial->SetParameterData("GridAxisU", &GridAxisU, sizeof(FVector4));
+		GridMaterial->SetParameterData("GridAxisV", &GridAxisV, sizeof(FVector4));
+		GridMaterial->SetParameterData("ViewForward", &ViewForward, sizeof(FVector4));
+
+		FMeshBatch GridBatch;
+		GridBatch.Mesh = GridMesh.get();
+		GridBatch.Material = GridMaterial.get();
+		GridBatch.World = FMatrix::Identity;
+		RenderOverlayMeshBatch(Renderer, Frame, View, Targets, GridBatch, EMaterialPassType::EditorGrid);
+	}
+
+	if (GridSettings.bShowWorldAxis && WorldAxisMesh && WorldAxisMaterial)
+	{
+		WorldAxisMaterial->SetParameterData("GridSize", &GridSettings.GridSize, 4);
+		WorldAxisMaterial->SetParameterData("LineThickness", &GridSettings.LineThickness, 4);
+		WorldAxisMaterial->SetParameterData("GridAxisU", &GridAxisU, sizeof(FVector4));
+		WorldAxisMaterial->SetParameterData("GridAxisV", &GridAxisV, sizeof(FVector4));
+		WorldAxisMaterial->SetParameterData("ViewForward", &ViewForward, sizeof(FVector4));
+
+		FMeshBatch AxisBatch;
+		AxisBatch.Mesh = WorldAxisMesh.get();
+		AxisBatch.Material = WorldAxisMaterial.get();
+		AxisBatch.World = FMatrix::Identity;
+		RenderOverlayMeshBatch(Renderer, Frame, View, Targets, AxisBatch, EMaterialPassType::EditorPrimitive);
+	}
+
+	if (NormalSettings.bVisible)
+	{
+		FEditorLinePassInputs LineInputs;
+		AppendNormalVisualizationLines(LineInputs);
+		if (FDebugLineRenderFeature* DebugLineFeature = Renderer.GetDebugLineFeature())
+		{
+			DebugLineFeature->Render(Renderer, Frame, View, Targets, LineInputs);
+		}
+	}
+}
+
+void FObjViewerEngine::RenderOverlayMeshBatch(
+	FRenderer& Renderer,
+	const FFrameContext& Frame,
+	const FViewContext& View,
+	const FSceneRenderTargets& Targets,
+	const FMeshBatch& MeshBatch,
+	EMaterialPassType PassType) const
+{
+	ID3D11Device* Device = Renderer.GetDevice();
+	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
+	FRenderMesh* Mesh = MeshBatch.Mesh;
+	FMaterial* Material = MeshBatch.Material;
+	if (!Device || !DeviceContext || !Mesh || !Material || !Targets.SceneColorRTV || !Targets.SceneDepthDSV)
+	{
+		return;
+	}
+
+	if (!Mesh->UpdateVertexAndIndexBuffer(Device, DeviceContext))
+	{
+		return;
+	}
+
+	BeginPass(Renderer, Targets.SceneColorRTV, Targets.SceneDepthDSV, View.Viewport, Frame, View);
+	Material->Bind(DeviceContext, PassType);
+	Renderer.GetRenderStateManager()->BindState(Material->GetRasterizerState());
+	Renderer.GetRenderStateManager()->BindState(Material->GetDepthStencilState());
+	Renderer.GetRenderStateManager()->BindState(Material->GetBlendState());
+
+	if (!Material->HasPixelTextureBinding())
+	{
+		ID3D11SamplerState* DefaultSampler = Renderer.GetDefaultSampler();
+		DeviceContext->PSSetSamplers(0, 1, &DefaultSampler);
+	}
+
+	Mesh->Bind(DeviceContext);
+	DeviceContext->IASetPrimitiveTopology(ToD3DTopology(Mesh->Topology));
+	Renderer.UpdateObjectConstantBuffer(MeshBatch.World);
+
+	if (!Mesh->Indices.empty())
+	{
+		DeviceContext->DrawIndexed(static_cast<UINT>(Mesh->Indices.size()), 0, 0);
+	}
+	else
+	{
+		DeviceContext->Draw(static_cast<UINT>(Mesh->Vertices.size()), 0);
+	}
+
+	EndPass(Renderer, Targets.SceneColorRTV, Targets.SceneDepthDSV, View.Viewport, Frame, View);
+}
+
 void FObjViewerEngine::AppendNormalVisualizationDebugDraw()
+{
+	if (!NormalSettings.bVisible)
+	{
+		return;
+	}
+
+	FEditorLinePassInputs LineInputs;
+	AppendNormalVisualizationLines(LineInputs);
+	if (LineInputs.IsEmpty() || LineInputs.LineMesh == nullptr)
+	{
+		return;
+	}
+
+	UWorld* ActiveWorld = GetActiveWorld();
+	if (!ActiveWorld)
+	{
+		return;
+	}
+
+	for (size_t VertexIndex = 0; VertexIndex + 1 < LineInputs.LineMesh->Vertices.size(); VertexIndex += 2)
+	{
+		const FVertex& StartVertex = LineInputs.LineMesh->Vertices[VertexIndex];
+		const FVertex& EndVertex = LineInputs.LineMesh->Vertices[VertexIndex + 1];
+		GetDebugDrawManager().DrawLine(ActiveWorld, StartVertex.Position, EndVertex.Position, StartVertex.Color);
+	}
+}
+
+void FObjViewerEngine::AppendNormalVisualizationLines(FEditorLinePassInputs& LineInputs) const
 {
 	if (!NormalSettings.bVisible || !HasLoadedModel() || ModelState.Mesh == nullptr || ModelState.Mesh->GetRenderData() == nullptr)
 	{
@@ -822,12 +1001,10 @@ void FObjViewerEngine::AppendNormalVisualizationDebugDraw()
 		return;
 	}
 
-	UWorld* ActiveWorld = GetActiveWorld();
 	const FStaticMesh* RenderData = ModelState.Mesh->GetRenderData();
 	const FMatrix& WorldMatrix = RootComponent->GetWorldTransform();
 	const float NormalLength = (std::max)(GetDisplayedBoundsRadius(ModelState) * NormalSettings.LengthScale, 0.001f);
 	const FVector4 NormalColor = GetNormalVisualizationColor(NormalSettings.Mode);
-	FDebugDrawManager& DebugDrawManager = GetDebugDrawManager();
 
 	if (NormalSettings.Mode == EObjViewerNormalVisualizationMode::Face)
 	{
@@ -851,7 +1028,11 @@ void FObjViewerEngine::AppendNormalVisualizationDebugDraw()
 			}
 
 			const FVector FaceCenter = (WorldPosition0 + WorldPosition1 + WorldPosition2) / 3.0f;
-			DebugDrawManager.DrawLine(ActiveWorld, FaceCenter, FaceCenter + (FaceNormal * NormalLength), NormalColor);
+			FDebugLineRenderFeature::AppendLine(
+				LineInputs,
+				FaceCenter,
+				FaceCenter + (FaceNormal * NormalLength),
+				NormalColor);
 		}
 
 		return;
@@ -871,7 +1052,11 @@ void FObjViewerEngine::AppendNormalVisualizationDebugDraw()
 			continue;
 		}
 
-		DebugDrawManager.DrawLine(ActiveWorld, WorldStart, WorldStart + (WorldNormal * NormalLength), NormalColor);
+		FDebugLineRenderFeature::AppendLine(
+			LineInputs,
+			WorldStart,
+			WorldStart + (WorldNormal * NormalLength),
+			NormalColor);
 	}
 }
 

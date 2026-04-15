@@ -7,12 +7,16 @@ struct FGameFrameRequest;
 
 class AStaticMeshActor;
 class FMaterial;
+class FObjViewerViewportSurface;
 class FObjViewerShell;
 class FObjViewerViewportClient;
 class FWindowsWindow;
 class UStaticMesh;
 class USceneComponent;
 struct FDynamicMesh;
+struct FEditorLinePassInputs;
+struct FSceneRenderTargets;
+enum class EMaterialPassType : uint8;
 
 enum class EObjImportPreset : uint8_t
 {
@@ -123,8 +127,20 @@ private:
 	void InitializeViewerCamera() const;
 	void CreateGridResources();
 	void CreateAxisResources();
+	void RenderViewportOverlays(
+		FRenderer& Renderer,
+		const FObjViewerViewportSurface& Surface,
+		const FSceneViewRenderRequest& SceneView) const;
+	void RenderOverlayMeshBatch(
+		FRenderer& Renderer,
+		const FFrameContext& Frame,
+		const FViewContext& View,
+		const FSceneRenderTargets& Targets,
+		const FMeshBatch& MeshBatch,
+		EMaterialPassType PassType) const;
 	void ApplyWireframeOverride(FGameFrameRequest& Request) const;
 	void AppendNormalVisualizationDebugDraw();
+	void AppendNormalVisualizationLines(FEditorLinePassInputs& LineInputs) const;
 	void AppendGridMeshBatch(FGameFrameRequest& Request) const;
 	void UpdateLoadedModelState(
 		const FString& FilePath,
