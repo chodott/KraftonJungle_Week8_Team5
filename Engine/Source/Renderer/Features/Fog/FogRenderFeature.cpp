@@ -416,6 +416,8 @@ bool FFogRenderFeature::BuildFogClusters(const FViewContext& View, const TArray<
     LastStats.Common.TotalFogVolumes = static_cast<uint32>(Items.size());
     LastStats.Common.GlobalFogVolumes = static_cast<uint32>(PreparedGlobalFogItems.size());
     LastStats.Common.LocalFogVolumes = static_cast<uint32>(PreparedLocalFogItems.size());
+    LastStats.Global.VolumeCount = LastStats.Common.GlobalFogVolumes;
+    LastStats.ClusteredLocal.VolumeCount = LastStats.Common.LocalFogVolumes;
 
     PreparedFogItems.reserve(PreparedGlobalFogItems.size() + PreparedLocalFogItems.size());
     PreparedFogItems.insert(PreparedFogItems.end(), PreparedGlobalFogItems.begin(), PreparedGlobalFogItems.end());
@@ -492,6 +494,20 @@ bool FFogRenderFeature::BuildFogClusters(const FViewContext& View, const TArray<
     LastStats.Common.NonEmptyClusterCount = NonEmptyClusterCount;
     LastStats.Common.ClusterIndexCount = static_cast<uint32>(ClusterIndexListCPU.size());
     LastStats.Common.MaxFogPerCluster = MaxItemsInSingleCluster;
+    LastStats.ClusteredLocal.RegisteredVolumeCount = RegisteredLocalFogCount;
+    LastStats.ClusteredLocal.ClusterCount = ClusterCount;
+    LastStats.ClusteredLocal.NonEmptyClusterCount = NonEmptyClusterCount;
+    LastStats.ClusteredLocal.ClusterIndexCount = LastStats.Common.ClusterIndexCount;
+    LastStats.ClusteredLocal.MaxFogPerCluster = MaxItemsInSingleCluster;
+    LastStats.ClusteredLocal.AvgFogPerCluster = ClusterCount > 0u
+        ? static_cast<double>(LastStats.Common.ClusterIndexCount) / static_cast<double>(ClusterCount)
+        : 0.0;
+    LastStats.ClusteredLocal.AvgFogPerNonEmptyCluster = NonEmptyClusterCount > 0u
+        ? static_cast<double>(LastStats.Common.ClusterIndexCount) / static_cast<double>(NonEmptyClusterCount)
+        : 0.0;
+    LastStats.ClusteredLocal.AvgClusterRegistrationsPerRegisteredVolume = RegisteredLocalFogCount > 0u
+        ? static_cast<double>(LastStats.Common.ClusterIndexCount) / static_cast<double>(RegisteredLocalFogCount)
+        : 0.0;
 
     return true;
 }
@@ -742,6 +758,7 @@ bool FFogRenderFeature::Render(FRenderer& Renderer, const FFrameContext& Frame, 
     }
     const auto ClusterBuildEnd = std::chrono::high_resolution_clock::now();
     LastStats.Common.ClusterBuildTimeMs = std::chrono::duration<double, std::milli>(ClusterBuildEnd - ClusterBuildStart).count();
+    LastStats.ClusteredLocal.ClusterBuildTimeMs = LastStats.Common.ClusterBuildTimeMs;
 
     const auto ConstantBufferStart = std::chrono::high_resolution_clock::now();
     if (!UpdateFogCompositeConstantBuffer(Renderer, View, static_cast<uint32>(PreparedFogItems.size()), static_cast<uint32>(PreparedGlobalFogItems.size()), static_cast<uint32>(PreparedLocalFogItems.size()))
@@ -751,6 +768,7 @@ bool FFogRenderFeature::Render(FRenderer& Renderer, const FFrameContext& Frame, 
     }
     const auto ConstantBufferEnd = std::chrono::high_resolution_clock::now();
     LastStats.Common.ConstantBufferUpdateTimeMs = std::chrono::duration<double, std::milli>(ConstantBufferEnd - ConstantBufferStart).count();
+    LastStats.Global.ConstantBufferUpdateTimeMs = LastStats.Common.ConstantBufferUpdateTimeMs;
 
     const auto UploadStart = std::chrono::high_resolution_clock::now();
     if ((!PreparedGlobalFogItems.empty() && !UploadGlobalFogStructuredBuffer(Renderer))
@@ -762,6 +780,7 @@ bool FFogRenderFeature::Render(FRenderer& Renderer, const FFrameContext& Frame, 
     }
     const auto UploadEnd = std::chrono::high_resolution_clock::now();
     LastStats.Common.StructuredBufferUploadTimeMs = std::chrono::duration<double, std::milli>(UploadEnd - UploadStart).count();
+    LastStats.ClusteredLocal.StructuredBufferUploadTimeMs = LastStats.Common.StructuredBufferUploadTimeMs;
 
     LastStats.Common.GlobalFogBufferBytes = static_cast<uint64>(PreparedGlobalFogItems.size()) * sizeof(FFogGPUData);
     LastStats.Common.LocalFogBufferBytes = static_cast<uint64>(PreparedLocalFogItems.size()) * sizeof(FFogGPUData);
@@ -774,6 +793,16 @@ bool FFogRenderFeature::Render(FRenderer& Renderer, const FFrameContext& Frame, 
     LastStats.Common.FullscreenPassCount = 1;
     LastStats.Common.DrawCallCount = 1;
     LastStats.Common.SceneColorCopyBytes = static_cast<uint64>(View.Viewport.Width) * static_cast<uint64>(View.Viewport.Height) * 4ull * sizeof(float);
+    LastStats.Global.FullscreenPassCount = LastStats.Common.FullscreenPassCount;
+    LastStats.Global.DrawCallCount = LastStats.Common.DrawCallCount;
+    LastStats.Global.BufferBytes = LastStats.Common.GlobalFogBufferBytes;
+    LastStats.Global.SceneColorCopyBytes = LastStats.Common.SceneColorCopyBytes;
+    LastStats.ClusteredLocal.LocalFogBufferBytes = LastStats.Common.LocalFogBufferBytes;
+    LastStats.ClusteredLocal.ClusterHeaderBufferBytes = LastStats.Common.ClusterHeaderBufferBytes;
+    LastStats.ClusteredLocal.ClusterIndexBufferBytes = LastStats.Common.ClusterIndexBufferBytes;
+    LastStats.ClusteredLocal.TotalUploadBytes = LastStats.Common.LocalFogBufferBytes
+        + LastStats.Common.ClusterHeaderBufferBytes
+        + LastStats.Common.ClusterIndexBufferBytes;
 
     ID3D11Resource* SourceResource = nullptr;
     bool bReleaseSourceResource = false;
@@ -851,6 +880,7 @@ bool FFogRenderFeature::Render(FRenderer& Renderer, const FFrameContext& Frame, 
     const auto ShadingEnd = std::chrono::high_resolution_clock::now();
     LastStats.Common.ShadingPassTimeMs = std::chrono::duration<double, std::milli>(ShadingEnd - ShadingStart).count();
     LastStats.Common.TotalFogTimeMs = std::chrono::duration<double, std::milli>(ShadingEnd - TotalStart).count();
+    LastStats.Global.ShadingPassTimeMs = LastStats.Common.ShadingPassTimeMs;
     return bRendered;
 }
 

@@ -1,4 +1,4 @@
-﻿#include "Renderer/Renderer.h"
+#include "Renderer/Renderer.h"
 #include "Actor/Actor.h"
 #include "Component/DecalComponent.h"
 #include "Component/StaticMeshComponent.h"
@@ -29,6 +29,7 @@
 #include "Renderer/Resources/Shader/ShaderResource.h"
 #include "Renderer/Resources/Shader/ShaderType.h"
 #include "Renderer/Scene/Builders/DebugSceneBuilder.h"
+#include "Renderer/Scene/MeshPassProcessor.h"
 #include "Renderer/Scene/SceneRenderer.h"
 #include "Renderer/UI/Screen/ScreenUIRenderer.h"
 #include "World/World.h"
@@ -220,6 +221,12 @@ const FDecalFrameStats &FRenderer::GetDecalFrameStats() const
     return DecalFeature ? DecalFeature->GetFrameStats() : EmptyStats;
 }
 
+FMeshPassFrameStats FRenderer::GetMeshPassFrameStats() const
+{
+    static const FMeshPassFrameStats EmptyStats = {};
+    return SceneRenderer ? SceneRenderer->GetMeshPassFrameStats() : EmptyStats;
+}
+
 FFogStats FRenderer::GetFogStats() const
 {
     FFogStats Stats;
@@ -233,19 +240,21 @@ FFogStats FRenderer::GetFogStats() const
 FGPUFrameStats FRenderer::GetGPUStats() const
 {
     FGPUFrameStats Stats;
-    Stats.GeometryDrawCalls = static_cast<uint32>(GetPrevCommandCount());
-
     const FDecalStats DecalStats = GetDecalStats();
     const FFogStats FogStats = GetFogStats();
-
+    const FMeshPassFrameStats MeshPassStats = GetMeshPassFrameStats();
     const FDecalFrameStats& DecalFrameStats = GetDecalFrameStats();
+    const bool bHasDecalPass =
+        (DecalStats.Common.Mode == EDecalProjectionMode::VolumeDraw)
+            ? (DecalStats.Volume.DecalDrawCalls > 0u)
+            : (DecalStats.ClusteredLookup.UploadedDecalCount > 0u && DecalStats.ClusteredLookup.DecalCellRegistrations > 0u);
 
+    Stats.GeometryDrawCalls = MeshPassStats.TotalDrawCalls;
     Stats.DecalDrawCalls = (DecalStats.Common.Mode == EDecalProjectionMode::VolumeDraw)
         ? DecalStats.Volume.DecalDrawCalls
-        : (DecalStats.Common.VisibleDecals > 0u ? 1u : 0u);
+        : (bHasDecalPass ? 1u : 0u);
     Stats.FogDrawCalls = FogStats.Common.DrawCallCount;
-
-    Stats.GeometryTimeMs = 0.0;
+    Stats.GeometryTimeMs = MeshPassStats.TotalTimeMs;
     Stats.PixelShadingTimeMs = DecalStats.Common.ShadingPassTimeMs + FogStats.Common.ShadingPassTimeMs;
     Stats.MemoryBandwidthTimeMs = DecalFrameStats.UploadDecalBufferTimeMs
         + DecalFrameStats.UploadClusterHeaderBufferTimeMs
@@ -260,14 +269,14 @@ FGPUFrameStats FRenderer::GetGPUStats() const
     Stats.CopyBytes = FogStats.Common.SceneColorCopyBytes;
 
     Stats.FullscreenPassCount = 0;
-    if (DecalStats.Common.Mode == EDecalProjectionMode::ClusteredLookup && DecalStats.Common.VisibleDecals > 0u)
+    if (DecalStats.Common.Mode == EDecalProjectionMode::ClusteredLookup && bHasDecalPass)
     {
         ++Stats.FullscreenPassCount;
     }
     Stats.FullscreenPassCount += FogStats.Common.FullscreenPassCount;
 
     Stats.PassCount = 4; // clear, upload, depth prepass, forward opaque
-    if (DecalStats.Common.VisibleDecals > 0u)
+    if (bHasDecalPass)
     {
         ++Stats.PassCount;
     }
@@ -285,7 +294,7 @@ FGPUFrameStats FRenderer::GetGPUStats() const
     Stats.DrawCallCount = Stats.GeometryDrawCalls + Stats.DecalDrawCalls + Stats.FogDrawCalls;
     Stats.EstimatedFullscreenPixels = static_cast<uint64>(
         FogStats.Common.FullscreenPassCount +
-        ((DecalStats.Common.Mode == EDecalProjectionMode::ClusteredLookup && DecalStats.Common.VisibleDecals > 0u) ? 1u : 0u))
+        ((DecalStats.Common.Mode == EDecalProjectionMode::ClusteredLookup && bHasDecalPass) ? 1u : 0u))
         * static_cast<uint64>(GetBackBufferViewport().Width)
         * static_cast<uint64>(GetBackBufferViewport().Height);
 
@@ -302,15 +311,8 @@ FDecalStats FRenderer::GetDecalStats() const
         if (VolumeDecalFeature)
         {
             Stats.Volume = VolumeDecalFeature->GetStats();
-            Stats.Common.TotalDecals = VolumeDecalFeature->GetTotalDecalCount();
-            Stats.Common.ActiveDecals = VolumeDecalFeature->GetTotalDecalCount();
-            Stats.Common.VisibleDecals = Stats.Volume.DecalDrawCalls;
-            Stats.Common.RejectedDecals = Stats.Common.ActiveDecals > Stats.Common.VisibleDecals
-                                              ? (Stats.Common.ActiveDecals - Stats.Common.VisibleDecals)
-                                              : 0;
-            Stats.Common.FadeInOutDecals = VolumeDecalFeature->GetFadeInOutCount();
-            Stats.Common.BuildTimeMs = 0.0;
-            Stats.Common.CullIntersectionTimeMs = 0.0;
+            Stats.Common.BuildTimeMs = VolumeDecalFeature->GetBuildTimeMs();
+            Stats.Common.CullIntersectionTimeMs = VolumeDecalFeature->GetCullIntersectionTimeMs();
             Stats.Common.ShadingPassTimeMs = VolumeDecalFeature->GetShadingPassTimeMs();
             Stats.Common.TotalDecalTimeMs = VolumeDecalFeature->GetTotalTimeMs();
         }
@@ -319,19 +321,12 @@ FDecalStats FRenderer::GetDecalStats() const
 
     if (DecalFeature)
     {
-        const FDecalFrameStats &FrameStats = DecalFeature->GetFrameStats();
         Stats.ClusteredLookup = DecalFeature->GetClusteredStats();
-        Stats.Common.TotalDecals = FrameStats.InputItemCount;
-        Stats.Common.ActiveDecals = FrameStats.InputItemCount;
-        Stats.Common.VisibleDecals = FrameStats.VisibleItemCount;
-        Stats.Common.RejectedDecals = FrameStats.InputItemCount > FrameStats.VisibleItemCount
-                                          ? (FrameStats.InputItemCount - FrameStats.VisibleItemCount)
-                                          : 0;
+        const FDecalFrameStats &FrameStats = DecalFeature->GetFrameStats();
         Stats.Common.BuildTimeMs = FrameStats.VisibleBuildTimeMs;
         Stats.Common.CullIntersectionTimeMs = FrameStats.ClusterBuildTimeMs;
         Stats.Common.ShadingPassTimeMs = FrameStats.ShadingPassTimeMs;
         Stats.Common.TotalDecalTimeMs = FrameStats.TotalDecalTimeMs;
-        Stats.Common.FadeInOutDecals = FrameStats.FadeInOutCount;
     }
 
     return Stats;

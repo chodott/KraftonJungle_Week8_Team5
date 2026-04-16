@@ -1,4 +1,4 @@
-﻿#include "StatWindow.h"
+#include "StatWindow.h"
 #include "Object/Object.h"
 #include "Object/Class.h"
 #include "Object/ObjectGlobals.h"
@@ -13,9 +13,19 @@
 
 #include <cstdio>
 #include <string>
+#include <vector>
 
 namespace
 {
+	struct FStatLine
+	{
+		std::string Label;
+		std::string Value;
+		bool bHeader = false;
+		bool bSeparatorBefore = false;
+		bool bSeparatorAfter = false;
+	};
+
 	float ClampFloat(float Value, float MinValue, float MaxValue)
 	{
 		if (Value < MinValue)
@@ -62,6 +72,82 @@ namespace
 		}
 
 		return Ellipsis;
+	}
+
+	void AddStatLine(std::vector<FStatLine>& Lines, const std::string& Label, const std::string& Value)
+	{
+		Lines.push_back({ Label, Value, false, false, false });
+	}
+
+	void AddStatHeader(
+		std::vector<FStatLine>& Lines,
+		const std::string& Header,
+		bool bSeparatorBefore = true,
+		bool bSeparatorAfter = true)
+	{
+		Lines.push_back({ Header, "", true, bSeparatorBefore, bSeparatorAfter });
+	}
+
+	void RenderStatTablePanel(const char* ChildId, const std::vector<FStatLine>& Lines)
+	{
+		ImGui::BeginChild(
+			ChildId,
+			ImVec2(0.0f, 0.0f),
+			false,
+			ImGuiWindowFlags_AlwaysVerticalScrollbar
+		);
+
+		const ImGuiTableFlags TableFlags =
+			ImGuiTableFlags_SizingStretchProp |
+			ImGuiTableFlags_BordersInnerV |
+			ImGuiTableFlags_PadOuterX;
+
+		if (ImGui::BeginTable("StatsTable", 2, TableFlags))
+		{
+			ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthStretch, 0.68f);
+			ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.32f);
+
+			for (const FStatLine& Line : Lines)
+			{
+				if (Line.bSeparatorBefore)
+				{
+					ImGui::TableNextRow();
+					ImGui::TableSetColumnIndex(0);
+					ImGui::Separator();
+					ImGui::TableSetColumnIndex(1);
+					ImGui::Separator();
+				}
+
+				ImGui::TableNextRow();
+				if (Line.bHeader)
+				{
+					ImGui::TableSetColumnIndex(0);
+					ImGui::Text("%s", Line.Label.c_str());
+					ImGui::TableSetColumnIndex(1);
+					ImGui::TextUnformatted("");
+
+					if (Line.bSeparatorAfter)
+					{
+						ImGui::TableNextRow();
+						ImGui::TableSetColumnIndex(0);
+						ImGui::Separator();
+						ImGui::TableSetColumnIndex(1);
+						ImGui::Separator();
+					}
+
+					continue;
+				}
+
+				ImGui::TableSetColumnIndex(0);
+				ImGui::TextUnformatted(Line.Label.c_str());
+				ImGui::TableSetColumnIndex(1);
+				ImGui::Text("%s", Line.Value.c_str());
+			}
+
+			ImGui::EndTable();
+		}
+
+		ImGui::EndChild();
 	}
 }
 
@@ -265,6 +351,7 @@ void FStatWindow::RenderDecalStats(FRenderer* Renderer)
 	}
 
 	const FDecalStats Stats = Renderer->GetDecalStats();
+	std::vector<FStatLine> Lines;
 
 	const char* ModeString = "Unknown";
 	switch (Stats.Common.Mode)
@@ -279,43 +366,68 @@ void FStatWindow::RenderDecalStats(FRenderer* Renderer)
 		break;
 	}
 
-	ImGui::Text("[Decal Stat]");
-	ImGui::Separator();
-	ImGui::Text("Mode: %s", ModeString);
-	ImGui::Spacing();
-
-	ImGui::Text("Total Decals: %d", Stats.Common.TotalDecals);
-	ImGui::Text("Active Decals: %d", Stats.Common.ActiveDecals);
-	ImGui::Text("Visible Decals: %d", Stats.Common.VisibleDecals);
-	ImGui::Text("Rejected Decals: %d", Stats.Common.RejectedDecals);
-	ImGui::Text("Fade In/Out Decals: %d", Stats.Common.FadeInOutDecals);
-
-	ImGui::Spacing();
-	ImGui::Separator();
-
-	ImGui::Text("Build Time: %.3f ms", Stats.Common.BuildTimeMs);
-	ImGui::Text("Cull / Intersection Time: %.3f ms", Stats.Common.CullIntersectionTimeMs);
-	ImGui::Text("Shading Pass Time: %.3f ms", Stats.Common.ShadingPassTimeMs);
-	ImGui::Text("Total Decal Time: %.3f ms", Stats.Common.TotalDecalTimeMs);
-
-	ImGui::Spacing();
-	ImGui::Separator();
+	char Buffer[64];
+	AddStatHeader(Lines, "[Decal Stat]", false);
+	AddStatLine(Lines, "Mode", ModeString);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.Common.BuildTimeMs);
+	AddStatLine(Lines, "Build Time", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.Common.CullIntersectionTimeMs);
+	AddStatLine(Lines, "Cull / Intersection Time", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.Common.ShadingPassTimeMs);
+	AddStatLine(Lines, "Shading Pass Time", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.Common.TotalDecalTimeMs);
+	AddStatLine(Lines, "Total Decal Time", Buffer);
 
 	if (Stats.Common.Mode == EDecalProjectionMode::VolumeDraw)
 	{
-		ImGui::Text("[Volume Draw]");
-		ImGui::Text("Candidate Objects: %d", Stats.Volume.CandidateObjects);
-		ImGui::Text("Intersect Passed: %d", Stats.Volume.IntersectPassed);
-		ImGui::Text("Decal Draw Calls: %d", Stats.Volume.DecalDrawCalls);
+		AddStatHeader(Lines, "[Volume Draw]");
+		std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.Volume.CandidateObjects);
+		AddStatLine(Lines, "Candidate Objects", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.Volume.IntersectPassed);
+		AddStatLine(Lines, "Intersect Passed", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.Volume.DecalDrawCalls);
+		AddStatLine(Lines, "Decal Draw Calls", Buffer);
+		const double IntersectPassRatio = Stats.Volume.CandidateObjects > 0
+			? (static_cast<double>(Stats.Volume.IntersectPassed) / static_cast<double>(Stats.Volume.CandidateObjects)) * 100.0
+			: 0.0;
+		std::snprintf(Buffer, sizeof(Buffer), "%.1f%%", IntersectPassRatio);
+		AddStatLine(Lines, "Intersection Pass Ratio", Buffer);
 	}
 	else if (Stats.Common.Mode == EDecalProjectionMode::ClusteredLookup)
 	{
-		ImGui::Text("[Clustered Lookup]");
-		ImGui::Text("Clusters Built: %d", Stats.ClusteredLookup.ClustersBuilt);
-		ImGui::Text("Decal-Cell Registrations: %d", Stats.ClusteredLookup.DecalCellRegistrations);
-		ImGui::Text("Avg Decals Per Cell: %.3f", Stats.ClusteredLookup.AvgDecalsPerCell);
-		ImGui::Text("Max Decals Per Cell: %d", Stats.ClusteredLookup.MaxDecalsPerCell);
+		AddStatHeader(Lines, "[Clustered Lookup]");
+		std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.ClusteredLookup.ClustersBuilt);
+		AddStatLine(Lines, "Clusters Built", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.ClusteredLookup.NonEmptyClusters);
+		AddStatLine(Lines, "Non-Empty Clusters", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.ClusteredLookup.DecalCellRegistrations);
+		AddStatLine(Lines, "Decal-Cell Registrations", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%.3f", Stats.ClusteredLookup.AvgDecalsPerCell);
+		AddStatLine(Lines, "Avg Decals Per Cell", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%.3f", Stats.ClusteredLookup.AvgDecalsPerNonEmptyCell);
+		AddStatLine(Lines, "Avg Decals Per Non-Empty Cell", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%.3f", Stats.ClusteredLookup.AvgCellRegistrationsPerVisibleDecal);
+		AddStatLine(Lines, "Avg Cell Registrations Per Visible Decal", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.ClusteredLookup.MaxDecalsPerCell);
+		AddStatLine(Lines, "Max Decals Per Cell", Buffer);
+		AddStatHeader(Lines, "[Clustered Upload]");
+		std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.ClusteredLookup.UploadedDecalCount);
+		AddStatLine(Lines, "Uploaded Decal Entries", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.ClusteredLookup.UploadedClusterHeaderCount);
+		AddStatLine(Lines, "Uploaded Cluster Headers", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.ClusteredLookup.UploadedClusterIndexCount);
+		AddStatLine(Lines, "Uploaded Cluster Indices", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.ClusteredLookup.DecalBufferBytes / 1024.0);
+		AddStatLine(Lines, "Decal Buffer", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.ClusteredLookup.ClusterHeaderBufferBytes / 1024.0);
+		AddStatLine(Lines, "Cluster Header Buffer", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.ClusteredLookup.ClusterIndexBufferBytes / 1024.0);
+		AddStatLine(Lines, "Cluster Index Buffer", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.ClusteredLookup.TotalUploadBytes / 1024.0);
+		AddStatLine(Lines, "Total Upload", Buffer);
 	}
+
+	RenderStatTablePanel("DecalStatPanel", Lines);
 }
 
 void FStatWindow::RenderFogStats(FRenderer* Renderer)
@@ -327,35 +439,54 @@ void FStatWindow::RenderFogStats(FRenderer* Renderer)
 	}
 
 	const FFogStats Stats = Renderer->GetFogStats();
-	ImGui::Text("[Fog Stat]");
-	ImGui::Separator();
-	ImGui::Text("Total Fog Volumes: %u", Stats.Common.TotalFogVolumes);
-	ImGui::Text("Global Fog Volumes: %u", Stats.Common.GlobalFogVolumes);
-	ImGui::Text("Local Fog Volumes: %u", Stats.Common.LocalFogVolumes);
-	ImGui::Text("Registered Local Fog Volumes: %u", Stats.Common.RegisteredLocalFogVolumes);
-	ImGui::Spacing();
-	ImGui::Separator();
-	ImGui::Text("Cluster Count: %u", Stats.Common.ClusterCount);
-	ImGui::Text("Non-Empty Clusters: %u", Stats.Common.NonEmptyClusterCount);
-	ImGui::Text("Cluster Index Count: %u", Stats.Common.ClusterIndexCount);
-	ImGui::Text("Max Fog Per Cluster: %u", Stats.Common.MaxFogPerCluster);
-	ImGui::Spacing();
-	ImGui::Separator();
-	ImGui::Text("Fullscreen Pass Count: %u", Stats.Common.FullscreenPassCount);
-	ImGui::Text("Draw Call Count: %u", Stats.Common.DrawCallCount);
-	ImGui::Text("Cluster Build Time: %.3f ms", Stats.Common.ClusterBuildTimeMs);
-	ImGui::Text("Constant Buffer Update Time: %.3f ms", Stats.Common.ConstantBufferUpdateTimeMs);
-	ImGui::Text("Structured Buffer Upload Time: %.3f ms", Stats.Common.StructuredBufferUploadTimeMs);
-	ImGui::Text("Shading Pass Time: %.3f ms", Stats.Common.ShadingPassTimeMs);
-	ImGui::Text("Total Fog Time: %.3f ms", Stats.Common.TotalFogTimeMs);
-	ImGui::Spacing();
-	ImGui::Separator();
-	ImGui::Text("Global Fog Buffer: %.2f KB", Stats.Common.GlobalFogBufferBytes / 1024.0);
-	ImGui::Text("Local Fog Buffer: %.2f KB", Stats.Common.LocalFogBufferBytes / 1024.0);
-	ImGui::Text("Cluster Header Buffer: %.2f KB", Stats.Common.ClusterHeaderBufferBytes / 1024.0);
-	ImGui::Text("Cluster Index Buffer: %.2f KB", Stats.Common.ClusterIndexBufferBytes / 1024.0);
-	ImGui::Text("SceneColor Copy: %.2f MB", Stats.Common.SceneColorCopyBytes / (1024.0 * 1024.0));
-	ImGui::Text("Total Upload: %.2f KB", Stats.Common.TotalUploadBytes / 1024.0);
+	std::vector<FStatLine> Lines;
+	char Buffer[64];
+
+	AddStatHeader(Lines, "[Fog Stat]", false);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.Common.TotalFogVolumes);
+	AddStatLine(Lines, "Total Fog Volumes", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.Common.GlobalFogVolumes);
+	AddStatLine(Lines, "Global Fog Volumes", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.Common.LocalFogVolumes);
+	AddStatLine(Lines, "Local Fog Volumes", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.Common.RegisteredLocalFogVolumes);
+	AddStatLine(Lines, "Registered Local Fog Volumes", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.Common.ClusterCount);
+	AddStatLine(Lines, "Cluster Count", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.Common.NonEmptyClusterCount);
+	AddStatLine(Lines, "Non-Empty Clusters", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.Common.ClusterIndexCount);
+	AddStatLine(Lines, "Cluster Index Count", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.Common.MaxFogPerCluster);
+	AddStatLine(Lines, "Max Fog Per Cluster", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.Common.FullscreenPassCount);
+	AddStatLine(Lines, "Fullscreen Pass Count", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.Common.DrawCallCount);
+	AddStatLine(Lines, "Draw Call Count", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.Common.ClusterBuildTimeMs);
+	AddStatLine(Lines, "Cluster Build Time", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.Common.ConstantBufferUpdateTimeMs);
+	AddStatLine(Lines, "Constant Buffer Update Time", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.Common.StructuredBufferUploadTimeMs);
+	AddStatLine(Lines, "Structured Buffer Upload Time", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.Common.ShadingPassTimeMs);
+	AddStatLine(Lines, "Shading Pass Time", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.Common.TotalFogTimeMs);
+	AddStatLine(Lines, "Total Fog Time", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.Common.GlobalFogBufferBytes / 1024.0);
+	AddStatLine(Lines, "Global Fog Buffer", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.Common.LocalFogBufferBytes / 1024.0);
+	AddStatLine(Lines, "Local Fog Buffer", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.Common.ClusterHeaderBufferBytes / 1024.0);
+	AddStatLine(Lines, "Cluster Header Buffer", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.Common.ClusterIndexBufferBytes / 1024.0);
+	AddStatLine(Lines, "Cluster Index Buffer", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.2f MB", Stats.Common.SceneColorCopyBytes / (1024.0 * 1024.0));
+	AddStatLine(Lines, "SceneColor Copy", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.Common.TotalUploadBytes / 1024.0);
+	AddStatLine(Lines, "Total Upload", Buffer);
+
+	RenderStatTablePanel("FogStatPanel", Lines);
 }
 
 void FStatWindow::RenderGPUStats(FRenderer* Renderer)
@@ -367,25 +498,38 @@ void FStatWindow::RenderGPUStats(FRenderer* Renderer)
 	}
 
 	const FGPUFrameStats Stats = Renderer->GetGPUStats();
-	ImGui::Text("[GPU Stat]");
-	ImGui::Separator();
-	ImGui::Text("Geometry Draw Calls: %u", Stats.GeometryDrawCalls);
-	ImGui::Text("Fullscreen Pass Count: %u", Stats.FullscreenPassCount);
-	ImGui::Text("Total Draw Calls: %u", Stats.DrawCallCount);
-	ImGui::Text("Pass Count: %u", Stats.PassCount);
-	ImGui::Spacing();
-	ImGui::Separator();
-	ImGui::Text("Geometry Cost: %.3f ms", Stats.GeometryTimeMs);
-	ImGui::Text("Pixel Shading Cost: %.3f ms", Stats.PixelShadingTimeMs);
-	ImGui::Text("Memory / Bandwidth Cost: %.3f ms", Stats.MemoryBandwidthTimeMs);
-	ImGui::Text("Overdraw / Fillrate Cost: %.3f ms", Stats.OverdrawFillrateTimeMs);
-	ImGui::Spacing();
-	ImGui::Separator();
-	ImGui::Text("Decal Draw Calls: %u", Stats.DecalDrawCalls);
-	ImGui::Text("Fog Draw Calls: %u", Stats.FogDrawCalls);
-	ImGui::Text("Upload Bytes: %.2f KB", Stats.UploadBytes / 1024.0);
-	ImGui::Text("Scene Copy Bytes: %.2f MB", Stats.CopyBytes / (1024.0 * 1024.0));
-	ImGui::Text("Estimated Fullscreen Pixels: %.2f M", Stats.EstimatedFullscreenPixels / 1000000.0);
+	std::vector<FStatLine> Lines;
+	char Buffer[64];
+
+	AddStatHeader(Lines, "[GPU Stat]", false);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.GeometryDrawCalls);
+	AddStatLine(Lines, "Geometry Draw Calls", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.FullscreenPassCount);
+	AddStatLine(Lines, "Fullscreen Pass Count", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.DrawCallCount);
+	AddStatLine(Lines, "Total Draw Calls", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.PassCount);
+	AddStatLine(Lines, "Pass Count", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.GeometryTimeMs);
+	AddStatLine(Lines, "Geometry Cost", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.PixelShadingTimeMs);
+	AddStatLine(Lines, "Pixel Shading Cost", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.MemoryBandwidthTimeMs);
+	AddStatLine(Lines, "Memory / Bandwidth Cost", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.OverdrawFillrateTimeMs);
+	AddStatLine(Lines, "Overdraw / Fillrate Cost", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.DecalDrawCalls);
+	AddStatLine(Lines, "Decal Draw Calls", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.FogDrawCalls);
+	AddStatLine(Lines, "Fog Draw Calls", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.UploadBytes / 1024.0);
+	AddStatLine(Lines, "Upload Bytes", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.2f MB", Stats.CopyBytes / (1024.0 * 1024.0));
+	AddStatLine(Lines, "Scene Copy Bytes", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.2f M", Stats.EstimatedFullscreenPixels / 1000000.0);
+	AddStatLine(Lines, "Estimated Fullscreen Pixels", Buffer);
+
+	RenderStatTablePanel("GPUStatPanel", Lines);
 	ImGui::Spacing();
 	ImGui::TextDisabled("Geometry/overdraw are engine-side aggregates. D3D11 hardware counters are not sampled here.");
 }

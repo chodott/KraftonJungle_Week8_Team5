@@ -146,6 +146,7 @@ struct ENGINE_API FDecalClusterBuildStats
 	uint32 InputItemCount = 0;
 	uint32 ValidItemCount = 0;
 	uint32 ClusterCount = 0;
+	uint32 NonEmptyClusterCount = 0;
 	uint32 TotalClusterIndices = 0;
 	uint32 MaxItemsPerCluster = 0;
 };
@@ -155,6 +156,7 @@ struct ENGINE_API FDecalFrameStats
 	uint32 InputItemCount = 0;
 	uint32 VisibleItemCount = 0;
 	uint32 ClusterCount = 0;
+	uint32 NonEmptyClusterCount = 0;
 	uint32 TotalClusterIndices = 0;
 	uint32 MaxItemsPerCluster = 0;
 	uint32 UploadedDecalCount = 0;

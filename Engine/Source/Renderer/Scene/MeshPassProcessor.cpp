@@ -10,6 +10,24 @@
 #include "Renderer/Mesh/RenderMesh.h"
 #include "Renderer/Renderer.h"
 #include "Debug/EngineLog.h"
+
+#include <chrono>
+
+namespace
+{
+	using FMeshPassClock = std::chrono::high_resolution_clock;
+
+	double ToMilliseconds(FMeshPassClock::duration Duration)
+	{
+		return std::chrono::duration<double, std::milli>(Duration).count();
+	}
+}
+
+void FMeshPassProcessor::BeginFrame()
+{
+	FrameStats = {};
+}
+
 EMaterialPassType FMeshPassProcessor::ToMaterialPassType(EMeshPassType PassType)
 {
 	switch (PassType)
@@ -93,6 +111,7 @@ void FMeshPassProcessor::ExecutePass(
 	const FSceneViewData& SceneViewData,
 	EMeshPassType PassType) const
 {
+	const FMeshPassClock::time_point PassStartTime = FMeshPassClock::now();
 	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
 	if (!DeviceContext)
 	{
@@ -180,6 +199,7 @@ void FMeshPassProcessor::ExecutePass(
 	FRenderMesh* CurrentMesh = nullptr;
 	D3D11_PRIMITIVE_TOPOLOGY CurrentTopology = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
 	const EMaterialPassType MaterialPassType = ToMaterialPassType(PassType);
+	uint32 LocalDrawCalls = 0;
 
 	for (const FMeshBatch* Batch : Batches)
 	{
@@ -275,10 +295,15 @@ void FMeshPassProcessor::ExecutePass(
 		{
 			const UINT DrawCount = (Batch->IndexCount > 0) ? Batch->IndexCount : static_cast<UINT>(Batch->Mesh->Indices.size());
 			DeviceContext->DrawIndexed(DrawCount, Batch->IndexStart, 0);
+			++LocalDrawCalls;
 		}
 		else
 		{
 			DeviceContext->Draw(static_cast<UINT>(Batch->Mesh->Vertices.size()), 0);
+			++LocalDrawCalls;
 		}
 	}
+
+	FrameStats.TotalDrawCalls += LocalDrawCalls;
+	FrameStats.TotalTimeMs += ToMilliseconds(FMeshPassClock::now() - PassStartTime);
 }

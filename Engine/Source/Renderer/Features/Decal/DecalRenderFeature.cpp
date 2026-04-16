@@ -537,11 +537,28 @@ FClusteredLookupDecalStats FDecalRenderFeature::GetClusteredStats() const
 {
 	FClusteredLookupDecalStats Stats;
 	Stats.ClustersBuilt = LastFrameStats.ClusterCount;
+	Stats.NonEmptyClusters = LastFrameStats.NonEmptyClusterCount;
 	Stats.DecalCellRegistrations = LastFrameStats.TotalClusterIndices;
 	Stats.MaxDecalsPerCell = LastFrameStats.MaxItemsPerCluster;
 	Stats.AvgDecalsPerCell = LastFrameStats.ClusterCount > 0
 		? static_cast<double>(LastFrameStats.TotalClusterIndices) / static_cast<double>(LastFrameStats.ClusterCount)
 		: 0.0;
+	Stats.AvgDecalsPerNonEmptyCell = LastFrameStats.NonEmptyClusterCount > 0
+		? static_cast<double>(LastFrameStats.TotalClusterIndices) / static_cast<double>(LastFrameStats.NonEmptyClusterCount)
+		: 0.0;
+	Stats.AvgCellRegistrationsPerVisibleDecal = LastFrameStats.VisibleItemCount > 0
+		? static_cast<double>(LastFrameStats.TotalClusterIndices) / static_cast<double>(LastFrameStats.VisibleItemCount)
+		: 0.0;
+	Stats.UploadedDecalCount = LastFrameStats.UploadedDecalCount;
+	Stats.UploadedClusterHeaderCount = LastFrameStats.UploadedClusterHeaderCount;
+	Stats.UploadedClusterIndexCount = LastFrameStats.UploadedClusterIndexCount;
+	Stats.DecalBufferBytes = static_cast<uint64>(LastFrameStats.UploadedDecalCount) * sizeof(FDecalGPUData);
+	Stats.ClusterHeaderBufferBytes = static_cast<uint64>(LastFrameStats.UploadedClusterHeaderCount) * sizeof(FDecalClusterHeaderGPU);
+	Stats.ClusterIndexBufferBytes = static_cast<uint64>(LastFrameStats.UploadedClusterIndexCount) * sizeof(uint32);
+	Stats.TotalUploadBytes =
+		Stats.DecalBufferBytes +
+		Stats.ClusterHeaderBufferBytes +
+		Stats.ClusterIndexBufferBytes;
 	return Stats;
 }
 
@@ -756,10 +773,21 @@ bool FDecalRenderFeature::Initialize(FRenderer& Renderer)
 	return true;
 }
 bool FDecalRenderFeature::BuildFrameData(
-    const FDecalRenderRequest& Request,
-    FDecalPreparedViewData& OutPreparedData,
+	const FDecalRenderRequest& Request,
+	FDecalPreparedViewData& OutPreparedData,
     FDecalFrameStats& OutFrameStats)
 {
+	OutFrameStats = {};
+	OutFrameStats.InputItemCount = static_cast<uint32>(Request.Items.size());
+	OutFrameStats.FadeInOutCount = 0;
+	for (const FDecalRenderItem& Item : Request.Items)
+	{
+		if (Item.bIsFading)
+		{
+			++OutFrameStats.FadeInOutCount;
+		}
+	}
+
     const bool bForceRebuild =
         HasDecalDirtyFlag(Request.DirtyFlags, EDecalDirtyFlags::ForceRebuild);
 
@@ -781,6 +809,7 @@ bool FDecalRenderFeature::BuildFrameData(
         OutFrameStats.InputItemCount = OutPreparedData.BuildStats.InputItemCount;
         OutFrameStats.VisibleItemCount = OutPreparedData.BuildStats.ValidItemCount;
         OutFrameStats.ClusterCount = OutPreparedData.BuildStats.ClusterCount;
+        OutFrameStats.NonEmptyClusterCount = OutPreparedData.BuildStats.NonEmptyClusterCount;
         OutFrameStats.TotalClusterIndices = OutPreparedData.BuildStats.TotalClusterIndices;
         OutFrameStats.MaxItemsPerCluster = OutPreparedData.BuildStats.MaxItemsPerCluster;
         return true;
@@ -825,6 +854,7 @@ bool FDecalRenderFeature::BuildFrameData(
     OutFrameStats.InputItemCount = OutPreparedData.BuildStats.InputItemCount;
     OutFrameStats.VisibleItemCount = OutPreparedData.BuildStats.ValidItemCount;
     OutFrameStats.ClusterCount = OutPreparedData.BuildStats.ClusterCount;
+    OutFrameStats.NonEmptyClusterCount = OutPreparedData.BuildStats.NonEmptyClusterCount;
     OutFrameStats.TotalClusterIndices = OutPreparedData.BuildStats.TotalClusterIndices;
     OutFrameStats.MaxItemsPerCluster = OutPreparedData.BuildStats.MaxItemsPerCluster;
     return true;
@@ -930,6 +960,7 @@ bool FDecalRenderFeature::BuildClusterLists(
 		Request.ClusterCountX * Request.ClusterCountY * Request.ClusterCountZ;
 	
 	InOutPreparedData.BuildStats.ClusterCount = ClusterCount;
+	InOutPreparedData.BuildStats.NonEmptyClusterCount = 0;
 	InOutPreparedData.BuildStats.TotalClusterIndices = 0;
 	InOutPreparedData.BuildStats.MaxItemsPerCluster = 0;
 
@@ -987,6 +1018,10 @@ bool FDecalRenderFeature::BuildClusterLists(
 	for (uint32 ClusterId = 0; ClusterId < ClusterCount; ++ClusterId)
 	{
 		const uint32 Count = CachedCount[ClusterId];
+		if (Count > 0)
+		{
+			++InOutPreparedData.BuildStats.NonEmptyClusterCount;
+		}
 
 		InOutPreparedData.ClusterHeaders[ClusterId].Offset = RunningOffset;
 		InOutPreparedData.ClusterHeaders[ClusterId].Count = Count;
