@@ -1222,8 +1222,8 @@ void FEditorUI::Render()
         DrawList->AddRectFilled(WinPos, ImVec2(WinPos.x + WinSize.x, WinPos.y + 60), IM_COL32(30, 30, 60, 255));
 
         ImGui::SetCursorPosY(12);
-        ImGui::SetCursorPosX((WinSize.x - ImGui::CalcTextSize("StoneAge Engine").x) * 0.5f);
-        ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "StoneAge Engine");
+        ImGui::SetCursorPosX((WinSize.x - ImGui::CalcTextSize("NewAge Engine").x) * 0.5f);
+        ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "NewAge Engine");
 
         ImGui::SetCursorPosY(35);
         ImGui::SetCursorPosX((WinSize.x - ImGui::CalcTextSize("v2.0.0").x) * 0.5f);
@@ -1271,7 +1271,7 @@ void FEditorUI::Render()
 
         ImGui::SetCursorPosX(20);
 
-        ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "Third Contributors");
+        ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "Third Contributors (StoneAge Engine)");
         ImGui::SameLine();
         ImGui::SetCursorPosX(20);
         ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.9f, 0.7f, 0.3f, 0.5f));
