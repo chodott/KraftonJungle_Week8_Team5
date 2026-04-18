@@ -203,7 +203,10 @@ void FMeshPassProcessor::ExecutePass(
 	uint32 LocalDrawCalls = 0;
 
 	FLightRenderFeature* Feature = Renderer.GetLightFeature();
-	if (Feature)
+	const bool bApplyLighting = (PassType == EMeshPassType::ForwardOpaque)
+		&& Feature != nullptr;
+
+	if (bApplyLighting)
 	{
 		Feature->Render(Renderer, SceneViewData.Frame, SceneViewData.View, Targets);
 	}
@@ -230,7 +233,7 @@ void FMeshPassProcessor::ExecutePass(
 			}
 		}
 
-		if (Feature)
+		if (bApplyLighting)
 		{
 			DeviceContext->VSSetShader(Feature->GetCurrentVS(), nullptr, 0);
 			DeviceContext->PSSetShader(Feature->GetCurrentPS(), nullptr, 0);
