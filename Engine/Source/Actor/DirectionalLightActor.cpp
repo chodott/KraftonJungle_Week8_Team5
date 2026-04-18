@@ -60,7 +60,7 @@ void ADirectionalLightActor::PostSpawnInitialize()
 {
 	DirectionalLightComponent = FObjectFactory::ConstructObject<UDirectionalLightComponent>(this, "DirectionalLightComponent");
 	AddOwnedComponent(DirectionalLightComponent);
-	DirectionalLightComponent->SetRelativeTransform(FTransform(FRotator(90.0f, 0.0f, 0.0f), FVector::ZeroVector, FVector::OneVector));
+	DirectionalLightComponent->SetRelativeTransform(FTransform(FRotator(46.0f, 0.0f, 0.0f), FVector::ZeroVector, FVector::OneVector));
 
 	IconBillboardComponent = FObjectFactory::ConstructObject<UBillboardComponent>(this, "BillboardComponent");
 	if (IconBillboardComponent)
