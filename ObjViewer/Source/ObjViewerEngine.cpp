@@ -1,9 +1,9 @@
 ﻿#include "ObjViewerEngine.h"
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <Windows.h>
 
 #include "ObjViewerShell.h"
 #include "ObjViewerViewportClient.h"
@@ -50,7 +50,7 @@ namespace
 			return "";
 		}
 
-		const int32 RequiredBytes = ::WideCharToMultiByte(
+		const int32 RequiredBytes = WideCharToMultiByte(
 			CP_UTF8,
 			0,
 			WideString.c_str(),
@@ -66,7 +66,7 @@ namespace
 
 		FString Result;
 		Result.resize(static_cast<size_t>(RequiredBytes));
-		::WideCharToMultiByte(
+		WideCharToMultiByte(
 			CP_UTF8,
 			0,
 			WideString.c_str(),
@@ -144,11 +144,11 @@ namespace
 		const float BakedScale = (std::max)(UniformScale, 0.01f);
 
 		FStaticMesh BakedMesh;
-		BakedMesh.Topology = SourceMesh.Topology;
+		BakedMesh.Topology     = SourceMesh.Topology;
 		BakedMesh.PathFileName = SourceMesh.PathFileName;
-		BakedMesh.Sections = SourceMesh.Sections;
-		BakedMesh.Indices = SourceMesh.Indices;
-		BakedMesh.Vertices = SourceMesh.Vertices;
+		BakedMesh.Sections     = SourceMesh.Sections;
+		BakedMesh.Indices      = SourceMesh.Indices;
+		BakedMesh.Vertices     = SourceMesh.Vertices;
 
 		for (FVertex& Vertex : BakedMesh.Vertices)
 		{
@@ -225,38 +225,51 @@ namespace
 
 	FString GetLodFilePath(const FString& MeshPathFileName, int32 LodLevel)
 	{
-		const std::filesystem::path MeshPath = FPaths::ToPath(FPaths::ToAbsolutePath(MeshPathFileName)).lexically_normal();
-		std::filesystem::path LodFileName = MeshPath.stem();
-		LodFileName += FPaths::ToPath("_lod" + std::to_string(LodLevel));
-		LodFileName += FPaths::ToPath(".lod");
-		const std::filesystem::path LodPath = MeshPath.parent_path() / LodFileName;
+		const std::filesystem::path MeshPath    = FPaths::ToPath(FPaths::ToAbsolutePath(MeshPathFileName)).lexically_normal();
+		std::filesystem::path       LodFileName = MeshPath.stem();
+		LodFileName                             += FPaths::ToPath("_lod" + std::to_string(LodLevel));
+		LodFileName                             += FPaths::ToPath(".lod");
+		const std::filesystem::path LodPath     = MeshPath.parent_path() / LodFileName;
 		return FPaths::FromPath(LodPath);
+	}
+
+	uint64 ConvertFileTimeToUnixNanoseconds(const FILETIME& FileTime)
+	{
+		constexpr uint64 WindowsToUnixEpoch100Ns   = 116444736000000000ULL;
+		constexpr uint64 FileTimeTickToNanoseconds = 100ULL;
+
+		ULARGE_INTEGER FileTimeValue = {};
+		FileTimeValue.LowPart        = FileTime.dwLowDateTime;
+		FileTimeValue.HighPart       = FileTime.dwHighDateTime;
+		if (FileTimeValue.QuadPart <= WindowsToUnixEpoch100Ns)
+		{
+			return 0;
+		}
+
+		return (FileTimeValue.QuadPart - WindowsToUnixEpoch100Ns) * FileTimeTickToNanoseconds;
 	}
 
 	uint64 GetFileWriteTimestamp(const FString& PathFileName)
 	{
-		std::error_code ErrorCode;
 		const std::filesystem::path Path = FPaths::ToPath(FPaths::ToAbsolutePath(PathFileName)).lexically_normal();
-		if (Path.empty() || !std::filesystem::exists(Path, ErrorCode))
+		if (Path.empty())
 		{
 			return 0;
 		}
 
-		const auto FileTime = std::filesystem::last_write_time(Path, ErrorCode);
-		if (ErrorCode)
+		WIN32_FILE_ATTRIBUTE_DATA FileData = {};
+		if (!GetFileAttributesExW(Path.c_str(), GetFileExInfoStandard, &FileData))
 		{
 			return 0;
 		}
 
-		const auto SystemTime = std::chrono::time_point_cast<std::chrono::nanoseconds>(
-			FileTime - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now());
-		return static_cast<uint64>(SystemTime.time_since_epoch().count());
+		return ConvertFileTimeToUnixNanoseconds(FileData.ftLastWriteTime);
 	}
 }
 
 FObjViewerEngine::FObjViewerEngine(const FObjViewerLaunchOptions& InLaunchOptions)
 	: LaunchOptions(InLaunchOptions)
-	, ViewerShell(std::make_unique<FObjViewerShell>())
+	  , ViewerShell(std::make_unique<FObjViewerShell>())
 {
 }
 
@@ -277,13 +290,6 @@ const FWorldContext* FObjViewerEngine::GetActiveWorldContext() const
 	return (ViewerWorldContext && ViewerWorldContext->IsValid()) ? ViewerWorldContext : nullptr;
 }
 
-bool FObjViewerEngine::LoadModelFromFile(const FString& FilePath, const FString& ImportSource)
-{
-	FObjImportSummary ImportOptions;
-	ImportOptions.ImportSource = ImportSource;
-	return LoadModelFromFile(FilePath, ImportOptions);
-}
-
 bool FObjViewerEngine::LoadModelFromFile(const FString& FilePath, const FObjImportSummary& ImportOptions)
 {
 	if (FilePath.empty())
@@ -298,14 +304,14 @@ bool FObjViewerEngine::LoadModelFromFile(const FString& FilePath, const FObjImpo
 		return false;
 	}
 
-	FObjImportSummary AppliedImportOptions = ImportOptions;
+	FObjImportSummary AppliedImportOptions    = ImportOptions;
 	AppliedImportOptions.bReplaceCurrentModel = true;
-	AppliedImportOptions.UniformScale = (std::max)(AppliedImportOptions.UniformScale, 0.01f);
+	AppliedImportOptions.UniformScale         = (std::max)(AppliedImportOptions.UniformScale, 0.01f);
 
 	FObjLoadOptions LoadOptions;
 	LoadOptions.bUseLegacyObjConversion = false;
-	LoadOptions.ForwardAxis = AppliedImportOptions.ForwardAxis;
-	LoadOptions.UpAxis = AppliedImportOptions.UpAxis;
+	LoadOptions.ForwardAxis             = AppliedImportOptions.ForwardAxis;
+	LoadOptions.UpAxis                  = AppliedImportOptions.UpAxis;
 
 	UStaticMesh* LoadedMesh = FObjManager::LoadObjStaticMeshAsset(FilePath, LoadOptions);
 	if (!LoadedMesh)
@@ -346,7 +352,7 @@ bool FObjViewerEngine::LoadModelFromFile(const FString& FilePath, const FObjImpo
 
 		const FVector ScaledCenter = LoadedMesh->LocalBounds.Center * AppliedImportOptions.UniformScale;
 		const FVector ScaledExtent = LoadedMesh->LocalBounds.BoxExtent * AppliedImportOptions.UniformScale;
-		FVector Translation = FVector::ZeroVector;
+		FVector       Translation  = FVector::ZeroVector;
 
 		if (AppliedImportOptions.bCenterToOrigin)
 		{
@@ -356,7 +362,7 @@ bool FObjViewerEngine::LoadModelFromFile(const FString& FilePath, const FObjImpo
 		if (AppliedImportOptions.bPlaceOnGround)
 		{
 			const float BottomZ = (ScaledCenter.Z + Translation.Z) - ScaledExtent.Z;
-			Translation.Z -= BottomZ;
+			Translation.Z       -= BottomZ;
 		}
 
 		Transform.SetTranslation(Translation);
@@ -372,9 +378,222 @@ bool FObjViewerEngine::LoadModelFromFile(const FString& FilePath, const FObjImpo
 	return true;
 }
 
+bool FObjViewerEngine::LoadModelFromFile(const FString& FilePath, const FString& ImportSource)
+{
+	FObjImportSummary ImportOptions;
+	ImportOptions.ImportSource = ImportSource;
+	return LoadModelFromFile(FilePath, ImportOptions);
+}
+
+bool FObjViewerEngine::ExportLoadedModelAsModel(const FString& FilePath) const
+{
+	if (FilePath.empty() || !HasLoadedModel() || ModelState.Mesh == nullptr || ModelState.Mesh->GetRenderData() == nullptr)
+	{
+		UE_LOG("[ObjViewer] Export skipped because no valid mesh is loaded.");
+		return false;
+	}
+
+	FStaticMesh BakedMesh = BuildBakedMeshCopy(
+		*ModelState.Mesh->GetRenderData(),
+		ModelState.LastImportSummary.UniformScale);
+	const TArray<FString>      MaterialSlotNames = BuildMaterialSlotNames(ModelState.Mesh);
+	TArray<FModelMaterialInfo> MaterialInfos;
+	const bool                 bBuiltMaterialInfos = FObjManager::BuildModelMaterialInfosFromObj(ModelState.SourceFilePath, FilePath, MaterialSlotNames, MaterialInfos);
+	if (!bBuiltMaterialInfos)
+	{
+		UE_LOG("[ObjViewer] Falling back to default embedded material metadata for export: %s", ModelState.SourceFilePath.c_str());
+	}
+
+	const bool bSaved = FObjManager::SaveModelStaticMeshAsset(FilePath, BakedMesh, MaterialInfos, GetFileWriteTimestamp(ModelState.SourceFilePath));
+	UE_LOG("[ObjViewer] %s .Model export: %s", bSaved ? "Succeeded" : "Failed", FilePath.c_str());
+	return bSaved;
+}
+
+bool FObjViewerEngine::GenerateLoadedModelLODs()
+{
+	if (!HasLoadedModel() || ModelState.Mesh == nullptr || ModelState.Mesh->GetRenderData() == nullptr)
+	{
+		LastOperationStatus = "LOD generation skipped: no valid mesh loaded.";
+		UE_LOG("[ObjViewer] LOD generation skipped because no valid mesh is loaded.");
+		return false;
+	}
+
+	const FString SourcePath = ModelState.SourceFilePath;
+	if (SourcePath.empty())
+	{
+		LastOperationStatus = "LOD generation skipped: source path is empty.";
+		UE_LOG("[ObjViewer] LOD generation skipped because source path is empty.");
+		return false;
+	}
+
+	const uint64 SourceTimestamp = GetFileWriteTimestamp(SourcePath);
+
+	FStaticMeshLODSettings Settings;
+	Settings.NumLODs               = (std::max)(LODBuilderSettings.NumLODs, 0);
+	Settings.TriangleReductionStep = (std::clamp)(LODBuilderSettings.TriangleReductionStep, 0.01f, 0.95f);
+	Settings.DistanceStep          = (std::max)(LODBuilderSettings.DistanceStep, 1.0f);
+
+	FStaticMeshLODBuilder::BuildLODs(*ModelState.Mesh, Settings);
+
+	const uint32 LodCount = ModelState.Mesh->GetLodCount();
+	for (uint32 LodIndex = 1; LodIndex < LodCount; ++LodIndex)
+	{
+		FStaticMesh* LodMesh = ModelState.Mesh->GetRenderData(static_cast<int32>(LodIndex));
+		if (!LodMesh)
+		{
+			continue;
+		}
+
+		const FString LodPath = GetLodFilePath(SourcePath, static_cast<int32>(LodIndex));
+		if (!FObjManager::SaveLodAsset(LodPath, *LodMesh, SourceTimestamp, ModelState.Mesh->GetLodDistance(static_cast<int32>(LodIndex))))
+		{
+			LastOperationStatus = "LOD generation failed while saving files.";
+			UE_LOG("[ObjViewer] Failed to save generated LOD%d: %s", static_cast<int32>(LodIndex), LodPath.c_str());
+			return false;
+		}
+	}
+
+	if (LodCount <= 1)
+	{
+		LastOperationStatus = "LOD generation completed, but no additional LODs were produced.";
+		UE_LOG("[ObjViewer] No additional LODs were generated for: %s", SourcePath.c_str());
+	}
+	else
+	{
+		LastOperationStatus = "LOD files generated successfully.";
+		UE_LOG("[ObjViewer] Generated %u LOD(s) for: %s", LodCount - 1, SourcePath.c_str());
+	}
+
+	UpdateLoadedModelState(SourcePath, ModelState.LastImportSummary, ModelState.Mesh, ModelState.DisplayActor);
+	SetLoadedModelLODEnabled(ModelState.LastImportSummary.bEnableLOD);
+	return true;
+}
+
+bool FObjViewerEngine::DeleteLoadedModelLODs()
+{
+	if (!HasLoadedModel() || ModelState.SourceFilePath.empty())
+	{
+		LastOperationStatus = "LOD deletion skipped: no valid mesh loaded.";
+		UE_LOG("[ObjViewer] LOD deletion skipped because no valid mesh is loaded.");
+		return false;
+	}
+
+	bool bDeletedAny = false;
+	for (int32 LodIndex = 1; LodIndex <= 64; ++LodIndex)
+	{
+		const std::filesystem::path LodPath = FPaths::ToPath(GetLodFilePath(ModelState.SourceFilePath, LodIndex)).lexically_normal();
+		std::error_code             ErrorCode;
+		if (std::filesystem::exists(LodPath, ErrorCode) && std::filesystem::remove(LodPath, ErrorCode))
+		{
+			bDeletedAny = true;
+		}
+	}
+
+	if (!bDeletedAny)
+	{
+		LastOperationStatus = "No LOD files were found to delete.";
+		UE_LOG("[ObjViewer] No LOD files found to delete for: %s", ModelState.SourceFilePath.c_str());
+		return true;
+	}
+
+	ModelState.Mesh->ClearLods();
+	UpdateLoadedModelState(ModelState.SourceFilePath, ModelState.LastImportSummary, ModelState.Mesh, ModelState.DisplayActor);
+	SetLoadedModelLODEnabled(ModelState.LastImportSummary.bEnableLOD);
+	LastOperationStatus = "LOD files deleted.";
+	UE_LOG("[ObjViewer] Deleted LOD files for: %s", ModelState.SourceFilePath.c_str());
+	return true;
+}
+
+bool FObjViewerEngine::ReloadLoadedModel()
+{
+	if (ModelState.SourceFilePath.empty())
+	{
+		return false;
+	}
+
+	FObjImportSummary ReloadOptions = ModelState.LastImportSummary;
+	ReloadOptions.ImportSource      = "Reload";
+	return LoadModelFromFile(ModelState.SourceFilePath, ReloadOptions);
+}
+
+void FObjViewerEngine::ClearLoadedModel()
+{
+	UWorld* ViewerWorld = GetActiveWorld();
+	ULevel* ViewerScene = GetActiveScene();
+	if (ViewerScene)
+	{
+		const TArray<AActor*> ExistingActors = ViewerScene->GetActors();
+		for (AActor* Actor : ExistingActors)
+		{
+			if (Actor == nullptr || Actor->IsPendingDestroy())
+			{
+				continue;
+			}
+
+			if (ViewerWorld)
+			{
+				ViewerWorld->DestroyActor(Actor);
+			}
+			else
+			{
+				ViewerScene->DestroyActor(Actor);
+			}
+		}
+
+		ViewerScene->CleanupDestroyedActors();
+	}
+
+	ModelState = {};
+}
+
+void FObjViewerEngine::FrameLoadedModel()
+{
+	if (!HasLoadedModel())
+	{
+		ResetViewerCamera();
+		return;
+	}
+
+	UWorld* ViewerWorld = GetActiveWorld();
+	if (!ViewerWorld)
+	{
+		return;
+	}
+
+	UCameraComponent* ActiveCamera = ViewerWorld->GetActiveCameraComponent();
+	if (!ActiveCamera)
+	{
+		return;
+	}
+
+	if (FCamera* Camera = ActiveCamera->GetCamera())
+	{
+		float Radius = ModelState.BoundsRadius;
+		if (ModelState.DisplayActor)
+		{
+			if (USceneComponent* RootComponent = ModelState.DisplayActor->GetRootComponent())
+			{
+				Radius *= GetMaxAbsScale(RootComponent->GetRelativeTransform().GetScale3D());
+			}
+		}
+
+		const float   Distance    = (std::max)(Radius, 1.0f) * 3.0f;
+		const FVector WorldCenter = GetLoadedModelWorldCenter(ModelState);
+		Camera->SetPosition(WorldCenter + FVector(Distance, 0.0f, 0.0f));
+		Camera->SetRotation(180.0f, 0.0f);
+	}
+
+	ActiveCamera->SetFov(50.0f);
+}
+
+void FObjViewerEngine::ResetViewerCamera()
+{
+	InitializeViewerCamera();
+}
+
 void FObjViewerEngine::SetLoadedModelLODEnabled(bool bEnabled)
 {
-	ModelState.bLodEnabled = bEnabled;
+	ModelState.bLodEnabled                  = bEnabled;
 	ModelState.LastImportSummary.bEnableLOD = bEnabled;
 
 	if (ModelState.DisplayActor == nullptr)
@@ -447,212 +666,6 @@ float FObjViewerEngine::GetLoadedModelCurrentLODDistance() const
 	return 0.0f;
 }
 
-bool FObjViewerEngine::ExportLoadedModelAsModel(const FString& FilePath) const
-{
-	if (FilePath.empty() || !HasLoadedModel() || ModelState.Mesh == nullptr || ModelState.Mesh->GetRenderData() == nullptr)
-	{
-		UE_LOG("[ObjViewer] Export skipped because no valid mesh is loaded.");
-		return false;
-	}
-
-	FStaticMesh BakedMesh = BuildBakedMeshCopy(
-		*ModelState.Mesh->GetRenderData(),
-		ModelState.LastImportSummary.UniformScale);
-	const TArray<FString> MaterialSlotNames = BuildMaterialSlotNames(ModelState.Mesh);
-	TArray<FModelMaterialInfo> MaterialInfos;
-	const bool bBuiltMaterialInfos = FObjManager::BuildModelMaterialInfosFromObj(ModelState.SourceFilePath, FilePath, MaterialSlotNames, MaterialInfos);
-	if (!bBuiltMaterialInfos)
-	{
-		UE_LOG("[ObjViewer] Falling back to default embedded material metadata for export: %s", ModelState.SourceFilePath.c_str());
-	}
-
-	const bool bSaved = FObjManager::SaveModelStaticMeshAsset(FilePath, BakedMesh, MaterialInfos, GetFileWriteTimestamp(ModelState.SourceFilePath));
-	UE_LOG("[ObjViewer] %s .Model export: %s", bSaved ? "Succeeded" : "Failed", FilePath.c_str());
-	return bSaved;
-}
-
-bool FObjViewerEngine::GenerateLoadedModelLODs()
-{
-	if (!HasLoadedModel() || ModelState.Mesh == nullptr || ModelState.Mesh->GetRenderData() == nullptr)
-	{
-		LastOperationStatus = "LOD generation skipped: no valid mesh loaded.";
-		UE_LOG("[ObjViewer] LOD generation skipped because no valid mesh is loaded.");
-		return false;
-	}
-
-	const FString SourcePath = ModelState.SourceFilePath;
-	if (SourcePath.empty())
-	{
-		LastOperationStatus = "LOD generation skipped: source path is empty.";
-		UE_LOG("[ObjViewer] LOD generation skipped because source path is empty.");
-		return false;
-	}
-
-	const uint64 SourceTimestamp = GetFileWriteTimestamp(SourcePath);
-
-	FStaticMeshLODSettings Settings;
-	Settings.NumLODs = (std::max)(LODBuilderSettings.NumLODs, 0);
-	Settings.TriangleReductionStep = (std::clamp)(LODBuilderSettings.TriangleReductionStep, 0.01f, 0.95f);
-	Settings.DistanceStep = (std::max)(LODBuilderSettings.DistanceStep, 1.0f);
-
-	FStaticMeshLODBuilder::BuildLODs(*ModelState.Mesh, Settings);
-
-	const uint32 LodCount = ModelState.Mesh->GetLodCount();
-	for (uint32 LodIndex = 1; LodIndex < LodCount; ++LodIndex)
-	{
-		FStaticMesh* LodMesh = ModelState.Mesh->GetRenderData(static_cast<int32>(LodIndex));
-		if (!LodMesh)
-		{
-			continue;
-		}
-
-		const FString LodPath = GetLodFilePath(SourcePath, static_cast<int32>(LodIndex));
-		if (!FObjManager::SaveLodAsset(LodPath, *LodMesh, SourceTimestamp, ModelState.Mesh->GetLodDistance(static_cast<int32>(LodIndex))))
-		{
-			LastOperationStatus = "LOD generation failed while saving files.";
-			UE_LOG("[ObjViewer] Failed to save generated LOD%d: %s", static_cast<int32>(LodIndex), LodPath.c_str());
-			return false;
-		}
-	}
-
-	if (LodCount <= 1)
-	{
-		LastOperationStatus = "LOD generation completed, but no additional LODs were produced.";
-		UE_LOG("[ObjViewer] No additional LODs were generated for: %s", SourcePath.c_str());
-	}
-	else
-	{
-		LastOperationStatus = "LOD files generated successfully.";
-		UE_LOG("[ObjViewer] Generated %u LOD(s) for: %s", LodCount - 1, SourcePath.c_str());
-	}
-
-	UpdateLoadedModelState(SourcePath, ModelState.LastImportSummary, ModelState.Mesh, ModelState.DisplayActor);
-	SetLoadedModelLODEnabled(ModelState.LastImportSummary.bEnableLOD);
-	return true;
-}
-
-bool FObjViewerEngine::DeleteLoadedModelLODs()
-{
-	if (!HasLoadedModel() || ModelState.SourceFilePath.empty())
-	{
-		LastOperationStatus = "LOD deletion skipped: no valid mesh loaded.";
-		UE_LOG("[ObjViewer] LOD deletion skipped because no valid mesh is loaded.");
-		return false;
-	}
-
-	bool bDeletedAny = false;
-	for (int32 LodIndex = 1; LodIndex <= 64; ++LodIndex)
-	{
-		const std::filesystem::path LodPath = FPaths::ToPath(GetLodFilePath(ModelState.SourceFilePath, LodIndex)).lexically_normal();
-		std::error_code ErrorCode;
-		if (std::filesystem::exists(LodPath, ErrorCode) && std::filesystem::remove(LodPath, ErrorCode))
-		{
-			bDeletedAny = true;
-		}
-	}
-
-	if (!bDeletedAny)
-	{
-		LastOperationStatus = "No LOD files were found to delete.";
-		UE_LOG("[ObjViewer] No LOD files found to delete for: %s", ModelState.SourceFilePath.c_str());
-		return true;
-	}
-
-	ModelState.Mesh->ClearLods();
-	UpdateLoadedModelState(ModelState.SourceFilePath, ModelState.LastImportSummary, ModelState.Mesh, ModelState.DisplayActor);
-	SetLoadedModelLODEnabled(ModelState.LastImportSummary.bEnableLOD);
-	LastOperationStatus = "LOD files deleted.";
-	UE_LOG("[ObjViewer] Deleted LOD files for: %s", ModelState.SourceFilePath.c_str());
-	return true;
-}
-
-bool FObjViewerEngine::ReloadLoadedModel()
-{
-	if (ModelState.SourceFilePath.empty())
-	{
-		return false;
-	}
-
-	FObjImportSummary ReloadOptions = ModelState.LastImportSummary;
-	ReloadOptions.ImportSource = "Reload";
-	return LoadModelFromFile(ModelState.SourceFilePath, ReloadOptions);
-}
-
-void FObjViewerEngine::ClearLoadedModel()
-{
-	UWorld* ViewerWorld = GetActiveWorld();
-	ULevel* ViewerScene = GetActiveScene();
-	if (ViewerScene)
-	{
-		const TArray<AActor*> ExistingActors = ViewerScene->GetActors();
-		for (AActor* Actor : ExistingActors)
-		{
-			if (Actor == nullptr || Actor->IsPendingDestroy())
-			{
-				continue;
-			}
-
-			if (ViewerWorld)
-			{
-				ViewerWorld->DestroyActor(Actor);
-			}
-			else
-			{
-				ViewerScene->DestroyActor(Actor);
-			}
-		}
-
-		ViewerScene->CleanupDestroyedActors();
-	}
-
-	ModelState = {};
-}
-
-void FObjViewerEngine::FrameLoadedModel()
-{
-	if (!HasLoadedModel())
-	{
-		ResetViewerCamera();
-		return;
-	}
-
-	UWorld* ViewerWorld = GetActiveWorld();
-	if (!ViewerWorld)
-	{
-		return;
-	}
-
-	UCameraComponent* ActiveCamera = ViewerWorld->GetActiveCameraComponent();
-	if (!ActiveCamera)
-	{
-		return;
-	}
-
-	if (FCamera* Camera = ActiveCamera->GetCamera())
-	{
-		float Radius = ModelState.BoundsRadius;
-		if (ModelState.DisplayActor)
-		{
-			if (USceneComponent* RootComponent = ModelState.DisplayActor->GetRootComponent())
-			{
-				Radius *= GetMaxAbsScale(RootComponent->GetRelativeTransform().GetScale3D());
-			}
-		}
-
-		const float Distance = (std::max)(Radius, 1.0f) * 3.0f;
-		const FVector WorldCenter = GetLoadedModelWorldCenter(ModelState);
-		Camera->SetPosition(WorldCenter + FVector(Distance, 0.0f, 0.0f));
-		Camera->SetRotation(180.0f, 0.0f);
-	}
-
-	ActiveCamera->SetFov(50.0f);
-}
-
-void FObjViewerEngine::ResetViewerCamera()
-{
-	InitializeViewerCamera();
-}
-
 FObjViewerShell& FObjViewerEngine::GetShell() const
 {
 	return *ViewerShell;
@@ -719,7 +732,7 @@ void FObjViewerEngine::RenderFrame()
 	}
 
 	UWorld* ActiveWorld = GetActiveWorld();
-	ULevel* Scene = GetViewportClient() ? GetViewportClient()->ResolveScene(this) : GetActiveScene();
+	ULevel* Scene       = GetViewportClient() ? GetViewportClient()->ResolveScene(this) : GetActiveScene();
 
 	auto RenderShellOnly = [&]()
 	{
@@ -755,11 +768,11 @@ void FObjViewerEngine::RenderFrame()
 	ViewerShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, false);
 
 	FGameFrameRequest FrameRequest;
-	FrameRequest.SceneView.ViewMatrix = ActiveCamera->GetViewMatrix();
+	FrameRequest.SceneView.ViewMatrix       = ActiveCamera->GetViewMatrix();
 	FrameRequest.SceneView.ProjectionMatrix = ActiveCamera->GetProjectionMatrix();
-	FrameRequest.SceneView.CameraPosition = FrameRequest.SceneView.ViewMatrix.GetInverse().GetTranslation();
-	FrameRequest.SceneView.NearZ = ActiveCamera->GetNearPlane();
-	FrameRequest.SceneView.FarZ = ActiveCamera->GetFarPlane();
+	FrameRequest.SceneView.CameraPosition   = FrameRequest.SceneView.ViewMatrix.GetInverse().GetTranslation();
+	FrameRequest.SceneView.NearZ            = ActiveCamera->GetNearPlane();
+	FrameRequest.SceneView.FarZ             = ActiveCamera->GetFarPlane();
 	FrameRequest.SceneView.TotalTimeSeconds = static_cast<float>(GetTimer().GetTotalTime());
 
 	FFrustum Frustum;
@@ -771,12 +784,12 @@ void FObjViewerEngine::RenderFrame()
 	}
 
 	FrameRequest.DebugInputs.DrawManager = &GetDebugDrawManager();
-	FrameRequest.DebugInputs.World = ActiveWorld;
-	FrameRequest.DebugInputs.ShowFlags = ViewerShowFlags;
+	FrameRequest.DebugInputs.World       = ActiveWorld;
+	FrameRequest.DebugInputs.ShowFlags   = ViewerShowFlags;
 
 	if (bWireframeEnabled && WireframeMaterial)
 	{
-		FrameRequest.bForceWireframe = true;
+		FrameRequest.bForceWireframe   = true;
 		FrameRequest.WireframeMaterial = WireframeMaterial.get();
 	}
 
@@ -796,22 +809,22 @@ void FObjViewerEngine::RenderFrame()
 			UpdateWorldAspectRatio(ActiveWorld, SurfaceW / SurfaceH);
 
 			FViewportScenePassRequest ScenePass;
-			ScenePass.RenderTargetView = Surface.GetRTV();
+			ScenePass.RenderTargetView               = Surface.GetRTV();
 			ScenePass.RenderTargetShaderResourceView = Surface.GetSRV();
-			ScenePass.DepthStencilView = Surface.GetDSV();
-			ScenePass.DepthShaderResourceView = Surface.GetDepthSRV();
-			ScenePass.Viewport.TopLeftX = 0.0f;
-			ScenePass.Viewport.TopLeftY = 0.0f;
-			ScenePass.Viewport.Width = SurfaceW;
-			ScenePass.Viewport.Height = SurfaceH;
-			ScenePass.Viewport.MinDepth = 0.0f;
-			ScenePass.Viewport.MaxDepth = 1.0f;
-			ScenePass.SceneView = FrameRequest.SceneView;
-			ScenePass.ScenePacket = std::move(FrameRequest.ScenePacket);
-			ScenePass.AdditionalMeshBatches = std::move(FrameRequest.AdditionalMeshBatches);
-			ScenePass.DebugInputs = FrameRequest.DebugInputs;
-			ScenePass.bForceWireframe = FrameRequest.bForceWireframe;
-			ScenePass.WireframeMaterial = FrameRequest.WireframeMaterial;
+			ScenePass.DepthStencilView               = Surface.GetDSV();
+			ScenePass.DepthShaderResourceView        = Surface.GetDepthSRV();
+			ScenePass.Viewport.TopLeftX              = 0.0f;
+			ScenePass.Viewport.TopLeftY              = 0.0f;
+			ScenePass.Viewport.Width                 = SurfaceW;
+			ScenePass.Viewport.Height                = SurfaceH;
+			ScenePass.Viewport.MinDepth              = 0.0f;
+			ScenePass.Viewport.MaxDepth              = 1.0f;
+			ScenePass.SceneView                      = FrameRequest.SceneView;
+			ScenePass.ScenePacket                    = std::move(FrameRequest.ScenePacket);
+			ScenePass.AdditionalMeshBatches          = std::move(FrameRequest.AdditionalMeshBatches);
+			ScenePass.DebugInputs                    = FrameRequest.DebugInputs;
+			ScenePass.bForceWireframe                = FrameRequest.bForceWireframe;
+			ScenePass.WireframeMaterial              = FrameRequest.WireframeMaterial;
 
 			FEditorFrameRequest EditorRequest;
 			EditorRequest.ScenePasses.push_back(std::move(ScenePass));
@@ -862,7 +875,7 @@ void FObjViewerEngine::InitializeViewerCamera() const
 
 	if (FCamera* Camera = ActiveCamera->GetCamera())
 	{
-		Camera->SetPosition({ 8.0f, 0.0f, 0.0f });
+		Camera->SetPosition({8.0f, 0.0f, 0.0f});
 		Camera->SetRotation(180.0f, 0.0f);
 	}
 
@@ -885,7 +898,7 @@ void FObjViewerEngine::CreateGridResources()
 
 	constexpr int32 GridVertexCount = 6;
 
-	GridMesh = std::make_unique<FDynamicMesh>();
+	GridMesh           = std::make_unique<FDynamicMesh>();
 	GridMesh->Topology = EMeshTopology::EMT_TriangleList;
 	for (int32 Index = 0; Index < GridVertexCount; ++Index)
 	{
@@ -896,10 +909,10 @@ void FObjViewerEngine::CreateGridResources()
 	GridMesh->CreateVertexAndIndexBuffer(Device);
 
 	std::wstring ShaderDirW = FPaths::ShaderDir();
-	std::wstring VSPath = ShaderDirW + L"GridVertexShader.hlsl";
-	std::wstring PSPath = ShaderDirW + L"GridPixelShader.hlsl";
-	auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
-	auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, PSPath.c_str());
+	std::wstring VSPath     = ShaderDirW + L"GridVertexShader.hlsl";
+	std::wstring PSPath     = ShaderDirW + L"GridPixelShader.hlsl";
+	auto         VS         = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
+	auto         PS         = FShaderMap::Get().GetOrCreatePixelShader(Device, PSPath.c_str());
 
 	GridMaterial = std::make_shared<FMaterial>();
 	GridMaterial->SetOriginName("M_ObjViewerGrid");
@@ -909,14 +922,14 @@ void FObjViewerEngine::CreateGridResources()
 	FRasterizerStateOption RasterizerOption;
 	RasterizerOption.FillMode = D3D11_FILL_SOLID;
 	RasterizerOption.CullMode = D3D11_CULL_NONE;
-	auto RS = Renderer->GetRenderStateManager()->GetOrCreateRasterizerState(RasterizerOption);
+	auto RS                   = Renderer->GetRenderStateManager()->GetOrCreateRasterizerState(RasterizerOption);
 	GridMaterial->SetRasterizerOption(RasterizerOption);
 	GridMaterial->SetRasterizerState(RS);
 
 	FDepthStencilStateOption DepthStencilOption;
-	DepthStencilOption.DepthEnable = true;
+	DepthStencilOption.DepthEnable    = true;
 	DepthStencilOption.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	auto DSS = Renderer->GetRenderStateManager()->GetOrCreateDepthStencilState(DepthStencilOption);
+	auto DSS                          = Renderer->GetRenderStateManager()->GetOrCreateDepthStencilState(DepthStencilOption);
 	GridMaterial->SetDepthStencilOption(DepthStencilOption);
 	GridMaterial->SetDepthStencilState(DSS);
 
@@ -932,9 +945,9 @@ void FObjViewerEngine::CreateGridResources()
 	GridMaterial->RegisterParameter("GridAxisV", SlotIndex, 32, 16);
 	GridMaterial->RegisterParameter("ViewForward", SlotIndex, 48, 16);
 
-	const FVector4 DefaultGridAxisU = FVector4(FVector::ForwardVector, 0.0f);
-	const FVector4 DefaultGridAxisV = FVector4(FVector::RightVector, 0.0f);
-	const FVector4 DefaultViewForward = FVector4(FVector::ForwardVector, 0.0f);
+	const auto DefaultGridAxisU   = FVector4(FVector::ForwardVector, 0.0f);
+	const auto DefaultGridAxisV   = FVector4(FVector::RightVector, 0.0f);
+	const auto DefaultViewForward = FVector4(FVector::ForwardVector, 0.0f);
 	GridMaterial->SetParameterData("GridSize", &GridSettings.GridSize, 4);
 	GridMaterial->SetParameterData("LineThickness", &GridSettings.LineThickness, 4);
 	GridMaterial->SetParameterData("GridAxisU", &DefaultGridAxisU, sizeof(FVector4));
@@ -959,7 +972,7 @@ void FObjViewerEngine::CreateAxisResources()
 	// AxisVertexShader: 3축 x 2변형 x 6정점 = 36 정점을 SV_VertexID로 생성
 	constexpr int32 AxisVertexCount = 36;
 
-	WorldAxisMesh = std::make_unique<FDynamicMesh>();
+	WorldAxisMesh           = std::make_unique<FDynamicMesh>();
 	WorldAxisMesh->Topology = EMeshTopology::EMT_TriangleList;
 	for (int32 Index = 0; Index < AxisVertexCount; ++Index)
 	{
@@ -970,10 +983,10 @@ void FObjViewerEngine::CreateAxisResources()
 	WorldAxisMesh->CreateVertexAndIndexBuffer(Device);
 
 	std::wstring ShaderDirW = FPaths::ShaderDir();
-	std::wstring VSPath = ShaderDirW + L"EditorScreenOverlay/AxisVertexShader.hlsl";
-	std::wstring PSPath = ShaderDirW + L"EditorScreenOverlay/AxisPixelShader.hlsl";
-	auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
-	auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, PSPath.c_str());
+	std::wstring VSPath     = ShaderDirW + L"EditorScreenOverlay/AxisVertexShader.hlsl";
+	std::wstring PSPath     = ShaderDirW + L"EditorScreenOverlay/AxisPixelShader.hlsl";
+	auto         VS         = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
+	auto         PS         = FShaderMap::Get().GetOrCreatePixelShader(Device, PSPath.c_str());
 
 	WorldAxisMaterial = std::make_shared<FMaterial>();
 	WorldAxisMaterial->SetOriginName("M_ObjViewerWorldAxis");
@@ -983,27 +996,27 @@ void FObjViewerEngine::CreateAxisResources()
 	FRasterizerStateOption RasterizerOption;
 	RasterizerOption.FillMode = D3D11_FILL_SOLID;
 	RasterizerOption.CullMode = D3D11_CULL_NONE;
-	auto RS = Renderer->GetRenderStateManager()->GetOrCreateRasterizerState(RasterizerOption);
+	auto RS                   = Renderer->GetRenderStateManager()->GetOrCreateRasterizerState(RasterizerOption);
 	WorldAxisMaterial->SetRasterizerOption(RasterizerOption);
 	WorldAxisMaterial->SetRasterizerState(RS);
 
 	FDepthStencilStateOption DepthStencilOption;
-	DepthStencilOption.DepthEnable = true;
+	DepthStencilOption.DepthEnable    = true;
 	DepthStencilOption.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	DepthStencilOption.DepthFunc = D3D11_COMPARISON_LESS;
-	auto DSS = Renderer->GetRenderStateManager()->GetOrCreateDepthStencilState(DepthStencilOption);
+	DepthStencilOption.DepthFunc      = D3D11_COMPARISON_LESS;
+	auto DSS                          = Renderer->GetRenderStateManager()->GetOrCreateDepthStencilState(DepthStencilOption);
 	WorldAxisMaterial->SetDepthStencilOption(DepthStencilOption);
 	WorldAxisMaterial->SetDepthStencilState(DSS);
 
 	FBlendStateOption BlendOption;
-	BlendOption.BlendEnable = true;
-	BlendOption.SrcBlend = D3D11_BLEND_SRC_ALPHA;
-	BlendOption.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-	BlendOption.BlendOp = D3D11_BLEND_OP_ADD;
-	BlendOption.SrcBlendAlpha = D3D11_BLEND_ONE;
+	BlendOption.BlendEnable    = true;
+	BlendOption.SrcBlend       = D3D11_BLEND_SRC_ALPHA;
+	BlendOption.DestBlend      = D3D11_BLEND_INV_SRC_ALPHA;
+	BlendOption.BlendOp        = D3D11_BLEND_OP_ADD;
+	BlendOption.SrcBlendAlpha  = D3D11_BLEND_ONE;
 	BlendOption.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-	BlendOption.BlendOpAlpha = D3D11_BLEND_OP_ADD;
-	auto BS = Renderer->GetRenderStateManager()->GetOrCreateBlendState(BlendOption);
+	BlendOption.BlendOpAlpha   = D3D11_BLEND_OP_ADD;
+	auto BS                    = Renderer->GetRenderStateManager()->GetOrCreateBlendState(BlendOption);
 	WorldAxisMaterial->SetBlendOption(BlendOption);
 	WorldAxisMaterial->SetBlendState(BS);
 
@@ -1019,9 +1032,9 @@ void FObjViewerEngine::CreateAxisResources()
 	WorldAxisMaterial->RegisterParameter("GridAxisV", SlotIndex, 32, 16);
 	WorldAxisMaterial->RegisterParameter("ViewForward", SlotIndex, 48, 16);
 
-	const FVector4 DefaultGridAxisU = FVector4(FVector::ForwardVector, 0.0f);
-	const FVector4 DefaultGridAxisV = FVector4(FVector::RightVector, 0.0f);
-	const FVector4 DefaultViewForward = FVector4(FVector::ForwardVector, 0.0f);
+	const auto DefaultGridAxisU   = FVector4(FVector::ForwardVector, 0.0f);
+	const auto DefaultGridAxisV   = FVector4(FVector::RightVector, 0.0f);
+	const auto DefaultViewForward = FVector4(FVector::ForwardVector, 0.0f);
 	WorldAxisMaterial->SetParameterData("GridSize", &GridSettings.GridSize, 4);
 	WorldAxisMaterial->SetParameterData("LineThickness", &GridSettings.LineThickness, 4);
 	WorldAxisMaterial->SetParameterData("GridAxisU", &DefaultGridAxisU, sizeof(FVector4));
@@ -1029,21 +1042,10 @@ void FObjViewerEngine::CreateAxisResources()
 	WorldAxisMaterial->SetParameterData("ViewForward", &DefaultViewForward, sizeof(FVector4));
 }
 
-void FObjViewerEngine::ApplyWireframeOverride(FGameFrameRequest& Request) const
-{
-	if (!bWireframeEnabled || !WireframeMaterial)
-	{
-		return;
-	}
-
-	Request.bForceWireframe = true;
-	Request.WireframeMaterial = WireframeMaterial.get();
-}
-
 void FObjViewerEngine::RenderViewportOverlays(
-	FRenderer& Renderer,
+	FRenderer&                       Renderer,
 	const FObjViewerViewportSurface& Surface,
-	const FSceneViewRenderRequest& SceneView) const
+	const FSceneViewRenderRequest&   SceneView) const
 {
 	if (!Surface.IsValid())
 	{
@@ -1051,27 +1053,27 @@ void FObjViewerEngine::RenderViewportOverlays(
 	}
 
 	FSceneRenderTargets Targets;
-	Targets.Width = static_cast<uint32>(Surface.GetWidth());
-	Targets.Height = static_cast<uint32>(Surface.GetHeight());
+	Targets.Width         = static_cast<uint32>(Surface.GetWidth());
+	Targets.Height        = static_cast<uint32>(Surface.GetHeight());
 	Targets.SceneColorRTV = Surface.GetRTV();
 	Targets.SceneColorSRV = Surface.GetSRV();
 	Targets.SceneDepthDSV = Surface.GetDSV();
 	Targets.SceneDepthSRV = Surface.GetDepthSRV();
 
 	D3D11_VIEWPORT Viewport = {};
-	Viewport.TopLeftX = 0.0f;
-	Viewport.TopLeftY = 0.0f;
-	Viewport.Width = static_cast<float>(Surface.GetWidth());
-	Viewport.Height = static_cast<float>(Surface.GetHeight());
-	Viewport.MinDepth = 0.0f;
-	Viewport.MaxDepth = 1.0f;
+	Viewport.TopLeftX       = 0.0f;
+	Viewport.TopLeftY       = 0.0f;
+	Viewport.Width          = static_cast<float>(Surface.GetWidth());
+	Viewport.Height         = static_cast<float>(Surface.GetHeight());
+	Viewport.MinDepth       = 0.0f;
+	Viewport.MaxDepth       = 1.0f;
 
-	const FFrameContext Frame = BuildRenderFrameContext(SceneView.TotalTimeSeconds);
-	const FViewContext View = BuildRenderViewContext(SceneView, Viewport);
-	const FMatrix ViewInverse = SceneView.ViewMatrix.GetInverse();
-	const FVector4 GridAxisU = FVector4(FVector::ForwardVector, 0.0f);
-	const FVector4 GridAxisV = FVector4(FVector::RightVector, 0.0f);
-	const FVector4 ViewForward = FVector4(ViewInverse.GetForwardVector().GetSafeNormal(), 0.0f);
+	const FFrameContext Frame       = BuildRenderFrameContext(SceneView.TotalTimeSeconds);
+	const FViewContext  View        = BuildRenderViewContext(SceneView, Viewport);
+	const FMatrix       ViewInverse = SceneView.ViewMatrix.GetInverse();
+	const auto          GridAxisU   = FVector4(FVector::ForwardVector, 0.0f);
+	const auto          GridAxisV   = FVector4(FVector::RightVector, 0.0f);
+	const auto          ViewForward = FVector4(ViewInverse.GetForwardVector().GetSafeNormal(), 0.0f);
 
 	if (GridSettings.bVisible && GridMesh && GridMaterial)
 	{
@@ -1082,9 +1084,9 @@ void FObjViewerEngine::RenderViewportOverlays(
 		GridMaterial->SetParameterData("ViewForward", &ViewForward, sizeof(FVector4));
 
 		FMeshBatch GridBatch;
-		GridBatch.Mesh = GridMesh.get();
+		GridBatch.Mesh     = GridMesh.get();
 		GridBatch.Material = GridMaterial.get();
-		GridBatch.World = FMatrix::Identity;
+		GridBatch.World    = FMatrix::Identity;
 		RenderOverlayMeshBatch(Renderer, Frame, View, Targets, GridBatch, EMaterialPassType::EditorGrid);
 	}
 
@@ -1097,9 +1099,9 @@ void FObjViewerEngine::RenderViewportOverlays(
 		WorldAxisMaterial->SetParameterData("ViewForward", &ViewForward, sizeof(FVector4));
 
 		FMeshBatch AxisBatch;
-		AxisBatch.Mesh = WorldAxisMesh.get();
+		AxisBatch.Mesh     = WorldAxisMesh.get();
 		AxisBatch.Material = WorldAxisMaterial.get();
-		AxisBatch.World = FMatrix::Identity;
+		AxisBatch.World    = FMatrix::Identity;
 		RenderOverlayMeshBatch(Renderer, Frame, View, Targets, AxisBatch, EMaterialPassType::EditorPrimitive);
 	}
 
@@ -1115,17 +1117,17 @@ void FObjViewerEngine::RenderViewportOverlays(
 }
 
 void FObjViewerEngine::RenderOverlayMeshBatch(
-	FRenderer& Renderer,
-	const FFrameContext& Frame,
-	const FViewContext& View,
+	FRenderer&                 Renderer,
+	const FFrameContext&       Frame,
+	const FViewContext&        View,
 	const FSceneRenderTargets& Targets,
-	const FMeshBatch& MeshBatch,
-	EMaterialPassType PassType) const
+	const FMeshBatch&          MeshBatch,
+	EMaterialPassType          PassType) const
 {
-	ID3D11Device* Device = Renderer.GetDevice();
+	ID3D11Device*        Device        = Renderer.GetDevice();
 	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
-	FRenderMesh* Mesh = MeshBatch.Mesh;
-	FMaterial* Material = MeshBatch.Material;
+	FRenderMesh*         Mesh          = MeshBatch.Mesh;
+	FMaterial*           Material      = MeshBatch.Material;
 	if (!Device || !DeviceContext || !Mesh || !Material || !Targets.SceneColorRTV || !Targets.SceneDepthDSV)
 	{
 		return;
@@ -1164,6 +1166,17 @@ void FObjViewerEngine::RenderOverlayMeshBatch(
 	EndPass(Renderer, Targets.SceneColorRTV, Targets.SceneDepthDSV, View.Viewport, Frame, View);
 }
 
+void FObjViewerEngine::ApplyWireframeOverride(FGameFrameRequest& Request) const
+{
+	if (!bWireframeEnabled || !WireframeMaterial)
+	{
+		return;
+	}
+
+	Request.bForceWireframe   = true;
+	Request.WireframeMaterial = WireframeMaterial.get();
+}
+
 void FObjViewerEngine::AppendNormalVisualizationDebugDraw()
 {
 	if (!NormalSettings.bVisible)
@@ -1187,7 +1200,7 @@ void FObjViewerEngine::AppendNormalVisualizationDebugDraw()
 	for (size_t VertexIndex = 0; VertexIndex + 1 < LineInputs.LineMesh->Vertices.size(); VertexIndex += 2)
 	{
 		const FVertex& StartVertex = LineInputs.LineMesh->Vertices[VertexIndex];
-		const FVertex& EndVertex = LineInputs.LineMesh->Vertices[VertexIndex + 1];
+		const FVertex& EndVertex   = LineInputs.LineMesh->Vertices[VertexIndex + 1];
 		GetDebugDrawManager().DrawLine(ActiveWorld, StartVertex.Position, EndVertex.Position, StartVertex.Color);
 	}
 }
@@ -1211,10 +1224,10 @@ void FObjViewerEngine::AppendNormalVisualizationLines(FEditorLinePassInputs& Lin
 		return;
 	}
 
-	const FStaticMesh* RenderData = ModelState.Mesh->GetRenderData();
-	const FMatrix& WorldMatrix = RootComponent->GetWorldTransform();
-	const float NormalLength = (std::max)(GetDisplayedBoundsRadius(ModelState) * NormalSettings.LengthScale, 0.001f);
-	const FVector4 NormalColor = GetNormalVisualizationColor(NormalSettings.Mode);
+	const FStaticMesh* RenderData   = ModelState.Mesh->GetRenderData();
+	const FMatrix&     WorldMatrix  = RootComponent->GetWorldTransform();
+	const float        NormalLength = (std::max)(GetDisplayedBoundsRadius(ModelState) * NormalSettings.LengthScale, 0.001f);
+	const FVector4     NormalColor  = GetNormalVisualizationColor(NormalSettings.Mode);
 
 	if (NormalSettings.Mode == EObjViewerNormalVisualizationMode::Face)
 	{
@@ -1231,7 +1244,7 @@ void FObjViewerEngine::AppendNormalVisualizationLines(FEditorLinePassInputs& Lin
 			const FVector WorldPosition0 = WorldMatrix.TransformPosition(RenderData->Vertices[Index0].Position);
 			const FVector WorldPosition1 = WorldMatrix.TransformPosition(RenderData->Vertices[Index1].Position);
 			const FVector WorldPosition2 = WorldMatrix.TransformPosition(RenderData->Vertices[Index2].Position);
-			const FVector FaceNormal = FVector::CrossProduct(WorldPosition1 - WorldPosition0, WorldPosition2 - WorldPosition0).GetSafeNormal();
+			const FVector FaceNormal     = FVector::CrossProduct(WorldPosition1 - WorldPosition0, WorldPosition2 - WorldPosition0).GetSafeNormal();
 			if (FaceNormal.IsNearlyZero())
 			{
 				continue;
@@ -1255,7 +1268,7 @@ void FObjViewerEngine::AppendNormalVisualizationLines(FEditorLinePassInputs& Lin
 			continue;
 		}
 
-		const FVector WorldStart = WorldMatrix.TransformPosition(Vertex.Position);
+		const FVector WorldStart  = WorldMatrix.TransformPosition(Vertex.Position);
 		const FVector WorldNormal = WorldMatrix.TransformVector(Vertex.Normal).GetSafeNormal();
 		if (WorldNormal.IsNearlyZero())
 		{
@@ -1273,9 +1286,9 @@ void FObjViewerEngine::AppendNormalVisualizationLines(FEditorLinePassInputs& Lin
 void FObjViewerEngine::AppendGridMeshBatch(FGameFrameRequest& Request) const
 {
 	const FMatrix ViewInverse = Request.SceneView.ViewMatrix.GetInverse();
-	const FVector4 GridAxisU = FVector4(FVector::ForwardVector, 0.0f);
-	const FVector4 GridAxisV = FVector4(FVector::RightVector, 0.0f);
-	const FVector4 ViewForward = FVector4(ViewInverse.GetForwardVector().GetSafeNormal(), 0.0f);
+	const auto    GridAxisU   = FVector4(FVector::ForwardVector, 0.0f);
+	const auto    GridAxisV   = FVector4(FVector::RightVector, 0.0f);
+	const auto    ViewForward = FVector4(ViewInverse.GetForwardVector().GetSafeNormal(), 0.0f);
 
 	if (GridSettings.bVisible && GridMesh && GridMaterial)
 	{
@@ -1286,15 +1299,15 @@ void FObjViewerEngine::AppendGridMeshBatch(FGameFrameRequest& Request) const
 		GridMaterial->SetParameterData("ViewForward", &ViewForward, sizeof(FVector4));
 
 		FMeshBatch GridBatch;
-		GridBatch.Mesh = GridMesh.get();
-		GridBatch.Material = GridMaterial.get();
-		GridBatch.World = FMatrix::Identity;
-		GridBatch.Domain = EMaterialDomain::EditorGrid;
-		GridBatch.PassMask = static_cast<uint32>(EMeshPassMask::EditorGrid);
+		GridBatch.Mesh               = GridMesh.get();
+		GridBatch.Material           = GridMaterial.get();
+		GridBatch.World              = FMatrix::Identity;
+		GridBatch.Domain             = EMaterialDomain::EditorGrid;
+		GridBatch.PassMask           = static_cast<uint32>(EMeshPassMask::EditorGrid);
 		GridBatch.bDisableDepthWrite = true;
-		GridBatch.bDisableCulling = true;
-		GridBatch.IndexStart = 0;
-		GridBatch.IndexCount = static_cast<uint32>(GridMesh->Indices.size());
+		GridBatch.bDisableCulling    = true;
+		GridBatch.IndexStart         = 0;
+		GridBatch.IndexCount         = static_cast<uint32>(GridMesh->Indices.size());
 		Request.AdditionalMeshBatches.push_back(GridBatch);
 	}
 
@@ -1307,31 +1320,31 @@ void FObjViewerEngine::AppendGridMeshBatch(FGameFrameRequest& Request) const
 		WorldAxisMaterial->SetParameterData("ViewForward", &ViewForward, sizeof(FVector4));
 
 		FMeshBatch WorldAxisBatch;
-		WorldAxisBatch.Mesh = WorldAxisMesh.get();
-		WorldAxisBatch.Material = WorldAxisMaterial.get();
-		WorldAxisBatch.World = FMatrix::Identity;
-		WorldAxisBatch.Domain = EMaterialDomain::EditorPrimitive;
-		WorldAxisBatch.PassMask = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
+		WorldAxisBatch.Mesh               = WorldAxisMesh.get();
+		WorldAxisBatch.Material           = WorldAxisMaterial.get();
+		WorldAxisBatch.World              = FMatrix::Identity;
+		WorldAxisBatch.Domain             = EMaterialDomain::EditorPrimitive;
+		WorldAxisBatch.PassMask           = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
 		WorldAxisBatch.bDisableDepthWrite = true;
-		WorldAxisBatch.bDisableDepthTest = false;
-		WorldAxisBatch.bDisableCulling = true;
-		WorldAxisBatch.IndexStart = 0;
-		WorldAxisBatch.IndexCount = static_cast<uint32>(WorldAxisMesh->Indices.size());
+		WorldAxisBatch.bDisableDepthTest  = false;
+		WorldAxisBatch.bDisableCulling    = true;
+		WorldAxisBatch.IndexStart         = 0;
+		WorldAxisBatch.IndexCount         = static_cast<uint32>(WorldAxisMesh->Indices.size());
 		Request.AdditionalMeshBatches.push_back(WorldAxisBatch);
 	}
 }
 
 void FObjViewerEngine::UpdateLoadedModelState(
-	const FString& FilePath,
+	const FString&           FilePath,
 	const FObjImportSummary& ImportOptions,
-	UStaticMesh* Mesh,
-	AStaticMeshActor* DisplayActor)
+	UStaticMesh*             Mesh,
+	AStaticMeshActor*        DisplayActor)
 {
-	ModelState = {};
-	ModelState.bLoaded = true;
-	ModelState.SourceFilePath = FilePath;
-	ModelState.DisplayActor = DisplayActor;
-	ModelState.Mesh = Mesh;
+	ModelState                   = {};
+	ModelState.bLoaded           = true;
+	ModelState.SourceFilePath    = FilePath;
+	ModelState.DisplayActor      = DisplayActor;
+	ModelState.Mesh              = Mesh;
 	ModelState.LastImportSummary = ImportOptions;
 
 	const std::filesystem::path SourcePath(FPaths::ToWide(FilePath));
@@ -1346,13 +1359,13 @@ void FObjViewerEngine::UpdateLoadedModelState(
 
 	if (Mesh && Mesh->GetRenderData())
 	{
-		FStaticMesh* RenderData = Mesh->GetRenderData();
-		ModelState.VertexCount = static_cast<int32>(RenderData->Vertices.size());
-		ModelState.IndexCount = static_cast<int32>(RenderData->Indices.size());
+		FStaticMesh* RenderData  = Mesh->GetRenderData();
+		ModelState.VertexCount   = static_cast<int32>(RenderData->Vertices.size());
+		ModelState.IndexCount    = static_cast<int32>(RenderData->Indices.size());
 		ModelState.TriangleCount = static_cast<int32>(RenderData->Indices.size() / 3);
-		ModelState.SectionCount = RenderData->GetNumSection();
-		ModelState.LodCount = static_cast<int32>(Mesh->GetLodCount());
-		ModelState.bHasUV = MeshHasAnyUVs(Mesh);
+		ModelState.SectionCount  = RenderData->GetNumSection();
+		ModelState.LodCount      = static_cast<int32>(Mesh->GetLodCount());
+		ModelState.bHasUV        = MeshHasAnyUVs(Mesh);
 	}
 
 	if (Mesh)
@@ -1393,6 +1406,6 @@ void FObjViewerEngine::ProcessLaunchOptions()
 	LaunchOptions.InputFilePath.clear();
 	if (LaunchOptions.bCloseWhenDone)
 	{
-		::PostQuitMessage(bSucceeded ? 0 : 1);
+		PostQuitMessage(bSucceeded ? 0 : 1);
 	}
 }
