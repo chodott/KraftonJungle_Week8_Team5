@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\Renderer\Features\Lighting\LightRenderFeature.h" />
     <ClInclude Include="Source\Actor\SpotLightFakeActor.h" />
     <ClInclude Include="Source\Actor\LocalHeightFogActor.h" />
     <ClInclude Include="Source\Asset\StaticMeshLODBuilder.h" />
@@ -116,6 +117,7 @@
     <ClInclude Include="Source\Renderer\Features\Decal\DecalProjectionMode.h" />
     <ClInclude Include="Source\Renderer\Features\Decal\DecalStats.h" />
     <ClInclude Include="Source\Renderer\Features\Decal\VolumeDecalRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Features\Lighting\LightTypes.h" />
     <ClInclude Include="Source\Renderer\Features\Text\FontAtlas.h" />
     <ClInclude Include="Source\Renderer\Frame\UI\FramePassContext.h" />
     <ClInclude Include="Source\Renderer\Frame\UI\FramePasses.h" />
@@ -303,6 +305,7 @@
     <ClInclude Include="Source\Renderer\Features\FireBall\FireBallTypes.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Source\Renderer\Features\Lighting\LightRenderFeature.cpp" />
     <ClCompile Include="Source\Actor\Actor.cpp" />
     <ClCompile Include="Source\Actor\BillboardActor.cpp" />
     <ClCompile Include="Source\Actor\CubeActor.cpp" />

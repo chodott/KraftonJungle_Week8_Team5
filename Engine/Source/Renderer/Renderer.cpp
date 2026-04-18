@@ -16,6 +16,7 @@
 #include "Renderer/Features/PostProcess/FXAARenderFeature.h"
 #include "Renderer/Features/SubUV/SubUVRenderFeature.h"
 #include "Renderer/Features/Text/TextRenderFeature.h"
+#include "Renderer/Features/Lighting/LightRenderFeature.h"
 #include "Renderer/Frame/EditorFrameRenderer.h"
 #include "Renderer/Frame/GameFrameRenderer.h"
 #include "Renderer/Frame/RendererResourceBootstrap.h"
@@ -126,6 +127,11 @@ FFireBallRenderFeature *FRenderer::GetFireBallFeature() const
 FFXAARenderFeature *FRenderer::GetFXAAFeature() const
 {
     return FXAAFeature.get();
+}
+
+FLightRenderFeature* FRenderer::GetLightFeature() const
+{
+	return LightFeature.get();
 }
 
 FRenderer::FRenderer(HWND InHwnd, int32 InWidth, int32 InHeight)
@@ -518,6 +524,8 @@ void FRenderer::UpdateObjectConstantBuffer(const FMatrix &WorldMatrix)
 
     FObjectConstantBuffer CBData;
     CBData.World = WorldMatrix.GetTransposed();
+	CBData.WorldInvTranspose = WorldMatrix.GetInverse().GetTransposed();
+
     D3D11_MAPPED_SUBRESOURCE Mapped;
     if (SUCCEEDED(DeviceContext->Map(ObjectConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
     {

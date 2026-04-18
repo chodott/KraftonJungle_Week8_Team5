@@ -1,4 +1,4 @@
-﻿#include "Renderer/Frame/RendererResourceBootstrap.h"
+#include "Renderer/Frame/RendererResourceBootstrap.h"
 
 #include "Renderer/Renderer.h"
 
@@ -14,6 +14,7 @@
 #include "Renderer/Features/PostProcess/FXAARenderFeature.h"
 #include "Renderer/Features/SubUV/SubUVRenderFeature.h"
 #include "Renderer/Features/Text/TextRenderFeature.h"
+#include "Renderer/Features/Lighting/LightRenderFeature.h"
 #include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Resources/Material/MaterialManager.h"
 #include "Renderer/Resources/Shader/Shader.h"
@@ -71,9 +72,11 @@ bool FRendererResourceBootstrap::Initialize(FRenderer& Renderer)
 	}
 
 	{
-		std::wstring TextureVSPath = ShaderDirW + L"SceneGeometry/TextureVertexShader.hlsl";
+		//std::wstring TextureVSPath = ShaderDirW + L"SceneGeometry/TextureVertexShader.hlsl";
+		std::wstring TextureVSPath = ShaderDirW + L"SceneLighting/UberLitVertexShader.hlsl";
 		auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, TextureVSPath.c_str());
-		std::wstring TexturePSPath = ShaderDirW + L"SceneGeometry/TexturePixelShader.hlsl";
+		//std::wstring TextureVSPath = ShaderDirW + L"SceneGeometry/TexturePixelShader.hlsl";
+		std::wstring TexturePSPath = ShaderDirW + L"SceneLighting/UberLitPixelShader.hlsl";
 		auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, TexturePSPath.c_str());
 		Renderer.DefaultTextureMaterial = std::make_shared<FMaterial>();
 		Renderer.DefaultTextureMaterial->SetOriginName("M_Default_Texture");
@@ -146,6 +149,12 @@ bool FRendererResourceBootstrap::Initialize(FRenderer& Renderer)
 	Renderer.OutlineFeature = std::make_unique<FOutlineRenderFeature>();
 	Renderer.DebugLineFeature = std::make_unique<FDebugLineRenderFeature>();
 	Renderer.FireBallFeature = std::make_unique<FFireBallRenderFeature>();
+	Renderer.LightFeature = std::make_unique<FLightRenderFeature>();
+	if (!Renderer.LightFeature)
+	{
+		return false;
+	}
+
 	if (!Renderer.FireBallFeature)
 	{
 		return false;
@@ -181,6 +190,7 @@ void FRendererResourceBootstrap::Release(FRenderer& Renderer)
 	if (Renderer.VolumeDecalFeature) Renderer.VolumeDecalFeature->Release();
 	if (Renderer.FireBallFeature) Renderer.FireBallFeature->Release();
 	if (Renderer.FXAAFeature) Renderer.FXAAFeature->Release();
+	if (Renderer.LightFeature) Renderer.LightFeature->Release();
 	Renderer.OutlineFeature.reset();
 	Renderer.DebugLineFeature.reset();
 	Renderer.FogFeature.reset();
@@ -191,6 +201,7 @@ void FRendererResourceBootstrap::Release(FRenderer& Renderer)
 	Renderer.VolumeDecalFeature.reset();
 	Renderer.FireBallFeature.reset();
 	Renderer.FXAAFeature.reset();
+	Renderer.LightFeature.reset();
 	Renderer.ShaderManager.Release();
 	FShaderMap::Get().Clear();
 	FMaterialManager::Get().Clear();

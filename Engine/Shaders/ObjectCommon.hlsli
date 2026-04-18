@@ -4,6 +4,7 @@
 cbuffer ObjectData : register(b1)
 {
 	float4x4 World;
+	float4x4 WorldInvTranspose;
 };
 
 #endif

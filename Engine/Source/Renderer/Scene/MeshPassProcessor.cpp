@@ -1,4 +1,4 @@
-﻿#include "Renderer/Scene/MeshPassProcessor.h"
+#include "Renderer/Scene/MeshPassProcessor.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -10,6 +10,7 @@
 #include "Renderer/Mesh/RenderMesh.h"
 #include "Renderer/Renderer.h"
 #include "Debug/EngineLog.h"
+#include "Renderer/Features/Lighting/LightRenderFeature.h"
 
 #include <chrono>
 
@@ -201,6 +202,15 @@ void FMeshPassProcessor::ExecutePass(
 	const EMaterialPassType MaterialPassType = ToMaterialPassType(PassType);
 	uint32 LocalDrawCalls = 0;
 
+	FLightRenderFeature* Feature = Renderer.GetLightFeature();
+	const bool bApplyLighting = (PassType == EMeshPassType::ForwardOpaque)
+		&& Feature != nullptr;
+
+	if (bApplyLighting)
+	{
+		Feature->Render(Renderer, SceneViewData.Frame, SceneViewData.View, Targets);
+	}
+
 	for (const FMeshBatch* Batch : Batches)
 	{
 		if (!Batch || !Batch->Mesh || !Batch->Material)
@@ -221,6 +231,13 @@ void FMeshPassProcessor::ExecutePass(
 				ID3D11SamplerState* DefaultSampler = Renderer.GetDefaultSampler();
 				DeviceContext->PSSetSamplers(0, 1, &DefaultSampler);
 			}
+		}
+
+		if (bApplyLighting)
+		{
+			DeviceContext->VSSetShader(Feature->GetCurrentVS(), nullptr, 0);
+			DeviceContext->PSSetShader(Feature->GetCurrentPS(), nullptr, 0);
+			DeviceContext->IASetInputLayout(Feature->GetInputLayout());
 		}
 
 		if (Batch->bDisableCulling)

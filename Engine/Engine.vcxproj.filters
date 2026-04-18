@@ -153,6 +153,8 @@
     <ClInclude Include="Source\Renderer\Scene\Passes\SceneEffectsPasses.h" />
     <ClInclude Include="Source\Renderer\Scene\Passes\SceneGeometryPasses.h" />
     <ClInclude Include="Source\Renderer\Scene\Passes\SelectionHighlightPasses.h" />
+    <ClInclude Include="Source\Renderer\Features\Lighting\LightTypes.h" />
+    <ClInclude Include="Source\Renderer\Features\Lighting\LightRenderFeature.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\Actor\Actor.cpp">
@@ -525,6 +527,7 @@
     <ClCompile Include="Source\Renderer\Scene\Passes\SceneGeometryPasses.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Passes\SceneEffectsPasses.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Passes\SelectionHighlightPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Features\Lighting\LightRenderFeature.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\CoreMinimal.h">

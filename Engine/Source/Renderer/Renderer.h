@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Renderer/Features/Fog/FogStats.h"
@@ -46,6 +46,7 @@ class FVolumeDecalRenderFeature;
 class FFireBallRenderFeature;
 class FFXAARenderFeature;
 class FDebugLineRenderFeature;
+class FLightRenderFeature;
 class FBillboardRenderer;
 class FDebugDrawManager;
 struct FScreenUIPassInputs;
@@ -106,6 +107,7 @@ public:
 	FVolumeDecalRenderFeature* GetVolumeDecalFeature() const;
 	FFireBallRenderFeature* GetFireBallFeature() const;
 	FFXAARenderFeature* GetFXAAFeature() const;
+	FLightRenderFeature* GetLightFeature() const;
 	FSceneRenderer& GetSceneRenderer() { return *SceneRenderer; }
 	FScreenUIRenderer& GetScreenUIRenderer() { return *ScreenUIRenderer; }
 	FRenderDevice& GetRenderDevice() { return RenderDevice; }
@@ -172,6 +174,7 @@ private:
 	std::unique_ptr<FDecalRenderFeature> DecalFeature;
 	std::unique_ptr<FVolumeDecalRenderFeature> VolumeDecalFeature;
 	std::unique_ptr<FFireBallRenderFeature> FireBallFeature;
+	std::unique_ptr<FLightRenderFeature> LightFeature;	
 	std::unique_ptr<FFXAARenderFeature> FXAAFeature;
 	EDecalProjectionMode DecalProjectionMode = EDecalProjectionMode::ClusteredLookup;
 

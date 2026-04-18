@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "CoreMinimal.h"
 
 struct ENGINE_API FVertex
@@ -7,6 +7,7 @@ struct ENGINE_API FVertex
 	FVector4 Color;
 	FVector Normal;
 	FVector2 UV;
+	FVector Tangent;
 };
 
 struct ENGINE_API FMeshSection
