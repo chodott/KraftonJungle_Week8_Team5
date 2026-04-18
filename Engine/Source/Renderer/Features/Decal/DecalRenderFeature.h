@@ -34,7 +34,7 @@ public:
 	bool Render(
 		FRenderer& Renderer,
 		const FDecalRenderRequest& Request,
-		const FSceneRenderTargets& Targets);
+		FSceneRenderTargets& Targets);
 	bool RenderDebugOverlay(
 		FRenderer& Renderer,
 		const FDecalRenderRequest& Request,

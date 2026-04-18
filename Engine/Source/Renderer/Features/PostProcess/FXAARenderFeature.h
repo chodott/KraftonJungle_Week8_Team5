@@ -17,7 +17,7 @@ public:
 		FRenderer& Renderer,
 		const FFrameContext& Frame,
 		const FViewContext& View,
-		const FSceneRenderTargets& Targets);
+		FSceneRenderTargets& Targets);
 	void Release();
 
 private:

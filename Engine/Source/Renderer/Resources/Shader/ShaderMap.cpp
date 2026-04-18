@@ -2,6 +2,8 @@
 #include "Renderer/Resources/Shader/Shader.h"
 #include "Renderer/Resources/Shader/ShaderResource.h"
 
+#include <cstring>
+
 FShaderMap& FShaderMap::Get()
 {
 	static FShaderMap Instance;
@@ -74,9 +76,45 @@ std::shared_ptr<FPixelShader> FShaderMap::GetOrCreatePixelShader(
 	return PS;
 }
 
+std::shared_ptr<FComputeShader> FShaderMap::GetOrCreateComputeShader(
+	ID3D11Device* Device,
+	const wchar_t* FilePath,
+	const char* EntryPoint)
+{
+	std::wstring Key(FilePath);
+	Key += L"#";
+	for (const char* It = EntryPoint; It && *It != '\0'; ++It)
+	{
+		Key.push_back(static_cast<wchar_t>(*It));
+	}
+	Key += L"#cs_5_0";
+
+	auto It = ComputeShaders.find(Key);
+	if (It != ComputeShaders.end())
+	{
+		return It->second;
+	}
+
+	auto Resource = FShaderResource::GetOrCompile(FilePath, EntryPoint, "cs_5_0");
+	if (!Resource)
+	{
+		return nullptr;
+	}
+
+	auto CS = FComputeShader::Create(Device, Resource);
+	if (!CS)
+	{
+		return nullptr;
+	}
+
+	ComputeShaders[Key] = CS;
+	return CS;
+}
+
 void FShaderMap::Clear()
 {
 	VertexShaders.clear();
 	PixelShaders.clear();
+	ComputeShaders.clear();
 	FShaderResource::ClearCache();
 }

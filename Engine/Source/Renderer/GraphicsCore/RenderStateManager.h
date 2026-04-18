@@ -43,7 +43,15 @@ public:
 	void BindDepthStencilState(std::shared_ptr<FDepthStencilState> InDSS, uint32 StencilRef);
 	void BindBlendState(std::shared_ptr<FBlendState> InBS, const float BlendFactor[4], uint32 SampleMask);
 	void SetRenderTargets(uint32 NumRTs, ID3D11RenderTargetView* const* RTVs, ID3D11DepthStencilView* DSV);
+	void ClearShaderResourcesVS(uint32 StartSlot, uint32 Count);
 	void ClearShaderResourcesPS(uint32 StartSlot, uint32 Count);
+	void ClearShaderResourcesCS(uint32 StartSlot, uint32 Count);
+	void ClearUnorderedAccessViewsCS(uint32 StartSlot, uint32 Count);
+	void ClearAllGraphicsState();
+	void ClearAllComputeState();
+	void UnbindResourceFromGraphics(ID3D11Resource* Resource);
+	void UnbindResourceFromCompute(ID3D11Resource* Resource);
+	void UnbindResourceEverywhere(ID3D11Resource* Resource);
 
 	void RebindState();
 };

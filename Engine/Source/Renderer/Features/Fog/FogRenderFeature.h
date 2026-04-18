@@ -16,7 +16,7 @@ public:
   ~FFogRenderFeature();
 
   bool Render(FRenderer &Renderer, const FFrameContext &Frame,
-              const FViewContext &View, const FSceneRenderTargets &Targets,
+              const FViewContext &View, FSceneRenderTargets &Targets,
               const TArray<FFogRenderItem> &Items);
   void Release();
   const FFogStats& GetStats() const { return LastStats; }

@@ -735,10 +735,15 @@ bool FFogRenderFeature::UploadClusterIndexStructuredBuffer(FRenderer& Renderer)
     return true;
 }
 
-bool FFogRenderFeature::Render(FRenderer& Renderer, const FFrameContext& Frame, const FViewContext& View, const FSceneRenderTargets& Targets, const TArray<FFogRenderItem>& Items)
+bool FFogRenderFeature::Render(FRenderer& Renderer, const FFrameContext& Frame, const FViewContext& View, FSceneRenderTargets& Targets, const TArray<FFogRenderItem>& Items)
 {
     LastStats = {};
-    if (Items.empty() || !Targets.SceneColorRTV || !Targets.SceneColorScratchTexture || !Targets.SceneColorScratchSRV || !Targets.SceneDepthSRV || !Initialize(Renderer))
+    if (Items.empty()
+        || !Targets.GetSceneColorRenderTarget()
+        || !Targets.GetSceneColorWriteRenderTarget()
+        || !Targets.GetSceneColorShaderResource()
+        || !Targets.SceneDepthSRV
+        || !Initialize(Renderer))
     {
         return true;
     }
@@ -792,7 +797,7 @@ bool FFogRenderFeature::Render(FRenderer& Renderer, const FFrameContext& Frame, 
         + LastStats.Common.ClusterIndexBufferBytes;
     LastStats.Common.FullscreenPassCount = 1;
     LastStats.Common.DrawCallCount = 1;
-    LastStats.Common.SceneColorCopyBytes = static_cast<uint64>(View.Viewport.Width) * static_cast<uint64>(View.Viewport.Height) * 4ull * sizeof(float);
+    LastStats.Common.SceneColorCopyBytes = 0u;
     LastStats.Global.FullscreenPassCount = LastStats.Common.FullscreenPassCount;
     LastStats.Global.DrawCallCount = LastStats.Common.DrawCallCount;
     LastStats.Global.BufferBytes = LastStats.Common.GlobalFogBufferBytes;
@@ -804,30 +809,6 @@ bool FFogRenderFeature::Render(FRenderer& Renderer, const FFrameContext& Frame, 
         + LastStats.Common.ClusterHeaderBufferBytes
         + LastStats.Common.ClusterIndexBufferBytes;
 
-    ID3D11Resource* SourceResource = nullptr;
-    bool bReleaseSourceResource = false;
-    if (Targets.SceneColorTexture)
-    {
-        SourceResource = Targets.SceneColorTexture;
-    }
-    else if (Targets.SceneColorRTV)
-    {
-        Targets.SceneColorRTV->GetResource(&SourceResource);
-        bReleaseSourceResource = true;
-    }
-
-    if (!SourceResource)
-    {
-        return false;
-    }
-
-    Context->OMSetRenderTargets(0, nullptr, nullptr);
-    Context->CopyResource(Targets.SceneColorScratchTexture, SourceResource);
-    if (bReleaseSourceResource)
-    {
-        SourceResource->Release();
-    }
-
     const FFullscreenPassConstantBufferBinding ConstantBuffers[] =
     {
         { FOG_COMPOSITE_CB_SLOT, FogCompositeConstantBuffer },
@@ -835,7 +816,7 @@ bool FFogRenderFeature::Render(FRenderer& Renderer, const FFrameContext& Frame, 
     };
     const FFullscreenPassShaderResourceBinding ShaderResources[] =
     {
-        { FOG_SCENECOLOR_SRV_SLOT, Targets.SceneColorScratchSRV },
+        { FOG_SCENECOLOR_SRV_SLOT, Targets.GetSceneColorShaderResource() },
         { FOG_DEPTH_SRV_SLOT, Targets.SceneDepthSRV },
         { FOG_CLUSTER_HEADERS_SRV_SLOT, ClusterHeaderStructuredBufferSRV },
         { FOG_CLUSTER_INDICES_SRV_SLOT, ClusterIndexStructuredBufferSRV },
@@ -866,7 +847,7 @@ bool FFogRenderFeature::Render(FRenderer& Renderer, const FFrameContext& Frame, 
         Renderer,
         Frame,
         View,
-        Targets.SceneColorRTV,
+        Targets.GetSceneColorWriteRenderTarget(),
         nullptr,
         View.Viewport,
         { FogPostVS, FogPostPS },
@@ -881,6 +862,10 @@ bool FFogRenderFeature::Render(FRenderer& Renderer, const FFrameContext& Frame, 
     LastStats.Common.ShadingPassTimeMs = std::chrono::duration<double, std::milli>(ShadingEnd - ShadingStart).count();
     LastStats.Common.TotalFogTimeMs = std::chrono::duration<double, std::milli>(ShadingEnd - TotalStart).count();
     LastStats.Global.ShadingPassTimeMs = LastStats.Common.ShadingPassTimeMs;
+    if (bRendered)
+    {
+        Targets.SwapSceneColor();
+    }
     return bRendered;
 }
 

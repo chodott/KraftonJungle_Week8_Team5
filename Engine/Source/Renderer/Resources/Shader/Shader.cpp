@@ -212,3 +212,43 @@ void FPixelShader::Release()
 {
 	if (Shader) { Shader->Release(); Shader = nullptr; }
 }
+
+FComputeShader::~FComputeShader()
+{
+	Release();
+}
+
+std::shared_ptr<FComputeShader> FComputeShader::Create(
+	ID3D11Device* Device,
+	const std::shared_ptr<FShaderResource>& Resource)
+{
+	if (!Device || !Resource || !Resource->GetBufferPointer())
+	{
+		return nullptr;
+	}
+
+	std::shared_ptr<FComputeShader> CS(new FComputeShader());
+
+	const HRESULT Hr = Device->CreateComputeShader(
+		Resource->GetBufferPointer(),
+		Resource->GetBufferSize(),
+		nullptr,
+		&CS->Shader);
+
+	if (FAILED(Hr))
+	{
+		return nullptr;
+	}
+
+	return CS;
+}
+
+void FComputeShader::Bind(ID3D11DeviceContext* DeviceContext) const
+{
+	DeviceContext->CSSetShader(Shader, nullptr, 0);
+}
+
+void FComputeShader::Release()
+{
+	if (Shader) { Shader->Release(); Shader = nullptr; }
+}

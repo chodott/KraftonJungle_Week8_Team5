@@ -87,5 +87,10 @@ bool FSceneRenderer::RenderSceneView(
 
 	FRenderPipeline Pipeline;
 	BuildDefaultSceneRenderPipeline(Pipeline, *MeshPassProcessor);
-	return Pipeline.Execute(PassContext);
+	if (!Pipeline.Execute(PassContext))
+	{
+		return false;
+	}
+
+	return Renderer.ResolveSceneColorTargets(Targets);
 }

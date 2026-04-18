@@ -266,7 +266,7 @@ bool FDecalRenderFeature::UpdateCompositeConstantBuffer(FRenderer& Renderer, con
 bool FDecalRenderFeature::Render(
 	FRenderer& Renderer,
 	const FDecalRenderRequest& Request,
-	const FSceneRenderTargets& Targets)
+	FSceneRenderTargets& Targets)
 {
 	const FDecalClock::time_point PrepareStartTime = FDecalClock::now();
 	if (!Initialize(Renderer))
@@ -284,7 +284,10 @@ bool FDecalRenderFeature::Render(
 		return true;
 	}
 
-	if (!Targets.SceneColorRTV || !Targets.SceneDepthSRV || !Targets.SceneColorScratchTexture || !Targets.SceneColorScratchSRV)
+	if (!Targets.GetSceneColorRenderTarget()
+		|| !Targets.GetSceneColorWriteRenderTarget()
+		|| !Targets.GetSceneColorShaderResource()
+		|| !Targets.SceneDepthSRV)
 	{
 		return false;
 	}
@@ -359,31 +362,6 @@ bool FDecalRenderFeature::Render(
 		return false;
 	}
 
-	ID3D11Resource* SourceResource = nullptr;
-	bool bReleaseSourceResource = false;
-	if (Targets.SceneColorTexture)
-	{
-		SourceResource = Targets.SceneColorTexture;
-	}
-	else if (Targets.SceneColorRTV)
-	{
-		Targets.SceneColorRTV->GetResource(&SourceResource);
-		bReleaseSourceResource = true;
-	}
-
-	if (!SourceResource)
-	{
-		return false;
-	}
-
-	Context->OMSetRenderTargets(0, nullptr, nullptr);
-	Context->CopyResource(Targets.SceneColorScratchTexture, SourceResource);
-
-	if (bReleaseSourceResource)
-	{
-		SourceResource->Release();
-	}
-
 	constexpr float BlendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	const FFullscreenPassConstantBufferBinding ConstantBuffers[] =
 	{
@@ -392,7 +370,7 @@ bool FDecalRenderFeature::Render(
 	};
 	const FFullscreenPassShaderResourceBinding ShaderResources[] =
 	{
-		{ DECAL_SCENECOLOR_SRV_SLOT, Targets.SceneColorScratchSRV },
+		{ DECAL_SCENECOLOR_SRV_SLOT, Targets.GetSceneColorShaderResource() },
 		{ DECAL_DEPTH_SRV_SLOT, Targets.SceneDepthSRV },
 		{ DECAL_CLUSTER_HEADERS_SRV_SLOT, ClusterHeaderStructuredBufferSRV },
 		{ DECAL_CLUSTER_INDICES_SRV_SLOT, ClusterIndexStructuredBufferSRV },
@@ -425,7 +403,7 @@ bool FDecalRenderFeature::Render(
 		Renderer,
 		Frame,
 		View,
-		Targets.SceneColorRTV,
+		Targets.GetSceneColorWriteRenderTarget(),
 		nullptr,
 		View.Viewport,
 		{ CompositeVS, CompositePS },
@@ -441,10 +419,14 @@ bool FDecalRenderFeature::Render(
 	LastBuildStats = PreparedData.BuildStats;
 	LastFrameStats = FrameStats;
 	
+	if (bRendered)
 	{
-  	    ID3D11ShaderResourceView* NullSRVs[14] = {};
-  	    Context->PSSetShaderResources(0, 14, NullSRVs);
-  	}
+		Targets.SwapSceneColor();
+	}
+	{
+		ID3D11ShaderResourceView* NullSRVs[14] = {};
+		Context->PSSetShaderResources(0, 14, NullSRVs);
+	}
 	
 	return bRendered;
 }

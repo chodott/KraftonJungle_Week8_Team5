@@ -25,6 +25,7 @@
 struct FVertex;
 struct FRenderMesh;
 struct FMeshPassFrameStats;
+enum class EPassDomain : uint8;
 class FPixelShader;
 class FMaterial;
 class ULevel;
@@ -122,6 +123,8 @@ public:
 	void UpdateFrameConstantBuffer(const FFrameContext& Frame, const FViewContext& View);
 	void UpdateObjectConstantBuffer(const FMatrix& WorldMatrix);
 	void ClearDepthBuffer(ID3D11DepthStencilView* DepthStencilView);
+	void PreparePassDomain(EPassDomain Domain, const FSceneRenderTargets& Targets);
+	bool ResolveSceneColorTargets(const FSceneRenderTargets& Targets);
 
 	ID3D11ShaderResourceView* GetFolderIconSRV() const { return FolderIconSRV; }
 	ID3D11ShaderResourceView* GetFileIconSRV() const { return FileIconSRV; }

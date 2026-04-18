@@ -35,6 +35,11 @@ public:
 		return true;
 	}
 
+	const std::vector<std::unique_ptr<TPassInterface>>& GetPasses() const
+	{
+		return Passes;
+	}
+
 private:
 	std::vector<std::unique_ptr<TPassInterface>> Passes;
 };

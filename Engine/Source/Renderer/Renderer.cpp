@@ -30,6 +30,7 @@
 #include "Renderer/Resources/Shader/ShaderType.h"
 #include "Renderer/Scene/Builders/DebugSceneBuilder.h"
 #include "Renderer/Scene/MeshPassProcessor.h"
+#include "Renderer/Scene/Passes/PassContext.h"
 #include "Renderer/Scene/SceneRenderer.h"
 #include "Renderer/UI/Screen/ScreenUIRenderer.h"
 #include "World/World.h"
@@ -48,6 +49,29 @@
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
+
+namespace
+{
+	ID3D11Texture2D* ResolveTextureFromRenderTarget(ID3D11RenderTargetView* RenderTargetView)
+	{
+		if (!RenderTargetView)
+		{
+			return nullptr;
+		}
+
+		ID3D11Resource* Resource = nullptr;
+		RenderTargetView->GetResource(&Resource);
+		if (!Resource)
+		{
+			return nullptr;
+		}
+
+		ID3D11Texture2D* Texture = nullptr;
+		const HRESULT Hr = Resource->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&Texture));
+		Resource->Release();
+		return SUCCEEDED(Hr) ? Texture : nullptr;
+	}
+}
 
 FBillboardRenderer &FRenderer::GetBillboardRenderer()
 {
@@ -158,6 +182,7 @@ void FRenderer::SetConstantBuffers()
     ID3D11Buffer *CBs[2] = {FrameConstantBuffer, ObjectConstantBuffer};
     DeviceContext->VSSetConstantBuffers(0, 2, CBs);
     DeviceContext->PSSetConstantBuffers(0, 2, CBs);
+    DeviceContext->CSSetConstantBuffers(0, 2, CBs);
 }
 
 void FRenderer::BeginFrame()
@@ -213,6 +238,84 @@ void FRenderer::ClearDepthBuffer(ID3D11DepthStencilView *DepthStencilView)
     }
 
     DeviceContext->ClearDepthStencilView(DepthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+}
+
+void FRenderer::PreparePassDomain(EPassDomain Domain, const FSceneRenderTargets& Targets)
+{
+	if (!RenderStateManager)
+	{
+		return;
+	}
+
+	switch (Domain)
+	{
+	case EPassDomain::Compute:
+		RenderStateManager->ClearAllGraphicsState();
+		RenderStateManager->ClearAllComputeState();
+		if (Targets.GetSceneColorShaderResource())
+		{
+			RenderStateManager->UnbindResourceEverywhere(Targets.GetSceneColorTexture());
+		}
+		if (Targets.GetSceneColorWriteTexture())
+		{
+			RenderStateManager->UnbindResourceEverywhere(Targets.GetSceneColorWriteTexture());
+		}
+		break;
+
+	case EPassDomain::Copy:
+		RenderStateManager->ClearAllGraphicsState();
+		RenderStateManager->ClearAllComputeState();
+		break;
+
+	case EPassDomain::Graphics:
+	default:
+		RenderStateManager->ClearAllComputeState();
+		break;
+	}
+}
+
+bool FRenderer::ResolveSceneColorTargets(const FSceneRenderTargets& Targets)
+{
+	if (!Targets.NeedsSceneColorResolve())
+	{
+		return true;
+	}
+
+	ID3D11DeviceContext* DeviceContext = GetDeviceContext();
+	if (!DeviceContext || !Targets.SceneColorRead || !Targets.FinalSceneColor)
+	{
+		return false;
+	}
+
+	ID3D11Texture2D* DestinationTexture = Targets.FinalSceneColor->Texture;
+	if (!DestinationTexture)
+	{
+		DestinationTexture = ResolveTextureFromRenderTarget(Targets.FinalSceneColor->RTV);
+	}
+
+	if (!DestinationTexture || !Targets.SceneColorRead->Texture)
+	{
+		if (DestinationTexture)
+		{
+			DestinationTexture->Release();
+		}
+		return false;
+	}
+
+	if (RenderStateManager)
+	{
+		RenderStateManager->UnbindResourceEverywhere(Targets.SceneColorRead->Texture);
+		RenderStateManager->UnbindResourceEverywhere(DestinationTexture);
+	}
+
+	DeviceContext->CopyResource(DestinationTexture, Targets.SceneColorRead->Texture);
+
+	if (!Targets.FinalSceneColor->Texture)
+	{
+		DestinationTexture->Release();
+	}
+
+	return true;
 }
 
 const FDecalFrameStats &FRenderer::GetDecalFrameStats() const

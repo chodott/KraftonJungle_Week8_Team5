@@ -110,5 +110,19 @@ void FRenderPipeline::AddPass(std::unique_ptr<IRenderPass> Pass)
 
 bool FRenderPipeline::Execute(FPassContext& Context) const
 {
-	return PassSequence.Execute(Context);
+	for (const std::unique_ptr<IRenderPass>& Pass : PassSequence.GetPasses())
+	{
+		if (!Pass)
+		{
+			return false;
+		}
+
+		Context.Renderer.PreparePassDomain(Pass->GetDomain(), Context.Targets);
+		if (!Pass->Execute(Context))
+		{
+			return false;
+		}
+	}
+
+	return true;
 }

@@ -6,6 +6,13 @@
 
 class FRenderer;
 
+enum class EPassDomain : uint8
+{
+	Graphics,
+	Compute,
+	Copy,
+};
+
 struct ENGINE_API FPassContext
 {
 	FRenderer& Renderer;
@@ -18,5 +25,7 @@ class ENGINE_API IRenderPass
 {
 public:
 	virtual ~IRenderPass() = default;
+	virtual const char* GetName() const { return "UnnamedPass"; }
+	virtual EPassDomain GetDomain() const { return EPassDomain::Graphics; }
 	virtual bool Execute(FPassContext& Context) = 0;
 };

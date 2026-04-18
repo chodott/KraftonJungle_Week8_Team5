@@ -21,6 +21,7 @@ bool FClearSceneTargetsPass::Execute(FPassContext& Context)
 	constexpr float ZeroColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	DeviceContext->ClearRenderTargetView(Context.Targets.SceneColorRTV, ClearColor);
+	if (Context.Targets.SceneColorScratchRTV) DeviceContext->ClearRenderTargetView(Context.Targets.SceneColorScratchRTV, ClearColor);
 	DeviceContext->ClearDepthStencilView(Context.Targets.SceneDepthDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 	if (Context.Targets.GBufferARTV) DeviceContext->ClearRenderTargetView(Context.Targets.GBufferARTV, ZeroColor);
 	if (Context.Targets.GBufferBRTV) DeviceContext->ClearRenderTargetView(Context.Targets.GBufferBRTV, ZeroColor);

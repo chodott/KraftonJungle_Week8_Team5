@@ -129,12 +129,9 @@ bool FFXAARenderFeature::Render(
 	FRenderer& Renderer,
 	const FFrameContext& Frame,
 	const FViewContext& View,
-	const FSceneRenderTargets& Targets)
+	FSceneRenderTargets& Targets)
 {
-	// SceneColorScratch가 없으면 스킵 (타겟 미비)
-	// SceneColorTexture는 에디터 경로에서 nullptr일 수 있으므로 체크하지 않는다.
-	// CopyResource 시점에 SRV->GetResource()로 직접 얻는다.
-	if (!Targets.SceneColorSRV || !Targets.SceneColorScratchRTV || !Targets.SceneColorScratchTexture)
+	if (!Targets.GetSceneColorShaderResource() || !Targets.GetSceneColorWriteRenderTarget())
 	{
 		return true;
 	}
@@ -158,7 +155,7 @@ bool FFXAARenderFeature::Render(
 	};
 	const FFullscreenPassShaderResourceBinding ShaderResources[] =
 	{
-		{ 0, Targets.SceneColorSRV },   // t0: 원본 씬 컬러
+		{ 0, Targets.GetSceneColorShaderResource() },
 	};
 	const FFullscreenPassSamplerBinding Samplers[] =
 	{
@@ -174,12 +171,11 @@ bool FFXAARenderFeature::Render(
 		static_cast<uint32>(sizeof(Samplers) / sizeof(Samplers[0]))
 	};
 
-	// FXAA 결과를 Scratch에 쓴다
 	const bool bOk = ExecuteFullscreenPass(
 		Renderer,
 		Frame,
 		View,
-		Targets.SceneColorScratchRTV,
+		Targets.GetSceneColorWriteRenderTarget(),
 		nullptr,
 		View.Viewport,
 		{ FullscreenVS, FXAAPS },
@@ -195,20 +191,7 @@ bool FFXAARenderFeature::Render(
 		return false;
 	}
 
-	// Scratch → SceneColor 복사: 이후 패스들이 AA된 결과를 사용하도록
-	// SceneColorTexture가 nullptr(에디터 경로)일 수 있으므로 SRV에서 직접 얻는다.
-	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
-	if (DeviceContext)
-	{
-		ID3D11Resource* SceneColorResource = nullptr;
-		Targets.SceneColorSRV->GetResource(&SceneColorResource);
-		if (SceneColorResource)
-		{
-			DeviceContext->CopyResource(SceneColorResource, Targets.SceneColorScratchTexture);
-			SceneColorResource->Release();
-		}
-	}
-
+	Targets.SwapSceneColor();
 	return true;
 }
 
