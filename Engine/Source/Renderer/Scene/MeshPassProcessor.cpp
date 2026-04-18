@@ -1,4 +1,4 @@
-﻿#include "Renderer/Scene/MeshPassProcessor.h"
+#include "Renderer/Scene/MeshPassProcessor.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -10,6 +10,7 @@
 #include "Renderer/Mesh/RenderMesh.h"
 #include "Renderer/Renderer.h"
 #include "Debug/EngineLog.h"
+#include "Renderer/Features/Lighting/LightRenderFeature.h"
 
 #include <chrono>
 
@@ -200,6 +201,12 @@ void FMeshPassProcessor::ExecutePass(
 	D3D11_PRIMITIVE_TOPOLOGY CurrentTopology = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
 	const EMaterialPassType MaterialPassType = ToMaterialPassType(PassType);
 	uint32 LocalDrawCalls = 0;
+
+	FLightRenderFeature* Feature = Renderer.GetLightFeature();
+	if (Feature)
+	{
+		Feature->Render(Renderer, SceneViewData.Frame, SceneViewData.View, Targets);
+	}
 
 	for (const FMeshBatch* Batch : Batches)
 	{

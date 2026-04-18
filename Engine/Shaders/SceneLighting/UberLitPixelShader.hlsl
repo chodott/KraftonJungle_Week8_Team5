@@ -1,0 +1,123 @@
+#include "../FrameCommon.hlsli"
+#include "../ObjectCommon.hlsli"
+#include "../MeshVertexCommon.hlsli"
+#include "../ShaderCommon.hlsli"
+#include "../LightCommon.hlsli"
+
+Texture2D Texture : register(t0);
+SamplerState Sampler : register(s0);
+
+#if HAS_NORMAL_MAP
+Texture2D NormalMap : register(t1);
+#endif
+
+/*cbuffer MaterialData : register(b2)
+{
+	float4 EmissiveColor;
+	float Shininess;
+	float3 MaterialPadding;
+};
+*/
+
+cbuffer MaterialData : register(b2)
+{
+	float4 ColorTint;
+	float2 UVScrollSpeed;
+	float2 Padding;
+};
+
+// Diffuse 텍스처 색상
+#define TextureColor (Texture.Sample(Sampler, Input.UV))
+
+// 자체 발광
+#define Emissive (EmissiveColor)
+
+float4 main(VS_OUTPUT Input) : SV_TARGET
+{
+	float4 finalPixel = TextureColor;
+	
+	// test
+	float4 EmessiveColor = float4(0.3, 0.3, 0, 1);
+	finalPixel += EmessiveColor;
+	
+	    // ── 법선 결정 ──
+#if HAS_NORMAL_MAP
+    float3 N = GetNormalFromMap(Input.Normal, Input.Tangent, Input.Bitangent, Input.UV);
+#else
+	float3 N = normalize(Input.Normal);
+#endif
+	
+	// ── V 벡터: 시점 방향 (카메라 위치는 FrameData에서 가져와야 하나
+    //    현재 FrameData에 CameraPos가 없으므로 View 역행렬로 추출) ──
+	float3 cameraPos = float3(
+        View._41, // View 행렬의 이동 성분
+        View._42,
+        View._43
+    );
+	float3 V = normalize(cameraPos - Input.WorldPosition);
+	
+#if LIGHTING_MODEL_GOURAUD
+	finalPixel *= Input.Color;
+	
+#elif LIGHTING_MODEL_LAMBERT
+    // Diffuse만 (Specular 없음, V 벡터 불필요)
+    float4 lighting = CalculateAmbientLight(Ambient);
+
+    float3 L_dir = normalize(-Directional.Direction);
+    float  diff  = max(0.0f, dot(N, L_dir));
+    lighting += Directional.Color * Directional.Intensity * diff;
+	
+	[unroll]
+    for (int i = 0; i < NUM_POINT_LIGHT; ++i)
+    {
+        float3 toLight    = PointLights[i].Position - Input.WorldPosition;
+        float  distance   = length(toLight);
+        if (distance < PointLights[i].Range)
+        {
+            float3 L      = normalize(toLight);
+            float  diff_p = max(0.0f, dot(N, L));
+            float  atten  = CalculateAttenuation(distance, PointLights[i].Range);
+            lighting += PointLights[i].Color * PointLights[i].Intensity * diff_p * atten;
+        }
+    }
+
+    [unroll]
+    for (int j = 0; j < NUM_SPOT_LIGHT; ++j)
+    {
+        float3 toLight  = SpotLights[j].Position - Input.WorldPosition;
+        float  distance = length(toLight);
+        if (distance < SpotLights[j].Range)
+        {
+            float3 L         = normalize(toLight);
+            float  theta     = dot(L, normalize(-SpotLights[j].Direction));
+            float  intensity = saturate(
+                (theta - SpotLights[j].OuterCutoff) /
+                (SpotLights[j].InnerCutoff - SpotLights[j].OuterCutoff)
+            );
+            float diff_s = max(0.0f, dot(N, L));
+            float atten  = CalculateAttenuation(distance, SpotLights[j].Range);
+            lighting += SpotLights[j].Color * SpotLights[j].Intensity
+                        * diff_s * atten * intensity;
+        }
+    }
+
+    finalPixel *= lighting;
+	
+#elif LIGHTING_MODEL_PHONG
+    // Diffuse + Specular (Blinn-Phong)
+    float4 lighting = CalculateAmbientLight(Ambient);
+    lighting += CalculateDirectionalLight(Directional, Input.WorldPosition, N, V);
+
+    [unroll]
+    for (int i = 0; i < NUM_POINT_LIGHT; ++i)
+        lighting += CalculatePointLight(PointLights[i], Input.WorldPosition, N, V);
+
+    [unroll]
+    for (int j = 0; j < NUM_SPOT_LIGHT; ++j)
+        lighting += CalculateSpotLight(SpotLights[j], Input.WorldPosition, N, V);
+
+    finalPixel *= lighting;
+	
+#endif
+	return finalPixel;
+}

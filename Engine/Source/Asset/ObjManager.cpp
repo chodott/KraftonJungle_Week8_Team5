@@ -1,4 +1,4 @@
-﻿#include "Asset/ObjManager.h"
+#include "Asset/ObjManager.h"
 
 #include <algorithm>
 #include <cctype>
@@ -802,8 +802,10 @@ namespace
 		auto Material = std::make_shared<FMaterial>();
 		Material->SetOriginName(MaterialName.empty() ? "M_Default" : MaterialName);
 
-		std::wstring VSPath = FPaths::ShaderDir() / L"SceneGeometry/VertexShader.hlsl";
-		std::wstring PSPath = FPaths::ShaderDir() / L"SceneGeometry/ColorPixelShader.hlsl";
+		//std::wstring VSPath = FPaths::ShaderDir() / L"SceneGeometry/VertexShader.hlsl";
+		//std::wstring PSPath = FPaths::ShaderDir() / L"SceneGeometry/ColorPixelShader.hlsl";
+		std::wstring VSPath = FPaths::ShaderDir() / L"SceneLighting/UberLitVertexShader.hlsl";
+		std::wstring PSPath = FPaths::ShaderDir() / L"SceneLighting/UberLitPixelShader.hlsl";
 		Material->SetVertexShader(FShaderMap::Get().GetOrCreateVertexShader(GEngine->GetRenderer()->GetDevice(), VSPath.c_str()));
 		Material->SetPixelShader(FShaderMap::Get().GetOrCreatePixelShader(GEngine->GetRenderer()->GetDevice(), PSPath.c_str()));
 
@@ -862,14 +864,77 @@ namespace
 		MaterialTexture->TextureSRV = NewSRV;
 		Material->SetMaterialTexture(MaterialTexture);
 
-		std::wstring TexPSPath = FPaths::ShaderDir() / L"SceneGeometry/TexturePixelShader.hlsl";
+		//std::wstring TexPSPath = FPaths::ShaderDir() / L"SceneGeometry/TexturePixelShader.hlsl";
+		std::wstring TexPSPath = FPaths::ShaderDir() / L"SceneLighting/UberLitPixelShader.hlsl";
 		Material->SetPixelShader(FShaderMap::Get().GetOrCreatePixelShader(GEngine->GetRenderer()->GetDevice(), TexPSPath.c_str()));
 
-		std::wstring TexVSPath = FPaths::ShaderDir() / L"SceneGeometry/TextureVertexShader.hlsl";
+		//std::wstring TexVSPath = FPaths::ShaderDir() / L"SceneGeometry/TextureVertexShader.hlsl";
+		std::wstring TexVSPath = FPaths::ShaderDir() / L"SceneLighting/UberLitVertexShader.hlsl";
 		Material->SetVertexShader(FShaderMap::Get().GetOrCreateVertexShader(GEngine->GetRenderer()->GetDevice(), TexVSPath.c_str()));
 		GEngine->GetRenderer()->ConfigureMaterialPasses(*Material, true);
 		UE_LOG("%s %s", LogPrefix, WideToUtf8(TexturePath.wstring()).c_str());
 		return true;
+	}
+
+	void CalculateTangents(FStaticMesh& Mesh)
+	{
+		for (FVertex& Vertex : Mesh.Vertices)
+		{
+			Vertex.Tangent = FVector(0.f, 0.f, 0.f);
+		}
+
+		for (size_t i = 0; i < Mesh.Indices.size(); i += 3)
+		{
+			FVertex& V0 = Mesh.Vertices[Mesh.Indices[i + 0]];
+			FVertex& V1 = Mesh.Vertices[Mesh.Indices[i + 1]];
+			FVertex& V2 = Mesh.Vertices[Mesh.Indices[i + 2]];
+
+			FVector E1 = V1.Position - V0.Position;
+			FVector E2 = V2.Position - V0.Position;
+
+			float dU1 = V1.UV.X - V0.UV.X;
+			float dV1 = V1.UV.Y - V0.UV.Y;
+			float dU2 = V2.UV.X - V0.UV.X;
+			float dV2 = V2.UV.Y - V0.UV.Y;
+
+			float det = dU1 * dV2 - dU2 * dV1;
+			if (abs(det) < 1e-6f)
+				continue;
+
+			float invDet = 1.0f / det;
+
+			FVector Tangent;
+			Tangent.X = invDet * (dV2 * E1.X - dV1 * E2.X);
+			Tangent.Y = invDet * (dV2 * E1.Y - dV1 * E2.Y);
+			Tangent.Z = invDet * (dV2 * E1.Z - dV1 * E2.Z);
+
+			V0.Tangent = V0.Tangent + Tangent;
+			V1.Tangent = V1.Tangent + Tangent;
+			V2.Tangent = V2.Tangent + Tangent;
+		}
+
+		for (FVertex& Vertex : Mesh.Vertices)
+		{
+			FVector N = Vertex.Normal;
+			FVector T = Vertex.Tangent;
+
+			float dot = T.X * N.X + T.Y * N.Y + T.Z * N.Z;
+			T.X -= dot * N.X;
+			T.Y -= dot * N.Y;
+			T.Z -= dot * N.Z;
+
+			float length = sqrt(T.X * T.X + T.Y * T.Y + T.Z * T.Z);
+			if (length > 1e-6f)
+			{
+				Vertex.Tangent.X = T.X / length;
+				Vertex.Tangent.Y = T.Y / length;
+				Vertex.Tangent.Z = T.Z / length;
+			}
+			else
+			{
+				Vertex.Tangent = FVector(1.f, 0.f, 0.f);
+			}
+		}
 	}
 
 	UStaticMesh* FinalizeStaticMeshAsset(
@@ -890,6 +955,8 @@ namespace
 			Vertex.Position.Z -= MeshCenter.Z;
 		}
 		RawData->UpdateLocalBound(); // 재계산
+
+		CalculateTangents(*RawData);
 
 		UStaticMesh* NewAsset = FObjectFactory::ConstructObject<UStaticMesh>(nullptr, JustFileName);
 		NewAsset->SetStaticMeshAsset(RawData.release());
@@ -965,6 +1032,8 @@ namespace
 			Vertex.Position.Z -= MeshCenter.Z;
 		}
 		RawData->UpdateLocalBound();
+
+		CalculateTangents(*RawData);
 
 		UStaticMesh* NewAsset = FObjectFactory::ConstructObject<UStaticMesh>(nullptr, JustFileName);
 		NewAsset->SetStaticMeshAsset(RawData.release());
