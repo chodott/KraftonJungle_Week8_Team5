@@ -92,7 +92,8 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 		return false;
 	}
 
-	return Primitive->GetRenderMesh() != nullptr;
+	const bool bHasRenderMesh = (Primitive->GetRenderMesh() != nullptr);
+	return bHasRenderMesh;
 }
 
 void FScenePacketBuilder::BuildScenePacket(
@@ -112,7 +113,7 @@ void FScenePacketBuilder::BuildScenePacket(
 
 		if (Primitive->IsA(UStaticMeshComponent::StaticClass()))
 		{
-			OutPacket.MeshPrimitives.push_back({ static_cast<UStaticMeshComponent*>(Primitive) });
+			OutPacket.MeshPrimitives.push_back({ Primitive });
 			continue;
 		}
 
@@ -131,11 +132,19 @@ void FScenePacketBuilder::BuildScenePacket(
 		if (Primitive->IsA(UBillboardComponent::StaticClass()))
 		{
 			OutPacket.BillboardPrimitives.push_back({ static_cast<UBillboardComponent*>(Primitive) });
+			continue;
 		}
 
 		if (Primitive->IsA(UDecalComponent::StaticClass()))
 		{
 			OutPacket.DecalPrimitives.push_back({ static_cast<UDecalComponent*>(Primitive) });
+			continue;
+		}
+
+		// Generic primitive path: includes editor visualization primitives.
+		if (Primitive->GetRenderMesh() != nullptr)
+		{
+			OutPacket.MeshPrimitives.push_back({ Primitive });
 		}
 	}
 }

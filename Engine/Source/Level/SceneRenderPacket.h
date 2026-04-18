@@ -2,18 +2,17 @@
 
 #include "CoreMinimal.h"
 
-class UStaticMeshComponent;
+class UPrimitiveComponent;
 class UTextRenderComponent;
 class USubUVComponent;
 class UBillboardComponent;
-class UPrimitiveComponent;
 class UDecalComponent;
 class UFireBallComponent;
 
 struct ENGINE_API FSceneMeshPrimitive
 {
-	// 씬 기하로 렌더링할 스태틱 메시 컴포넌트다.
-	UStaticMeshComponent* Component = nullptr;
+	// 씬 기하로 렌더링할 프리미티브 컴포넌트다.
+	UPrimitiveComponent* Component = nullptr;
 };
 
 struct ENGINE_API FSceneTextPrimitive

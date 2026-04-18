@@ -19,14 +19,24 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\Actor\AmbientLightActor.h" />
+    <ClInclude Include="Source\Actor\DirectionalLightActor.h" />
+    <ClInclude Include="Source\Actor\PointLightActor.h" />
+    <ClInclude Include="Source\Actor\SpotLightActor.h" />
     <ClInclude Include="Source\Renderer\Features\Lighting\LightRenderFeature.h" />
     <ClInclude Include="Source\Actor\SpotLightFakeActor.h" />
     <ClInclude Include="Source\Actor\LocalHeightFogActor.h" />
     <ClInclude Include="Source\Asset\StaticMeshLODBuilder.h" />
+    <ClInclude Include="Source\Component\AmbientLightComponent.h" />
+    <ClInclude Include="Source\Component\DirectionalLightComponent.h" />
+    <ClInclude Include="Source\Component\LightComponent.h" />
+    <ClInclude Include="Source\Component\LightComponentBase.h" />
     <ClInclude Include="Source\Component\LocalHeightFogComponent.h" />
     <ClInclude Include="Source\Component\MovementComponent.h" />
     <ClInclude Include="Source\Component\ProjectileMovementComponent.h" />
     <ClInclude Include="Source\Component\RotatingMovementComponent.h" />
+    <ClInclude Include="Source\Component\UPointLightComponent.h" />
+    <ClInclude Include="Source\Component\USpotLightComponent.h" />
     <ClInclude Include="Source\CoreMinimal.h" />
     <ClInclude Include="Source\EngineAPI.h" />
     <ClInclude Include="Source\Actor\Actor.h" />
@@ -307,15 +317,19 @@
   <ItemGroup>
     <ClCompile Include="Source\Renderer\Features\Lighting\LightRenderFeature.cpp" />
     <ClCompile Include="Source\Actor\Actor.cpp" />
+    <ClCompile Include="Source\Actor\AmbientLightActor.cpp" />
     <ClCompile Include="Source\Actor\BillboardActor.cpp" />
     <ClCompile Include="Source\Actor\CubeActor.cpp" />
     <ClCompile Include="Source\Actor\DecalActor.cpp" />
+    <ClCompile Include="Source\Actor\DirectionalLightActor.cpp" />
     <ClCompile Include="Source\Actor\HeightFogActor.cpp" />
     <ClCompile Include="Source\Actor\LocalHeightFogActor.cpp" />
     <ClCompile Include="Source\Actor\PlaneActor.cpp" />
     <ClCompile Include="Source\Actor\PlayerCameraActor.cpp" />
+    <ClCompile Include="Source\Actor\PointLightActor.cpp" />
     <ClCompile Include="Source\Actor\SkySphereActor.cpp" />
     <ClCompile Include="Source\Actor\SphereActor.cpp" />
+    <ClCompile Include="Source\Actor\SpotLightActor.cpp" />
     <ClCompile Include="Source\Actor\SpotLightFakeActor.cpp" />
     <ClCompile Include="Source\Actor\StaticMeshActor.cpp" />
     <ClCompile Include="Source\Actor\SubUVActor.cpp" />
@@ -324,11 +338,15 @@
     <ClCompile Include="Source\Asset\StaticMeshLODBuilder.cpp" />
     <ClCompile Include="Source\Camera\Camera.cpp" />
     <ClCompile Include="Source\Component\ActorComponent.cpp" />
+    <ClCompile Include="Source\Component\AmbientLightComponent.cpp" />
     <ClCompile Include="Source\Component\BillboardComponent.cpp" />
     <ClCompile Include="Source\Component\CameraComponent.cpp" />
     <ClCompile Include="Source\Component\DecalComponent.cpp" />
+    <ClCompile Include="Source\Component\DirectionalLightComponent.cpp" />
     <ClCompile Include="Source\Component\FireBallComponent.cpp" />
     <ClCompile Include="Source\Component\HeightFogComponent.cpp" />
+    <ClCompile Include="Source\Component\LightComponent.cpp" />
+    <ClCompile Include="Source\Component\LightComponentBase.cpp" />
     <ClCompile Include="Source\Component\LineBatchComponent.cpp" />
     <ClCompile Include="Source\Component\LocalHeightFogComponent.cpp" />
     <ClCompile Include="Source\Component\MeshComponent.cpp" />
@@ -343,6 +361,8 @@
     <ClCompile Include="Source\Component\StaticMeshComponent.cpp" />
     <ClCompile Include="Source\Component\SubUVComponent.cpp" />
     <ClCompile Include="Source\Component\TextComponent.cpp" />
+    <ClCompile Include="Source\Component\UPointLightComponent.cpp" />
+    <ClCompile Include="Source\Component\USpotLightComponent.cpp" />
     <ClCompile Include="Source\Component\UUIDBillboardComponent.cpp" />
     <ClCompile Include="Source\Core\ConsoleVariableManager.cpp" />
     <ClCompile Include="Source\Core\Engine.cpp" />

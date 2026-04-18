@@ -24,11 +24,15 @@
 #include "Actor/BillboardActor.h"
 #include "Actor/CubeActor.h"
 #include "Actor/DecalActor.h"
+#include "Actor/DirectionalLightActor.h"
+#include "Actor/AmbientLightActor.h"
 #include "Actor/HeightFogActor.h"
 #include "Actor/LocalHeightFogActor.h"
 #include "Actor/PlaneActor.h"
 #include "Actor/PlayerCameraActor.h"
+#include "Actor/PointLightActor.h"
 #include "Actor/SpotLightFakeActor.h"
+#include "Actor/SpotLightActor.h"
 #include "Actor/SphereActor.h"
 #include "Actor/StaticMeshActor.h"
 #include "Actor/SubUVActor.h"
@@ -202,9 +206,10 @@ void FControlPanelWindow::Render(FEditorEngine *Engine)
 
         static int32 SpawnTypeIndex = 0;
         static int32 SpawnAmount = 1;
-        const char *SpawnTypes[] = {"Cube",         "Sphere",       "Plane",        "SubUV",
-                                    "Text",         "Billboard",    "StaticMesh",   "HeightFog",
-                                    "LocalHeightFog", "PlayerCamera", "Decal", "SpotLightFake"};
+        const char *SpawnTypes[] = {"Cube",           "Sphere",          "Plane",            "SubUV",
+                                    "Text",           "Billboard",       "StaticMesh",       "HeightFog",
+                                    "LocalHeightFog", "PlayerCamera",    "Decal",            "DirectionalLight",
+                                    "PointLight",     "SpotLight",       "AmbientLight",     "SpotLightFake"};
 
         ImGui::Combo("Type", &SpawnTypeIndex, SpawnTypes, IM_ARRAYSIZE(SpawnTypes));
         ImGui::InputInt("Count", &SpawnAmount);
@@ -310,6 +315,22 @@ void FControlPanelWindow::Render(FEditorEngine *Engine)
                     NewActor = Scene->SpawnActor<ADecalActor>(Name);
                 }
                 else if (SpawnTypeIndex == 11)
+                {
+                    NewActor = Scene->SpawnActor<ADirectionalLightActor>(Name);
+                }
+                else if (SpawnTypeIndex == 12)
+                {
+                    NewActor = Scene->SpawnActor<APointLightActor>(Name);
+                }
+                else if (SpawnTypeIndex == 13)
+                {
+                    NewActor = Scene->SpawnActor<ASpotLightActor>(Name);
+                }
+                else if (SpawnTypeIndex == 14)
+                {
+                    NewActor = Scene->SpawnActor<AAmbientLightActor>(Name);
+                }
+                else if (SpawnTypeIndex == 15)
                 {
                     NewActor = Scene->SpawnActor<ASpotLightFakeActor>(Name);
                 }

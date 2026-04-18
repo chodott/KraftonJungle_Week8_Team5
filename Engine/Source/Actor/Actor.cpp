@@ -515,6 +515,11 @@ void AActor::Tick(float DeltaTime)
 	}
 }
 
+void AActor::OnOwnedComponentPropertyChanged(UActorComponent* ChangedComponent)
+{
+	(void)ChangedComponent;
+}
+
 void AActor::EndPlay()
 {
 	for (UActorComponent* Component : OwnedComponents)
