@@ -230,6 +230,13 @@ void FMeshPassProcessor::ExecutePass(
 			}
 		}
 
+		if (Feature)
+		{
+			DeviceContext->VSSetShader(Feature->GetCurrentVS(), nullptr, 0);
+			DeviceContext->PSSetShader(Feature->GetCurrentPS(), nullptr, 0);
+			DeviceContext->IASetInputLayout(Feature->GetInputLayout());
+		}
+
 		if (Batch->bDisableCulling)
 		{
 			FRasterizerStateOption RasterOpt = Batch->Material->GetRasterizerOption();

@@ -1,4 +1,4 @@
-﻿#include "Renderer/Resources/Shader/ShaderResource.h"
+#include "Renderer/Resources/Shader/ShaderResource.h"
 #include "Core/Paths.h"
 #include <d3dcompiler.h>
 #include <cstring>
@@ -345,7 +345,8 @@ std::shared_ptr<FShaderResource> FShaderResource::LoadCso(const wchar_t* CsoPath
 std::shared_ptr<FShaderResource> FShaderResource::GetOrCompile(
 	const wchar_t* FilePath,
 	const char* EntryPoint,
-	const char* Target)
+	const char* Target,
+	const D3D_SHADER_MACRO* Defines)
 {
 	// ContentDir이 비어 있으면 FPaths에서 초기화
 	if (ContentDir.empty())
@@ -358,7 +359,17 @@ std::shared_ptr<FShaderResource> FShaderResource::GetOrCompile(
 	const std::wstring ResolvedPath = ResolveShaderPath(FilePath);
 	const wchar_t* EffectiveFilePath = ResolvedPath.c_str();
 
-	const std::wstring Key = MakeCacheKey(EffectiveFilePath, EntryPoint, Target);
+	std::wstring Key = MakeCacheKey(EffectiveFilePath, EntryPoint, Target);
+	if (Defines)
+	{
+		for (const D3D_SHADER_MACRO* D = Defines; D->Name != nullptr; ++D)
+		{
+			Key += L"|";
+			Key += NarrowToWide(D->Name);
+			Key += L"=";
+			Key += NarrowToWide(D->Definition ? D->Definition : "1");
+		}
+	}
 
 	auto It = Cache.find(Key);
 	if (It != Cache.end())
@@ -377,7 +388,27 @@ std::shared_ptr<FShaderResource> FShaderResource::GetOrCompile(
 		FatalShaderError(Stream.str());
 	}
 
-	const std::wstring CsoPath = MakeCsoPath(EffectiveFilePath, EntryPoint, Target);
+	std::wstring CsoPath = MakeCsoPath(EffectiveFilePath, EntryPoint, Target);
+	if (Defines)
+	{
+		// cso 경로에 매크로 suffix 추가
+		std::wstring MacroSuffix;
+		for (const D3D_SHADER_MACRO* D = Defines; D->Name != nullptr; ++D)
+		{
+			MacroSuffix += L"_";
+			MacroSuffix += NarrowToWide(D->Name);
+		}
+
+		const size_t DotPos = CsoPath.rfind(L'.');
+		if (DotPos != std::wstring::npos)
+		{
+			CsoPath.insert(DotPos, MacroSuffix);
+		}
+		else
+		{
+			CsoPath += MacroSuffix;
+		}
+	}
 
 	// .cso가 존재하고 hlsl보다 최신이면 cso에서 로드
     // DEBUG 모드시 매번 쉐이더 컴파일 시도
@@ -398,7 +429,7 @@ std::shared_ptr<FShaderResource> FShaderResource::GetOrCompile(
 	ID3DBlob* ErrorBlob = nullptr;
 
 	HRESULT Hr = D3DCompileFromFile(
-		EffectiveFilePath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
+		EffectiveFilePath, Defines, D3D_COMPILE_STANDARD_FILE_INCLUDE,
 		EntryPoint, Target,
 		D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION,
 		0, &Blob, &ErrorBlob

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "EngineAPI.h"
 #include <d3d11.h>
@@ -18,7 +18,8 @@ public:
 	static std::shared_ptr<FShaderResource> GetOrCompile(
 		const wchar_t* FilePath,
 		const char* EntryPoint,
-		const char* Target
+		const char* Target,
+		const D3D_SHADER_MACRO* Defines = nullptr
 	);
 
 	static void ClearCache();

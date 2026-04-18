@@ -23,45 +23,7 @@ bool FLightRenderFeature::Initialize(FRenderer& Renderer)
 
 	const std::wstring ShaderDir = FPaths::ShaderDir().wstring();
 
-	if (!LightVS)
-	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"SceneLighting/UberLitVertexShader.hlsl").c_str(), "main", "vs_5_0");
-		if (!Resource || FAILED(Device->CreateVertexShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &LightVS)))
-		{
-			return false;
-		}
-	}
-
-	if (!LightPS)
-	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"SceneLighting/UberLitPixelShader.hlsl").c_str(), "main", "ps_5_0");
-		if (!Resource || FAILED(Device->CreatePixelShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &LightPS)))
-		{
-			return false;
-		}
-	}
-
-	if (!LightInputLayout && VSResource)
-	{
-		const D3D11_INPUT_ELEMENT_DESC InputDesc[] =
-		{
-			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0,  0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-			{ "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-			{ "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 40, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-			{ "TANGENT",  0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		};
-
-		if (FAILED(Device->CreateInputLayout(
-			InputDesc,
-			_countof(InputDesc),
-			VSResource->GetBufferPointer(),
-			VSResource->GetBufferSize(),
-			&LightInputLayout)))
-		{
-			return false;
-		}
-	}
+	CompileShaderVariants(Renderer);
 
 	if (!LightConstantBuffer)
 	{
@@ -149,7 +111,7 @@ void FLightRenderFeature::UpdateLightConstantBuffer(FRenderer& Renderer, const F
 	// Test용 하드코딩 -> 이후 Component 나오면 거기서 데이터 받아오기 
 	// ── Ambient: 약한 전체 밝기 ──
 	CBData.Ambient.Color = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
-	CBData.Ambient.Intensity = 0.15f;
+	CBData.Ambient.Intensity = 0.8f;
 
 	// ── Directional: 태양광 (위에서 약간 앞쪽으로) ──
 	CBData.Directional.Color = FVector4(1.0f, 0.95f, 0.8f, 1.0f); // 따뜻한 흰색
@@ -186,6 +148,115 @@ void FLightRenderFeature::UpdateLightConstantBuffer(FRenderer& Renderer, const F
 	}
 }
 
+bool FLightRenderFeature::CompileShaderVariants(FRenderer& Renderer)
+{
+	ID3D11Device* Device = Renderer.GetDevice();
+	const std::wstring VS = FPaths::ShaderDir().wstring() + L"SceneLighting/UberLitVertexShader.hlsl";
+	const wchar_t* VSPath = VS.c_str();
+
+	const std::wstring PS = FPaths::ShaderDir().wstring() + L"SceneLighting/UberLitPixelShader.hlsl";
+	const wchar_t* PSPath = PS.c_str();
+
+	D3D_SHADER_MACRO GouraudMacros[] = { { "LIGHTING_MODEL_GOURAUD", "1" }, { nullptr, nullptr } };
+	D3D_SHADER_MACRO LambertMacros[] = { { "LIGHTING_MODEL_LAMBERT", "1" }, { nullptr, nullptr } };
+	D3D_SHADER_MACRO PhongMacros[] = { { "LIGHTING_MODEL_PHONG",   "1" }, { nullptr, nullptr } };
+
+	// ── Gouraud ──
+	if (!GouraudVS)
+	{
+		auto Resource = FShaderResource::GetOrCompile(VSPath, "main", "vs_5_0", GouraudMacros);
+		if (!Resource) return false;
+
+		// InputLayout은 VS 바이트코드가 필요하므로 여기서 생성
+		if (!LightInputLayout)
+		{
+			const D3D11_INPUT_ELEMENT_DESC InputDesc[] =
+			{
+				{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0,  0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+				{ "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+				{ "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+				{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 40, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+				{ "TANGENT",  0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+			};
+			if (FAILED(Device->CreateInputLayout(
+				InputDesc, _countof(InputDesc),
+				Resource->GetBufferPointer(), Resource->GetBufferSize(),
+				&LightInputLayout)))
+			{
+				return false;
+			}
+		}
+
+		if (FAILED(Device->CreateVertexShader(
+			Resource->GetBufferPointer(), Resource->GetBufferSize(),
+			nullptr, &GouraudVS)))
+		{
+			return false;
+		}
+	}
+	if (!GouraudPS)
+	{
+		auto Resource = FShaderResource::GetOrCompile(PSPath, "main", "ps_5_0", GouraudMacros);
+		if (!Resource) return false;
+		if (FAILED(Device->CreatePixelShader(
+			Resource->GetBufferPointer(), Resource->GetBufferSize(),
+			nullptr, &GouraudPS)))
+		{
+			return false;
+		}
+	}
+
+	// ── Lambert ──
+	if (!LambertVS)
+	{
+		auto Resource = FShaderResource::GetOrCompile(VSPath, "main", "vs_5_0", LambertMacros);
+		if (!Resource) return false;
+		if (FAILED(Device->CreateVertexShader(
+			Resource->GetBufferPointer(), Resource->GetBufferSize(),
+			nullptr, &LambertVS)))
+		{
+			return false;
+		}
+	}
+	if (!LambertPS)
+	{
+		auto Resource = FShaderResource::GetOrCompile(PSPath, "main", "ps_5_0", LambertMacros);
+		if (!Resource) return false;
+		if (FAILED(Device->CreatePixelShader(
+			Resource->GetBufferPointer(), Resource->GetBufferSize(),
+			nullptr, &LambertPS)))
+		{
+			return false;
+		}
+	}
+
+	// ── Phong ──
+	if (!PhongVS)
+	{
+		auto Resource = FShaderResource::GetOrCompile(VSPath, "main", "vs_5_0", PhongMacros);
+		if (!Resource) return false;
+		if (FAILED(Device->CreateVertexShader(
+			Resource->GetBufferPointer(), Resource->GetBufferSize(),
+			nullptr, &PhongVS)))
+		{
+			return false;
+		}
+	}
+	if (!PhongPS)
+	{
+		auto Resource = FShaderResource::GetOrCompile(PSPath, "main", "ps_5_0", PhongMacros);
+		if (!Resource) return false;
+		if (FAILED(Device->CreatePixelShader(
+			Resource->GetBufferPointer(), Resource->GetBufferSize(),
+			nullptr, &PhongPS)))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 bool FLightRenderFeature::Render(
 	FRenderer& Renderer,
 	const FFrameContext& Frame,
@@ -210,8 +281,22 @@ bool FLightRenderFeature::Render(
 
 	DeviceContext->IASetInputLayout(LightInputLayout);
 
-	DeviceContext->VSSetShader(LightVS, nullptr, 0);
-	DeviceContext->PSSetShader(LightPS, nullptr, 0);
+	switch (CurrentLightingModel)
+	{
+	case ELightingModel::Gouraud:
+		DeviceContext->VSSetShader(GouraudVS, nullptr, 0);
+		DeviceContext->PSSetShader(GouraudPS, nullptr, 0);
+		break;
+	case ELightingModel::Lambert:
+		DeviceContext->VSSetShader(LambertVS, nullptr, 0);
+		DeviceContext->PSSetShader(LambertPS, nullptr, 0);
+		break;
+	case ELightingModel::Phong:
+	default:
+		DeviceContext->VSSetShader(PhongVS, nullptr, 0);
+		DeviceContext->PSSetShader(PhongPS, nullptr, 0);
+		break;
+	}
 
 	DeviceContext->PSSetShaderResources(0, 1, &Targets.SceneDepthSRV);
 	DeviceContext->PSSetSamplers(0, 1, &DepthSampler);
@@ -221,41 +306,18 @@ bool FLightRenderFeature::Render(
 
 void FLightRenderFeature::Release()
 {
-	if (LightConstantBuffer)
-	{
-		LightConstantBuffer->Release();
-		LightConstantBuffer = nullptr;
-	}
-	if (LightBlendState)
-	{
-		LightBlendState->Release();
-		LightBlendState = nullptr;
-	}
-	if (NoDepthState)
-	{
-		NoDepthState->Release();
-		NoDepthState = nullptr;
-	}
-	if (LightRasterizerState)
-	{
-		LightRasterizerState->Release();
-		LightRasterizerState = nullptr;
-	}
-	if (DepthSampler)
-	{
-		DepthSampler->Release();
-		DepthSampler = nullptr;
-	}
-	if (LightVS)
-	{
-		LightVS->Release();
-		LightVS = nullptr;
-	}
-	if (LightPS)
-	{
-		LightPS->Release();
-		LightPS = nullptr;
-	}
+	if (GouraudVS) { GouraudVS->Release();        GouraudVS = nullptr; }
+	if (GouraudPS) { GouraudPS->Release();        GouraudPS = nullptr; }
+	if (LambertVS) { LambertVS->Release();        LambertVS = nullptr; }
+	if (LambertPS) { LambertPS->Release();        LambertPS = nullptr; }
+	if (PhongVS) { PhongVS->Release();          PhongVS = nullptr; }
+	if (PhongPS) { PhongPS->Release();          PhongPS = nullptr; }
+	if (LightInputLayout) { LightInputLayout->Release(); LightInputLayout = nullptr; }
+	if (LightConstantBuffer) { LightConstantBuffer->Release();  LightConstantBuffer = nullptr; }
+	if (LightBlendState) { LightBlendState->Release();      LightBlendState = nullptr; }
+	if (NoDepthState) { NoDepthState->Release();         NoDepthState = nullptr; }
+	if (LightRasterizerState) { LightRasterizerState->Release(); LightRasterizerState = nullptr; }
+	if (DepthSampler) { DepthSampler->Release();         DepthSampler = nullptr; }
 }
 
 

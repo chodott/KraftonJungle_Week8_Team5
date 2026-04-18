@@ -34,7 +34,7 @@ VS_OUTPUT main(VS_INPUT Input)
         View._42,
         View._43
     );
-	float3 V = normalize(cameraPos - Input.WorldPosition);
+	float3 V = normalize(cameraPos - Output.WorldPosition);
 
     float4 lighting = CalculateAmbientLight(Ambient);
     lighting += CalculateDirectionalLight(Directional, Output.WorldPosition, N, V);

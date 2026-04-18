@@ -37,7 +37,7 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 	float4 finalPixel = TextureColor;
 	
 	// test
-	float4 EmessiveColor = float4(0.3, 0.3, 0, 1);
+	float4 EmessiveColor = float4(0.2, 0.2, 0, 1);
 	finalPixel += EmessiveColor;
 	
 	    // ── 법선 결정 ──
