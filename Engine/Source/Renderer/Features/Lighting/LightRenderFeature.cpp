@@ -120,25 +120,63 @@ void FLightRenderFeature::UpdateLightConstantBuffer(FRenderer& Renderer, const F
 
 	// ── Point Light 0: 붉은 포인트 라이트 ──
 	CBData.PointLights[0].Color = FVector4(1.0f, 0.2f, 0.2f, 1.0f);
-	CBData.PointLights[0].Position = FVector(300.0f, 200.0f, 0.0f);
-	CBData.PointLights[0].Intensity = 2.0f;
-	CBData.PointLights[0].Range = 500.0f;
+	CBData.PointLights[0].Position = FVector(0.0f, 0.0f, 0.0f);
+	CBData.PointLights[0].Intensity = 10.0f;
+	CBData.PointLights[0].Range = 20.0f;
 
 	// ── Point Light 1: 푸른 포인트 라이트 ──
 	CBData.PointLights[1].Color = FVector4(0.2f, 0.4f, 1.0f, 1.0f);
-	CBData.PointLights[1].Position = FVector(-300.0f, 200.0f, 0.0f);
-	CBData.PointLights[1].Intensity = 2.0f;
-	CBData.PointLights[1].Range = 500.0f;
+	CBData.PointLights[1].Position = FVector(5.0f, 5.0f, 5.0f);
+	CBData.PointLights[1].Intensity = 10.0f;
+	CBData.PointLights[1].Range = 20.0f;
 
-	// ── Point Light 2, 3: 비활성화 ──
-	CBData.PointLights[2].Intensity = 0.0f;
-	CBData.PointLights[3].Intensity = 0.0f;
+	// ── Point Light 2: 초록 포인트 라이트 ──
+	CBData.PointLights[2].Color = FVector4(0.2f, 1.0f, 0.2f, 1.0f);
+	CBData.PointLights[2].Position = FVector(-5.0f, 5.0f, 5.0f);
+	CBData.PointLights[2].Intensity = 10.0f;
+	CBData.PointLights[2].Range = 20.0f;
 
-	// ── Spot Light 0, 1, 2, 3: 비활성화 ──
-	CBData.SpotLights[0].Intensity = 0.0f;
-	CBData.SpotLights[1].Intensity = 0.0f;
-	CBData.SpotLights[2].Intensity = 0.0f;
-	CBData.SpotLights[3].Intensity = 0.0f;
+	// ── Point Light 3: 노란 포인트 라이트 ──
+	CBData.PointLights[3].Color = FVector4(1.0f, 1.0f, 0.2f, 1.0f);
+	CBData.PointLights[3].Position = FVector(5.0f, 5.0f, -5.0f);
+	CBData.PointLights[3].Intensity = 10.0f;
+	CBData.PointLights[3].Range = 20.0f;
+
+	// ── Spot Light 0: 위에서 아래로 흰색 스포트라이트 ──
+	CBData.SpotLights[0].Color = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
+	CBData.SpotLights[0].Position = FVector(0.0f, 10.0f, 0.0f);
+	CBData.SpotLights[0].Intensity = 20.0f;
+	CBData.SpotLights[0].Direction = FVector(0.0f, 0.0f, -1.0f);
+	CBData.SpotLights[0].Range = 30.0f;
+	CBData.SpotLights[0].InnerCutoff = cosf(15.0f * 3.14159265f / 180.0f);
+	CBData.SpotLights[0].OuterCutoff = cosf(25.0f * 3.14159265f / 180.0f);
+
+	// ── Spot Light 1: 붉은 스포트라이트 ──
+	CBData.SpotLights[1].Color = FVector4(1.0f, 0.3f, 0.3f, 1.0f);
+	CBData.SpotLights[1].Position = FVector(10.0f, 10.0f, 0.0f);
+	CBData.SpotLights[1].Intensity = 20.0f;
+	CBData.SpotLights[1].Direction = FVector(-0.5f, 0.0f, -1.0f);
+	CBData.SpotLights[1].Range = 30.0f;
+	CBData.SpotLights[1].InnerCutoff = cosf(10.0f * 3.14159265f / 180.0f);
+	CBData.SpotLights[1].OuterCutoff = cosf(20.0f * 3.14159265f / 180.0f);
+
+	// ── Spot Light 2: 푸른 스포트라이트 ──
+	CBData.SpotLights[2].Color = FVector4(0.3f, 0.3f, 1.0f, 1.0f);
+	CBData.SpotLights[2].Position = FVector(-10.0f, 10.0f, 0.0f);
+	CBData.SpotLights[2].Intensity = 20.0f;
+	CBData.SpotLights[2].Direction = FVector(0.5f, -1.0f, 0.0f);
+	CBData.SpotLights[2].Range = 30.0f;
+	CBData.SpotLights[2].InnerCutoff = cosf(10.0f * 3.14159265f / 180.0f);
+	CBData.SpotLights[2].OuterCutoff = cosf(20.0f * 3.14159265f / 180.0f);
+
+	// ── Spot Light 3: 초록 스포트라이트 ──
+	CBData.SpotLights[3].Color = FVector4(0.3f, 1.0f, 0.3f, 1.0f);
+	CBData.SpotLights[3].Position = FVector(0.0f, 10.0f, 10.0f);
+	CBData.SpotLights[3].Intensity = 20.0f;
+	CBData.SpotLights[3].Direction = FVector(0.0f, -1.0f, -0.5f);
+	CBData.SpotLights[3].Range = 30.0f;
+	CBData.SpotLights[3].InnerCutoff = cosf(10.0f * 3.14159265f / 180.0f);
+	CBData.SpotLights[3].OuterCutoff = cosf(20.0f * 3.14159265f / 180.0f);
 
 	D3D11_MAPPED_SUBRESOURCE Mapped = {};
 	if (SUCCEEDED(DeviceContext->Map(LightConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))

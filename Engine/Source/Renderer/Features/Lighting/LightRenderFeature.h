@@ -72,6 +72,6 @@ private:
 	ID3D11VertexShader* PhongVS = nullptr;
 	ID3D11PixelShader* PhongPS = nullptr;
 	
-	ELightingModel CurrentLightingModel = ELightingModel::Phong;
+	ELightingModel CurrentLightingModel = ELightingModel::Gouraud;
 };
 
