@@ -220,6 +220,9 @@ void FMeshPassProcessor::ExecutePass(
 
 		if (Batch->Material != CurrentMaterial)
 		{
+			ID3D11ShaderResourceView* NullSRVs[4] = { nullptr, nullptr, nullptr, nullptr };
+			DeviceContext->PSSetShaderResources(0, 4, NullSRVs);
+
 			Batch->Material->Bind(DeviceContext, MaterialPassType);
 			Renderer.GetRenderStateManager()->BindState(Batch->Material->GetRasterizerState());
 			Renderer.GetRenderStateManager()->BindState(Batch->Material->GetDepthStencilState());

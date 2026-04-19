@@ -802,10 +802,10 @@ namespace
 		auto Material = std::make_shared<FMaterial>();
 		Material->SetOriginName(MaterialName.empty() ? "M_Default" : MaterialName);
 
-		//std::wstring VSPath = FPaths::ShaderDir() / L"SceneGeometry/VertexShader.hlsl";
-		//std::wstring PSPath = FPaths::ShaderDir() / L"SceneGeometry/ColorPixelShader.hlsl";
-		std::wstring VSPath = FPaths::ShaderDir() / L"SceneLighting/UberLitVertexShader.hlsl";
-		std::wstring PSPath = FPaths::ShaderDir() / L"SceneLighting/UberLitPixelShader.hlsl";
+		std::wstring VSPath = FPaths::ShaderDir() / L"SceneGeometry/VertexShader.hlsl";
+		std::wstring PSPath = FPaths::ShaderDir() / L"SceneGeometry/ColorPixelShader.hlsl";
+		//std::wstring VSPath = FPaths::ShaderDir() / L"SceneLighting/UberLitVertexShader.hlsl";
+		//std::wstring PSPath = FPaths::ShaderDir() / L"SceneLighting/UberLitPixelShader.hlsl";
 		Material->SetVertexShader(FShaderMap::Get().GetOrCreateVertexShader(GEngine->GetRenderer()->GetDevice(), VSPath.c_str()));
 		Material->SetPixelShader(FShaderMap::Get().GetOrCreatePixelShader(GEngine->GetRenderer()->GetDevice(), PSPath.c_str()));
 
