@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "ViewportTypes.h"
 #include "Core/ViewportClient.h"
@@ -82,7 +82,7 @@ private:
 	FEditorViewportAssetInteractionService AssetInteractionService;
 	FEditorViewportRenderService RenderService;
 
-	ERenderMode RenderMode = ERenderMode::Lighting;
+	ERenderMode RenderMode = ERenderMode::Lit_Gouraud;
 	const FString WireframeMaterialName = "M_Wireframe";
 	std::shared_ptr<FMaterial> WireFrameMaterial = nullptr;
 	std::unique_ptr<FDynamicMesh> GridMesh;

@@ -203,7 +203,7 @@ void FMeshPassProcessor::ExecutePass(
 	uint32 LocalDrawCalls = 0;
 
 	FLightRenderFeature* Feature = Renderer.GetLightFeature();
-	const bool bApplyLighting = (PassType == EMeshPassType::ForwardOpaque)
+	const bool bApplyLighting = (PassType == EMeshPassType::ForwardOpaque && SceneViewData.RenderMode != ERenderMode::Unlit)
 		&& Feature != nullptr;
 
 	if (bApplyLighting)

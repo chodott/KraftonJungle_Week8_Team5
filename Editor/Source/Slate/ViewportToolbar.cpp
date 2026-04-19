@@ -1,4 +1,4 @@
-﻿#include "ViewportToolbar.h"
+#include "ViewportToolbar.h"
 
 #include "Actor/Actor.h"
 #include "EditorEngine.h"
@@ -47,8 +47,10 @@ namespace
 	const TArray<FString>& GetRenderModeOptions()
 	{
 		static const TArray<FString> Options = {
-			"Lighting",
-			"NoLighting",
+			"Lit_Gouraud",
+			"Lit_Lambert",
+			"Lit_Phong",
+			"Unlit",
 			"Wireframe",
 			"SceneDepth"
 		};

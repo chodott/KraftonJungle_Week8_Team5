@@ -498,7 +498,7 @@ bool FEditorEngine::StartPIE()
 	{
 		PIEViewportEntry->WorldContext = PIEWorldContext;
 		PIEViewportId = PIEViewportEntry->Id;
-		PIEViewportEntry->LocalState.ViewMode = ERenderMode::Lighting;
+		PIEViewportEntry->LocalState.ViewMode = ERenderMode::Lit_Gouraud;
 		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_UUID, false);
 		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, false);
 		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, false);

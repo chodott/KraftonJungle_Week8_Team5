@@ -1,7 +1,8 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Core/ShowFlags.h"
+#include "Renderer/Common/RenderMode.h"
 #include "Renderer/Features/Debug/DebugTypes.h"
 #include "Renderer/Features/Decal/DecalTypes.h"
 #include "Renderer/Features/Fog/FogTypes.h"
@@ -63,5 +64,6 @@ struct ENGINE_API FSceneViewData
 	FScenePostProcessInputs PostProcessInputs;
 	FSceneDebugInputs DebugInputs;
 	FShowFlags ShowFlags;
+	ERenderMode RenderMode = ERenderMode::Lit_Gouraud;
 	bool bForceWireframe = false;
 };

@@ -1,4 +1,4 @@
-﻿#include "Core/ViewportClient.h"
+#include "Core/ViewportClient.h"
 #include "World/World.h"
 #include "Input/InputManager.h"
 #include "Camera/Camera.h"
@@ -221,7 +221,7 @@ void FGameViewportClient::Render(FEngine* Engine, FRenderer* Renderer)
 	FGameFrameRequest FrameRequest;
 	FrameRequest.SceneView.ViewMatrix = ActiveCamera->GetViewMatrix();
 	FrameRequest.SceneView.ProjectionMatrix = ActiveCamera->GetProjectionMatrix();
-	FrameRequest.RenderMode = ERenderMode::Lighting;
+	FrameRequest.RenderMode = ERenderMode::Lit_Gouraud;
 
 	FFrustum Frustum;
 	Frustum.ExtractFromVP(FrameRequest.SceneView.ViewMatrix * FrameRequest.SceneView.ProjectionMatrix);

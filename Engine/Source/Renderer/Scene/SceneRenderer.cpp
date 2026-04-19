@@ -1,4 +1,4 @@
-﻿#include "Renderer/Scene/SceneRenderer.h"
+#include "Renderer/Scene/SceneRenderer.h"
 
 #include "Renderer/Scene/MeshPassProcessor.h"
 #include "Renderer/Scene/Builders/SceneCommandBuilder.h"
@@ -10,6 +10,7 @@
 #include "Level/SceneRenderPacket.h"
 #include "Renderer/Scene/SceneViewData.h"
 #include "Renderer/Common/SceneRenderTargets.h"
+#include "Renderer/Features/Lighting/LightRenderFeature.h"
 
 FSceneRenderer::FSceneRenderer()
 	: SceneCommandBuilder(std::make_unique<FSceneCommandBuilder>())
@@ -70,6 +71,22 @@ bool FSceneRenderer::RenderSceneView(
 	if (!Context || !Targets.IsValid())
 	{
 		return false;
+	}
+
+	switch (SceneViewData.RenderMode)
+	{
+	case ERenderMode::Lit_Gouraud:
+		Renderer.GetLightFeature()->SetLightingModel(ELightingModel::Gouraud);
+		break;
+	case ERenderMode::Lit_Lambert:
+		Renderer.GetLightFeature()->SetLightingModel(ELightingModel::Lambert);
+		break;
+	case ERenderMode::Lit_Phong:
+		Renderer.GetLightFeature()->SetLightingModel(ELightingModel::Phong);
+		break;
+	default:
+		Renderer.GetLightFeature()->SetLightingModel(ELightingModel::Gouraud);
+		break;
 	}
 
 	if (bForceWireframe)
