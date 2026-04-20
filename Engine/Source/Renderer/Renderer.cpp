@@ -556,7 +556,9 @@ void FRenderer::UpdateObjectConstantBuffer(const FMatrix& World)
 
 	FObjectConstantBuffer CBData;
 	CBData.World                = World.GetTransposed();
-	CBData.WorldInvTranspose    = World.GetInverse().GetTransposed();
+	// HLSL cbuffer 기본 column-major 해석으로 인해 CPU에서 한 번 더 전치되어 들어가므로
+	// inverse-transpose를 의도할 때는 여기서 inverse만 채워야 셰이더에서 (inverse)^T가 된다.
+	CBData.WorldInvTranspose    = World.GetInverse();
 	CBData.LocalLightListOffset = 0;
 	CBData.LocalLightListCount  = 0;
 	CBData.ObjectFlags          = 0;
@@ -580,7 +582,9 @@ void FRenderer::UpdateObjectConstantBuffer(const FMeshBatch& Batch)
 
 	FObjectConstantBuffer CBData;
 	CBData.World                = Batch.World.GetTransposed();
-	CBData.WorldInvTranspose    = Batch.World.GetInverse().GetTransposed();
+	// HLSL cbuffer 기본 column-major 해석으로 인해 CPU에서 한 번 더 전치되어 들어가므로
+	// inverse-transpose를 의도할 때는 여기서 inverse만 채워야 셰이더에서 (inverse)^T가 된다.
+	CBData.WorldInvTranspose    = Batch.World.GetInverse();
 	CBData.LocalLightListOffset = Batch.LocalLightListOffset;
 	CBData.LocalLightListCount  = Batch.LocalLightListCount;
 	CBData.ObjectFlags          = 0;
