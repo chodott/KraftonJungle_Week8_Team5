@@ -326,3 +326,61 @@ bool FMeshBVH::IntersectRay(const FVector& RayOrigin, const FVector& RayDirectio
 	}
 	return bHit;
 }
+
+void FMeshBVH::QueryTriangles(const FAABB& Bounds, TArray<int32>& OutTriangleIndices) const
+{
+	OutTriangleIndices.clear();
+	if (RootNodeIndex < 0)
+	{
+		return;
+	}
+
+	QueryTrianglesRecursive(RootNodeIndex, Bounds, OutTriangleIndices);
+}
+
+bool FMeshBVH::GetTriangleData(int32 TriangleIndex, FTriangleData& OutTriangleData) const
+{
+	if (TriangleIndex < 0 || TriangleIndex >= static_cast<int32>(Triangles.size()))
+	{
+		return false;
+	}
+
+	const FTriangleRef& Triangle = Triangles[TriangleIndex];
+	OutTriangleData.V0 = Triangle.V0;
+	OutTriangleData.V1 = Triangle.V1;
+	OutTriangleData.V2 = Triangle.V2;
+	OutTriangleData.Bounds = Triangle.Bounds;
+	return true;
+}
+
+void FMeshBVH::QueryTrianglesRecursive(int32 NodeIndex, const FAABB& Bounds, TArray<int32>& OutTriangleIndices) const
+{
+	if (NodeIndex < 0)
+	{
+		return;
+	}
+
+	const FNode& Node = Nodes[NodeIndex];
+	if (!Node.Bounds.Overlaps(Bounds))
+	{
+		return;
+	}
+
+	if (Node.IsLeaf())
+	{
+		for (int32 LocalIndex = 0; LocalIndex < Node.TriangleCount; ++LocalIndex)
+		{
+			const int32 TriangleArrayIndex = TriangleIndices[Node.FirstTriangle + LocalIndex];
+			if (TriangleArrayIndex >= 0
+				&& TriangleArrayIndex < static_cast<int32>(Triangles.size())
+				&& Triangles[TriangleArrayIndex].Bounds.Overlaps(Bounds))
+			{
+				OutTriangleIndices.push_back(TriangleArrayIndex);
+			}
+		}
+		return;
+	}
+
+	QueryTrianglesRecursive(Node.LeftChild, Bounds, OutTriangleIndices);
+	QueryTrianglesRecursive(Node.RightChild, Bounds, OutTriangleIndices);
+}

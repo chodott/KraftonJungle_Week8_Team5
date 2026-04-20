@@ -22,6 +22,7 @@ enum class EMeshPassType : uint32
 	DepthPrepass = 0,
 	GBuffer,
 	ForwardOpaque,
+	ForwardMeshDecal,
 	ForwardTransparent,
 	EditorGrid,
 	EditorPrimitive,
@@ -34,9 +35,10 @@ enum class EMeshPassMask : uint32
 	DepthPrepass       = 1u << 0,
 	GBuffer            = 1u << 1,
 	ForwardOpaque      = 1u << 2,
-	ForwardTransparent = 1u << 3,
-	EditorGrid         = 1u << 4,
-	EditorPrimitive    = 1u << 5,
+	ForwardMeshDecal   = 1u << 3,
+	ForwardTransparent = 1u << 4,
+	EditorGrid         = 1u << 5,
+	EditorPrimitive    = 1u << 6,
 };
 
 inline uint32 operator|(EMeshPassMask A, EMeshPassMask B)

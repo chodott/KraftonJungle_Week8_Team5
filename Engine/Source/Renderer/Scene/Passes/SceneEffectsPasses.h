@@ -4,6 +4,20 @@
 
 class FMeshPassProcessor;
 
+class ENGINE_API FMeshDecalPass : public IRenderPass
+{
+public:
+	explicit FMeshDecalPass(const FMeshPassProcessor& InProcessor)
+		: Processor(InProcessor)
+	{
+	}
+
+	bool Execute(FPassContext& Context) override;
+
+private:
+	const FMeshPassProcessor& Processor;
+};
+
 class ENGINE_API FDecalCompositePass : public IRenderPass
 {
 public:

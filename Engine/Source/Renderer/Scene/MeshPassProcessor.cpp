@@ -121,6 +121,7 @@ void FMeshPassProcessor::ExecutePass(
 	case EMeshPassType::DepthPrepass:
 	case EMeshPassType::GBuffer:
 	case EMeshPassType::ForwardOpaque:
+	case EMeshPassType::ForwardMeshDecal:
 	default:
 		std::sort(
 			Batches.begin(),
@@ -147,7 +148,7 @@ void FMeshPassProcessor::ExecutePass(
 	uint32                   LocalDrawCalls   = 0;
 
 	FLightRenderFeature* Feature        = Renderer.GetLightFeature();
-	const bool           bApplyLighting = (Feature != nullptr && PassType == EMeshPassType::ForwardOpaque
+	const bool           bApplyLighting = (Feature != nullptr && (PassType == EMeshPassType::ForwardOpaque || PassType == EMeshPassType::ForwardMeshDecal)
 		&& SceneViewData.RenderMode != ERenderMode::Unlit
 		&& SceneViewData.RenderMode != ERenderMode::Wireframe);
 
@@ -209,7 +210,7 @@ void FMeshPassProcessor::ExecutePass(
 			DepthOpt.DepthEnable    = !Batch->bDisableDepthTest;
 			DepthOpt.DepthWriteMask = Batch->bDisableDepthWrite ? D3D11_DEPTH_WRITE_MASK_ZERO : D3D11_DEPTH_WRITE_MASK_ALL;
 		}
-		else if (PassType == EMeshPassType::GBuffer || PassType == EMeshPassType::ForwardOpaque)
+		else if (PassType == EMeshPassType::GBuffer || PassType == EMeshPassType::ForwardOpaque || PassType == EMeshPassType::ForwardMeshDecal)
 		{
 			if (!Batch->bDisableDepthTest)
 			{
@@ -235,6 +236,7 @@ void FMeshPassProcessor::ExecutePass(
 		if (PassType == EMeshPassType::DepthPrepass ||
 			PassType == EMeshPassType::GBuffer ||
 			PassType == EMeshPassType::ForwardOpaque ||
+			PassType == EMeshPassType::ForwardMeshDecal ||
 			Batch->bDisableDepthTest ||
 			Batch->bDisableDepthWrite)
 		{
@@ -287,6 +289,8 @@ EMaterialPassType FMeshPassProcessor::ToMaterialPassType(EMeshPassType PassType)
 		return EMaterialPassType::GBuffer;
 	case EMeshPassType::ForwardTransparent:
 		return EMaterialPassType::ForwardTransparent;
+	case EMeshPassType::ForwardMeshDecal:
+		return EMaterialPassType::ForwardOpaque;
 	case EMeshPassType::EditorGrid:
 		return EMaterialPassType::EditorGrid;
 	case EMeshPassType::EditorPrimitive:
@@ -307,6 +311,8 @@ bool FMeshPassProcessor::ShouldDrawInPass(const FMeshBatch& Batch, EMeshPassType
 		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::GBuffer);
 	case EMeshPassType::ForwardOpaque:
 		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ForwardOpaque);
+	case EMeshPassType::ForwardMeshDecal:
+		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ForwardMeshDecal);
 	case EMeshPassType::ForwardTransparent:
 		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ForwardTransparent);
 	case EMeshPassType::EditorGrid:

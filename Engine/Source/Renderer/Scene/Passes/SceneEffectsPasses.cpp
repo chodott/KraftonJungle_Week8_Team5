@@ -7,6 +7,16 @@
 #include "Renderer/Renderer.h"
 #include "Renderer/Scene/Passes/ScenePassExecutionUtils.h"
 
+bool FMeshDecalPass::Execute(FPassContext& Context)
+{
+	return ExecuteMeshScenePass(
+		Context.Renderer,
+		Context.Targets,
+		Context.SceneViewData,
+		Processor,
+		EMeshPassType::ForwardMeshDecal);
+}
+
 bool FDecalCompositePass::Execute(FPassContext& Context)
 {
 	if (Context.SceneViewData.PostProcessInputs.DecalItems.empty())

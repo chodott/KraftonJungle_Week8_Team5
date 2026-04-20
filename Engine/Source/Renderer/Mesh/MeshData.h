@@ -62,6 +62,8 @@ public:
 	bool IntersectLocalRay(const FVector& RayOrigin, const FVector& RayDirection, float& OutDistance) const;
 	void BuildAccelerationStructureIfNeeded() const;
 	void VisitMeshBVHNodes(const FBVHNodeVisitor& Visitor) const;
+	void QueryMeshBVHTriangles(const FAABB& Bounds, TArray<int32>& OutTriangleIndices) const;
+	bool GetMeshBVHTriangleData(int32 TriangleIndex, FMeshBVH::FTriangleData& OutTriangleData) const;
 
 	FStaticMesh* GetRenderData(int32 LODIndex) const;
 	int32 GetLODIndexForDistance(const FStaticMeshLODSelectionContext& SelectionContext) const;
