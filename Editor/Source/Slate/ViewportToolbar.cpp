@@ -52,7 +52,8 @@ namespace
 			"Lit_Phong",
 			"Unlit",
 			"Wireframe",
-			"SceneDepth"
+			"SceneDepth",
+			"LightCullingHeatmap"
 		};
 		return Options;
 	}

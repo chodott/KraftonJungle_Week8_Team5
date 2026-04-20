@@ -31,6 +31,11 @@ cbuffer MaterialData : register(b2)
 
 float4 main(VS_OUTPUT Input) : SV_TARGET
 {
+	if (VisualizationMode == LIGHT_VISUALIZATION_CLUSTER_HEATMAP)
+	{
+		return VisualizeClusterLightCulling(Input.Position, Input.WorldPosition);
+	}
+
 	float4 finalPixel = TextureColor;
 
 	    // ── 법선 결정 ──

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 
@@ -10,4 +10,5 @@ enum class ERenderMode : uint8
 	Unlit,
     Wireframe,
     SceneDepth,
+    LightCullingHeatmap,
 };

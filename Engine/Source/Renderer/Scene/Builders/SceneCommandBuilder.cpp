@@ -41,31 +41,30 @@ namespace
 	{
 		auto& Batches = SceneViewData.MeshInputs.Batches;
 		auto& Lights  = SceneViewData.LightingInputs.LocalLights;
-		auto& Words   = SceneViewData.LightingInputs.ObjectLightMaskWords;
+		auto& Indices = SceneViewData.LightingInputs.ObjectLightIndices;
 
-		Words.clear();
-		Words.resize(Batches.size() * LightMaskConfig::MaskWordCount, 0u);
+		Indices.clear();
 
-		if (Lights.size() > LightMaskConfig::MaxLocalLights)
+		if (Lights.size() > LightListConfig::MaxLocalLights)
 		{
 			UE_LOG("[Lighting] Local light count (%zu) exceeds MaxLocalLights (%u). Extra lights will be ignored.",
 			       Lights.size(),
-			       LightMaskConfig::MaxLocalLights);
+			       LightListConfig::MaxLocalLights);
 		}
 
 		for (SIZE_T BatchIndex = 0; BatchIndex < Batches.size(); ++BatchIndex)
 		{
 			FMeshBatch& Batch          = Batches[BatchIndex];
-			Batch.LocalLightMaskOffset = static_cast<uint32>(BatchIndex * LightMaskConfig::MaskWordCount);
+			Batch.LocalLightListOffset = static_cast<uint32>(Indices.size());
+			Batch.LocalLightListCount  = 0u;
 
-			for (uint32 LightIndex = 0; LightIndex < static_cast<uint32>(Lights.size()) && LightIndex < LightMaskConfig::MaxLocalLights; ++LightIndex)
+			for (uint32 LightIndex = 0; LightIndex < static_cast<uint32>(Lights.size()) && LightIndex < LightListConfig::MaxLocalLights; ++LightIndex)
 			{
 				const FLocalLightRenderItem& L = Lights[LightIndex];
 				if (IntersectBoundsWithCullSphere(Batch.WorldBounds, L.CullCenterWS, L.CullRadius))
 				{
-					const uint32 WordIndex = Batch.LocalLightMaskOffset + (LightIndex >> 5);
-					const uint32 BitIndex  = LightIndex & 31u;
-					Words[WordIndex]       |= (1u << BitIndex);
+					Indices.push_back(LightIndex);
+					++Batch.LocalLightListCount;
 				}
 			}
 		}

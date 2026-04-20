@@ -45,7 +45,7 @@ VS_OUTPUT main(VS_INPUT Input)
 		lighting += CalculateDirectionalLight(Directional, Output.WorldPosition, N, V);
 	}
 	
-	lighting += ComputeObjectLocalLighting(LocalLightMaskOffset, Output.WorldPosition, N, V);
+	lighting += ComputeObjectLocalLighting(LocalLightListOffset, LocalLightListCount, Output.WorldPosition, N, V);
 	Output.VertexLighting = lighting;
 
 #elif LIGHTING_MODEL_LAMBERT

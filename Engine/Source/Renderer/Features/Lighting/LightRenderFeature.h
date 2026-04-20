@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Renderer/Features/Lighting/LightTypes.h"
@@ -83,12 +83,16 @@ private:
 	ID3D11Buffer*             LightCullProxyBuffer = nullptr;
 	ID3D11ShaderResourceView* LightCullProxySRV    = nullptr;
 
-	ID3D11Buffer*             ObjectLightMaskBuffer = nullptr;
-	ID3D11ShaderResourceView* ObjectLightMaskSRV    = nullptr;
+	ID3D11Buffer*             ObjectLightIndexBuffer = nullptr;
+	ID3D11ShaderResourceView* ObjectLightIndexSRV    = nullptr;
 
-	ID3D11Buffer*              ClusterLightMaskBuffer = nullptr;
-	ID3D11ShaderResourceView*  ClusterLightMaskSRV    = nullptr;
-	ID3D11UnorderedAccessView* ClusterLightMaskUAV    = nullptr;
+	ID3D11Buffer*             ClusterLightHeaderBuffer = nullptr;
+	ID3D11ShaderResourceView* ClusterLightHeaderSRV    = nullptr;
+	ID3D11UnorderedAccessView* ClusterLightHeaderUAV   = nullptr;
+
+	ID3D11Buffer*             ClusterLightIndexBuffer = nullptr;
+	ID3D11ShaderResourceView* ClusterLightIndexSRV    = nullptr;
+	ID3D11UnorderedAccessView* ClusterLightIndexUAV   = nullptr;
 
 	ID3D11ComputeShader* LightCullingCS = nullptr;
 

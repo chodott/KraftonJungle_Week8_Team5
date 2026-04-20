@@ -1,4 +1,4 @@
-#include "Renderer/Scene/SceneRenderer.h"
+﻿#include "Renderer/Scene/SceneRenderer.h"
 
 #include "Renderer/Scene/MeshPassProcessor.h"
 #include "Renderer/Scene/Builders/SceneCommandBuilder.h"
@@ -84,6 +84,7 @@ bool FSceneRenderer::RenderSceneView(
 		Renderer.GetLightFeature()->SetLightingModel(ELightingModel::Lambert);
 		break;
 	case ERenderMode::Lit_Phong:
+	case ERenderMode::LightCullingHeatmap:
 		Renderer.GetLightFeature()->SetLightingModel(ELightingModel::Phong);
 		break;
 	default:

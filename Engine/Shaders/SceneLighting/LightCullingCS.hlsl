@@ -2,7 +2,8 @@
 
 Texture2D<float> InputDepthTexture : register(t1);
 StructuredBuffer<FLightCullProxyGPU> InputLightCullProxies : register(t0);
-RWStructuredBuffer<uint> OutClusterLightMasks : register(u0);
+RWStructuredBuffer<FLightClusterHeader> OutClusterLightHeaders : register(u0);
+RWStructuredBuffer<uint>                OutClusterLightIndices : register(u1);
 
 static const float kEpsilon = 1e-5f;
 static const float kDepthSkyThreshold = 0.999999f;
@@ -223,13 +224,13 @@ void main(uint3 DispatchThreadID : SV_DispatchThreadID)
                       + clusterY * ClusterCountX
                       + clusterX;
 
-    uint baseWord = clusterIndex * LIGHT_MASK_WORD_COUNT;
+    FLightClusterHeader header;
+    header.Offset = clusterIndex * RuntimeMaxLightsPerCluster;
+    header.Count = 0u;
+    header.RawCount = 0u;
+    header.Pad1 = 0u;
 
-    [unroll]
-    for (uint w = 0; w < LIGHT_MASK_WORD_COUNT; ++w)
-    {
-        OutClusterLightMasks[baseWord + w] = 0u;
-    }
+    OutClusterLightHeaders[clusterIndex] = header;
 
     float tileMinViewZ;
     float tileMaxViewZ;
@@ -249,12 +250,8 @@ void main(uint3 DispatchThreadID : SV_DispatchThreadID)
         return;
     }
 
-    uint localMask[LIGHT_MASK_WORD_COUNT];
-    [unroll]
-    for (uint i = 0; i < LIGHT_MASK_WORD_COUNT; ++i)
-    {
-        localMask[i] = 0u;
-    }
+    uint writeCount = 0u;
+    uint rawCount = 0u;
 
     [loop]
     for (uint lightIndex = 0; lightIndex < LocalLightCount && lightIndex < MAX_LOCAL_LIGHTS; ++lightIndex)
@@ -263,15 +260,16 @@ void main(uint3 DispatchThreadID : SV_DispatchThreadID)
 
         if (IntersectsDepthAwareCluster(uint3(clusterX, clusterY, clusterZ), tileMinViewZ, tileMaxViewZ, proxy))
         {
-            uint word = lightIndex >> 5;
-            uint bit  = lightIndex & 31u;
-            localMask[word] |= (1u << bit);
+            if (writeCount < RuntimeMaxLightsPerCluster)
+            {
+                OutClusterLightIndices[header.Offset + writeCount] = lightIndex;
+                ++writeCount;
+            }
+            ++rawCount;
         }
     }
 
-    [unroll]
-    for (uint w = 0; w < LIGHT_MASK_WORD_COUNT; ++w)
-    {
-        OutClusterLightMasks[baseWord + w] = localMask[w];
-    }
+    header.Count = min(writeCount, RuntimeMaxLightsPerCluster);
+    header.RawCount = rawCount;
+    OutClusterLightHeaders[clusterIndex] = header;
 }
