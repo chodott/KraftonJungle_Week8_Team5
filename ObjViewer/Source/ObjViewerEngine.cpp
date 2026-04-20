@@ -1,6 +1,7 @@
 ﻿#include "ObjViewerEngine.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <filesystem>
 #include <Windows.h>
@@ -233,6 +234,20 @@ namespace
 		return FPaths::FromPath(LodPath);
 	}
 
+	FString GetNormalizedExtension(const FString& PathFileName)
+	{
+		FString Extension = FPaths::FromPath(FPaths::ToPath(PathFileName).extension());
+		std::transform(
+			Extension.begin(),
+			Extension.end(),
+			Extension.begin(),
+			[](unsigned char Character)
+			{
+				return static_cast<char>(std::tolower(Character));
+			});
+		return Extension;
+	}
+
 	uint64 ConvertFileTimeToUnixNanoseconds(const FILETIME& FileTime)
 	{
 		constexpr uint64 WindowsToUnixEpoch100Ns   = 116444736000000000ULL;
@@ -304,19 +319,46 @@ bool FObjViewerEngine::LoadModelFromFile(const FString& FilePath, const FObjImpo
 		return false;
 	}
 
+	const FString NormalizedExtension = GetNormalizedExtension(FilePath);
+	const bool    bLoadAsBakedModel   = (NormalizedExtension == ".model");
+
 	FObjImportSummary AppliedImportOptions    = ImportOptions;
 	AppliedImportOptions.bReplaceCurrentModel = true;
-	AppliedImportOptions.UniformScale         = (std::max)(AppliedImportOptions.UniformScale, 0.01f);
+	AppliedImportOptions.UniformScale         = bLoadAsBakedModel
+		? 1.0f
+		: (std::max)(AppliedImportOptions.UniformScale, 0.01f);
 
-	FObjLoadOptions LoadOptions;
-	LoadOptions.bUseLegacyObjConversion = false;
-	LoadOptions.ForwardAxis             = AppliedImportOptions.ForwardAxis;
-	LoadOptions.UpAxis                  = AppliedImportOptions.UpAxis;
+	if (bLoadAsBakedModel)
+	{
+		AppliedImportOptions.bCenterToOrigin = false;
+		AppliedImportOptions.bPlaceOnGround  = false;
 
-	UStaticMesh* LoadedMesh = FObjManager::LoadObjStaticMeshAsset(FilePath, LoadOptions);
+		FObjLoadOptions SavedLoadOptions {};
+		if (FObjManager::ReadModelImportOptions(FilePath, SavedLoadOptions))
+		{
+			AppliedImportOptions.SourcePreset = EObjImportPreset::Custom;
+			AppliedImportOptions.ForwardAxis = SavedLoadOptions.ForwardAxis;
+			AppliedImportOptions.UpAxis = SavedLoadOptions.UpAxis;
+		}
+	}
+
+	UStaticMesh* LoadedMesh = nullptr;
+	if (bLoadAsBakedModel)
+	{
+		LoadedMesh = FObjManager::LoadStaticMeshAsset(FilePath);
+	}
+	else
+	{
+		FObjLoadOptions LoadOptions;
+		LoadOptions.bUseLegacyObjConversion = false;
+		LoadOptions.ForwardAxis             = AppliedImportOptions.ForwardAxis;
+		LoadOptions.UpAxis                  = AppliedImportOptions.UpAxis;
+		LoadedMesh = FObjManager::LoadObjStaticMeshAsset(FilePath, LoadOptions);
+	}
+
 	if (!LoadedMesh)
 	{
-		UE_LOG("[ObjViewer] Failed to load OBJ: %s", FilePath.c_str());
+		UE_LOG("[ObjViewer] Failed to load %s: %s", bLoadAsBakedModel ? ".Model" : "OBJ", FilePath.c_str());
 		return false;
 	}
 
@@ -345,27 +387,35 @@ bool FObjViewerEngine::LoadModelFromFile(const FString& FilePath, const FObjImpo
 	if (USceneComponent* RootComponent = DisplayActor->GetRootComponent())
 	{
 		FTransform Transform = RootComponent->GetRelativeTransform();
-		Transform.SetScale3D(FVector(
-			AppliedImportOptions.UniformScale,
-			AppliedImportOptions.UniformScale,
-			AppliedImportOptions.UniformScale));
-
-		const FVector ScaledCenter = LoadedMesh->LocalBounds.Center * AppliedImportOptions.UniformScale;
-		const FVector ScaledExtent = LoadedMesh->LocalBounds.BoxExtent * AppliedImportOptions.UniformScale;
-		FVector       Translation  = FVector::ZeroVector;
-
-		if (AppliedImportOptions.bCenterToOrigin)
+		if (bLoadAsBakedModel)
 		{
-			Translation = -ScaledCenter;
+			Transform.SetScale3D(FVector::OneVector);
+			Transform.SetTranslation(FVector::ZeroVector);
 		}
-
-		if (AppliedImportOptions.bPlaceOnGround)
+		else
 		{
-			const float BottomZ = (ScaledCenter.Z + Translation.Z) - ScaledExtent.Z;
-			Translation.Z       -= BottomZ;
-		}
+			Transform.SetScale3D(FVector(
+				AppliedImportOptions.UniformScale,
+				AppliedImportOptions.UniformScale,
+				AppliedImportOptions.UniformScale));
 
-		Transform.SetTranslation(Translation);
+			const FVector ScaledCenter = LoadedMesh->LocalBounds.Center * AppliedImportOptions.UniformScale;
+			const FVector ScaledExtent = LoadedMesh->LocalBounds.BoxExtent * AppliedImportOptions.UniformScale;
+			FVector       Translation  = FVector::ZeroVector;
+
+			if (AppliedImportOptions.bCenterToOrigin)
+			{
+				Translation = -ScaledCenter;
+			}
+
+			if (AppliedImportOptions.bPlaceOnGround)
+			{
+				const float BottomZ = (ScaledCenter.Z + Translation.Z) - ScaledExtent.Z;
+				Translation.Z       -= BottomZ;
+			}
+
+			Transform.SetTranslation(Translation);
+		}
 		RootComponent->SetRelativeTransform(Transform);
 	}
 
@@ -404,7 +454,11 @@ bool FObjViewerEngine::ExportLoadedModelAsModel(const FString& FilePath) const
 		UE_LOG("[ObjViewer] Falling back to default embedded material metadata for export: %s", ModelState.SourceFilePath.c_str());
 	}
 
-	const bool bSaved = FObjManager::SaveModelStaticMeshAsset(FilePath, BakedMesh, MaterialInfos, GetFileWriteTimestamp(ModelState.SourceFilePath));
+	FObjLoadOptions LoadOptions;
+	LoadOptions.bUseLegacyObjConversion = false;
+	LoadOptions.ForwardAxis             = ModelState.LastImportSummary.ForwardAxis;
+	LoadOptions.UpAxis                  = ModelState.LastImportSummary.UpAxis;
+	const bool bSaved = FObjManager::SaveModelStaticMeshAsset(FilePath, BakedMesh, MaterialInfos, GetFileWriteTimestamp(ModelState.SourceFilePath), &LoadOptions);
 	UE_LOG("[ObjViewer] %s .Model export: %s", bSaved ? "Succeeded" : "Failed", FilePath.c_str());
 	return bSaved;
 }
@@ -1387,6 +1441,9 @@ void FObjViewerEngine::ProcessLaunchOptions()
 		return;
 	}
 
+	const FString InputExtension = GetNormalizedExtension(LaunchOptions.InputFilePath);
+	const bool    bInputIsModel  = (InputExtension == ".model");
+
 	bool bSucceeded = true;
 	if (!LaunchOptions.ExportModelPath.empty())
 	{
@@ -1396,13 +1453,13 @@ void FObjViewerEngine::ProcessLaunchOptions()
 			bSucceeded = ExportLoadedModelAsModel(LaunchOptions.ExportModelPath);
 		}
 	}
-	else if (ViewerShell)
+	else if (ViewerShell && !bInputIsModel)
 	{
 		ViewerShell->RequestImportDialog(LaunchOptions.InputFilePath, "Open in ObjViewer");
 	}
 	else
 	{
-		bSucceeded = LoadModelFromFile(LaunchOptions.InputFilePath, "Command Line");
+		bSucceeded = LoadModelFromFile(LaunchOptions.InputFilePath, bInputIsModel ? "Open in ObjViewer" : "Command Line");
 	}
 
 	LaunchOptions.InputFilePath.clear();

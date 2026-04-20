@@ -210,7 +210,7 @@ void FEditorUI::Initialize(FEditorEngine *InEngine)
     ContentBrowser.OnOpenInObjViewerRequested = [](const FString &FilePath) {
         if (!LaunchObjViewer(FilePath))
         {
-            MessageBoxW(nullptr, L"ObjViewer 실행에 실패했거나 원본 .obj를 찾을 수 없습니다.", L"Open in ObjViewer", MB_OK | MB_ICONWARNING);
+            MessageBoxW(nullptr, L"ObjViewer 실행에 실패했거나 열 수 있는 파일을 찾을 수 없습니다.", L"Open in ObjViewer", MB_OK | MB_ICONWARNING);
         }
     };
 

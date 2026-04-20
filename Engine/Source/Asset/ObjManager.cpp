@@ -27,13 +27,14 @@ TMap<FString, UStaticMesh*> FObjManager::ObjStaticMeshMap;
 
 namespace
 {
-	constexpr char   GModelMagic[4]                 = {'M', 'O', 'D', 'L'};
+	constexpr char   GModelMagic[4]                 = { 'M', 'O', 'D', 'L' };
 	constexpr uint32 GModelVersionLegacy            = 1;
 	constexpr uint32 GModelVersionEmbeddedMaterials = 2;
 	constexpr uint32 GModelVersionSourceTimestamp   = 3;
-	constexpr uint32 GModelVersion                  = GModelVersionSourceTimestamp;
+	constexpr uint32 GModelVersionImportSettings    = 4;
+	constexpr uint32 GModelVersion                  = GModelVersionImportSettings;
 
-	constexpr char   GLODMagic[4]                    = {'L', 'O', 'D', 'F'};
+	constexpr char   GLODMagic[4]                    = { 'L', 'O', 'D', 'F' };
 	constexpr uint32 GLODVersionLegacy               = 1;
 	constexpr uint32 GLODVersionSourceTimestamp      = 2;
 	constexpr uint32 GLODVersionScreenSize           = 3;
@@ -239,10 +240,13 @@ namespace
 
 		const std::filesystem::path FsPath = FPaths::ToPath(Path);
 		FString                     Ext    = FPaths::FromPath(FsPath.extension());
-		std::transform(Ext.begin(), Ext.end(), Ext.begin(), [](unsigned char c)
-		{
-			return static_cast<char>(std::tolower(c));
-		});
+		std::transform(Ext.begin(),
+		               Ext.end(),
+		               Ext.begin(),
+		               [](unsigned char c)
+		               {
+			               return static_cast<char>(std::tolower(c));
+		               });
 		Path = NormalizeSlashes(FPaths::FromPath(FsPath.parent_path() / FsPath.stem())) + Ext;
 
 		return Path;
@@ -630,6 +634,68 @@ namespace
 		return ReadBinaryBytes(File, OutValue.data(), ByteCount);
 	}
 
+	bool IsValidObjImportAxisValue(uint8 AxisValue)
+	{
+		return AxisValue <= static_cast<uint8>(EObjImportAxis::NegZ);
+	}
+
+	bool WriteModelImportOptionsPayload(std::ofstream& File, const FObjLoadOptions* LoadOptions)
+	{
+		const uint8 bHasLoadOptions = (LoadOptions != nullptr) ? 1 : 0;
+		if (!WriteBinaryValue(File, bHasLoadOptions))
+		{
+			return false;
+		}
+
+		if (!bHasLoadOptions)
+		{
+			return true;
+		}
+
+		const uint8 bUseLegacyObjConversion = LoadOptions->bUseLegacyObjConversion ? 1 : 0;
+		const uint8 ForwardAxis             = static_cast<uint8>(LoadOptions->ForwardAxis);
+		const uint8 UpAxis                  = static_cast<uint8>(LoadOptions->UpAxis);
+		return WriteBinaryValue(File, bUseLegacyObjConversion)
+			&& WriteBinaryValue(File, ForwardAxis)
+			&& WriteBinaryValue(File, UpAxis);
+	}
+
+	bool ReadModelImportOptionsPayload(std::ifstream& File, FObjLoadOptions& OutLoadOptions, bool& bOutHasLoadOptions)
+	{
+		uint8 bHasLoadOptions = 0;
+		if (!ReadBinaryValue(File, bHasLoadOptions))
+		{
+			return false;
+		}
+
+		bOutHasLoadOptions = (bHasLoadOptions != 0);
+		OutLoadOptions     = FObjLoadOptions {};
+		if (!bOutHasLoadOptions)
+		{
+			return true;
+		}
+
+		uint8 bUseLegacyObjConversion = 0;
+		uint8 ForwardAxis             = 0;
+		uint8 UpAxis                  = 0;
+		if (!ReadBinaryValue(File, bUseLegacyObjConversion)
+			|| !ReadBinaryValue(File, ForwardAxis)
+			|| !ReadBinaryValue(File, UpAxis))
+		{
+			return false;
+		}
+
+		if (!IsValidObjImportAxisValue(ForwardAxis) || !IsValidObjImportAxisValue(UpAxis))
+		{
+			return false;
+		}
+
+		OutLoadOptions.bUseLegacyObjConversion = (bUseLegacyObjConversion != 0);
+		OutLoadOptions.ForwardAxis             = static_cast<EObjImportAxis>(ForwardAxis);
+		OutLoadOptions.UpAxis                  = static_cast<EObjImportAxis>(UpAxis);
+		return true;
+	}
+
 	std::filesystem::path ResolveMaterialReferencePath(const std::filesystem::path& ObjPath, const FString& MaterialReference)
 	{
 		const std::filesystem::path ReferencePath = std::filesystem::path(FPaths::ToWide(MaterialReference)).lexically_normal();
@@ -712,10 +778,13 @@ namespace
 	FString GetNormalizedExtension(const FString& PathFileName)
 	{
 		FString Extension = FPaths::FromPath(FPaths::ToPath(PathFileName).extension());
-		std::transform(Extension.begin(), Extension.end(), Extension.begin(), [](unsigned char Ch)
-		{
-			return static_cast<char>(std::tolower(Ch));
-		});
+		std::transform(Extension.begin(),
+		               Extension.end(),
+		               Extension.begin(),
+		               [](unsigned char Ch)
+		               {
+			               return static_cast<char>(std::tolower(Ch));
+		               });
 		return Extension;
 	}
 
@@ -821,11 +890,11 @@ namespace
 		if (SlotIndex >= 0)
 		{
 			Material->RegisterParameter("BaseColor", SlotIndex, 0, 16);
-			constexpr float White[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+			constexpr float White[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 			Material->GetConstantBuffer(SlotIndex)->SetData(White, sizeof(White));
 
 			Material->RegisterParameter("UVScrollSpeed", SlotIndex, 16, 16);
-			constexpr float DefaultScroll[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+			constexpr float DefaultScroll[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 			Material->GetConstantBuffer(SlotIndex)->SetData(DefaultScroll, sizeof(DefaultScroll), 16);
 		}
 
@@ -840,7 +909,7 @@ namespace
 			return;
 		}
 
-		const float DiffuseColor[4] = {BaseColor.X, BaseColor.Y, BaseColor.Z, BaseColor.W};
+		const float DiffuseColor[4] = { BaseColor.X, BaseColor.Y, BaseColor.Z, BaseColor.W };
 		if (FMaterialConstantBuffer* ConstantBuffer = Material->GetConstantBuffer(0))
 		{
 			ConstantBuffer->SetData(DiffuseColor, sizeof(DiffuseColor));
@@ -899,7 +968,9 @@ namespace
 
 			float det = dU1 * dV2 - dU2 * dV1;
 			if (abs(det) < 1e-6f)
+			{
 				continue;
+			}
 
 			float invDet = 1.0f / det;
 
@@ -919,9 +990,9 @@ namespace
 			FVector T = Vertex.Tangent;
 
 			float dot = T.X * N.X + T.Y * N.Y + T.Z * N.Z;
-			T.X -= dot * N.X;
-			T.Y -= dot * N.Y;
-			T.Z -= dot * N.Z;
+			T.X       -= dot * N.X;
+			T.Y       -= dot * N.Y;
+			T.Z       -= dot * N.Z;
 
 			float length = sqrt(T.X * T.X + T.Y * T.Y + T.Z * T.Z);
 			if (length > 1e-6f)
@@ -989,9 +1060,9 @@ namespace
 		return NewAsset;
 	}
 
-	bool BuildModelCacheForObj(const FString& ObjPathFileName)
+	bool BuildModelCacheForObj(const FString& ObjPathFileName, const FObjLoadOptions& LoadOptions)
 	{
-		UStaticMesh* LoadedMesh = FObjManager::LoadObjStaticMeshAsset(ObjPathFileName);
+		UStaticMesh* LoadedMesh = FObjManager::LoadObjStaticMeshAsset(ObjPathFileName, LoadOptions);
 		if (LoadedMesh == nullptr || LoadedMesh->GetRenderData() == nullptr)
 		{
 			return false;
@@ -1011,7 +1082,7 @@ namespace
 		}
 
 		const uint64 SourceTimestamp = GetFileWriteTimestamp(FPaths::ToPath(FPaths::ToAbsolutePath(ObjPathFileName)).lexically_normal());
-		return FObjManager::SaveModelStaticMeshAsset(ModelPath, *LoadedMesh->GetRenderData(), MaterialInfos, SourceTimestamp);
+		return FObjManager::SaveModelStaticMeshAsset(ModelPath, *LoadedMesh->GetRenderData(), MaterialInfos, SourceTimestamp, &LoadOptions);
 	}
 
 	UStaticMesh* FinalizeStaticMeshAsset(
@@ -1126,7 +1197,7 @@ namespace
 		{
 			if (OutMesh->Indices.size() > CurrentSectionStartIndex)
 			{
-				FMeshSection Section{};
+				FMeshSection Section {};
 				Section.MaterialIndex = static_cast<uint32>(CurrentMaterialIndex);
 				Section.StartIndex    = CurrentSectionStartIndex;
 				Section.IndexCount    = static_cast<uint32>(OutMesh->Indices.size()) - CurrentSectionStartIndex;
@@ -1168,7 +1239,7 @@ namespace
 				std::getline(VSS, UVString, '/');
 				std::getline(VSS, NormalString, '/');
 
-				FIndex Idx{};
+				FIndex Idx {};
 				Idx.PositionIndex = std::stoi(PositionString) - 1;
 				Idx.UVIndex       = UVString.empty() ? -1 : std::stoi(UVString) - 1;
 				Idx.NormalIndex   = NormalString.empty() ? -1 : std::stoi(NormalString) - 1;
@@ -1189,7 +1260,7 @@ namespace
 				{
 					uint32 NewVertexIndex = static_cast<uint32>(OutMesh->Vertices.size());
 
-					FVertex V{};
+					FVertex V {};
 					V.Position = TempPositions[Idx.PositionIndex];
 					V.Color    = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
 
@@ -1234,10 +1305,12 @@ UStaticMesh* FObjManager::LoadStaticMeshAsset(const FString& PathFileName)
 	const FString Extension        = GetNormalizedExtension(StandardizedPath);
 	if (Extension == ".obj" || Extension.empty())
 	{
+		FObjLoadOptions             PreferredLoadOptions {};
 		const FString               ModelPath       = GetModelFilePath(StandardizedPath);
 		const std::filesystem::path ObjFsPath       = FPaths::ToPath(FPaths::ToAbsolutePath(StandardizedPath)).lexically_normal();
 		const std::filesystem::path ModelFsPath     = FPaths::ToPath(FPaths::ToAbsolutePath(ModelPath)).lexically_normal();
 		const uint64                SourceTimestamp = GetFileWriteTimestamp(ObjFsPath);
+		(void)FObjManager::ReadModelImportOptions(ModelPath, PreferredLoadOptions);
 
 		uint64     CachedTimestamp          = 0;
 		const bool bHasValidSourceTimestamp = (SourceTimestamp != 0);
@@ -1259,9 +1332,9 @@ UStaticMesh* FObjManager::LoadStaticMeshAsset(const FString& PathFileName)
 			RemoveModelArtifact(StandardizedPath);
 		}
 
-		if (BuildModelCacheForObj(StandardizedPath))
+		if (BuildModelCacheForObj(StandardizedPath, PreferredLoadOptions))
 		{
-			const FString ObjCacheKey = BuildObjCacheKey(StandardizedPath, FObjLoadOptions{});
+			const FString ObjCacheKey = BuildObjCacheKey(StandardizedPath, PreferredLoadOptions);
 			auto          ObjIt       = ObjStaticMeshMap.find(ObjCacheKey);
 			if (ObjIt != ObjStaticMeshMap.end())
 			{
@@ -1275,7 +1348,7 @@ UStaticMesh* FObjManager::LoadStaticMeshAsset(const FString& PathFileName)
 			}
 		}
 
-		return LoadObjStaticMeshAsset(StandardizedPath);
+		return LoadObjStaticMeshAsset(StandardizedPath, PreferredLoadOptions);
 	}
 
 	if (Extension == ".model")
@@ -1291,7 +1364,7 @@ UStaticMesh* FObjManager::LoadStaticMeshAsset(const FString& PathFileName)
 
 UStaticMesh* FObjManager::LoadObjStaticMeshAsset(const FString& PathFileName)
 {
-	return LoadObjStaticMeshAsset(PathFileName, FObjLoadOptions{});
+	return LoadObjStaticMeshAsset(PathFileName, FObjLoadOptions {});
 }
 
 UStaticMesh* FObjManager::LoadObjStaticMeshAsset(const FString& PathFileName, const FObjLoadOptions& LoadOptions)
@@ -1360,11 +1433,22 @@ UStaticMesh* FObjManager::LoadModelStaticMeshAsset(const FString& PathFileName)
 		return nullptr;
 	}
 
-	if (Version == GModelVersionSourceTimestamp)
+	if (Version >= GModelVersionSourceTimestamp)
 	{
 		if (!ReadBinaryValue(File, SourceTimestamp))
 		{
 			UE_LOG("[FObjManager] Failed to read .Model source timestamp: %s", AbsolutePath.c_str());
+			return nullptr;
+		}
+	}
+
+	if (Version >= GModelVersionImportSettings)
+	{
+		FObjLoadOptions SavedLoadOptions {};
+		bool            bHasSavedLoadOptions = false;
+		if (!ReadModelImportOptionsPayload(File, SavedLoadOptions, bHasSavedLoadOptions))
+		{
+			UE_LOG("[FObjManager] Failed to read .Model import settings: %s", AbsolutePath.c_str());
 			return nullptr;
 		}
 	}
@@ -1378,7 +1462,10 @@ UStaticMesh* FObjManager::LoadModelStaticMeshAsset(const FString& PathFileName)
 		return nullptr;
 	}
 
-	if (Version != GModelVersionLegacy && Version != GModelVersionEmbeddedMaterials && Version != GModelVersionSourceTimestamp)
+	if (Version != GModelVersionLegacy
+		&& Version != GModelVersionEmbeddedMaterials
+		&& Version != GModelVersionSourceTimestamp
+		&& Version != GModelVersionImportSettings)
 	{
 		UE_LOG("[FObjManager] Unsupported .Model version %u: %s", Version, AbsolutePath.c_str());
 		return nullptr;
@@ -1476,6 +1563,45 @@ UStaticMesh* FObjManager::LoadModelStaticMeshAsset(const FString& PathFileName)
 	UStaticMesh* NewAsset              = FinalizeStaticMeshAsset(PathFileName, std::move(RawData), MaterialInfos);
 	ObjStaticMeshMap[StandardizedPath] = NewAsset;
 	return NewAsset;
+}
+
+bool FObjManager::ReadModelImportOptions(const FString& PathFileName, FObjLoadOptions& OutLoadOptions)
+{
+	OutLoadOptions                    = FObjLoadOptions {};
+	const FString               AbsolutePath = FPaths::ToAbsolutePath(PathFileName);
+	const std::filesystem::path FilePath     = FPaths::ToPath(AbsolutePath).lexically_normal();
+
+	std::ifstream File(FilePath, std::ios::binary);
+	if (!File.is_open())
+	{
+		return false;
+	}
+
+	char   Magic[sizeof(GModelMagic)] = {};
+	uint32 Version                    = 0;
+	if (!ReadBinaryBytes(File, Magic, sizeof(Magic))
+		|| !ReadBinaryValue(File, Version)
+		|| std::memcmp(Magic, GModelMagic, sizeof(GModelMagic)) != 0)
+	{
+		return false;
+	}
+
+	if (Version < GModelVersionImportSettings)
+	{
+		return false;
+	}
+
+	if (Version >= GModelVersionSourceTimestamp)
+	{
+		uint64 SourceTimestamp = 0;
+		if (!ReadBinaryValue(File, SourceTimestamp))
+		{
+			return false;
+		}
+	}
+
+	bool bHasLoadOptions = false;
+	return ReadModelImportOptionsPayload(File, OutLoadOptions, bHasLoadOptions) && bHasLoadOptions;
 }
 
 FStaticMesh* FObjManager::LoadLodAsset(const FString& PathFileName, float* OutDistance)
@@ -1612,7 +1738,7 @@ FStaticMesh* FObjManager::LoadLodAsset(const FString& PathFileName, float* OutDi
 	return Mesh.release();
 }
 
-bool FObjManager::SaveModelStaticMeshAsset(const FString& PathFileName, const FStaticMesh& StaticMesh, const TArray<FModelMaterialInfo>& MaterialInfos, uint64 SourceTimestamp)
+bool FObjManager::SaveModelStaticMeshAsset(const FString& PathFileName, const FStaticMesh& StaticMesh, const TArray<FModelMaterialInfo>& MaterialInfos, uint64 SourceTimestamp, const FObjLoadOptions* LoadOptions)
 {
 	if (StaticMesh.Topology != EMeshTopology::EMT_TriangleList)
 	{
@@ -1645,6 +1771,7 @@ bool FObjManager::SaveModelStaticMeshAsset(const FString& PathFileName, const FS
 	if (!WriteBinaryBytes(File, GModelMagic, sizeof(GModelMagic))
 		|| !WriteBinaryValue(File, GModelVersion)
 		|| !WriteBinaryValue(File, SourceTimestamp)
+		|| !WriteModelImportOptionsPayload(File, LoadOptions)
 		|| !WriteBinaryValue(File, static_cast<uint32>(StaticMesh.Vertices.size()))
 		|| !WriteBinaryValue(File, static_cast<uint32>(StaticMesh.Indices.size()))
 		|| !WriteBinaryValue(File, static_cast<uint32>(StaticMesh.Sections.size()))
@@ -1868,7 +1995,7 @@ bool FObjManager::BuildModelMaterialInfosFromObj(
 				MtlSS >> CurrentMaterialName;
 				if (!CurrentMaterialName.empty())
 				{
-					ParsedMaterials.try_emplace(CurrentMaterialName, FParsedMaterialData{});
+					ParsedMaterials.try_emplace(CurrentMaterialName, FParsedMaterialData {});
 				}
 			}
 			else if (MtlType == "Kd" && !CurrentMaterialName.empty())
@@ -2147,8 +2274,8 @@ void FObjManager::InvalidateCacheEntriesForAsset(const FString& PathFileName)
 	const FString StandardizedPath = GetStandardizedMeshPath(PathFileName);
 	const FString Extension        = GetNormalizedExtension(StandardizedPath);
 	const FString ObjPath          = (Extension == ".model")
-		                        ? GetStandardizedMeshPath(GetObjFilePathFromModelPath(StandardizedPath))
-		                        : StandardizedPath;
+		                                 ? GetStandardizedMeshPath(GetObjFilePathFromModelPath(StandardizedPath))
+		                                 : StandardizedPath;
 	const FString ModelPath      = GetStandardizedMeshPath(GetModelFilePath(ObjPath));
 	const FString ObjCachePrefix = ObjPath + "|OBJ|";
 
