@@ -313,4 +313,61 @@ float4 ComputeClusteredLocalLighting(float4 svPosition, float3 worldPos, float3 
 
 	return lighting;
 }
+
+float4 ComputeClusteredLocalLightingLambert(float4 svPosition, float3 worldPos, float3 N)
+{
+    if (LightingEnabled == 0 || LocalLightCount == 0)
+        return 0.0f.xxxx;
+
+    float4 lighting = 0.0f.xxxx;
+
+    uint clusterIndex = ComputeClusterIndex(svPosition, worldPos);
+    uint baseWord = clusterIndex * LIGHT_MASK_WORD_COUNT;
+
+    [loop]
+    for (uint wordIndex = 0; wordIndex < LIGHT_MASK_WORD_COUNT; ++wordIndex)
+    {
+        uint bits = ClusterLightMasks[baseWord + wordIndex];
+
+        while (bits != 0u)
+        {
+            uint bitIndex = firstbitlow(bits);
+            uint lightIndex = wordIndex * 32u + bitIndex;
+            bits &= (bits - 1u);
+
+            if (lightIndex < LocalLightCount)
+            {
+                FLocalLightGPU light = LocalLights[lightIndex];
+
+                float3 toLight = light.PositionRange.xyz - worldPos;
+                float distance = length(toLight);
+
+                if (distance < light.PositionRange.w)
+                {
+                    float3 L = toLight / max(distance, 1.0e-5f);
+                    float diff = max(dot(N, L), 0.0f);
+                    float atten = CalculateAttenuation(distance, light.PositionRange.w, light.AngleParams.z);
+
+                    uint lightClass = (uint)light.DirectionType.w;
+
+                    if (lightClass == LIGHT_CLASS_POINT)
+                    {
+                        lighting += float4(light.ColorIntensity.xyz * light.ColorIntensity.w * diff * atten, 1.0f);
+                    }
+                    else if (lightClass == LIGHT_CLASS_SPOT)
+                    {
+                        float theta = dot(L, normalize(-light.DirectionType.xyz));
+                        float innerCutoff = light.AngleParams.x;
+                        float outerCutoff = light.AngleParams.y;
+                        float cone = saturate((theta - outerCutoff) / max(innerCutoff - outerCutoff, 1.0e-5f));
+
+                        lighting += float4(light.ColorIntensity.xyz * light.ColorIntensity.w * diff * atten * cone, 1.0f);
+                    }
+                }
+            }
+        }
+    }
+
+    return lighting;
+}
 #endif

@@ -34,6 +34,11 @@ PROJECTS = {
         "root_namespace": "Client",
         "dependencies": ["{135D1BDB-24F8-4FBC-959A-F422D47E0261}"],
     },
+    "ObjViewer": {
+        "guid": "{9B5AA5E2-3FC1-49B5-B3FB-0ADAE4A20C58}",
+        "root_namespace": "ObjViewer",
+        "dependencies": ["{135D1BDB-24F8-4FBC-959A-F422D47E0261}"],
+    },
 }
 
 CONFIGURATIONS = [
@@ -522,6 +527,144 @@ def generate_client_vcxproj(files: dict[str, list[str]]):
 
 
 # ──────────────────────────────────────────────
+# ObjViewer .vcxproj
+# ──────────────────────────────────────────────
+def generate_objviewer_vcxproj(files: dict[str, list[str]]):
+    proj = ET.Element("Project", DefaultTargets="Build", xmlns=NS)
+
+    # ProjectConfigurations
+    ig = ET.SubElement(proj, "ItemGroup", Label="ProjectConfigurations")
+    for cfg, plat in CONFIGURATIONS:
+        pc = ET.SubElement(ig, "ProjectConfiguration", Include=f"{cfg}|{plat}")
+        ET.SubElement(pc, "Configuration").text = cfg
+        ET.SubElement(pc, "Platform").text = plat
+
+    # Globals
+    pg = ET.SubElement(proj, "PropertyGroup", Label="Globals")
+    ET.SubElement(pg, "VCProjectVersion").text = "17.0"
+    ET.SubElement(pg, "Keyword").text = "Win32Proj"
+    ET.SubElement(pg, "ProjectGuid").text = "{9b5aa5e2-3fc1-49b5-b3fb-0adae4a20c58}"
+    ET.SubElement(pg, "RootNamespace").text = "ObjViewer"
+    ET.SubElement(pg, "WindowsTargetPlatformVersion").text = "10.0"
+
+    ET.SubElement(proj, "Import", Project="$(VCTargetsPath)\\Microsoft.Cpp.Default.props")
+
+    # Configuration properties
+    for cfg, plat in CONFIGURATIONS:
+        cond = f"'$(Configuration)|$(Platform)'=='{cfg}|{plat}'"
+        pg = ET.SubElement(proj, "PropertyGroup", Condition=cond, Label="Configuration")
+        is_release = cfg == "Release"
+        ET.SubElement(pg, "ConfigurationType").text = "Application"
+        ET.SubElement(pg, "UseDebugLibraries").text = "false" if is_release else "true"
+        ET.SubElement(pg, "PlatformToolset").text = "v143"
+        if is_release:
+            ET.SubElement(pg, "WholeProgramOptimization").text = "true"
+        ET.SubElement(pg, "CharacterSet").text = "Unicode"
+
+    ET.SubElement(proj, "Import", Project="$(VCTargetsPath)\\Microsoft.Cpp.props")
+    ET.SubElement(proj, "ImportGroup", Label="ExtensionSettings")
+    ET.SubElement(proj, "ImportGroup", Label="Shared")
+
+    # PropertySheets
+    for cfg, plat in CONFIGURATIONS:
+        cond = f"'$(Configuration)|$(Platform)'=='{cfg}|{plat}'"
+        ig = ET.SubElement(proj, "ImportGroup", Label="PropertySheets", Condition=cond)
+        ET.SubElement(ig, "Import",
+                      Project="$(UserRootDir)\\Microsoft.Cpp.$(Platform).user.props",
+                      Condition="exists('$(UserRootDir)\\Microsoft.Cpp.$(Platform).user.props')",
+                      Label="LocalAppDataPlatform")
+
+    ET.SubElement(proj, "PropertyGroup", Label="UserMacros")
+
+    # Output/Intermediate dirs for x64
+    for cfg in ("Debug", "Release"):
+        cond = f"'$(Configuration)|$(Platform)'=='{cfg}|x64'"
+        pg = ET.SubElement(proj, "PropertyGroup", Condition=cond)
+        ET.SubElement(pg, "OutDir").text = "$(ProjectDir)Bin\\$(Configuration)\\"
+        ET.SubElement(pg, "IntDir").text = "Build\\$(Configuration)\\"
+        ET.SubElement(pg, "DisableFastUpToDateCheck").text = "true"
+
+    # ItemDefinitionGroups
+    for cfg, plat in CONFIGURATIONS:
+        cond = f"'$(Configuration)|$(Platform)'=='{cfg}|{plat}'"
+        idg = ET.SubElement(proj, "ItemDefinitionGroup", Condition=cond)
+        cl = ET.SubElement(idg, "ClCompile")
+        ET.SubElement(cl, "WarningLevel").text = "Level3"
+
+        is_x64 = plat == "x64"
+        is_release = cfg == "Release"
+        is_win32 = plat == "Win32"
+
+        if is_release:
+            ET.SubElement(cl, "FunctionLevelLinking").text = "true"
+            ET.SubElement(cl, "IntrinsicFunctions").text = "true"
+
+        ET.SubElement(cl, "SDLCheck").text = "true"
+
+        if is_win32:
+            defs = f"WIN32;{'NDEBUG' if is_release else '_DEBUG'};_CONSOLE;%(PreprocessorDefinitions)"
+        else:
+            defs = f"{'NDEBUG' if is_release else '_DEBUG'};_CONSOLE;%(PreprocessorDefinitions)"
+        ET.SubElement(cl, "PreprocessorDefinitions").text = defs
+
+        ET.SubElement(cl, "ConformanceMode").text = "true"
+
+        if is_x64:
+            ET.SubElement(cl, "LanguageStandard").text = "stdcpp20"
+            ET.SubElement(cl, "AdditionalOptions").text = "/utf-8 %(AdditionalOptions)"
+            ET.SubElement(cl, "AdditionalIncludeDirectories").text = (
+                "$(ProjectDir)Source\\;$(ProjectDir)..\\Engine\\Source\\;"
+                "$(ProjectDir)..\\Editor\\ThirdParty\\imgui\\;%(AdditionalIncludeDirectories)"
+            )
+
+        link = ET.SubElement(idg, "Link")
+        if is_x64:
+            ET.SubElement(link, "SubSystem").text = "Windows"
+            ET.SubElement(link, "GenerateDebugInformation").text = "true"
+            ET.SubElement(link, "AdditionalLibraryDirectories").text = (
+                "$(ProjectDir)..\\Engine\\Bin\\$(Configuration)\\;%(AdditionalLibraryDirectories)"
+            )
+            ET.SubElement(link, "AdditionalDependencies").text = "Engine.lib;%(AdditionalDependencies)"
+
+            pbe = ET.SubElement(idg, "PostBuildEvent")
+            ET.SubElement(pbe, "Command").text = (
+                'xcopy /Y /D "$(ProjectDir)..\\Engine\\Bin\\$(Configuration)\\Engine.dll" "$(OutDir)"'
+            )
+        else:
+            ET.SubElement(link, "SubSystem").text = "Console"
+            ET.SubElement(link, "GenerateDebugInformation").text = "true"
+
+    # File items (ObjViewer source)
+    ig = ET.SubElement(proj, "ItemGroup")
+    for f in files["ClCompile"]:
+        ET.SubElement(ig, "ClCompile", Include=f)
+
+    # ImGui source files (shared from Editor/ThirdParty/imgui)
+    imgui_cpp_files = [
+        "imgui.cpp",
+        "imgui_demo.cpp",
+        "imgui_draw.cpp",
+        "imgui_impl_dx11.cpp",
+        "imgui_impl_win32.cpp",
+        "imgui_tables.cpp",
+        "imgui_widgets.cpp",
+    ]
+    ig = ET.SubElement(proj, "ItemGroup")
+    for f in imgui_cpp_files:
+        ET.SubElement(ig, "ClCompile", Include=f"..\\Editor\\ThirdParty\\imgui\\{f}")
+
+    if files["ClInclude"]:
+        ig = ET.SubElement(proj, "ItemGroup")
+        for f in files["ClInclude"]:
+            ET.SubElement(ig, "ClInclude", Include=f)
+
+    ET.SubElement(proj, "Import", Project="$(VCTargetsPath)\\Microsoft.Cpp.targets")
+    ET.SubElement(proj, "ImportGroup", Label="ExtensionTargets")
+
+    write_xml(proj, ROOT / "ObjViewer" / "ObjViewer.vcxproj")
+
+
+# ──────────────────────────────────────────────
 # .vcxproj.filters
 # ──────────────────────────────────────────────
 def generate_filters(project_name: str, files: dict[str, list[str]]):
@@ -657,6 +800,10 @@ def main():
     client_files = scan_files(ROOT / "Client", ["Source"])
     print(f"  Client: {sum(len(v) for v in client_files.values())} files")
 
+    # ObjViewer: Source/
+    objviewer_files = scan_files(ROOT / "ObjViewer", ["Source"])
+    print(f"  ObjViewer: {sum(len(v) for v in objviewer_files.values())} files")
+
     print("Generating project files...")
 
     generate_engine_vcxproj(engine_files)
@@ -670,6 +817,10 @@ def main():
     generate_client_vcxproj(client_files)
     generate_filters("Client", client_files)
     print("  Client.vcxproj + .filters")
+
+    generate_objviewer_vcxproj(objviewer_files)
+    generate_filters("ObjViewer", objviewer_files)
+    print("  ObjViewer.vcxproj + .filters")
 
     generate_sln()
     print("  KraftonJungleEngine.sln")

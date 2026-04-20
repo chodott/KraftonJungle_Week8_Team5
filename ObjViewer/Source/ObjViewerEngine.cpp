@@ -768,6 +768,7 @@ void FObjViewerEngine::RenderFrame()
 	ViewerShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, false);
 
 	FGameFrameRequest FrameRequest;
+	FrameRequest.RenderMode                 = ERenderMode::Unlit;
 	FrameRequest.SceneView.ViewMatrix       = ActiveCamera->GetViewMatrix();
 	FrameRequest.SceneView.ProjectionMatrix = ActiveCamera->GetProjectionMatrix();
 	FrameRequest.SceneView.CameraPosition   = FrameRequest.SceneView.ViewMatrix.GetInverse().GetTranslation();
@@ -825,6 +826,7 @@ void FObjViewerEngine::RenderFrame()
 			ScenePass.DebugInputs                    = FrameRequest.DebugInputs;
 			ScenePass.bForceWireframe                = FrameRequest.bForceWireframe;
 			ScenePass.WireframeMaterial              = FrameRequest.WireframeMaterial;
+			ScenePass.RenderMode                     = FrameRequest.RenderMode;
 
 			FEditorFrameRequest EditorRequest;
 			EditorRequest.ScenePasses.push_back(std::move(ScenePass));
