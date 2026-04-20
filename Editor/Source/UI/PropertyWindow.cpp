@@ -16,6 +16,7 @@
 #include "Component/LocalHeightFogComponent.h"
 #include "Component/MoveComponent.h"
 #include "Component/DecalComponent.h"
+#include "Component/MeshDecalComponent.h"
 #include "Component/FireBallComponent.h"
 #include "Component/LightComponent.h"
 #include "Component/PointLightComponent.h"
@@ -63,6 +64,7 @@ namespace
 		{ "Projectile Movement Component", "ProjectileMovementComponent", &UProjectileMovementComponent::StaticClass },
 		{ "FireBall Component", "FireBallComponent", &UFireBallComponent::StaticClass},
 		{ "Decal Component", "DecalComponent", &UDecalComponent::StaticClass },
+		{ "Mesh Decal Component", "MeshDecalComponent", &UMeshDecalComponent::StaticClass },
 		{ "Local Height Fog Component", "LocalHeightFogComponent", &ULocalHeightFogComponent::StaticClass },
 		{ "Directional Light Component", "DirectionalLightComponent", &UDirectionalLightComponent::StaticClass },
 		{ "Point Light Component", "PointLightComponent", &UPointLightComponent::StaticClass },
@@ -1363,6 +1365,22 @@ void FPropertyWindow::DrawDecalComponentDetails(UDecalComponent* DecalComponent,
 	ImGui::ProgressBar(CurrentAlpha, ImVec2(-1.0f, 0.0f), "Alpha");
 }
 
+void FPropertyWindow::DrawMeshDecalComponentDetails(UMeshDecalComponent* MeshDecalComponent, FEditorEngine* Engine)
+{
+	if (!MeshDecalComponent)
+	{
+		return;
+	}
+
+	DrawDecalComponentDetails(MeshDecalComponent, Engine);
+
+	float SurfaceOffset = MeshDecalComponent->GetSurfaceOffset();
+	if (ImGui::DragFloat("Surface Offset", &SurfaceOffset, 0.0001f, 0.0f, 0.1f, "%.4f"))
+	{
+		MeshDecalComponent->SetSurfaceOffset(SurfaceOffset);
+	}
+}
+
 void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngine* Engine)
 {
 	if (!Component)
@@ -1472,7 +1490,11 @@ void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngi
 		DrawBillboardComponentDetials(static_cast<UBillboardComponent*>(Component), Engine);
 	}
 
-	if (Component->IsA(UDecalComponent::StaticClass()))
+	if (Component->IsA(UMeshDecalComponent::StaticClass()))
+	{
+		DrawMeshDecalComponentDetails(static_cast<UMeshDecalComponent*>(Component), Engine);
+	}
+	else if (Component->IsA(UDecalComponent::StaticClass()))
 	{
 		DrawDecalComponentDetails(static_cast<UDecalComponent*>(Component), Engine);
 	}
@@ -1564,6 +1586,12 @@ bool FPropertyWindow::AddComponentToActor(AActor* SelectedActor, UClass* Compone
 	{
 		UDecalComponent* DecalComponent = static_cast<UDecalComponent*>(NewComponent);
 		DecalComponent->UpdateBounds();
+	}
+
+	if (NewComponent->IsA(UMeshDecalComponent::StaticClass()))
+	{
+		UMeshDecalComponent* MeshDecalComponent = static_cast<UMeshDecalComponent*>(NewComponent);
+		MeshDecalComponent->UpdateBounds();
 	}
 
 	if (ULevel* Level = SelectedActor->GetLevel())

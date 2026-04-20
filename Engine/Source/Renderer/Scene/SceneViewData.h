@@ -4,6 +4,7 @@
 #include "Core/ShowFlags.h"
 #include "Renderer/Features/Debug/DebugTypes.h"
 #include "Renderer/Features/Decal/DecalTypes.h"
+#include "Renderer/Features/Decal/MeshDecalTypes.h"
 #include "Renderer/Features/Fog/FogTypes.h"
 #include "Renderer/Features/Outline/OutlineTypes.h"
 #include "Renderer/Features/FireBall/FireBallTypes.h"
@@ -99,6 +100,9 @@ struct ENGINE_API FScenePostProcessInputs
 {
 	TArray<FFogRenderItem>      FogItems;
 	TArray<FDecalRenderItem>    DecalItems;
+	TArray<FMeshDecalRenderItem> MeshDecalItems;
+	TArray<FMeshDecalReceiverCandidate> MeshDecalReceiverCandidates;
+	FMeshDecalBuildStats        MeshDecalStats;
 	ID3D11ShaderResourceView*   DecalBaseColorTextureArraySRV = nullptr;
 	TArray<FOutlineRenderItem>  OutlineItems;
 	TArray<FFireBallRenderItem> FireBallItems;
@@ -109,6 +113,9 @@ struct ENGINE_API FScenePostProcessInputs
 	{
 		FogItems.clear();
 		DecalItems.clear();
+		MeshDecalItems.clear();
+		MeshDecalReceiverCandidates.clear();
+		MeshDecalStats = {};
 		DecalBaseColorTextureArraySRV = nullptr;
 		OutlineItems.clear();
 		FireBallItems.clear();

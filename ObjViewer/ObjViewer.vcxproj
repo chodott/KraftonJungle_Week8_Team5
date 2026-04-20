@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{9B5AA5E2-3FC1-49B5-B3FB-0ADAE4A20C58}</ProjectGuid>
+    <ProjectGuid>{9b5aa5e2-3fc1-49b5-b3fb-0adae4a20c58}</ProjectGuid>
     <RootNamespace>ObjViewer</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
@@ -36,7 +36,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
-    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -111,7 +111,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /FS %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)Source\;$(ProjectDir)..\Engine\Source\;$(ProjectDir)..\Editor\ThirdParty\imgui\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -134,7 +134,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /FS %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)Source\;$(ProjectDir)..\Engine\Source\;$(ProjectDir)..\Editor\ThirdParty\imgui\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -149,24 +149,24 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Source\ObjViewerDetailsWindow.cpp" />
+    <ClCompile Include="Source\ObjViewerEngine.cpp" />
+    <ClCompile Include="Source\ObjViewerGlobals.cpp" />
+    <ClCompile Include="Source\ObjViewerShell.cpp" />
+    <ClCompile Include="Source\ObjViewerViewportClient.cpp" />
+    <ClCompile Include="Source\ObjViewerViewportSurface.cpp" />
+    <ClCompile Include="Source\main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
     <ClCompile Include="..\Editor\ThirdParty\imgui\imgui.cpp" />
+    <ClCompile Include="..\Editor\ThirdParty\imgui\imgui_demo.cpp" />
     <ClCompile Include="..\Editor\ThirdParty\imgui\imgui_draw.cpp" />
     <ClCompile Include="..\Editor\ThirdParty\imgui\imgui_impl_dx11.cpp" />
     <ClCompile Include="..\Editor\ThirdParty\imgui\imgui_impl_win32.cpp" />
     <ClCompile Include="..\Editor\ThirdParty\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Editor\ThirdParty\imgui\imgui_widgets.cpp" />
-    <ClCompile Include="Source\main.cpp" />
-    <ClCompile Include="Source\ObjViewerDetailsWindow.cpp" />
-    <ClCompile Include="Source\ObjViewerGlobals.cpp" />
-    <ClCompile Include="Source\ObjViewerEngine.cpp" />
-    <ClCompile Include="Source\ObjViewerShell.cpp" />
-    <ClCompile Include="Source\ObjViewerViewportClient.cpp" />
-    <ClCompile Include="Source\ObjViewerViewportSurface.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\Editor\ThirdParty\imgui\imgui.h" />
-    <ClInclude Include="..\Editor\ThirdParty\imgui\imgui_impl_dx11.h" />
-    <ClInclude Include="..\Editor\ThirdParty\imgui\imgui_impl_win32.h" />
     <ClInclude Include="Source\ObjViewerDetailsWindow.h" />
     <ClInclude Include="Source\ObjViewerEngine.h" />
     <ClInclude Include="Source\ObjViewerGlobals.h" />

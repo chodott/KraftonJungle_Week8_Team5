@@ -7,6 +7,7 @@ class AActor;
 class UActorComponent;
 class USceneComponent;
 class UBillboardComponent;
+class UMeshDecalComponent;
 using FPropertyChangedCallback = std::function<void(const FVector&, const FVector&, const FVector&)>;
 
 class FPropertyWindow
@@ -42,6 +43,7 @@ private:
 	void DrawLocalHeightFogComponentDetails(class ULocalHeightFogComponent* LocalHeightFogComponent);
 	void DrawBillboardComponentDetials(class UBillboardComponent* BillboardComponent, FEditorEngine* Engine);
 	void DrawDecalComponentDetails(class UDecalComponent* DecalComponent, FEditorEngine* Engine);
+	void DrawMeshDecalComponentDetails(class UMeshDecalComponent* MeshDecalComponent, FEditorEngine* Engine);
 	void DrawFireBallComponentDetails(class UFireBallComponent* FireBallComponent);
 	void DrawLightComponentDetails(class ULightComponent* LightComponent);
 	void DrawPointLightComponentDetails(class UPointLightComponent* PointLightComponent, bool bShowHeader = true);

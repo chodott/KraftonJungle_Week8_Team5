@@ -1,6 +1,7 @@
 ﻿#include "Renderer/Scene/Builders/SceneCommandBuilder.h"
 
 #include <algorithm>
+#include <filesystem>
 
 #include "Renderer/Resources/Material/Material.h"
 #include "Component/BillboardComponent.h"
@@ -10,8 +11,11 @@
 #include "Component/SubUVComponent.h"
 #include "Component/TextComponent.h"
 #include "Component/FireBallComponent.h"
+#include "Component/MeshDecalComponent.h"
 #include "Component/UUIDBillboardComponent.h"
+#include "Core/Engine.h"
 #include "Debug/EngineLog.h"
+#include "Renderer/Renderer.h"
 #include "Renderer/Features/FireBall/FireBallRenderFeature.h"
 #include "Renderer/Mesh/MeshData.h"
 
@@ -145,6 +149,80 @@ FMaterial* FSceneCommandResourceCache::GetOrCreateSubUVMaterial(
 	return Material;
 }
 
+FMaterial* FSceneCommandResourceCache::GetOrCreateMeshDecalMaterial(
+	const FSceneCommandBuildContext& BuildContext,
+	const UMeshDecalComponent* Component)
+{
+	if (!Component || !BuildContext.DefaultTextureMaterial)
+	{
+		return BuildContext.DefaultTextureMaterial ? BuildContext.DefaultTextureMaterial : BuildContext.DefaultMaterial;
+	}
+
+	auto Found = MeshDecalMaterialsByComponent.find(Component);
+	if (Found == MeshDecalMaterialsByComponent.end())
+	{
+		std::unique_ptr<FDynamicMaterial> OwnedMaterial = BuildContext.DefaultTextureMaterial->CreateDynamicMaterial();
+		if (!OwnedMaterial)
+		{
+			return BuildContext.DefaultTextureMaterial;
+		}
+
+		std::shared_ptr<FDynamicMaterial> Material(OwnedMaterial.release());
+		Found = MeshDecalMaterialsByComponent.emplace(Component, std::move(Material)).first;
+	}
+
+	FDynamicMaterial* Material = Found->second.get();
+	if (!Material)
+	{
+		return BuildContext.DefaultTextureMaterial;
+	}
+
+	const FLinearColor& Tint = Component->GetBaseColorTint();
+	const FVector4 BaseColor(Tint.R, Tint.G, Tint.B, Tint.A);
+	Material->SetVectorParameter("BaseColor", BaseColor);
+
+	std::shared_ptr<FMaterialTexture> TextureBinding;
+	const std::wstring& TexturePath = Component->GetTexturePath();
+	if (!TexturePath.empty())
+	{
+		const std::wstring NormalizedPath = std::filesystem::path(TexturePath).lexically_normal().wstring();
+		auto TextureIt = MeshDecalTextureByPath.find(NormalizedPath);
+		if (TextureIt == MeshDecalTextureByPath.end())
+		{
+			if (GEngine && GEngine->GetRenderer())
+			{
+				ID3D11ShaderResourceView* NewSRV = nullptr;
+				if (GEngine->GetRenderer()->CreateTextureFromSTB(GEngine->GetRenderer()->GetDevice(), std::filesystem::path(NormalizedPath), &NewSRV))
+				{
+					TextureBinding = std::make_shared<FMaterialTexture>();
+					TextureBinding->TextureSRV = NewSRV;
+					TextureBinding->SamplerState = GEngine->GetRenderer()->GetDefaultSampler();
+					if (TextureBinding->SamplerState)
+					{
+						TextureBinding->SamplerState->AddRef();
+					}
+					MeshDecalTextureByPath.emplace(NormalizedPath, TextureBinding);
+				}
+			}
+		}
+		else
+		{
+			TextureBinding = TextureIt->second;
+		}
+	}
+
+	if (TextureBinding)
+	{
+		Material->SetMaterialTexture(TextureBinding);
+	}
+	else
+	{
+		Material->SetMaterialTexture(BuildContext.DefaultTextureMaterial->GetMaterialTexture());
+	}
+
+	return Material;
+}
+
 void FSceneCommandResourceCache::PruneStaleSubUVMaterials(const TArray<const USubUVComponent*>& ActiveComponents)
 {
 	for (auto It = SubUVMaterialsByComponent.begin(); It != SubUVMaterialsByComponent.end();)
@@ -216,6 +294,7 @@ void FSceneCommandBuilder::BuildSceneViewData(
 	PostProcessBuilder.BuildFogInputs(Packet, OutSceneViewData);
 	PostProcessBuilder.BuildFireBallInputs(Packet, OutSceneViewData);
 	PostProcessBuilder.BuildDecalInputs(Packet, OutSceneViewData);
+	PostProcessBuilder.BuildMeshDecalInputs(BuildContext, Packet, OutSceneViewData);
 
 	BuildObjectLightLists(OutSceneViewData);
 

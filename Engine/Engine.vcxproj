@@ -29,6 +29,7 @@
     <ClInclude Include="Source\Actor\DirectionalLightActor.h" />
     <ClInclude Include="Source\Actor\HeightFogActor.h" />
     <ClInclude Include="Source\Actor\LocalHeightFogActor.h" />
+    <ClInclude Include="Source\Actor\MeshDecalActor.h" />
     <ClInclude Include="Source\Actor\PlaneActor.h" />
     <ClInclude Include="Source\Actor\PlayerCameraActor.h" />
     <ClInclude Include="Source\Actor\PointLightActor.h" />
@@ -54,6 +55,7 @@
     <ClInclude Include="Source\Component\LightComponentBase.h" />
     <ClInclude Include="Source\Component\LineBatchComponent.h" />
     <ClInclude Include="Source\Component\LocalHeightFogComponent.h" />
+    <ClInclude Include="Source\Component\MeshDecalComponent.h" />
     <ClInclude Include="Source\Component\MeshComponent.h" />
     <ClInclude Include="Source\Component\MoveComponent.h" />
     <ClInclude Include="Source\Component\MovementComponent.h" />
@@ -139,6 +141,7 @@
     <ClInclude Include="Source\Renderer\Features\Decal\DecalStats.h" />
     <ClInclude Include="Source\Renderer\Features\Decal\DecalTextureCache.h" />
     <ClInclude Include="Source\Renderer\Features\Decal\DecalTypes.h" />
+    <ClInclude Include="Source\Renderer\Features\Decal\MeshDecalTypes.h" />
     <ClInclude Include="Source\Renderer\Features\Decal\VolumeDecalRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Features\FireBall\FireBallRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Features\FireBall\FireBallTypes.h" />
@@ -329,6 +332,7 @@
     <ClCompile Include="Source\Actor\DirectionalLightActor.cpp" />
     <ClCompile Include="Source\Actor\HeightFogActor.cpp" />
     <ClCompile Include="Source\Actor\LocalHeightFogActor.cpp" />
+    <ClCompile Include="Source\Actor\MeshDecalActor.cpp" />
     <ClCompile Include="Source\Actor\PlaneActor.cpp" />
     <ClCompile Include="Source\Actor\PlayerCameraActor.cpp" />
     <ClCompile Include="Source\Actor\PointLightActor.cpp" />
@@ -354,6 +358,7 @@
     <ClCompile Include="Source\Component\LightComponentBase.cpp" />
     <ClCompile Include="Source\Component\LineBatchComponent.cpp" />
     <ClCompile Include="Source\Component\LocalHeightFogComponent.cpp" />
+    <ClCompile Include="Source\Component\MeshDecalComponent.cpp" />
     <ClCompile Include="Source\Component\MeshComponent.cpp" />
     <ClCompile Include="Source\Component\MoveComponent.cpp" />
     <ClCompile Include="Source\Component\MovementComponent.cpp" />
@@ -563,6 +568,7 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 /FS %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)Source\;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -580,6 +586,7 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 /FS %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)Source\;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

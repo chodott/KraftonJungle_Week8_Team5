@@ -53,21 +53,22 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 #elif LIGHTING_MODEL_LAMBERT
 	
 	float4 lighting = 0.0f.xxxx;
-	
-	if (AmbientEnabled != 0)
-	{
-		lighting += CalculateAmbientLight(Ambient);
-	}
-
-	if (DirectionalLightCount > 0)
-	{
-	    float3 L_dir = normalize(-Directional.DirectionEtc.xyz);
-		float  diff  = max(0.0f, dot(N, L_dir));
-		lighting += float4(Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff, 1.0f);
-	}
-	
-	lighting += ComputeClusteredLocalLighting(Input.Position, Input.WorldPosition, N, V);
-	finalPixel *= lighting;
+    
+    if (AmbientEnabled != 0)
+    {
+        lighting += CalculateAmbientLight(Ambient);
+    }
+    
+    if (DirectionalLightCount > 0)
+    {
+        float3 L_dir = normalize(-Directional.DirectionEtc.xyz);
+        float diff = max(0.0f, dot(N, L_dir));
+        lighting += float4(Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff, 1.0f);
+    }
+    
+    lighting += ComputeClusteredLocalLightingLambert(Input.Position, Input.WorldPosition, N);
+    
+    finalPixel *= lighting;
 
 #elif LIGHTING_MODEL_PHONG
 

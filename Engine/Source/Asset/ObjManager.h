@@ -38,8 +38,9 @@ public:
 	static UStaticMesh* LoadObjStaticMeshAsset(const FString& PathFileName);
 	static UStaticMesh* LoadObjStaticMeshAsset(const FString& PathFileName, const FObjLoadOptions& LoadOptions);
 	static UStaticMesh* LoadModelStaticMeshAsset(const FString& PathFileName);
+	static bool ReadModelImportOptions(const FString& PathFileName, FObjLoadOptions& OutLoadOptions);
 	static FStaticMesh* LoadLodAsset(const FString& PathFileName, float* OutDistance = nullptr);
-	static bool SaveModelStaticMeshAsset(const FString& PathFileName, const FStaticMesh& StaticMesh, const TArray<FModelMaterialInfo>& MaterialInfos, uint64 SourceTimestamp = 0);
+	static bool SaveModelStaticMeshAsset(const FString& PathFileName, const FStaticMesh& StaticMesh, const TArray<FModelMaterialInfo>& MaterialInfos, uint64 SourceTimestamp = 0, const FObjLoadOptions* LoadOptions = nullptr);
 	static bool SaveLodAsset(const FString& PathFileName, const FStaticMesh& LodMes, uint64 SourceTimestamp = 0, float Distance = 0.0f);
 	static bool BuildModelMaterialInfosFromObj(const FString& ObjFilePath, const FString& ModelFilePath, const TArray<FString>& MaterialSlotNames, TArray<FModelMaterialInfo>& OutMaterialInfos);
 	static bool ParseMtlFile(const FString& MtlFIlePath);

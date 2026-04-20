@@ -194,11 +194,21 @@ ID3D11ShaderResourceView* FDecalTextureCache::GetOrLoadBaseColorTexture(ID3D11De
 void FDecalTextureCache::ResolveTextureArray(ID3D11Device* Device, FSceneViewData& InOutSceneViewData)
 {
     auto& DecalItems = InOutSceneViewData.PostProcessInputs.DecalItems;
+    auto& MeshDecalItems = InOutSceneViewData.PostProcessInputs.MeshDecalItems;
 
     TArray<std::wstring> UniquePaths;
-    UniquePaths.reserve(DecalItems.size());
+    UniquePaths.reserve(DecalItems.size() + MeshDecalItems.size());
 
     for (const FDecalRenderItem& Item : DecalItems)
+    {
+        if (Item.TexturePath.empty())
+        {
+            continue;
+        }
+
+        UniquePaths.push_back(NormalizeDecalTexturePath(Item.TexturePath));
+    }
+    for (const FMeshDecalRenderItem& Item : MeshDecalItems)
     {
         if (Item.TexturePath.empty())
         {
@@ -237,6 +247,21 @@ void FDecalTextureCache::ResolveTextureArray(ID3D11Device* Device, FSceneViewDat
     }
 
     for (FDecalRenderItem& Item : DecalItems)
+    {
+        Item.TextureIndex = 0;
+        if (Item.TexturePath.empty())
+        {
+            continue;
+        }
+
+        const std::wstring NormalizedPath = NormalizeDecalTexturePath(Item.TexturePath);
+        auto Found = PathToSlice.find(NormalizedPath);
+        if (Found != PathToSlice.end())
+        {
+            Item.TextureIndex = Found->second;
+        }
+    }
+    for (FMeshDecalRenderItem& Item : MeshDecalItems)
     {
         Item.TextureIndex = 0;
         if (Item.TexturePath.empty())

@@ -96,7 +96,7 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 	LightingInputs.Clear();
 
 	LightingInputs.Ambient.Color     = FVector::OneVector;
-	LightingInputs.Ambient.Intensity = 0.08f;
+	LightingInputs.Ambient.Intensity = 0.0f;
 
 	if (!BuildContext.World)
 	{

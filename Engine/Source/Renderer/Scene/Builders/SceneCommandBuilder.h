@@ -14,6 +14,7 @@
 
 class FDynamicMaterial;
 class FMaterial;
+struct FMaterialTexture;
 class UBillboardComponent;
 class USubUVComponent;
 class UWorld;
@@ -24,6 +25,7 @@ class ENGINE_API FSceneCommandResourceCache
 public:
 	FMaterial* GetOrCreateTextMaterial(const FSceneCommandBuildContext& BuildContext, const FVector4& TextColor);
 	FMaterial* GetOrCreateSubUVMaterial(const FSceneCommandBuildContext& BuildContext, const USubUVComponent* Component);
+	FMaterial* GetOrCreateMeshDecalMaterial(const FSceneCommandBuildContext& BuildContext, const class UMeshDecalComponent* Component);
 	void       PruneStaleSubUVMaterials(const TArray<const USubUVComponent*>& ActiveComponents);
 
 private:
@@ -36,17 +38,20 @@ private:
 
 	TMap<uint32, std::shared_ptr<FDynamicMaterial>>                 TextMaterialsByColor;
 	TMap<const USubUVComponent*, std::shared_ptr<FDynamicMaterial>> SubUVMaterialsByComponent;
+	TMap<const class UMeshDecalComponent*, std::shared_ptr<FDynamicMaterial>> MeshDecalMaterialsByComponent;
+	TMap<std::wstring, std::shared_ptr<FMaterialTexture>> MeshDecalTextureByPath;
 };
 
 struct ENGINE_API FSceneCommandBuildContext
 {
-	FMaterial*                  DefaultMaterial  = nullptr;
-	ISceneTextFeature*          TextFeature      = nullptr;
-	ISceneSubUVFeature*         SubUVFeature     = nullptr;
-	ISceneBillboardFeature*     BillboardFeature = nullptr;
-	FSceneCommandResourceCache* ResourceCache    = nullptr;
-	float                       TotalTimeSeconds = 0.0f;
-	UWorld*                     World            = nullptr;
+	FMaterial*                  DefaultMaterial        = nullptr;
+	FMaterial*                  DefaultTextureMaterial = nullptr;
+	ISceneTextFeature*          TextFeature            = nullptr;
+	ISceneSubUVFeature*         SubUVFeature           = nullptr;
+	ISceneBillboardFeature*     BillboardFeature       = nullptr;
+	FSceneCommandResourceCache* ResourceCache          = nullptr;
+	float                       TotalTimeSeconds       = 0.0f;
+	UWorld*                     World                  = nullptr;
 };
 
 class ENGINE_API FSceneCommandBuilder

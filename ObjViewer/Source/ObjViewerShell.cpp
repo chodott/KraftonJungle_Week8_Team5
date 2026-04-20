@@ -1,6 +1,7 @@
 #include "ObjViewerShell.h"
 
 #include <algorithm>
+#include <cctype>
 #include <commdlg.h>
 #include <cstdio>
 #include <filesystem>
@@ -22,6 +23,29 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM,
 
 namespace
 {
+	FString GetNormalizedExtension(const FString& FilePath)
+	{
+		FString Extension = FPaths::FromPath(FPaths::ToPath(FilePath).extension());
+		std::transform(Extension.begin(), Extension.end(), Extension.begin(), [](unsigned char Ch)
+		{
+			return static_cast<char>(std::tolower(Ch));
+		});
+		return Extension;
+	}
+
+	FString GetSiblingModelPath(const FString& FilePath)
+	{
+		const std::filesystem::path SourcePath = FPaths::ToPath(FPaths::ToAbsolutePath(FilePath)).lexically_normal();
+		if (SourcePath.empty())
+		{
+			return "";
+		}
+
+		std::filesystem::path ModelFileName = SourcePath.stem();
+		ModelFileName += FPaths::ToPath(".model");
+		return FPaths::FromPath(SourcePath.parent_path() / ModelFileName);
+	}
+
 	const char* GetAxisLabel(EObjImportAxis Axis)
 	{
 		switch (Axis)
@@ -369,6 +393,18 @@ void FObjViewerShell::RequestImportDialog(const FString& FilePath, const FString
 	if (!Engine || !Engine->HasLoadedModel())
 	{
 		ApplyImportPreset(PendingImportOptions);
+
+		const FString Extension = GetNormalizedExtension(FilePath);
+		const FString ModelPath = (Extension == ".model") ? FilePath : GetSiblingModelPath(FilePath);
+		FObjLoadOptions SavedLoadOptions {};
+		if (!ModelPath.empty()
+			&& FObjManager::ReadModelImportOptions(ModelPath, SavedLoadOptions)
+			&& !SavedLoadOptions.bUseLegacyObjConversion)
+		{
+			PendingImportOptions.SourcePreset = EObjImportPreset::Custom;
+			PendingImportOptions.ForwardAxis = SavedLoadOptions.ForwardAxis;
+			PendingImportOptions.UpAxis = SavedLoadOptions.UpAxis;
+		}
 	}
 	bOpenImportDialogNextFrame = true;
 }
