@@ -2,8 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Renderer/Features/Lighting/LightTypes.h"
-#include "Renderer/Common/RenderFrameContext.h"
 #include "Renderer/Common/SceneRenderTargets.h"
+#include "Renderer/Scene/SceneViewData.h"
 
 #include <d3d11.h>
 
@@ -16,62 +16,91 @@ enum class ELightingModel : uint8
 	Phong
 };
 
-class ENGINE_API FLightRenderFeature {
+class ENGINE_API FLightRenderFeature
+{
 public:
 	~FLightRenderFeature();
 
-	bool Render(
-		FRenderer& Renderer,
-		const FFrameContext& Frame,
-		const FViewContext& View,
+	bool PrepareClusteredLightResources(
+		FRenderer&                 Renderer,
+		const FSceneViewData&      SceneViewData,
 		const FSceneRenderTargets& Targets);
+
+	bool Render(
+		FRenderer&                 Renderer,
+		const FSceneViewData&      SceneViewData,
+		const FSceneRenderTargets& Targets);
+
 	void Release();
 
-	void SetLightingModel(ELightingModel Model) { CurrentLightingModel = Model; }
-	ELightingModel GetLightingModel() const { return CurrentLightingModel; }
+	void SetLightingModel(ELightingModel Model)
+	{
+		CurrentLightingModel = Model;
+	}
 
-	ID3D11VertexShader* GetCurrentVS() const
+	ELightingModel GetLightingModel() const
 	{
-		switch (CurrentLightingModel)
-		{
-		case ELightingModel::Gouraud: return GouraudVS;
-		case ELightingModel::Lambert: return LambertVS;
-		case ELightingModel::Phong:
-		default:                      return PhongVS;
-		}
+		return CurrentLightingModel;
 	}
-	ID3D11PixelShader* GetCurrentPS() const
+
+	ID3D11VertexShader* GetCurrentVS() const;
+	ID3D11PixelShader*  GetCurrentPS() const;
+
+	ID3D11InputLayout* GetInputLayout() const
 	{
-		switch (CurrentLightingModel)
-		{
-		case ELightingModel::Gouraud: return GouraudPS;
-		case ELightingModel::Lambert: return LambertPS;
-		case ELightingModel::Phong:
-		default:                      return PhongPS;
-		}
+		return LightInputLayout;
 	}
-	ID3D11InputLayout* GetInputLayout() const { return LightInputLayout; }
 
 private:
 	bool Initialize(FRenderer& Renderer);
-	void UpdateLightConstantBuffer(FRenderer& Renderer, const FViewContext& View);
 	bool CompileShaderVariants(FRenderer& Renderer);
 
-private:
-	ID3D11Buffer* LightConstantBuffer = nullptr;
-	ID3D11BlendState* LightBlendState = nullptr;
-	ID3D11DepthStencilState* NoDepthState = nullptr;
-	ID3D11RasterizerState* LightRasterizerState = nullptr;
-	ID3D11SamplerState* DepthSampler = nullptr;
-	ID3D11InputLayout* LightInputLayout = nullptr;
+	void UpdateGlobalLightConstantBuffer(FRenderer& Renderer, const FSceneViewData& SceneViewData);
+	void UpdateClusterGlobalConstantBuffer(FRenderer& Renderer, const FSceneViewData& SceneViewData);
+	void UploadLocalLightBuffers(FRenderer& Renderer, const FSceneViewData& SceneViewData);
+
+	bool EnsureDynamicStructuredBufferSRV(
+		FRenderer&                 Renderer,
+		uint32                     ElementStride,
+		uint32                     ElementCount,
+		ID3D11Buffer*&             Buffer,
+		ID3D11ShaderResourceView*& SRV);
+
+	bool EnsureDefaultStructuredBufferSRVUAV(
+		FRenderer&                  Renderer,
+		uint32                      ElementStride,
+		uint32                      ElementCount,
+		ID3D11Buffer*&              Buffer,
+		ID3D11ShaderResourceView*&  SRV,
+		ID3D11UnorderedAccessView*& UAV);
+
+	ID3D11Buffer* GlobalLightConstantBuffer   = nullptr;
+	ID3D11Buffer* ClusterGlobalConstantBuffer = nullptr;
+
+	ID3D11Buffer*             LocalLightBuffer = nullptr;
+	ID3D11ShaderResourceView* LocalLightSRV    = nullptr;
+
+	ID3D11Buffer*             LightCullProxyBuffer = nullptr;
+	ID3D11ShaderResourceView* LightCullProxySRV    = nullptr;
+
+	ID3D11Buffer*             ObjectLightMaskBuffer = nullptr;
+	ID3D11ShaderResourceView* ObjectLightMaskSRV    = nullptr;
+
+	ID3D11Buffer*              ClusterLightMaskBuffer = nullptr;
+	ID3D11ShaderResourceView*  ClusterLightMaskSRV    = nullptr;
+	ID3D11UnorderedAccessView* ClusterLightMaskUAV    = nullptr;
+
+	ID3D11ComputeShader* LightCullingCS = nullptr;
+
+	ID3D11InputLayout*  LightInputLayout = nullptr;
+	ID3D11SamplerState* DepthSampler     = nullptr;
 
 	ID3D11VertexShader* GouraudVS = nullptr;
-	ID3D11PixelShader* GouraudPS = nullptr;
+	ID3D11PixelShader*  GouraudPS = nullptr;
 	ID3D11VertexShader* LambertVS = nullptr;
-	ID3D11PixelShader* LambertPS = nullptr;
-	ID3D11VertexShader* PhongVS = nullptr;
-	ID3D11PixelShader* PhongPS = nullptr;
-	
-	ELightingModel CurrentLightingModel = ELightingModel::Gouraud;
-};
+	ID3D11PixelShader*  LambertPS = nullptr;
+	ID3D11VertexShader* PhongVS   = nullptr;
+	ID3D11PixelShader*  PhongPS   = nullptr;
 
+	ELightingModel CurrentLightingModel = ELightingModel::Phong;
+};

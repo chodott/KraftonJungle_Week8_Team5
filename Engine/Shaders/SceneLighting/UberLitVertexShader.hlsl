@@ -26,28 +26,27 @@ VS_OUTPUT main(VS_INPUT Input)
 	Output.Bitangent = float3(0, 0, 0);
 #endif
 	
+	Output.VertexLighting = float4(1, 1, 1, 1);
+	
 	// ── Gouraud: VS에서 Blinn-Phong으로 모든 광원 계산 ──
 #if LIGHTING_MODEL_GOURAUD
 	float3 N = Output.Normal;
-	float3 cameraPos = float3(
-        View._41, // View 행렬의 이동 성분
-        View._42,
-        View._43
-    );
-	float3 V = normalize(cameraPos - Output.WorldPosition);
+	float3 V = normalize(CameraPosition.xyz - Output.WorldPosition);
 
-    float4 lighting = CalculateAmbientLight(Ambient);
-    lighting += CalculateDirectionalLight(Directional, Output.WorldPosition, N, V);
-
-    [unroll]
-    for (int i = 0; i < NUM_POINT_LIGHT; ++i)
-        lighting += CalculatePointLight(PointLights[i], Output.WorldPosition, N, V);
-
-    [unroll]
-    for (int j = 0; j < NUM_SPOT_LIGHT; ++j)
-        lighting += CalculateSpotLight(SpotLights[j], Output.WorldPosition, N, V);
-
-    Output.Color *= lighting;
+	float4 lighting = float4(0, 0, 0, 0);
+	
+	if (AmbientEnabled != 0)
+	{
+		lighting += CalculateAmbientLight(Ambient);
+	}
+	
+	if (DirectionalLightCount > 0)
+	{
+		lighting += CalculateDirectionalLight(Directional, Output.WorldPosition, N, V);
+	}
+	
+	lighting += ComputeObjectLocalLighting(Output.WorldPosition, N, V);
+	Output.VertexLighting = lighting;
 
 #elif LIGHTING_MODEL_LAMBERT
 

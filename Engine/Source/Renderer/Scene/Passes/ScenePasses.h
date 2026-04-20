@@ -6,3 +6,4 @@
 #include "Renderer/Scene/Passes/SelectionHighlightPasses.h"
 #include "Renderer/Scene/Passes/FinalImagePostProcessPasses.h"
 #include "Renderer/Scene/Passes/EditorScreenOverlayPasses.h"
+#include  "Renderer/Scene/Passes/SelectionHighlightPasses.h"

@@ -9,6 +9,9 @@ class UBillboardComponent;
 class UPrimitiveComponent;
 class UDecalComponent;
 class UFireBallComponent;
+class USpotLightComponent;
+class UPointLightComponent;
+class UDirectionalLightComponent;
 
 struct ENGINE_API FSceneMeshPrimitive
 {
@@ -52,6 +55,21 @@ struct ENGINE_API FSceneFireBallPrimitive
 	UFireBallComponent* Component = nullptr;
 };
 
+struct ENGINE_API FScenePointLightPrimitive
+{
+	UPointLightComponent* Component = nullptr;
+};
+
+struct ENGINE_API FSceneSpotLightPrimitive
+{
+	USpotLightComponent* Component = nullptr;
+};
+
+struct ENGINE_API FSceneDirectionalLightPrimitive
+{
+	UDirectionalLightComponent* Component = nullptr;
+};
+
 struct ENGINE_API FSceneRenderPacket
 {
 	// 이 뷰에서 월드로부터 수집한 메시 프리미티브 목록이다.
@@ -68,6 +86,10 @@ struct ENGINE_API FSceneRenderPacket
 	TArray<FSceneDecalPrimitive> DecalPrimitives;
 	// 파이어볼 컴포넌트 목록이다.
 	TArray<FSceneFireBallPrimitive> FireBallPrimitives;
+	// 조명 컴포넌트 목록이다.
+	TArray<FSceneSpotLightPrimitive>        SpotLightPrimitives;
+	TArray<FScenePointLightPrimitive>       PointLightPrimitives;
+	TArray<FSceneDirectionalLightPrimitive> DirectionalLightPrimitives;
 	// FXAA 적용 여부이다.
 	bool bApplyFXAA = false;
 
@@ -82,6 +104,9 @@ struct ENGINE_API FSceneRenderPacket
 		FogPrimitives.reserve(PrimitiveCountHint);
 		DecalPrimitives.reserve(PrimitiveCountHint);
 		FireBallPrimitives.reserve(PrimitiveCountHint);
+		SpotLightPrimitives.reserve(PrimitiveCountHint);
+		PointLightPrimitives.reserve(PrimitiveCountHint);
+		DirectionalLightPrimitives.reserve(PrimitiveCountHint);
 	}
 
 	// 패킷 안의 모든 프리미티브 버킷을 비운다.
@@ -94,6 +119,9 @@ struct ENGINE_API FSceneRenderPacket
 		FogPrimitives.clear();
 		DecalPrimitives.clear();
 		FireBallPrimitives.clear();
+		SpotLightPrimitives.clear();
+		PointLightPrimitives.clear();
+		DirectionalLightPrimitives.clear();
 		bApplyFXAA = false;
 	}
 };

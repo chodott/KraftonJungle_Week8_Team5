@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source">
@@ -52,8 +52,83 @@
     <Filter Include="Source\Renderer">
       <UniqueIdentifier>{b4935566-c566-3c8c-ae88-5cc13eba9d31}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\Renderer\Feature">
-      <UniqueIdentifier>{208c9b4c-a04e-6a5d-fda9-d05f3dd4f4e0}</UniqueIdentifier>
+    <Filter Include="Source\Renderer\Common">
+      <UniqueIdentifier>{b6da362d-df6f-f8bb-1424-369fa1c2880f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Features">
+      <UniqueIdentifier>{9a8d4a40-35fb-a2e7-e7d3-1c556d2198b3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Features\Billboard">
+      <UniqueIdentifier>{1d9dff63-1de7-13e7-48a2-e9c34f722170}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Features\Debug">
+      <UniqueIdentifier>{180cd2f0-0623-93dc-1c24-57c8adb31f09}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Features\Decal">
+      <UniqueIdentifier>{d5489b26-7792-63f5-415a-05bc01a510de}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Features\FireBall">
+      <UniqueIdentifier>{3f9b857d-5923-a8cb-2a27-c90cd90710ea}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Features\Fog">
+      <UniqueIdentifier>{5438494c-0137-2c92-29bc-d12926c52cf8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Features\Lighting">
+      <UniqueIdentifier>{8a67aa86-69eb-547e-b940-56d10650db56}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Features\Outline">
+      <UniqueIdentifier>{ad898791-5a3b-2dd2-bb27-f8ec309610f6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Features\PostProcess">
+      <UniqueIdentifier>{d40da4a2-9d2f-bddd-9318-6acd898904a9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Features\SubUV">
+      <UniqueIdentifier>{ea84b017-a237-d8ca-e2a1-23ed716c2c4c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Features\Text">
+      <UniqueIdentifier>{ad282ba7-be84-b6e1-6d76-16da267cf429}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Frame">
+      <UniqueIdentifier>{e3cb767c-978f-a0a8-4aa2-41427e6a7d16}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Frame\UI">
+      <UniqueIdentifier>{50b635b2-4aec-1d9d-bb76-64ad06e0a635}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Frame\Viewport">
+      <UniqueIdentifier>{53457854-3cd8-3e86-f69a-505a5a024ee7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\GraphicsCore">
+      <UniqueIdentifier>{f9751046-12c1-7b17-2628-833efdac5af8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Mesh">
+      <UniqueIdentifier>{3f6706ba-bb95-d0d9-a0d2-be3af0cf86fc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Resources">
+      <UniqueIdentifier>{ad05da5d-852d-ed1a-cd1d-399096657a70}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Resources\Material">
+      <UniqueIdentifier>{d4ea7917-9e16-a8ff-4cd3-251047af3eeb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Resources\Shader">
+      <UniqueIdentifier>{8d9f7807-235f-abbb-61b2-95c9d662f671}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Scene">
+      <UniqueIdentifier>{a181ca3e-7787-a16c-dd16-0201349a0453}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Scene\Builders">
+      <UniqueIdentifier>{63747622-e391-507e-3496-1b50bf1ef526}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Scene\Passes">
+      <UniqueIdentifier>{fe682d3e-c222-0bba-08c9-ca4fbf17faeb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\Scene\Pipeline">
+      <UniqueIdentifier>{c30caa86-e48a-e297-19e4-d373a030c34c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\UI">
+      <UniqueIdentifier>{4897c541-bd03-0f95-001f-c3a8b7ea84c1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\UI\Screen">
+      <UniqueIdentifier>{1b52dcad-558a-77c9-43b2-80efbfa50edb}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\Serializer">
       <UniqueIdentifier>{31714189-31bf-1cc6-f130-c789ef837eee}</UniqueIdentifier>
@@ -82,79 +157,6 @@
     <Filter Include="ThirdParty\nlohmann">
       <UniqueIdentifier>{c70e54eb-75c7-d408-4bdc-b003f49af18a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\Renderer\Common">
-      <UniqueIdentifier>{83EA4F67-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\Mesh">
-      <UniqueIdentifier>{943581D3-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\RHI">
-      <UniqueIdentifier>{E2FD1253-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\Scene">
-      <UniqueIdentifier>{F960F4AF-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\UI">
-      <UniqueIdentifier>{BD0858DF-0000-0000-0000-000000000000}</UniqueIdentifier>
-    </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Source\Renderer\Features\Decal\DecalTypes.h">
-      <Filter>Source\Renderer\Feature</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Features\Fog\FogTypes.h">
-      <Filter>Source\Renderer\Feature</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Features\Outline\OutlineTypes.h">
-      <Filter>Source\Renderer\Feature</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Features\FireBall\FireBallTypes.h">
-      <Filter>Source\Renderer\Feature</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Frame\FrameRequests.h">
-      <Filter>Source\Renderer\Common</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Frame\RenderFrameUtils.h">
-      <Filter>Source\Renderer\Common</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Frame\GameFrameRenderer.h">
-      <Filter>Source\Renderer\Common</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Frame\EditorFrameRenderer.h">
-      <Filter>Source\Renderer\Common</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\UI\Screen\ScreenUIBatchRenderer.h">
-      <Filter>Source\Renderer\UI</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\UI\Screen\ScreenUIPassBuilder.h">
-      <Filter>Source\Renderer\UI</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\UI\Screen\ScreenUIRendererUtils.h">
-      <Filter>Source\Renderer\UI</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Frame\RendererResourceBootstrap.h">
-      <Filter>Source\Renderer\Common</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Scene\Builders\DebugSceneBuilder.h">
-      <Filter>Source\Renderer\Scene</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Scene\Pipeline\ScenePipelineBuilder.h" />
-    <ClInclude Include="Source\Renderer\Scene\Builders\SceneViewAssembler.h" />
-    <ClInclude Include="Source\Renderer\Features\Decal\DecalProjectionMode.h" />
-    <ClInclude Include="Source\Renderer\Features\Decal\DecalStats.h" />
-    <ClInclude Include="Source\Renderer\Scene\Passes\ScenePassExecutionUtils.h" />
-    <ClInclude Include="Source\Actor\SpotLightFakeActor.h" />
-    <ClInclude Include="Source\Renderer\Common\RenderMode.h" />
-    <ClInclude Include="Source\Component\LocalHeightFogComponent.h" />
-    <ClInclude Include="Source\Actor\LocalHeightFogActor.h" />
-    <ClInclude Include="Source\Renderer\Scene\Passes\EditorScreenOverlayPasses.h" />
-    <ClInclude Include="Source\Renderer\Scene\Passes\EditorWorldOverlayPasses.h" />
-    <ClInclude Include="Source\Renderer\Scene\Passes\FinalImagePostProcessPasses.h" />
-    <ClInclude Include="Source\Renderer\Scene\Passes\SceneEffectsPasses.h" />
-    <ClInclude Include="Source\Renderer\Scene\Passes\SceneGeometryPasses.h" />
-    <ClInclude Include="Source\Renderer\Scene\Passes\SelectionHighlightPasses.h" />
-    <ClInclude Include="Source\Renderer\Features\Lighting\LightTypes.h" />
-    <ClInclude Include="Source\Renderer\Features\Lighting\LightRenderFeature.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\Actor\Actor.cpp">
@@ -172,6 +174,9 @@
     <ClCompile Include="Source\Actor\HeightFogActor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Actor\LocalHeightFogActor.cpp">
+      <Filter>Source\Actor</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Actor\PlaneActor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
@@ -184,6 +189,9 @@
     <ClCompile Include="Source\Actor\SphereActor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Actor\SpotLightFakeActor.cpp">
+      <Filter>Source\Actor</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Actor\StaticMeshActor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
@@ -194,6 +202,9 @@
       <Filter>Source\Actor</Filter>
     </ClCompile>
     <ClCompile Include="Source\Asset\ObjManager.cpp">
+      <Filter>Source\Asset</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Asset\StaticMeshLODBuilder.cpp">
       <Filter>Source\Asset</Filter>
     </ClCompile>
     <ClCompile Include="Source\Camera\Camera.cpp">
@@ -220,16 +231,28 @@
     <ClCompile Include="Source\Component\LineBatchComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Component\LocalHeightFogComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Component\MeshComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
     <ClCompile Include="Source\Component\MoveComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Component\MovementComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Component\PrimitiveComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Component\ProjectileMovementComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Component\RandomColorComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Component\RotatingMovementComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
     <ClCompile Include="Source\Component\SceneComponent.cpp">
@@ -304,6 +327,9 @@
     <ClCompile Include="Source\Math\Frustum.cpp">
       <Filter>Source\Math</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Math\LinearColor.cpp">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Math\Matrix.cpp">
       <Filter>Source\Math</Filter>
     </ClCompile>
@@ -358,146 +384,182 @@
     <ClCompile Include="Source\Primitive\UnrealEditorStyledGizmo.cpp">
       <Filter>Source\Primitive</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderer.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Features\Text\FontAtlas.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Frame\UI\FramePasses.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Frame\UI\FramePipeline.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Math\LinearColor.cpp">
-      <Filter>Source\Math</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Resources\Material\Material.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Resources\Material\MaterialManager.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Mesh\MeshData.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Scene\MeshPassProcessor.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Mesh\RenderMesh.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Scene\Pipeline\RenderPipeline.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\GraphicsCore\RenderState.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\GraphicsCore\RenderStateManager.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Renderer\Renderer.cpp">
       <Filter>Source\Renderer</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Renderer\Frame\SceneTargetManager.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Frame\RenderFrameUtils.cpp">
-      <Filter>Source\Renderer\Common</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Frame\GameFrameRenderer.cpp">
-      <Filter>Source\Renderer\Common</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Frame\EditorFrameRenderer.cpp">
-      <Filter>Source\Renderer\Common</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\UI\Screen\ScreenUIBatchRenderer.cpp">
-      <Filter>Source\Renderer\UI</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\UI\Screen\ScreenUIPassBuilder.cpp">
-      <Filter>Source\Renderer\UI</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\UI\Screen\ScreenUIRendererUtils.cpp">
-      <Filter>Source\Renderer\UI</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Frame\RendererResourceBootstrap.cpp">
-      <Filter>Source\Renderer\Common</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Scene\Builders\DebugSceneBuilder.cpp">
-      <Filter>Source\Renderer\Scene</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandBuilder.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandMeshBuilder.cpp">
-      <Filter>Source\Renderer\Scene</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandPostProcessBuilder.cpp">
-      <Filter>Source\Renderer\Scene</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandSpriteBuilder.cpp">
-      <Filter>Source\Renderer\Scene</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandTextBuilder.cpp">
-      <Filter>Source\Renderer\Scene</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Scene\Passes\ScenePasses.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Scene\SceneRenderer.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\UI\Screen\ScreenUIRenderer.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Resources\Shader\Shader.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderManager.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderMap.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderResource.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Features\SubUV\SubUVRenderer.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Features\Text\TextMeshBuilder.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\Frame\Viewport\ViewportCompositor.cpp">
-      <Filter>Source\Renderer</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderFeature.cpp">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\Billboard</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderer.cpp">
+      <Filter>Source\Renderer\Features\Billboard</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Features\Debug\DebugLineRenderFeature.cpp">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\Debug</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Features\Decal\DecalRenderFeature.cpp">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\Decal</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Features\Decal\DecalTextureCache.cpp">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\Decal</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Features\Decal\VolumeDecalRenderFeature.cpp">
+      <Filter>Source\Renderer\Features\Decal</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Features\FireBall\FireBallRenderFeature.cpp">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\FireBall</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Features\Fog\FogRenderFeature.cpp">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\Fog</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Features\Lighting\LightRenderFeature.cpp">
+      <Filter>Source\Renderer\Features\Lighting</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Features\Outline\OutlineRenderFeature.cpp">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\Outline</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Features\PostProcess\FXAARenderFeature.cpp">
+      <Filter>Source\Renderer\Features\PostProcess</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Features\SubUV\SubUVRenderFeature.cpp">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\SubUV</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Features\SubUV\SubUVRenderer.cpp">
+      <Filter>Source\Renderer\Features\SubUV</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Features\Text\FontAtlas.cpp">
+      <Filter>Source\Renderer\Features\Text</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Features\Text\TextMeshBuilder.cpp">
+      <Filter>Source\Renderer\Features\Text</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Features\Text\TextRenderFeature.cpp">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\Text</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Frame\EditorFrameRenderer.cpp">
+      <Filter>Source\Renderer\Frame</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Frame\GameFrameRenderer.cpp">
+      <Filter>Source\Renderer\Frame</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Frame\RenderFrameUtils.cpp">
+      <Filter>Source\Renderer\Frame</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Frame\RendererResourceBootstrap.cpp">
+      <Filter>Source\Renderer\Frame</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Frame\SceneTargetManager.cpp">
+      <Filter>Source\Renderer\Frame</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Frame\UI\FramePasses.cpp">
+      <Filter>Source\Renderer\Frame\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Frame\UI\FramePipeline.cpp">
+      <Filter>Source\Renderer\Frame\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Frame\Viewport\ViewportCompositor.cpp">
+      <Filter>Source\Renderer\Frame\Viewport</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\GraphicsCore\RenderState.cpp">
+      <Filter>Source\Renderer\GraphicsCore</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\GraphicsCore\RenderStateManager.cpp">
+      <Filter>Source\Renderer\GraphicsCore</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Mesh\MeshData.cpp">
+      <Filter>Source\Renderer\Mesh</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Mesh\RenderMesh.cpp">
+      <Filter>Source\Renderer\Mesh</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Material\Material.cpp">
+      <Filter>Source\Renderer\Resources\Material</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Material\MaterialManager.cpp">
+      <Filter>Source\Renderer\Resources\Material</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Shader\Shader.cpp">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderManager.cpp">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderMap.cpp">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderResource.cpp">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\MeshPassProcessor.cpp">
+      <Filter>Source\Renderer\Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\SceneRenderer.cpp">
+      <Filter>Source\Renderer\Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Builders\DebugSceneBuilder.cpp">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandBuilder.cpp">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandLightingBuilder.cpp">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandMeshBuilder.cpp">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandPostProcessBuilder.cpp">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandSpriteBuilder.cpp">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandTextBuilder.cpp">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Builders\SceneViewAssembler.cpp">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Passes\EditorScreenOverlayPasses.cpp">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Passes\EditorWorldOverlayPasses.cpp">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Passes\FinalImagePostProcessPasses.cpp">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Passes\SceneEffectsPasses.cpp">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Passes\SceneGeometryPasses.cpp">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Passes\SceneLightingPasses.cpp">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Passes\ScenePasses.cpp">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Passes\SelectionHighlightPasses.cpp">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Pipeline\RenderPipeline.cpp">
+      <Filter>Source\Renderer\Scene\Pipeline</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Scene\Pipeline\ScenePipelineBuilder.cpp">
+      <Filter>Source\Renderer\Scene\Pipeline</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\UI\Screen\ScreenUIBatchRenderer.cpp">
+      <Filter>Source\Renderer\UI\Screen</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\UI\Screen\ScreenUIPassBuilder.cpp">
+      <Filter>Source\Renderer\UI\Screen</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\UI\Screen\ScreenUIRenderer.cpp">
+      <Filter>Source\Renderer\UI\Screen</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\UI\Screen\ScreenUIRendererUtils.cpp">
+      <Filter>Source\Renderer\UI\Screen</Filter>
     </ClCompile>
     <ClCompile Include="Source\Serializer\Archive.cpp">
       <Filter>Source\Serializer</Filter>
@@ -511,23 +573,6 @@
     <ClCompile Include="Source\World\World.cpp">
       <Filter>Source\World</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Renderer\Features\Decal\VolumeDecalRenderFeature.cpp" />
-    <ClCompile Include="Source\Renderer\Features\PostProcess\FXAARenderFeature.cpp" />
-    <ClCompile Include="Source\Component\MovementComponent.cpp" />
-    <ClCompile Include="Source\Component\ProjectileMovementComponent.cpp" />
-    <ClCompile Include="Source\Component\RotatingMovementComponent.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Pipeline\ScenePipelineBuilder.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Builders\SceneViewAssembler.cpp" />
-    <ClCompile Include="Source\Actor\SpotLightFakeActor.cpp" />
-    <ClCompile Include="Source\Component\LocalHeightFogComponent.cpp" />
-    <ClCompile Include="Source\Actor\LocalHeightFogActor.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Passes\EditorScreenOverlayPasses.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Passes\EditorWorldOverlayPasses.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Passes\FinalImagePostProcessPasses.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Passes\SceneGeometryPasses.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Passes\SceneEffectsPasses.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Passes\SelectionHighlightPasses.cpp" />
-    <ClCompile Include="Source\Renderer\Features\Lighting\LightRenderFeature.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\CoreMinimal.h">
@@ -551,6 +596,9 @@
     <ClInclude Include="Source\Actor\HeightFogActor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Actor\LocalHeightFogActor.h">
+      <Filter>Source\Actor</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Actor\PlaneActor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
@@ -563,6 +611,9 @@
     <ClInclude Include="Source\Actor\SphereActor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Actor\SpotLightFakeActor.h">
+      <Filter>Source\Actor</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Actor\StaticMeshActor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
@@ -573,6 +624,9 @@
       <Filter>Source\Actor</Filter>
     </ClInclude>
     <ClInclude Include="Source\Asset\ObjManager.h">
+      <Filter>Source\Asset</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Asset\StaticMeshLODBuilder.h">
       <Filter>Source\Asset</Filter>
     </ClInclude>
     <ClInclude Include="Source\Camera\Camera.h">
@@ -599,16 +653,28 @@
     <ClInclude Include="Source\Component\LineBatchComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Component\LocalHeightFogComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Component\MeshComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\MoveComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Component\MovementComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Component\PrimitiveComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Component\ProjectileMovementComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Component\RandomColorComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Component\RotatingMovementComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\SceneComponent.h">
@@ -689,6 +755,9 @@
     <ClInclude Include="Source\Level\MeshBVH.h">
       <Filter>Source\Level</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Level\PrimitiveVisibilityUtils.h">
+      <Filter>Source\Level</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Level\ScenePacketBuilder.h">
       <Filter>Source\Level</Filter>
     </ClInclude>
@@ -698,13 +767,28 @@
     <ClInclude Include="Source\Level\WorldTypes.h">
       <Filter>Source\Level</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Math\Collapse.h">
+      <Filter>Source\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Math\CollapseQueue.h">
+      <Filter>Source\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Math\Edge.h">
+      <Filter>Source\Math</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Math\Frustum.h">
+      <Filter>Source\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Math\LinearColor.h">
       <Filter>Source\Math</Filter>
     </ClInclude>
     <ClInclude Include="Source\Math\MathUtility.h">
       <Filter>Source\Math</Filter>
     </ClInclude>
     <ClInclude Include="Source\Math\Matrix.h">
+      <Filter>Source\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Math\Quadric.h">
       <Filter>Source\Math</Filter>
     </ClInclude>
     <ClInclude Include="Source\Math\Quat.h">
@@ -773,173 +857,272 @@
     <ClInclude Include="Source\Primitive\UnrealEditorStyledGizmo.h">
       <Filter>Source\Primitive</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Renderer\Features\Billboard\BillboardRenderer.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Features\Text\FontAtlas.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Frame\UI\FramePassContext.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Frame\UI\FramePasses.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Frame\UI\FramePipeline.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\GraphicsCore\FullscreenPass.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Math\LinearColor.h">
-      <Filter>Source\Math</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Resources\Material\Material.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Resources\Material\MaterialManager.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Mesh\MeshBatch.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Mesh\MeshData.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Scene\MeshPassProcessor.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Scene\Passes\PassContext.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Scene\Pipeline\PassPipeline.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\GraphicsCore\RenderDevice.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Common\RenderFeatureInterfaces.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Common\RenderFrameContext.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Mesh\RenderMesh.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Scene\Pipeline\RenderPipeline.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\GraphicsCore\RenderState.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\GraphicsCore\RenderStateManager.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Common\RenderType.h">
+    <ClInclude Include="Source\Renderer\GPUStats.h">
       <Filter>Source\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Renderer.h">
       <Filter>Source\Renderer</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandBuilder.h">
-      <Filter>Source\Renderer</Filter>
+    <ClInclude Include="Source\Renderer\Common\RenderFeatureInterfaces.h">
+      <Filter>Source\Renderer\Common</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandMeshBuilder.h">
-      <Filter>Source\Renderer</Filter>
+    <ClInclude Include="Source\Renderer\Common\RenderFrameContext.h">
+      <Filter>Source\Renderer\Common</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandTextBuilder.h">
-      <Filter>Source\Renderer</Filter>
+    <ClInclude Include="Source\Renderer\Common\RenderMode.h">
+      <Filter>Source\Renderer\Common</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandSpriteBuilder.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandPostProcessBuilder.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandBuilderUtils.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Scene\Passes\ScenePasses.h">
-      <Filter>Source\Renderer</Filter>
+    <ClInclude Include="Source\Renderer\Common\RenderType.h">
+      <Filter>Source\Renderer\Common</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Common\SceneRenderTargets.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Frame\SceneTargetManager.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Scene\SceneRenderer.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Scene\SceneViewData.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\UI\Screen\ScreenUIRenderer.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Resources\Shader\Shader.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderManager.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderMap.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderResource.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderType.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Features\SubUV\SubUVRenderer.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Features\Text\TextMeshBuilder.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Mesh\TextureVertex.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\UI\Screen\UIDrawList.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Mesh\Vertex.h">
-      <Filter>Source\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\Frame\Viewport\ViewportCompositor.h">
-      <Filter>Source\Renderer</Filter>
+      <Filter>Source\Renderer\Common</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Billboard\BillboardRenderFeature.h">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\Billboard</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Billboard\BillboardRenderer.h">
+      <Filter>Source\Renderer\Features\Billboard</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Debug\DebugLineRenderFeature.h">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\Debug</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Debug\DebugTypes.h">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Decal\DecalProjectionMode.h">
+      <Filter>Source\Renderer\Features\Decal</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Decal\DecalRenderFeature.h">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\Decal</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Decal\DecalStats.h">
+      <Filter>Source\Renderer\Features\Decal</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Decal\DecalTextureCache.h">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\Decal</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Decal\DecalTypes.h">
+      <Filter>Source\Renderer\Features\Decal</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Decal\VolumeDecalRenderFeature.h">
+      <Filter>Source\Renderer\Features\Decal</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\FireBall\FireBallRenderFeature.h">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\FireBall</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\FireBall\FireBallTypes.h">
+      <Filter>Source\Renderer\Features\FireBall</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Fog\FogRenderFeature.h">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\Fog</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Fog\FogStats.h">
+      <Filter>Source\Renderer\Features\Fog</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Fog\FogTypes.h">
+      <Filter>Source\Renderer\Features\Fog</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Lighting\LightRenderFeature.h">
+      <Filter>Source\Renderer\Features\Lighting</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Lighting\LightTypes.h">
+      <Filter>Source\Renderer\Features\Lighting</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Outline\OutlineRenderFeature.h">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\Outline</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Outline\OutlineTypes.h">
+      <Filter>Source\Renderer\Features\Outline</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\PostProcess\FXAARenderFeature.h">
+      <Filter>Source\Renderer\Features\PostProcess</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\SubUV\SubUVRenderFeature.h">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\SubUV</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\SubUV\SubUVRenderer.h">
+      <Filter>Source\Renderer\Features\SubUV</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Text\FontAtlas.h">
+      <Filter>Source\Renderer\Features\Text</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Text\TextMeshBuilder.h">
+      <Filter>Source\Renderer\Features\Text</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Text\TextRenderFeature.h">
-      <Filter>Source\Renderer\Feature</Filter>
+      <Filter>Source\Renderer\Features\Text</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Frame\EditorFrameRenderer.h">
+      <Filter>Source\Renderer\Frame</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Frame\FrameRequests.h">
+      <Filter>Source\Renderer\Frame</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Frame\GameFrameRenderer.h">
+      <Filter>Source\Renderer\Frame</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Frame\RenderFrameUtils.h">
+      <Filter>Source\Renderer\Frame</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Frame\RendererResourceBootstrap.h">
+      <Filter>Source\Renderer\Frame</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Frame\SceneTargetManager.h">
+      <Filter>Source\Renderer\Frame</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Frame\UI\FramePassContext.h">
+      <Filter>Source\Renderer\Frame\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Frame\UI\FramePasses.h">
+      <Filter>Source\Renderer\Frame\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Frame\UI\FramePipeline.h">
+      <Filter>Source\Renderer\Frame\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Frame\Viewport\ViewportCompositor.h">
+      <Filter>Source\Renderer\Frame\Viewport</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\GraphicsCore\ComputeDispatch.h">
+      <Filter>Source\Renderer\GraphicsCore</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\GraphicsCore\FullscreenPass.h">
+      <Filter>Source\Renderer\GraphicsCore</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\GraphicsCore\RenderDevice.h">
+      <Filter>Source\Renderer\GraphicsCore</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\GraphicsCore\RenderState.h">
+      <Filter>Source\Renderer\GraphicsCore</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\GraphicsCore\RenderStateManager.h">
+      <Filter>Source\Renderer\GraphicsCore</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Mesh\MeshBatch.h">
+      <Filter>Source\Renderer\Mesh</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Mesh\MeshData.h">
+      <Filter>Source\Renderer\Mesh</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Mesh\RenderMesh.h">
+      <Filter>Source\Renderer\Mesh</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Mesh\TextureVertex.h">
+      <Filter>Source\Renderer\Mesh</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Mesh\Vertex.h">
+      <Filter>Source\Renderer\Mesh</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Material\Material.h">
+      <Filter>Source\Renderer\Resources\Material</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Material\MaterialManager.h">
+      <Filter>Source\Renderer\Resources\Material</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Shader\Shader.h">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderManager.h">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderMap.h">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderResource.h">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderType.h">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\MeshPassProcessor.h">
+      <Filter>Source\Renderer\Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\SceneRenderer.h">
+      <Filter>Source\Renderer\Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\SceneViewData.h">
+      <Filter>Source\Renderer\Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Builders\DebugSceneBuilder.h">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandBuilder.h">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandBuilderUtils.h">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandLightingBuilder.h">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandMeshBuilder.h">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandPostProcessBuilder.h">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandSpriteBuilder.h">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandTextBuilder.h">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneViewAssembler.h">
+      <Filter>Source\Renderer\Scene\Builders</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Passes\EditorScreenOverlayPasses.h">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Passes\EditorWorldOverlayPasses.h">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Passes\FinalImagePostProcessPasses.h">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Passes\PassContext.h">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Passes\SceneEffectsPasses.h">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Passes\SceneGeometryPasses.h">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Passes\SceneLightingPasses.h">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Passes\ScenePassExecutionUtils.h">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Passes\ScenePasses.h">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Passes\SelectionHighlightPasses.h">
+      <Filter>Source\Renderer\Scene\Passes</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Pipeline\PassPipeline.h">
+      <Filter>Source\Renderer\Scene\Pipeline</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Pipeline\RenderPipeline.h">
+      <Filter>Source\Renderer\Scene\Pipeline</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Scene\Pipeline\ScenePipelineBuilder.h">
+      <Filter>Source\Renderer\Scene\Pipeline</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\UI\Screen\ScreenUIBatchRenderer.h">
+      <Filter>Source\Renderer\UI\Screen</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\UI\Screen\ScreenUIPassBuilder.h">
+      <Filter>Source\Renderer\UI\Screen</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\UI\Screen\ScreenUIRenderer.h">
+      <Filter>Source\Renderer\UI\Screen</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\UI\Screen\ScreenUIRendererUtils.h">
+      <Filter>Source\Renderer\UI\Screen</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\UI\Screen\UIDrawList.h">
+      <Filter>Source\Renderer\UI\Screen</Filter>
     </ClInclude>
     <ClInclude Include="Source\Serializer\Archive.h">
       <Filter>Source\Serializer</Filter>
@@ -1262,11 +1445,6 @@
     <ClInclude Include="ThirdParty\nlohmann\json.hpp">
       <Filter>ThirdParty\nlohmann</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Renderer\Features\Decal\VolumeDecalRenderFeature.h" />
-    <ClInclude Include="Source\Renderer\Features\PostProcess\FXAARenderFeature.h" />
-    <ClInclude Include="Source\Component\MovementComponent.h" />
-    <ClInclude Include="Source\Component\ProjectileMovementComponent.h" />
-    <ClInclude Include="Source\Component\RotatingMovementComponent.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

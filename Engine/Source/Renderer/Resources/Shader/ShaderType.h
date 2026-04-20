@@ -4,8 +4,9 @@
 // b0: 프레임당 1회 업데이트 (카메라)
 struct FFrameConstantBuffer
 {
-	FMatrix View;
-	FMatrix Projection;
+	FMatrix  View;
+	FMatrix  Projection;
+	FVector4 CameraPosition;
 
 	float Time;
 	float DeltaTime;
@@ -17,4 +18,9 @@ struct FObjectConstantBuffer
 {
 	FMatrix World;
 	FMatrix WorldInvTranspose;
+
+	uint32 LocalLightMaskOffset = 0;
+	uint32 ObjectFlags          = 0;
+	uint32 Pad0                 = 0;
+	uint32 Pad1                 = 0;
 };

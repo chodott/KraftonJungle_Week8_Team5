@@ -19,6 +19,7 @@ struct VS_OUTPUT
 	float3 WorldPosition : TEXCOORD1;
 	float3 Tangent : TEXCOORD2;
 	float3 Bitangent : TEXCOORD3;
+	float4 VertexLighting : TEXCOORD4;
 };
 
 #endif

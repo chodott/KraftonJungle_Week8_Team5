@@ -19,14 +19,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Source\Renderer\Features\Lighting\LightRenderFeature.h" />
-    <ClInclude Include="Source\Actor\SpotLightFakeActor.h" />
-    <ClInclude Include="Source\Actor\LocalHeightFogActor.h" />
-    <ClInclude Include="Source\Asset\StaticMeshLODBuilder.h" />
-    <ClInclude Include="Source\Component\LocalHeightFogComponent.h" />
-    <ClInclude Include="Source\Component\MovementComponent.h" />
-    <ClInclude Include="Source\Component\ProjectileMovementComponent.h" />
-    <ClInclude Include="Source\Component\RotatingMovementComponent.h" />
     <ClInclude Include="Source\CoreMinimal.h" />
     <ClInclude Include="Source\EngineAPI.h" />
     <ClInclude Include="Source\Actor\Actor.h" />
@@ -34,14 +26,17 @@
     <ClInclude Include="Source\Actor\CubeActor.h" />
     <ClInclude Include="Source\Actor\DecalActor.h" />
     <ClInclude Include="Source\Actor\HeightFogActor.h" />
+    <ClInclude Include="Source\Actor\LocalHeightFogActor.h" />
     <ClInclude Include="Source\Actor\PlaneActor.h" />
     <ClInclude Include="Source\Actor\PlayerCameraActor.h" />
     <ClInclude Include="Source\Actor\SkySphereActor.h" />
     <ClInclude Include="Source\Actor\SphereActor.h" />
+    <ClInclude Include="Source\Actor\SpotLightFakeActor.h" />
     <ClInclude Include="Source\Actor\StaticMeshActor.h" />
     <ClInclude Include="Source\Actor\SubUVActor.h" />
     <ClInclude Include="Source\Actor\TextActor.h" />
     <ClInclude Include="Source\Asset\ObjManager.h" />
+    <ClInclude Include="Source\Asset\StaticMeshLODBuilder.h" />
     <ClInclude Include="Source\Camera\Camera.h" />
     <ClInclude Include="Source\Component\ActorComponent.h" />
     <ClInclude Include="Source\Component\BillboardComponent.h" />
@@ -50,10 +45,14 @@
     <ClInclude Include="Source\Component\FireBallComponent.h" />
     <ClInclude Include="Source\Component\HeightFogComponent.h" />
     <ClInclude Include="Source\Component\LineBatchComponent.h" />
+    <ClInclude Include="Source\Component\LocalHeightFogComponent.h" />
     <ClInclude Include="Source\Component\MeshComponent.h" />
     <ClInclude Include="Source\Component\MoveComponent.h" />
+    <ClInclude Include="Source\Component\MovementComponent.h" />
     <ClInclude Include="Source\Component\PrimitiveComponent.h" />
+    <ClInclude Include="Source\Component\ProjectileMovementComponent.h" />
     <ClInclude Include="Source\Component\RandomColorComponent.h" />
+    <ClInclude Include="Source\Component\RotatingMovementComponent.h" />
     <ClInclude Include="Source\Component\SceneComponent.h" />
     <ClInclude Include="Source\Component\SkyComponent.h" />
     <ClInclude Include="Source\Component\StaticMeshComponent.h" />
@@ -80,6 +79,7 @@
     <ClInclude Include="Source\Level\Level.h" />
     <ClInclude Include="Source\Level\LevelContext.h" />
     <ClInclude Include="Source\Level\MeshBVH.h" />
+    <ClInclude Include="Source\Level\PrimitiveVisibilityUtils.h" />
     <ClInclude Include="Source\Level\ScenePacketBuilder.h" />
     <ClInclude Include="Source\Level\SceneRenderPacket.h" />
     <ClInclude Include="Source\Level\WorldTypes.h" />
@@ -87,6 +87,7 @@
     <ClInclude Include="Source\Math\CollapseQueue.h" />
     <ClInclude Include="Source\Math\Edge.h" />
     <ClInclude Include="Source\Math\Frustum.h" />
+    <ClInclude Include="Source\Math\LinearColor.h" />
     <ClInclude Include="Source\Math\MathUtility.h" />
     <ClInclude Include="Source\Math\Matrix.h" />
     <ClInclude Include="Source\Math\Quadric.h" />
@@ -112,86 +113,95 @@
     <ClInclude Include="Source\Platform\Windows\WindowsWindow.h" />
     <ClInclude Include="Source\Primitive\PrimitiveGizmo.h" />
     <ClInclude Include="Source\Primitive\UnrealEditorStyledGizmo.h" />
+    <ClInclude Include="Source\Renderer\GPUStats.h" />
+    <ClInclude Include="Source\Renderer\Renderer.h" />
+    <ClInclude Include="Source\Renderer\Common\RenderFeatureInterfaces.h" />
+    <ClInclude Include="Source\Renderer\Common\RenderFrameContext.h" />
     <ClInclude Include="Source\Renderer\Common\RenderMode.h" />
+    <ClInclude Include="Source\Renderer\Common\RenderType.h" />
+    <ClInclude Include="Source\Renderer\Common\SceneRenderTargets.h" />
+    <ClInclude Include="Source\Renderer\Features\Billboard\BillboardRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Features\Billboard\BillboardRenderer.h" />
+    <ClInclude Include="Source\Renderer\Features\Debug\DebugLineRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Features\Debug\DebugTypes.h" />
     <ClInclude Include="Source\Renderer\Features\Decal\DecalProjectionMode.h" />
+    <ClInclude Include="Source\Renderer\Features\Decal\DecalRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Features\Decal\DecalStats.h" />
+    <ClInclude Include="Source\Renderer\Features\Decal\DecalTextureCache.h" />
+    <ClInclude Include="Source\Renderer\Features\Decal\DecalTypes.h" />
     <ClInclude Include="Source\Renderer\Features\Decal\VolumeDecalRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Features\FireBall\FireBallRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Features\FireBall\FireBallTypes.h" />
+    <ClInclude Include="Source\Renderer\Features\Fog\FogRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Features\Fog\FogStats.h" />
+    <ClInclude Include="Source\Renderer\Features\Fog\FogTypes.h" />
+    <ClInclude Include="Source\Renderer\Features\Lighting\LightRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Features\Lighting\LightTypes.h" />
+    <ClInclude Include="Source\Renderer\Features\Outline\OutlineRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Features\Outline\OutlineTypes.h" />
+    <ClInclude Include="Source\Renderer\Features\PostProcess\FXAARenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Features\SubUV\SubUVRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Features\SubUV\SubUVRenderer.h" />
     <ClInclude Include="Source\Renderer\Features\Text\FontAtlas.h" />
+    <ClInclude Include="Source\Renderer\Features\Text\TextMeshBuilder.h" />
+    <ClInclude Include="Source\Renderer\Features\Text\TextRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Frame\EditorFrameRenderer.h" />
+    <ClInclude Include="Source\Renderer\Frame\FrameRequests.h" />
+    <ClInclude Include="Source\Renderer\Frame\GameFrameRenderer.h" />
+    <ClInclude Include="Source\Renderer\Frame\RenderFrameUtils.h" />
+    <ClInclude Include="Source\Renderer\Frame\RendererResourceBootstrap.h" />
+    <ClInclude Include="Source\Renderer\Frame\SceneTargetManager.h" />
     <ClInclude Include="Source\Renderer\Frame\UI\FramePassContext.h" />
     <ClInclude Include="Source\Renderer\Frame\UI\FramePasses.h" />
     <ClInclude Include="Source\Renderer\Frame\UI\FramePipeline.h" />
+    <ClInclude Include="Source\Renderer\Frame\Viewport\ViewportCompositor.h" />
+    <ClInclude Include="Source\Renderer\GraphicsCore\ComputeDispatch.h" />
     <ClInclude Include="Source\Renderer\GraphicsCore\FullscreenPass.h" />
-    <ClInclude Include="Source\Math\LinearColor.h" />
-    <ClInclude Include="Source\Renderer\Resources\Material\Material.h" />
-    <ClInclude Include="Source\Renderer\Resources\Material\MaterialManager.h" />
+    <ClInclude Include="Source\Renderer\GraphicsCore\RenderDevice.h" />
+    <ClInclude Include="Source\Renderer\GraphicsCore\RenderState.h" />
+    <ClInclude Include="Source\Renderer\GraphicsCore\RenderStateManager.h" />
     <ClInclude Include="Source\Renderer\Mesh\MeshBatch.h" />
     <ClInclude Include="Source\Renderer\Mesh\MeshData.h" />
+    <ClInclude Include="Source\Renderer\Mesh\RenderMesh.h" />
+    <ClInclude Include="Source\Renderer\Mesh\TextureVertex.h" />
+    <ClInclude Include="Source\Renderer\Mesh\Vertex.h" />
+    <ClInclude Include="Source\Renderer\Resources\Material\Material.h" />
+    <ClInclude Include="Source\Renderer\Resources\Material\MaterialManager.h" />
+    <ClInclude Include="Source\Renderer\Resources\Shader\Shader.h" />
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderManager.h" />
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderMap.h" />
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderResource.h" />
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderType.h" />
     <ClInclude Include="Source\Renderer\Scene\MeshPassProcessor.h" />
+    <ClInclude Include="Source\Renderer\Scene\SceneRenderer.h" />
+    <ClInclude Include="Source\Renderer\Scene\SceneViewData.h" />
+    <ClInclude Include="Source\Renderer\Scene\Builders\DebugSceneBuilder.h" />
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandBuilder.h" />
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandBuilderUtils.h" />
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandLightingBuilder.h" />
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandMeshBuilder.h" />
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandPostProcessBuilder.h" />
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandSpriteBuilder.h" />
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandTextBuilder.h" />
+    <ClInclude Include="Source\Renderer\Scene\Builders\SceneViewAssembler.h" />
     <ClInclude Include="Source\Renderer\Scene\Passes\EditorScreenOverlayPasses.h" />
     <ClInclude Include="Source\Renderer\Scene\Passes\EditorWorldOverlayPasses.h" />
     <ClInclude Include="Source\Renderer\Scene\Passes\FinalImagePostProcessPasses.h" />
     <ClInclude Include="Source\Renderer\Scene\Passes\PassContext.h" />
     <ClInclude Include="Source\Renderer\Scene\Passes\SceneEffectsPasses.h" />
     <ClInclude Include="Source\Renderer\Scene\Passes\SceneGeometryPasses.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\SceneLightingPasses.h" />
     <ClInclude Include="Source\Renderer\Scene\Passes\ScenePassExecutionUtils.h" />
+    <ClInclude Include="Source\Renderer\Scene\Passes\ScenePasses.h" />
     <ClInclude Include="Source\Renderer\Scene\Passes\SelectionHighlightPasses.h" />
     <ClInclude Include="Source\Renderer\Scene\Pipeline\PassPipeline.h" />
-    <ClInclude Include="Source\Renderer\GraphicsCore\RenderDevice.h" />
-    <ClInclude Include="Source\Renderer\Common\RenderFeatureInterfaces.h" />
-    <ClInclude Include="Source\Renderer\Common\RenderFrameContext.h" />
-    <ClInclude Include="Source\Renderer\Mesh\RenderMesh.h" />
     <ClInclude Include="Source\Renderer\Scene\Pipeline\RenderPipeline.h" />
     <ClInclude Include="Source\Renderer\Scene\Pipeline\ScenePipelineBuilder.h" />
-    <ClInclude Include="Source\Renderer\GraphicsCore\RenderState.h" />
-    <ClInclude Include="Source\Renderer\GraphicsCore\RenderStateManager.h" />
-    <ClInclude Include="Source\Renderer\Common\RenderType.h" />
-    <ClInclude Include="Source\Renderer\Renderer.h" />
-    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandBuilder.h" />
-    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandMeshBuilder.h" />
-    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandTextBuilder.h" />
-    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandSpriteBuilder.h" />
-    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandPostProcessBuilder.h" />
-    <ClInclude Include="Source\Renderer\Scene\Builders\SceneCommandBuilderUtils.h" />
-    <ClInclude Include="Source\Renderer\Scene\Passes\ScenePasses.h" />
-    <ClInclude Include="Source\Renderer\Common\SceneRenderTargets.h" />
-    <ClInclude Include="Source\Renderer\Frame\SceneTargetManager.h" />
-    <ClInclude Include="Source\Renderer\Scene\Builders\DebugSceneBuilder.h" />
-    <ClInclude Include="Source\Renderer\Scene\Builders\SceneViewAssembler.h" />
-    <ClInclude Include="Source\Renderer\Frame\RendererResourceBootstrap.h" />
-    <ClInclude Include="Source\Renderer\Frame\RenderFrameUtils.h" />
-    <ClInclude Include="Source\Renderer\Frame\GameFrameRenderer.h" />
-    <ClInclude Include="Source\Renderer\Frame\EditorFrameRenderer.h" />
     <ClInclude Include="Source\Renderer\UI\Screen\ScreenUIBatchRenderer.h" />
     <ClInclude Include="Source\Renderer\UI\Screen\ScreenUIPassBuilder.h" />
-    <ClInclude Include="Source\Renderer\UI\Screen\ScreenUIRendererUtils.h" />
-    <ClInclude Include="Source\Renderer\Frame\FrameRequests.h" />
-    <ClInclude Include="Source\Renderer\Scene\SceneRenderer.h" />
-    <ClInclude Include="Source\Renderer\Scene\SceneViewData.h" />
     <ClInclude Include="Source\Renderer\UI\Screen\ScreenUIRenderer.h" />
-    <ClInclude Include="Source\Renderer\Resources\Shader\Shader.h" />
-    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderManager.h" />
-    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderMap.h" />
-    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderResource.h" />
-    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderType.h" />
-    <ClInclude Include="Source\Renderer\Features\SubUV\SubUVRenderer.h" />
-    <ClInclude Include="Source\Renderer\Features\Text\TextMeshBuilder.h" />
-    <ClInclude Include="Source\Renderer\Mesh\TextureVertex.h" />
+    <ClInclude Include="Source\Renderer\UI\Screen\ScreenUIRendererUtils.h" />
     <ClInclude Include="Source\Renderer\UI\Screen\UIDrawList.h" />
-    <ClInclude Include="Source\Renderer\Mesh\Vertex.h" />
-    <ClInclude Include="Source\Renderer\Frame\Viewport\ViewportCompositor.h" />
-    <ClInclude Include="Source\Renderer\Features\Billboard\BillboardRenderFeature.h" />
-    <ClInclude Include="Source\Renderer\Features\Debug\DebugLineRenderFeature.h" />
-    <ClInclude Include="Source\Renderer\Features\Debug\DebugTypes.h" />
-    <ClInclude Include="Source\Renderer\Features\Decal\DecalRenderFeature.h" />
-    <ClInclude Include="Source\Renderer\Features\Decal\DecalTextureCache.h" />
-    <ClInclude Include="Source\Renderer\Features\FireBall\FireBallRenderFeature.h" />
-    <ClInclude Include="Source\Renderer\Features\PostProcess\FXAARenderFeature.h" />
-    <ClInclude Include="Source\Renderer\Features\Fog\FogRenderFeature.h" />
-    <ClInclude Include="Source\Renderer\Features\Outline\OutlineRenderFeature.h" />
-    <ClInclude Include="Source\Renderer\Features\SubUV\SubUVRenderFeature.h" />
-    <ClInclude Include="Source\Renderer\Features\Text\TextRenderFeature.h" />
     <ClInclude Include="Source\Serializer\Archive.h" />
     <ClInclude Include="Source\Serializer\SceneSerializer.h" />
     <ClInclude Include="Source\Types\Array.h" />
@@ -299,13 +309,8 @@
     <ClInclude Include="ThirdParty\assimp\port\AndroidJNI\AndroidJNIIOSystem.h" />
     <ClInclude Include="ThirdParty\assimp\port\AndroidJNI\BundledAssetIOSystem.h" />
     <ClInclude Include="ThirdParty\nlohmann\json.hpp" />
-    <ClInclude Include="Source\Renderer\Features\Decal\DecalTypes.h" />
-    <ClInclude Include="Source\Renderer\Features\Fog\FogTypes.h" />
-    <ClInclude Include="Source\Renderer\Features\Outline\OutlineTypes.h" />
-    <ClInclude Include="Source\Renderer\Features\FireBall\FireBallTypes.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Source\Renderer\Features\Lighting\LightRenderFeature.cpp" />
     <ClCompile Include="Source\Actor\Actor.cpp" />
     <ClCompile Include="Source\Actor\BillboardActor.cpp" />
     <ClCompile Include="Source\Actor\CubeActor.cpp" />
@@ -362,6 +367,7 @@
     <ClCompile Include="Source\Level\MeshBVH.cpp" />
     <ClCompile Include="Source\Level\ScenePacketBuilder.cpp" />
     <ClCompile Include="Source\Math\Frustum.cpp" />
+    <ClCompile Include="Source\Math\LinearColor.cpp" />
     <ClCompile Include="Source\Math\Matrix.cpp" />
     <ClCompile Include="Source\Math\Quat.cpp" />
     <ClCompile Include="Source\Math\Rotator.cpp" />
@@ -380,63 +386,65 @@
     <ClCompile Include="Source\Platform\Windows\WindowsWindow.cpp" />
     <ClCompile Include="Source\Primitive\PrimitiveGizmo.cpp" />
     <ClCompile Include="Source\Primitive\UnrealEditorStyledGizmo.cpp" />
+    <ClCompile Include="Source\Renderer\Renderer.cpp" />
+    <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderer.cpp" />
-    <ClCompile Include="Source\Renderer\Features\Decal\VolumeDecalRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Features\Debug\DebugLineRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Features\Decal\DecalRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Features\Decal\DecalTextureCache.cpp" />
+    <ClCompile Include="Source\Renderer\Features\Decal\VolumeDecalRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Features\FireBall\FireBallRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Features\Fog\FogRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Features\Lighting\LightRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Features\Outline\OutlineRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Features\PostProcess\FXAARenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Features\SubUV\SubUVRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Features\SubUV\SubUVRenderer.cpp" />
     <ClCompile Include="Source\Renderer\Features\Text\FontAtlas.cpp" />
+    <ClCompile Include="Source\Renderer\Features\Text\TextMeshBuilder.cpp" />
+    <ClCompile Include="Source\Renderer\Features\Text\TextRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Frame\EditorFrameRenderer.cpp" />
+    <ClCompile Include="Source\Renderer\Frame\GameFrameRenderer.cpp" />
+    <ClCompile Include="Source\Renderer\Frame\RenderFrameUtils.cpp" />
+    <ClCompile Include="Source\Renderer\Frame\RendererResourceBootstrap.cpp" />
+    <ClCompile Include="Source\Renderer\Frame\SceneTargetManager.cpp" />
     <ClCompile Include="Source\Renderer\Frame\UI\FramePasses.cpp" />
     <ClCompile Include="Source\Renderer\Frame\UI\FramePipeline.cpp" />
-    <ClCompile Include="Source\Math\LinearColor.cpp" />
+    <ClCompile Include="Source\Renderer\Frame\Viewport\ViewportCompositor.cpp" />
+    <ClCompile Include="Source\Renderer\GraphicsCore\RenderState.cpp" />
+    <ClCompile Include="Source\Renderer\GraphicsCore\RenderStateManager.cpp" />
+    <ClCompile Include="Source\Renderer\Mesh\MeshData.cpp" />
+    <ClCompile Include="Source\Renderer\Mesh\RenderMesh.cpp" />
     <ClCompile Include="Source\Renderer\Resources\Material\Material.cpp" />
     <ClCompile Include="Source\Renderer\Resources\Material\MaterialManager.cpp" />
-    <ClCompile Include="Source\Renderer\Mesh\MeshData.cpp" />
+    <ClCompile Include="Source\Renderer\Resources\Shader\Shader.cpp" />
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderManager.cpp" />
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderMap.cpp" />
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderResource.cpp" />
     <ClCompile Include="Source\Renderer\Scene\MeshPassProcessor.cpp" />
-    <ClCompile Include="Source\Renderer\Mesh\RenderMesh.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\SceneRenderer.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Builders\DebugSceneBuilder.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandBuilder.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandLightingBuilder.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandMeshBuilder.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandPostProcessBuilder.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandSpriteBuilder.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandTextBuilder.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Builders\SceneViewAssembler.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Passes\EditorScreenOverlayPasses.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Passes\EditorWorldOverlayPasses.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Passes\FinalImagePostProcessPasses.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Passes\SceneEffectsPasses.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Passes\SceneGeometryPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\SceneLightingPasses.cpp" />
+    <ClCompile Include="Source\Renderer\Scene\Passes\ScenePasses.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Passes\SelectionHighlightPasses.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Pipeline\RenderPipeline.cpp" />
     <ClCompile Include="Source\Renderer\Scene\Pipeline\ScenePipelineBuilder.cpp" />
-    <ClCompile Include="Source\Renderer\GraphicsCore\RenderState.cpp" />
-    <ClCompile Include="Source\Renderer\GraphicsCore\RenderStateManager.cpp" />
-    <ClCompile Include="Source\Renderer\Renderer.cpp" />
-    <ClCompile Include="Source\Renderer\Frame\SceneTargetManager.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Builders\DebugSceneBuilder.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Builders\SceneViewAssembler.cpp" />
-    <ClCompile Include="Source\Renderer\Frame\RendererResourceBootstrap.cpp" />
-    <ClCompile Include="Source\Renderer\Frame\RenderFrameUtils.cpp" />
-    <ClCompile Include="Source\Renderer\Frame\GameFrameRenderer.cpp" />
-    <ClCompile Include="Source\Renderer\Frame\EditorFrameRenderer.cpp" />
     <ClCompile Include="Source\Renderer\UI\Screen\ScreenUIBatchRenderer.cpp" />
     <ClCompile Include="Source\Renderer\UI\Screen\ScreenUIPassBuilder.cpp" />
-    <ClCompile Include="Source\Renderer\UI\Screen\ScreenUIRendererUtils.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandBuilder.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandMeshBuilder.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandPostProcessBuilder.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandSpriteBuilder.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Builders\SceneCommandTextBuilder.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\Passes\ScenePasses.cpp" />
-    <ClCompile Include="Source\Renderer\Scene\SceneRenderer.cpp" />
     <ClCompile Include="Source\Renderer\UI\Screen\ScreenUIRenderer.cpp" />
-    <ClCompile Include="Source\Renderer\Resources\Shader\Shader.cpp" />
-    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderManager.cpp" />
-    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderMap.cpp" />
-    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderResource.cpp" />
-    <ClCompile Include="Source\Renderer\Features\SubUV\SubUVRenderer.cpp" />
-    <ClCompile Include="Source\Renderer\Features\Text\TextMeshBuilder.cpp" />
-    <ClCompile Include="Source\Renderer\Frame\Viewport\ViewportCompositor.cpp" />
-    <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderFeature.cpp" />
-    <ClCompile Include="Source\Renderer\Features\Debug\DebugLineRenderFeature.cpp" />
-    <ClCompile Include="Source\Renderer\Features\Decal\DecalRenderFeature.cpp" />
-    <ClCompile Include="Source\Renderer\Features\FireBall\FireBallRenderFeature.cpp" />
-    <ClCompile Include="Source\Renderer\Features\PostProcess\FXAARenderFeature.cpp" />
-    <ClCompile Include="Source\Renderer\Features\Fog\FogRenderFeature.cpp" />
-    <ClCompile Include="Source\Renderer\Features\Outline\OutlineRenderFeature.cpp" />
-    <ClCompile Include="Source\Renderer\Features\SubUV\SubUVRenderFeature.cpp" />
-    <ClCompile Include="Source\Renderer\Features\Text\TextRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\UI\Screen\ScreenUIRendererUtils.cpp" />
     <ClCompile Include="Source\Serializer\Archive.cpp" />
     <ClCompile Include="Source\Serializer\SceneSerializer.cpp" />
     <ClCompile Include="Source\Types\Name.cpp" />
@@ -460,7 +468,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
-    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -506,7 +514,6 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -536,7 +543,6 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)Source\;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -554,7 +560,6 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)Source\;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

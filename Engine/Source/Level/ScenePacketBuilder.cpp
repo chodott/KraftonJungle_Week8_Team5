@@ -8,6 +8,10 @@
 #include "Component/SubUVComponent.h"
 #include "Component/TextComponent.h"
 #include "Component/UUIDBillboardComponent.h"
+#include "Component/PointLightComponent.h"
+#include "Component/SpotLightComponent.h"
+#include "Component/DirectionalLightComponent.h"
+#include "Renderer/GraphicsCore/ComputeDispatch.h"
 
 bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive, const FShowFlags& ShowFlags) const
 {
@@ -25,8 +29,8 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 
 		if (UWorld* World = Owner->GetWorld())
 		{
-			const EWorldType WorldType = World->GetWorldType();
-			const bool bIsPlayWorld = (WorldType == EWorldType::Game || WorldType == EWorldType::PIE);
+			const EWorldType WorldType    = World->GetWorldType();
+			const bool       bIsPlayWorld = (WorldType == EWorldType::Game || WorldType == EWorldType::PIE);
 			if (bIsPlayWorld)
 			{
 				if (Primitive->IsHiddenInGame())
@@ -38,7 +42,7 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 
 		if (Owner->IsA(ADecalActor::StaticClass()))
 		{
-			ADecalActor* DecalActor = static_cast<ADecalActor*>(Owner);
+			auto DecalActor = static_cast<ADecalActor*>(Owner);
 			if (Primitive == DecalActor->GetArrowComponent() && !ShowFlags.HasFlag(EEngineShowFlags::SF_DecalArrow))
 			{
 				return false;
@@ -46,8 +50,8 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 
 			if (UWorld* World = DecalActor->GetWorld())
 			{
-				const EWorldType WorldType = World->GetWorldType();
-				const bool bIsPlayWorld = (WorldType == EWorldType::Game || WorldType == EWorldType::PIE);
+				const EWorldType WorldType    = World->GetWorldType();
+				const bool       bIsPlayWorld = (WorldType == EWorldType::Game || WorldType == EWorldType::PIE);
 				if (bIsPlayWorld && Primitive != DecalActor->GetDecalComponent())
 				{
 					return false;
@@ -61,11 +65,15 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 		}
 	}
 
-	const bool bIsUUID = Primitive->IsA(UUUIDBillboardComponent::StaticClass());
-	const bool bIsSubUV = Primitive->IsA(USubUVComponent::StaticClass());
-	const bool bIsText = Primitive->IsA(UTextRenderComponent::StaticClass());
+	const bool bIsUUID      = Primitive->IsA(UUUIDBillboardComponent::StaticClass());
+	const bool bIsSubUV     = Primitive->IsA(USubUVComponent::StaticClass());
+	const bool bIsText      = Primitive->IsA(UTextRenderComponent::StaticClass());
 	const bool bIsBillboard = Primitive->IsA(UBillboardComponent::StaticClass());
-	const bool bIsDecal = Primitive->IsA(UDecalComponent::StaticClass());
+	const bool bIsDecal     = Primitive->IsA(UDecalComponent::StaticClass());
+
+	const bool bIsPointLight       = Primitive->IsA(UPointLightComponent::StaticClass());
+	const bool bIsSpotLight        = Primitive->IsA(USpotLightComponent::StaticClass());
+	const bool bIsDirectionalLight = Primitive->IsA(UDirectionalLightComponent::StaticClass());
 
 	if (bIsUUID)
 	{
@@ -87,6 +95,11 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 		return ShowFlags.HasFlag(EEngineShowFlags::SF_Decal);
 	}
 
+	if (bIsPointLight || bIsSpotLight || bIsDirectionalLight)
+	{
+		return ShowFlags.HasFlag(EEngineShowFlags::SF_Primitives);
+	}
+
 	if (!ShowFlags.HasFlag(EEngineShowFlags::SF_Primitives))
 	{
 		return false;
@@ -97,8 +110,8 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 
 void FScenePacketBuilder::BuildScenePacket(
 	const TArray<UPrimitiveComponent*>& VisiblePrimitives,
-	const FShowFlags& ShowFlags,
-	FSceneRenderPacket& OutPacket)
+	const FShowFlags&                   ShowFlags,
+	FSceneRenderPacket&                 OutPacket)
 {
 	OutPacket.Clear();
 	OutPacket.Reserve(VisiblePrimitives.size());
@@ -112,30 +125,49 @@ void FScenePacketBuilder::BuildScenePacket(
 
 		if (Primitive->IsA(UStaticMeshComponent::StaticClass()))
 		{
-			OutPacket.MeshPrimitives.push_back({ static_cast<UStaticMeshComponent*>(Primitive) });
+			OutPacket.MeshPrimitives.push_back({static_cast<UStaticMeshComponent*>(Primitive)});
 			continue;
 		}
 
 		if (Primitive->IsA(UTextRenderComponent::StaticClass()))
 		{
-			OutPacket.TextPrimitives.push_back({ static_cast<UTextRenderComponent*>(Primitive) });
+			OutPacket.TextPrimitives.push_back({static_cast<UTextRenderComponent*>(Primitive)});
 			continue;
 		}
 
 		if (Primitive->IsA(USubUVComponent::StaticClass()))
 		{
-			OutPacket.SubUVPrimitives.push_back({ static_cast<USubUVComponent*>(Primitive) });
+			OutPacket.SubUVPrimitives.push_back({static_cast<USubUVComponent*>(Primitive)});
 			continue;
 		}
 
 		if (Primitive->IsA(UBillboardComponent::StaticClass()))
 		{
-			OutPacket.BillboardPrimitives.push_back({ static_cast<UBillboardComponent*>(Primitive) });
+			OutPacket.BillboardPrimitives.push_back({static_cast<UBillboardComponent*>(Primitive)});
+			continue;
 		}
 
 		if (Primitive->IsA(UDecalComponent::StaticClass()))
 		{
-			OutPacket.DecalPrimitives.push_back({ static_cast<UDecalComponent*>(Primitive) });
+			OutPacket.DecalPrimitives.push_back({static_cast<UDecalComponent*>(Primitive)});
+			continue;
+		}
+
+		if (Primitive->IsA(UPointLightComponent::StaticClass()))
+		{
+			OutPacket.PointLightPrimitives.push_back({static_cast<UPointLightComponent*>(Primitive)});
+			continue;
+		}
+
+		if (Primitive->IsA(USpotLightComponent::StaticClass()))
+		{
+			OutPacket.SpotLightPrimitives.push_back({static_cast<USpotLightComponent*>(Primitive)});
+			continue;
+		}
+
+		if (Primitive->IsA(UDirectionalLightComponent::StaticClass()))
+		{
+			OutPacket.DirectionalLightPrimitives.push_back({static_cast<UDirectionalLightComponent*>(Primitive)});
 		}
 	}
 }

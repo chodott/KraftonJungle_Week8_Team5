@@ -29,65 +29,9 @@ void FMeshPassProcessor::BeginFrame()
 	FrameStats = {};
 }
 
-EMaterialPassType FMeshPassProcessor::ToMaterialPassType(EMeshPassType PassType)
-{
-	switch (PassType)
-	{
-	case EMeshPassType::DepthPrepass:
-		return EMaterialPassType::DepthOnly;
-	case EMeshPassType::GBuffer:
-		return EMaterialPassType::GBuffer;
-	case EMeshPassType::ForwardTransparent:
-		return EMaterialPassType::ForwardTransparent;
-	case EMeshPassType::EditorGrid:
-		return EMaterialPassType::EditorGrid;
-	case EMeshPassType::EditorPrimitive:
-		return EMaterialPassType::EditorPrimitive;
-	case EMeshPassType::ForwardOpaque:
-	default:
-		return EMaterialPassType::ForwardOpaque;
-	}
-}
-
-bool FMeshPassProcessor::ShouldDrawInPass(const FMeshBatch& Batch, EMeshPassType PassType)
-{
-	switch (PassType)
-	{
-	case EMeshPassType::DepthPrepass:
-		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::DepthPrepass);
-	case EMeshPassType::GBuffer:
-		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::GBuffer);
-	case EMeshPassType::ForwardOpaque:
-		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ForwardOpaque);
-	case EMeshPassType::ForwardTransparent:
-		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ForwardTransparent);
-	case EMeshPassType::EditorGrid:
-		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::EditorGrid);
-	case EMeshPassType::EditorPrimitive:
-		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::EditorPrimitive);
-	default:
-		return false;
-	}
-}
-
-uint64 FMeshPassProcessor::MakeBatchSortKey(const FMeshBatch& Batch, EMeshPassType PassType)
-{
-	const EMaterialPassType MaterialPassType = ToMaterialPassType(PassType);
-	const FMaterialPassShaders* PassShaders = Batch.Material ? Batch.Material->GetPassShaders(MaterialPassType) : nullptr;
-	const uintptr_t VSKey = reinterpret_cast<uintptr_t>(PassShaders && PassShaders->VS ? PassShaders->VS.get() : (Batch.Material ? Batch.Material->GetVertexShader() : nullptr));
-	const uintptr_t PSKey = reinterpret_cast<uintptr_t>(PassShaders && PassShaders->PS ? PassShaders->PS.get() : (Batch.Material ? Batch.Material->GetPixelShader() : nullptr));
-	const uint64 StateKey =
-		(static_cast<uint64>(Batch.Material ? Batch.Material->GetRasterizerOption().ToKey() : 0u) << 32) ^
-		(static_cast<uint64>(Batch.Material ? Batch.Material->GetDepthStencilOption().ToKey() : 0u) << 8) ^
-		static_cast<uint64>(Batch.Material ? Batch.Material->GetBlendOption().ToKey() : 0u);
-	const uint64 ShaderKey = static_cast<uint64>((VSKey >> 4) ^ (PSKey >> 4));
-	const uint64 MeshKey = Batch.Mesh ? static_cast<uint64>(Batch.Mesh->GetSortId()) : 0ull;
-	return (ShaderKey << 32) ^ StateKey ^ MeshKey;
-}
-
 void FMeshPassProcessor::UploadMeshBuffers(FRenderer& Renderer, const FSceneViewData& SceneViewData) const
 {
-	ID3D11Device* Device = Renderer.GetDevice();
+	ID3D11Device*        Device  = Renderer.GetDevice();
 	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
 	if (!Device || !Context)
 	{
@@ -107,13 +51,13 @@ void FMeshPassProcessor::UploadMeshBuffers(FRenderer& Renderer, const FSceneView
 }
 
 void FMeshPassProcessor::ExecutePass(
-	FRenderer& Renderer,
-	FSceneRenderTargets& Targets,
+	FRenderer&            Renderer,
+	FSceneRenderTargets&  Targets,
 	const FSceneViewData& SceneViewData,
-	EMeshPassType PassType) const
+	EMeshPassType         PassType) const
 {
 	const FMeshPassClock::time_point PassStartTime = FMeshPassClock::now();
-	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
+	ID3D11DeviceContext*             DeviceContext = Renderer.GetDeviceContext();
 	if (!DeviceContext)
 	{
 		return;
@@ -196,19 +140,19 @@ void FMeshPassProcessor::ExecutePass(
 
 	RestoreScenePassDefaults(Renderer, SceneViewData.Frame, SceneViewData.View);
 
-	FMaterial* CurrentMaterial = nullptr;
-	FRenderMesh* CurrentMesh = nullptr;
-	D3D11_PRIMITIVE_TOPOLOGY CurrentTopology = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
-	const EMaterialPassType MaterialPassType = ToMaterialPassType(PassType);
-	uint32 LocalDrawCalls = 0;
+	FMaterial*               CurrentMaterial  = nullptr;
+	FRenderMesh*             CurrentMesh      = nullptr;
+	D3D11_PRIMITIVE_TOPOLOGY CurrentTopology  = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
+	const EMaterialPassType  MaterialPassType = ToMaterialPassType(PassType);
+	uint32                   LocalDrawCalls   = 0;
 
-	FLightRenderFeature* Feature = Renderer.GetLightFeature();
-	const bool bApplyLighting = (PassType == EMeshPassType::ForwardOpaque)
-		&& Feature != nullptr;
+	FLightRenderFeature* Feature        = Renderer.GetLightFeature();
+	const bool           bApplyLighting = (PassType == EMeshPassType::ForwardOpaque)
+			&& Feature != nullptr;
 
 	if (bApplyLighting)
 	{
-		Feature->Render(Renderer, SceneViewData.Frame, SceneViewData.View, Targets);
+		Feature->Render(Renderer, SceneViewData, Targets);
 	}
 
 	for (const FMeshBatch* Batch : Batches)
@@ -220,7 +164,7 @@ void FMeshPassProcessor::ExecutePass(
 
 		if (Batch->Material != CurrentMaterial)
 		{
-			ID3D11ShaderResourceView* NullSRVs[4] = { nullptr, nullptr, nullptr, nullptr };
+			ID3D11ShaderResourceView* NullSRVs[4] = {nullptr, nullptr, nullptr, nullptr};
 			DeviceContext->PSSetShaderResources(0, 4, NullSRVs);
 
 			Batch->Material->Bind(DeviceContext, MaterialPassType);
@@ -246,7 +190,7 @@ void FMeshPassProcessor::ExecutePass(
 		if (Batch->bDisableCulling)
 		{
 			FRasterizerStateOption RasterOpt = Batch->Material->GetRasterizerOption();
-			RasterOpt.CullMode = D3D11_CULL_NONE;
+			RasterOpt.CullMode               = D3D11_CULL_NONE;
 			Renderer.GetRenderStateManager()->BindState(Renderer.GetRenderStateManager()->GetOrCreateRasterizerState(RasterOpt));
 		}
 		else
@@ -257,7 +201,7 @@ void FMeshPassProcessor::ExecutePass(
 		FDepthStencilStateOption DepthOpt = Batch->Material->GetDepthStencilOption();
 		if (PassType == EMeshPassType::DepthPrepass)
 		{
-			DepthOpt.DepthEnable = !Batch->bDisableDepthTest;
+			DepthOpt.DepthEnable    = !Batch->bDisableDepthTest;
 			DepthOpt.DepthWriteMask = Batch->bDisableDepthWrite ? D3D11_DEPTH_WRITE_MASK_ZERO : D3D11_DEPTH_WRITE_MASK_ALL;
 		}
 		else if (PassType == EMeshPassType::GBuffer || PassType == EMeshPassType::ForwardOpaque)
@@ -302,14 +246,14 @@ void FMeshPassProcessor::ExecutePass(
 			CurrentMesh = Batch->Mesh;
 		}
 
-		const D3D11_PRIMITIVE_TOPOLOGY DesiredTopology = static_cast<D3D11_PRIMITIVE_TOPOLOGY>(Batch->Mesh->Topology);
+		const auto DesiredTopology = static_cast<D3D11_PRIMITIVE_TOPOLOGY>(Batch->Mesh->Topology);
 		if (DesiredTopology != CurrentTopology)
 		{
 			DeviceContext->IASetPrimitiveTopology(DesiredTopology);
 			CurrentTopology = DesiredTopology;
 		}
 
-		Renderer.UpdateObjectConstantBuffer(Batch->World);
+		Renderer.UpdateObjectConstantBuffer(*Batch);
 
 		if (!Batch->Mesh->Indices.empty())
 		{
@@ -325,5 +269,61 @@ void FMeshPassProcessor::ExecutePass(
 	}
 
 	FrameStats.TotalDrawCalls += LocalDrawCalls;
-	FrameStats.TotalTimeMs += ToMilliseconds(FMeshPassClock::now() - PassStartTime);
+	FrameStats.TotalTimeMs    += ToMilliseconds(FMeshPassClock::now() - PassStartTime);
+}
+
+EMaterialPassType FMeshPassProcessor::ToMaterialPassType(EMeshPassType PassType)
+{
+	switch (PassType)
+	{
+	case EMeshPassType::DepthPrepass:
+		return EMaterialPassType::DepthOnly;
+	case EMeshPassType::GBuffer:
+		return EMaterialPassType::GBuffer;
+	case EMeshPassType::ForwardTransparent:
+		return EMaterialPassType::ForwardTransparent;
+	case EMeshPassType::EditorGrid:
+		return EMaterialPassType::EditorGrid;
+	case EMeshPassType::EditorPrimitive:
+		return EMaterialPassType::EditorPrimitive;
+	case EMeshPassType::ForwardOpaque:
+	default:
+		return EMaterialPassType::ForwardOpaque;
+	}
+}
+
+bool FMeshPassProcessor::ShouldDrawInPass(const FMeshBatch& Batch, EMeshPassType PassType)
+{
+	switch (PassType)
+	{
+	case EMeshPassType::DepthPrepass:
+		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::DepthPrepass);
+	case EMeshPassType::GBuffer:
+		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::GBuffer);
+	case EMeshPassType::ForwardOpaque:
+		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ForwardOpaque);
+	case EMeshPassType::ForwardTransparent:
+		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ForwardTransparent);
+	case EMeshPassType::EditorGrid:
+		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::EditorGrid);
+	case EMeshPassType::EditorPrimitive:
+		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::EditorPrimitive);
+	default:
+		return false;
+	}
+}
+
+uint64 FMeshPassProcessor::MakeBatchSortKey(const FMeshBatch& Batch, EMeshPassType PassType)
+{
+	const EMaterialPassType     MaterialPassType = ToMaterialPassType(PassType);
+	const FMaterialPassShaders* PassShaders      = Batch.Material ? Batch.Material->GetPassShaders(MaterialPassType) : nullptr;
+	const uintptr_t             VSKey            = reinterpret_cast<uintptr_t>(PassShaders && PassShaders->VS ? PassShaders->VS.get() : (Batch.Material ? Batch.Material->GetVertexShader() : nullptr));
+	const uintptr_t             PSKey            = reinterpret_cast<uintptr_t>(PassShaders && PassShaders->PS ? PassShaders->PS.get() : (Batch.Material ? Batch.Material->GetPixelShader() : nullptr));
+	const uint64                StateKey         =
+			(static_cast<uint64>(Batch.Material ? Batch.Material->GetRasterizerOption().ToKey() : 0u) << 32) ^
+			(static_cast<uint64>(Batch.Material ? Batch.Material->GetDepthStencilOption().ToKey() : 0u) << 8) ^
+			static_cast<uint64>(Batch.Material ? Batch.Material->GetBlendOption().ToKey() : 0u);
+	const uint64 ShaderKey = VSKey >> 4 ^ PSKey >> 4;
+	const uint64 MeshKey   = Batch.Mesh ? static_cast<uint64>(Batch.Mesh->GetSortId()) : 0ull;
+	return (ShaderKey << 32) ^ StateKey ^ MeshKey;
 }

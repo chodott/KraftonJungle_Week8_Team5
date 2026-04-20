@@ -1,8 +1,10 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 
 #include <memory>
+
+#include "Component/PrimitiveComponent.h"
 
 struct FRenderMesh;
 class FMaterial;
@@ -49,24 +51,27 @@ inline bool EnumHasAnyFlags(uint32 Value, EMeshPassMask Mask)
 
 struct ENGINE_API FMeshBatch
 {
-	FRenderMesh* Mesh = nullptr;
+	FRenderMesh*                 Mesh      = nullptr;
 	std::shared_ptr<FRenderMesh> MeshOwner = nullptr;
 
-	FMaterial* Material = nullptr;
-	FMatrix World = FMatrix::Identity;
+	FMaterial*       Material = nullptr;
+	FMatrix          World    = FMatrix::Identity;
+	FBoxSphereBounds WorldBounds;
 
 	uint32 SectionIndex = 0;
-	uint32 IndexStart = 0;
-	uint32 IndexCount = 0;
+	uint32 IndexStart   = 0;
+	uint32 IndexCount   = 0;
 
-	EMaterialDomain Domain = EMaterialDomain::Opaque;
-	uint32 PassMask = static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+	EMaterialDomain Domain   = EMaterialDomain::Opaque;
+	uint32          PassMask = static_cast<uint32>(EMeshPassMask::ForwardOpaque);
 
-	bool bDisableDepthTest = false;
+	bool bDisableDepthTest  = false;
 	bool bDisableDepthWrite = false;
-	bool bDisableCulling = false;
-	bool bEditorOnly = false;
+	bool bDisableCulling    = false;
+	bool bEditorOnly        = false;
 
-	float DistanceSqToCamera = 0.0f;
-	uint64 SubmissionOrder = 0;
+	float  DistanceSqToCamera = 0.0f;
+	uint64 SubmissionOrder    = 0;
+
+	uint32 LocalLightMaskOffset = 0;
 };
