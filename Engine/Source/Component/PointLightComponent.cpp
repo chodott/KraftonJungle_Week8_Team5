@@ -1,4 +1,4 @@
-#include "UPointLightComponent.h"
+#include "PointLightComponent.h"
 
 #include <algorithm>
 
@@ -11,6 +11,8 @@ void UPointLightComponent::PostConstruct()
 {
 	ULightComponent::PostConstruct();
 	IntensityUnits = ELightUnits::Candelas;
+	
+	Intensity = 10.f;
 }
 
 void UPointLightComponent::SetAttenuationRadius(float radius)

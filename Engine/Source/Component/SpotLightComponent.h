@@ -1,10 +1,12 @@
 #pragma once
-#include "UPointLightComponent.h"
+#include "PointLightComponent.h"
 
 class ENGINE_API USpotLightComponent : public UPointLightComponent
 {
 public:
 	DECLARE_RTTI(USpotLightComponent, UPointLightComponent);
+	
+	void PostConstruct() override;
 
 	void SetInnerConeAngle(float innerConeAngle);
 	void SetOuterConeAngle(float outerConeAngle);

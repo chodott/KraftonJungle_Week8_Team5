@@ -9,8 +9,8 @@
 #include "Component/LightComponent.h"
 #include "Component/AmbientLightComponent.h"
 #include "Component/DirectionalLightComponent.h"
-#include "Component/UPointLightComponent.h"
-#include "Component/USpotLightComponent.h"
+#include "Component/PointLightComponent.h"
+#include "Component/SpotLightComponent.h"
 #include "Math/MathUtility.h"
 
 #include <algorithm>
@@ -164,9 +164,9 @@ void FLightRenderFeature::UpdateLightConstantBuffer(FRenderer& Renderer, const F
 
 				if (LightComponent->IsA(UDirectionalLightComponent::StaticClass()))
 				{
-					const FVector LightDirectionWS = LightComponent->GetDirectionToLightWS().GetSafeNormal();
+					const FVector LightDirectionWS = LightComponent->GetEmissionDirectionWS().GetSafeNormal();
 					CBData.Directional.Color = PackedColor;
-					CBData.Directional.Direction = LightDirectionWS.IsNearlyZero() ? FVector::BackwardVector : LightDirectionWS;
+					CBData.Directional.Direction = LightDirectionWS.IsNearlyZero() ? FVector::ForwardVector : LightDirectionWS;
 					CBData.Directional.Intensity = EffectiveIntensity;
 					continue;
 				}
@@ -338,9 +338,14 @@ bool FLightRenderFeature::Render(
 	const FSceneViewData& SceneViewData,
 	const FSceneRenderTargets& Targets)
 {
-	if (!Targets.SceneColorRTV || !Targets.SceneDepthSRV || !Initialize(Renderer))
+	if (!Targets.SceneColorRTV || !Targets.SceneDepthSRV)
 	{
 		return true;
+	}
+	
+	if (!Initialize(Renderer))
+	{
+		return false;
 	}
 
 	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();

@@ -8,6 +8,8 @@ void UDirectionalLightComponent::PostConstruct()
 {
 	ULightComponent::PostConstruct();
 	IntensityUnits = ELightUnits::Lux;
+	
+	Intensity = 10.f;
 }
 
 void UDirectionalLightComponent::MarkTransformDirty()

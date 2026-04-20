@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include "Actor.h"
 #include "Component/BillboardComponent.h"
-#include "Component/UPointLightComponent.h"
+#include "Component/PointLightComponent.h"
 
 class ULineBatchComponent;
 

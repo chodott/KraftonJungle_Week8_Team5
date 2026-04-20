@@ -506,6 +506,8 @@ void FRenderer::UpdateFrameConstantBuffer(const FFrameContext &Frame, const FVie
     CBData.Projection = View.Projection.GetTransposed();
     CBData.Time = Frame.TotalTimeSeconds;
     CBData.DeltaTime = Frame.DeltaTimeSeconds;
+    CBData.CameraPosition = View.CameraPosition;
+    CBData.Padding = 0.0f;
     D3D11_MAPPED_SUBRESOURCE Mapped;
     if (SUCCEEDED(DeviceContext->Map(FrameConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
     {

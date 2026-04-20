@@ -29,12 +29,7 @@ VS_OUTPUT main(VS_INPUT Input)
 	// ── Gouraud: VS에서 Blinn-Phong으로 모든 광원 계산 ──
 #if LIGHTING_MODEL_GOURAUD
 	float3 N = Output.Normal;
-	float3 cameraPos = float3(
-        View._41, // View 행렬의 이동 성분
-        View._42,
-        View._43
-    );
-	float3 V = normalize(cameraPos - Output.WorldPosition);
+	float3 V = normalize(CameraPosition - Output.WorldPosition);
 
     float4 lighting = CalculateAmbientLight(Ambient);
     lighting += CalculateDirectionalLight(Directional, Output.WorldPosition, N, V);

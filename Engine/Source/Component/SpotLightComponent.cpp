@@ -1,4 +1,4 @@
-#include "USpotLightComponent.h"
+#include "SpotLightComponent.h"
 
 #include <cmath>
 
@@ -6,6 +6,13 @@
 #include "Object/Class.h"
 
 IMPLEMENT_RTTI(USpotLightComponent, UPointLightComponent)
+
+void USpotLightComponent::PostConstruct()
+{
+	UPointLightComponent::PostConstruct();
+	
+	Intensity = 8.f;
+}
 
 void USpotLightComponent::SetInnerConeAngle(float innerConeAngle)
 {

@@ -7,7 +7,8 @@ cbuffer FrameData : register(b0)
 	float4x4 Projection;
 	float Time;
 	float DeltaTime;
-	float2 Framepadding;
+	float3 CameraPosition;
+	float Framepadding;
 };
 
 #endif

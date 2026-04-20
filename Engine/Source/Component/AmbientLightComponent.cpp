@@ -8,6 +8,8 @@ void UAmbientLightComponent::PostConstruct()
 {
 	ULightComponent::PostConstruct();
 	IntensityUnits = ELightUnits::Unitless;
+	
+	Intensity = 1.0f;
 }
 
 void UAmbientLightComponent::MarkTransformDirty()
