@@ -3,9 +3,11 @@
 #include "Renderer/Scene/Builders/SceneCommandBuilder.h"
 #include "Renderer/Scene/Builders/SceneCommandBuilderUtils.h"
 
-#include "Component/LineBatchComponent.h"
+#include "Actor/Actor.h"
 #include "Component/MeshComponent.h"
+#include "Component/LineBatchComponent.h"
 #include "Component/PrimitiveComponent.h"
+#include "Component/StaticMeshComponent.h"
 #include "Renderer/Mesh/MeshData.h"
 #include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Resources/Material/MaterialManager.h"

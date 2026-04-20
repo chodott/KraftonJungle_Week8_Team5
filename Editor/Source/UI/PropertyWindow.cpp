@@ -680,7 +680,7 @@ void FPropertyWindow::DrawRotatingMovementComponentDetails(URotatingMovementComp
 	}
 }
 
-void FPropertyWindow::DrawProjectileMovementComponentDetails(UProjectileMovementComponent* ProjectileMovementComponent, FEditorEngine* Engine)
+void FPropertyWindow::DrawProjectileMovementComponentDetails(UProjectileMovementComponent* ProjectileMovementComponent, FEditorEngine* Engine) 
 {
 	if (!ProjectileMovementComponent)
 	{
@@ -1235,7 +1235,7 @@ void FPropertyWindow::DrawDecalComponentDetails(UDecalComponent* DecalComponent,
 	{
 		DecalComponent->SetUVMax(UVMax);
 	}
-
+	
 	float AllowAngle = DecalComponent->GetAllowAngle();
 	if (ImGui::DragFloat("Allow Angle", &AllowAngle, 1.0f, 0.0f, 180.0f, "%.1f"))
 	{
@@ -1559,7 +1559,7 @@ bool FPropertyWindow::AddComponentToActor(AActor* SelectedActor, UClass* Compone
 		UTextRenderComponent* TextComponent = static_cast<UTextRenderComponent*>(NewComponent);
 		TextComponent->MarkTextMeshDirty();
 	}
-
+	
 	if (NewComponent->IsA(UDecalComponent::StaticClass()))
 	{
 		UDecalComponent* DecalComponent = static_cast<UDecalComponent*>(NewComponent);

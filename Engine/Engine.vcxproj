@@ -30,8 +30,8 @@
     <ClInclude Include="Source\Actor\HeightFogActor.h" />
     <ClInclude Include="Source\Actor\LocalHeightFogActor.h" />
     <ClInclude Include="Source\Actor\PlaneActor.h" />
-    <ClInclude Include="Source\Actor\PointLightActor.h" />
     <ClInclude Include="Source\Actor\PlayerCameraActor.h" />
+    <ClInclude Include="Source\Actor\PointLightActor.h" />
     <ClInclude Include="Source\Actor\SkySphereActor.h" />
     <ClInclude Include="Source\Actor\SphereActor.h" />
     <ClInclude Include="Source\Actor\SpotLightActor.h" />
@@ -330,8 +330,8 @@
     <ClCompile Include="Source\Actor\HeightFogActor.cpp" />
     <ClCompile Include="Source\Actor\LocalHeightFogActor.cpp" />
     <ClCompile Include="Source\Actor\PlaneActor.cpp" />
-    <ClCompile Include="Source\Actor\PointLightActor.cpp" />
     <ClCompile Include="Source\Actor\PlayerCameraActor.cpp" />
+    <ClCompile Include="Source\Actor\PointLightActor.cpp" />
     <ClCompile Include="Source\Actor\SkySphereActor.cpp" />
     <ClCompile Include="Source\Actor\SphereActor.cpp" />
     <ClCompile Include="Source\Actor\SpotLightActor.cpp" />

@@ -36,6 +36,16 @@ bool FRendererResourceBootstrap::Initialize(FRenderer& Renderer)
 	if (!Renderer.ShaderManager.LoadVertexShader(Device, VSPath.c_str())) return false;
 	if (!Renderer.ShaderManager.LoadPixelShader(Device, PSPath.c_str())) return false;
 
+	ID3D11ShaderResourceView* NewSRV = nullptr;
+	std::filesystem::path DefaultTexturePath = FPaths::TextureDir() / "Default.png";
+	if (!Renderer.CreateTextureFromSTB(Renderer.GetDevice(), DefaultTexturePath, &NewSRV))
+	{
+		return false;
+	}
+
+	auto MaterialTexture = std::make_shared<FMaterialTexture>();
+	MaterialTexture->TextureSRV = NewSRV;
+
 	{
 		auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
 		std::wstring ColorPSPath = ShaderDirW + L"SceneGeometry/ColorPixelShader.hlsl";
@@ -80,6 +90,7 @@ bool FRendererResourceBootstrap::Initialize(FRenderer& Renderer)
 		auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, TexturePSPath.c_str());
 		Renderer.DefaultTextureMaterial = std::make_shared<FMaterial>();
 		Renderer.DefaultTextureMaterial->SetOriginName("M_Default_Texture");
+		Renderer.DefaultTextureMaterial->SetMaterialTexture(MaterialTexture);
 		Renderer.DefaultTextureMaterial->SetVertexShader(VS);
 		Renderer.DefaultTextureMaterial->SetPixelShader(PS);
 

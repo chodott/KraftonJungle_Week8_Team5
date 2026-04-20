@@ -10,7 +10,8 @@ struct FFrameConstantBuffer
 
 	float Time;
 	float DeltaTime;
-	float Padding[2];
+	FVector CameraPosition;
+	float Padding = 0.0f;
 };
 
 // b1: 오브젝트당 업데이트
