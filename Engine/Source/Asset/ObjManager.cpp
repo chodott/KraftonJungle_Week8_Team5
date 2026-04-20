@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <unordered_map>
 #include <vector>
 #include <Windows.h>
 
@@ -985,6 +986,210 @@ namespace
 		return true;
 	}
 
+	struct FQuantizedPositionKey
+	{
+		int32 X = 0;
+		int32 Y = 0;
+		int32 Z = 0;
+
+		bool operator==(const FQuantizedPositionKey& Other) const noexcept
+		{
+			return X == Other.X && Y == Other.Y && Z == Other.Z;
+		}
+	};
+
+	struct FQuantizedPositionKeyHasher
+	{
+		size_t operator()(const FQuantizedPositionKey& Key) const noexcept
+		{
+			size_t Seed = static_cast<size_t>(Key.X);
+			Seed ^= static_cast<size_t>(Key.Y) + 0x9e3779b9 + (Seed << 6) + (Seed >> 2);
+			Seed ^= static_cast<size_t>(Key.Z) + 0x9e3779b9 + (Seed << 6) + (Seed >> 2);
+			return Seed;
+		}
+	};
+
+	FQuantizedPositionKey MakeQuantizedPositionKey(const FVector& Position, float QuantizationStep)
+	{
+		const float SafeStep = QuantizationStep > 0.0f ? QuantizationStep : 0.0001f;
+		return FQuantizedPositionKey {
+			static_cast<int32>(std::lround(Position.X / SafeStep)),
+			static_cast<int32>(std::lround(Position.Y / SafeStep)),
+			static_cast<int32>(std::lround(Position.Z / SafeStep))
+		};
+	}
+
+	bool ShouldAutoSmoothNormals(const TArray<FString>& MaterialSlotNames)
+	{
+		if (MaterialSlotNames.empty())
+		{
+			return true;
+		}
+
+		for (const FString& SlotName : MaterialSlotNames)
+		{
+			const FString MaterialName = SlotName.empty() ? "M_Default" : SlotName;
+			std::shared_ptr<FMaterial> Material = FMaterialManager::Get().FindByName(MaterialName);
+			if (!Material && MaterialName != "M_Default")
+			{
+				Material = FMaterialManager::Get().FindByName("M_Default");
+			}
+
+			if (Material && Material->HasNormalTexture())
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	bool ShouldAutoSmoothNormals(const TArray<FModelMaterialInfo>& MaterialInfos)
+	{
+		if (MaterialInfos.empty())
+		{
+			return true;
+		}
+
+		for (const FModelMaterialInfo& MaterialInfo : MaterialInfos)
+		{
+			if (!MaterialInfo.NormalTexturePath.empty())
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	void CalculateSmoothNormals(FStaticMesh& Mesh)
+	{
+		if (Mesh.Vertices.empty() || Mesh.Indices.size() < 3)
+		{
+			return;
+		}
+
+		constexpr float PositionQuantizationStep = 0.0001f;
+		constexpr float SmoothingAngleDegrees = 88.0f;
+		const float CosSmoothingAngle = std::cos(FMath::DegreesToRadians(SmoothingAngleDegrees));
+
+		const size_t TriangleCount = Mesh.Indices.size() / 3;
+		std::vector<FVector> FaceWeightedNormals(TriangleCount, FVector::ZeroVector);
+		std::vector<FVector> FaceUnitNormals(TriangleCount, FVector::ZeroVector);
+		std::vector<std::vector<uint32>> VertexToTriangles(Mesh.Vertices.size());
+		std::unordered_map<FQuantizedPositionKey, std::vector<uint32>, FQuantizedPositionKeyHasher> PositionToVertices;
+		PositionToVertices.reserve(Mesh.Vertices.size());
+
+		for (uint32 VertexIndex = 0; VertexIndex < Mesh.Vertices.size(); ++VertexIndex)
+		{
+			PositionToVertices[MakeQuantizedPositionKey(Mesh.Vertices[VertexIndex].Position, PositionQuantizationStep)].push_back(VertexIndex);
+		}
+
+		for (size_t TriangleIndex = 0; TriangleIndex < TriangleCount; ++TriangleIndex)
+		{
+			const size_t IndexBase = TriangleIndex * 3;
+			const uint32 I0 = Mesh.Indices[IndexBase + 0];
+			const uint32 I1 = Mesh.Indices[IndexBase + 1];
+			const uint32 I2 = Mesh.Indices[IndexBase + 2];
+			if (I0 >= Mesh.Vertices.size() || I1 >= Mesh.Vertices.size() || I2 >= Mesh.Vertices.size())
+			{
+				continue;
+			}
+
+			const FVector WeightedNormal = FVector::CrossProduct(
+				Mesh.Vertices[I1].Position - Mesh.Vertices[I0].Position,
+				Mesh.Vertices[I2].Position - Mesh.Vertices[I0].Position);
+			const FVector UnitNormal = WeightedNormal.GetSafeNormal();
+			if (UnitNormal.IsZero())
+			{
+				continue;
+			}
+
+			FaceWeightedNormals[TriangleIndex] = WeightedNormal;
+			FaceUnitNormals[TriangleIndex] = UnitNormal;
+
+			VertexToTriangles[I0].push_back(static_cast<uint32>(TriangleIndex));
+			VertexToTriangles[I1].push_back(static_cast<uint32>(TriangleIndex));
+			VertexToTriangles[I2].push_back(static_cast<uint32>(TriangleIndex));
+		}
+
+		for (uint32 VertexIndex = 0; VertexIndex < Mesh.Vertices.size(); ++VertexIndex)
+		{
+			const std::vector<uint32>& DirectTriangles = VertexToTriangles[VertexIndex];
+			if (DirectTriangles.empty())
+			{
+				continue;
+			}
+
+			std::vector<uint32> CandidateTriangles = DirectTriangles;
+			const auto PositionIt = PositionToVertices.find(
+				MakeQuantizedPositionKey(Mesh.Vertices[VertexIndex].Position, PositionQuantizationStep));
+			if (PositionIt != PositionToVertices.end())
+			{
+				for (uint32 SharedVertexIndex : PositionIt->second)
+				{
+					if (SharedVertexIndex == VertexIndex || SharedVertexIndex >= VertexToTriangles.size())
+					{
+						continue;
+					}
+
+					const std::vector<uint32>& SharedTriangles = VertexToTriangles[SharedVertexIndex];
+					CandidateTriangles.insert(CandidateTriangles.end(), SharedTriangles.begin(), SharedTriangles.end());
+				}
+			}
+
+			std::sort(CandidateTriangles.begin(), CandidateTriangles.end());
+			CandidateTriangles.erase(std::unique(CandidateTriangles.begin(), CandidateTriangles.end()), CandidateTriangles.end());
+
+			FVector ReferenceNormal = FVector::ZeroVector;
+			for (uint32 TriangleIndex : DirectTriangles)
+			{
+				ReferenceNormal += FaceWeightedNormals[TriangleIndex];
+			}
+			ReferenceNormal = ReferenceNormal.GetSafeNormal();
+
+			if (ReferenceNormal.IsZero())
+			{
+				for (uint32 TriangleIndex : CandidateTriangles)
+				{
+					ReferenceNormal += FaceWeightedNormals[TriangleIndex];
+				}
+				ReferenceNormal = ReferenceNormal.GetSafeNormal();
+			}
+
+			if (ReferenceNormal.IsZero())
+			{
+				continue;
+			}
+
+			FVector SmoothedNormal = FVector::ZeroVector;
+			for (uint32 TriangleIndex : CandidateTriangles)
+			{
+				if (TriangleIndex >= FaceUnitNormals.size())
+				{
+					continue;
+				}
+
+				const FVector& FaceNormal = FaceUnitNormals[TriangleIndex];
+				if (FaceNormal.IsZero())
+				{
+					continue;
+				}
+
+				if (FVector::DotProduct(ReferenceNormal, FaceNormal) >= CosSmoothingAngle)
+				{
+					SmoothedNormal += FaceWeightedNormals[TriangleIndex];
+				}
+			}
+
+			const FVector FinalNormal = SmoothedNormal.GetSafeNormal();
+			if (!FinalNormal.IsZero())
+			{
+				Mesh.Vertices[VertexIndex].Normal = FinalNormal;
+			}
+		}
+	}
+
 	void CalculateTangents(FStaticMesh& Mesh)
 	{
 		std::vector<FVector> TangentAccum(Mesh.Vertices.size(), FVector::Zero());
@@ -1081,6 +1286,11 @@ namespace
 		}
 		RawData->UpdateLocalBound(); // 재계산
 
+		if (ShouldAutoSmoothNormals(MaterialSlotNames))
+		{
+			CalculateSmoothNormals(*RawData);
+		}
+
 		CalculateTangents(*RawData);
 
 		UStaticMesh* NewAsset = FObjectFactory::ConstructObject<UStaticMesh>(nullptr, JustFileName);
@@ -1157,6 +1367,11 @@ namespace
 			Vertex.Position.Z -= MeshCenter.Z;
 		}
 		RawData->UpdateLocalBound();
+
+		if (ShouldAutoSmoothNormals(MaterialInfos))
+		{
+			CalculateSmoothNormals(*RawData);
+		}
 
 		CalculateTangents(*RawData);
 
