@@ -1506,7 +1506,7 @@ UStaticMesh* FObjManager::LoadModelStaticMeshAsset(const FString& PathFileName)
 		}
 	}
 
-	if (Version >= GModelVersionImportSettings)
+	if (Version >= GModelVersionNormalTexture)
 	{
 		FObjLoadOptions SavedLoadOptions {};
 		bool            bHasSavedLoadOptions = false;
@@ -1648,7 +1648,7 @@ bool FObjManager::ReadModelImportOptions(const FString& PathFileName, FObjLoadOp
 		return false;
 	}
 
-	if (Version < GModelVersionImportSettings)
+	if (Version < GModelVersionNormalTexture)
 	{
 		return false;
 	}

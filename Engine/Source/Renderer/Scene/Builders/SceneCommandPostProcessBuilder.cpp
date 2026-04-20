@@ -1,4 +1,4 @@
-﻿#include "Renderer/Scene/Builders/SceneCommandPostProcessBuilder.h"
+#include "Renderer/Scene/Builders/SceneCommandPostProcessBuilder.h"
 
 #include "Renderer/Scene/Builders/SceneCommandBuilder.h"
 #include "Renderer/Scene/Builders/SceneCommandBuilderUtils.h"
@@ -399,21 +399,21 @@ void FSceneCommandPostProcessBuilder::BuildMeshDecalInputs(
 						Vertex0.Normal = FaceNormalWS;
 						Vertex0.UV = UV0;
 						Vertex0.Color = VertexColor;
-						Vertex0.Tangent = FVector::ZeroVector;
+						Vertex0.Tangent = FVector4(FVector::ZeroVector, 0.0f);
 
 						FVertex Vertex1;
 						Vertex1.Position = V1W + Offset;
 						Vertex1.Normal = FaceNormalWS;
 						Vertex1.UV = UV1;
 						Vertex1.Color = VertexColor;
-						Vertex1.Tangent = FVector::ZeroVector;
+						Vertex1.Tangent = FVector4(FVector::ZeroVector, 0.0f);
 
 						FVertex Vertex2;
 						Vertex2.Position = V2W + Offset;
 						Vertex2.Normal = FaceNormalWS;
 						Vertex2.UV = UV2;
 						Vertex2.Color = VertexColor;
-						Vertex2.Tangent = FVector::ZeroVector;
+						Vertex2.Tangent = FVector4(FVector::ZeroVector, 0.0f);
 
 						DecalMesh->Vertices.push_back(Vertex0);
 						DecalMesh->Vertices.push_back(Vertex1);
