@@ -79,7 +79,7 @@ void ADirectionalLightActor::PostSpawnInitialize()
 	if (ArrowComponent)
 	{
 		AddOwnedComponent(ArrowComponent);
-		ArrowComponent->AttachTo(IconBillboardComponent ? static_cast<USceneComponent*>(IconBillboardComponent) : static_cast<USceneComponent*>(DirectionalLightComponent));
+		ArrowComponent->AttachTo(DirectionalLightComponent);
 		ArrowComponent->SetRelativeTransform(FTransform(
 			FQuat::Identity,
 			FVector(0.0f, 0.0f, 0.0f),
@@ -146,11 +146,7 @@ void ADirectionalLightActor::Serialize(FArchive& Ar)
 	if (ArrowComponent)
 	{
 		ArrowComponent->DetachFromParent();
-		if (IconBillboardComponent)
-		{
-			ArrowComponent->AttachTo(IconBillboardComponent);
-		}
-		else if (DirectionalLightComponent)
+		if (DirectionalLightComponent)
 		{
 			ArrowComponent->AttachTo(DirectionalLightComponent);
 		}

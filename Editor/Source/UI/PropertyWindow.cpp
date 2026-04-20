@@ -247,6 +247,28 @@ namespace
 			return "Unknown";
 		}
 	}
+
+	std::string GetMeshDisplayName(const UStaticMesh* Mesh)
+	{
+		if (!Mesh)
+		{
+			return "None";
+		}
+
+		const std::string AssetName = Mesh->GetAssetPathFileName();
+		if (!AssetName.empty())
+		{
+			return AssetName;
+		}
+
+		const std::string ObjectName = Mesh->GetName();
+		if (!ObjectName.empty())
+		{
+			return ObjectName;
+		}
+
+		return "UnnamedMesh";
+	}
 }
 
 bool FPropertyWindow::IsComponentOwnedByActor(AActor* SelectedActor, UActorComponent* Component) const
@@ -384,7 +406,7 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 	ImGui::TextDisabled("Static Mesh");
 
 	UStaticMesh* CurrentMesh = MeshComponent->GetStaticMesh();
-	const std::string CurrentMeshName = CurrentMesh ? CurrentMesh->GetAssetPathFileName() : "None";
+	const std::string CurrentMeshName = GetMeshDisplayName(CurrentMesh);
 
 	ImGui::PushItemWidth(-1.0f);
 	if (ImGui::BeginCombo("Mesh Asset", CurrentMeshName.c_str()))
@@ -397,9 +419,10 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 				continue;
 			}
 
-			const std::string MeshName = MeshAsset->GetAssetPathFileName();
+			const std::string MeshName = GetMeshDisplayName(MeshAsset);
+			const std::string MeshLabel = MeshName + "##MeshAsset_" + std::to_string(reinterpret_cast<uintptr_t>(MeshAsset));
 			const bool bSelected = (CurrentMesh == MeshAsset);
-			if (ImGui::Selectable(MeshName.c_str(), bSelected))
+			if (ImGui::Selectable(MeshLabel.c_str(), bSelected))
 			{
 				MeshComponent->SetStaticMesh(MeshAsset);
 				MeshComponent->UpdateBounds();
