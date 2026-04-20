@@ -524,9 +524,11 @@ void FRenderer::UpdateObjectConstantBuffer(const FMatrix &WorldMatrix)
         return;
     }
 
-    FObjectConstantBuffer CBData;
-    CBData.World = WorldMatrix.GetTransposed();
-	CBData.WorldInvTranspose = WorldMatrix.GetInverse().GetTransposed();
+	FObjectConstantBuffer CBData;
+	CBData.World = WorldMatrix.GetTransposed();
+	// HLSL에서는 row-vector mul(v, M) 패턴을 사용하고, 상수버퍼에는 전치된 행렬을 업로드한다.
+	// 따라서 normal 변환용 (World^-1)^T를 셰이더에서 올바르게 쓰려면 CPU에는 World^-1를 업로드해야 한다.
+	CBData.WorldInvTranspose = WorldMatrix.GetInverse();
 
     D3D11_MAPPED_SUBRESOURCE Mapped;
     if (SUCCEEDED(DeviceContext->Map(ObjectConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
