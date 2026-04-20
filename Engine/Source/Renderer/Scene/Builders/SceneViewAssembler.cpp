@@ -42,13 +42,14 @@ void BuildSceneViewDataFromPacket(
 	OutSceneViewData.DebugInputs.Clear();
 
 	FSceneCommandBuildContext BuildContext;
-	BuildContext.DefaultMaterial  = Renderer.GetDefaultMaterial();
-	BuildContext.TextFeature      = Renderer.GetSceneTextFeature();
-	BuildContext.SubUVFeature     = Renderer.GetSceneSubUVFeature();
-	BuildContext.BillboardFeature = Renderer.GetSceneBillboardFeature();
-	BuildContext.ResourceCache    = &ResourceCache;
-	BuildContext.TotalTimeSeconds = Frame.TotalTimeSeconds;
-	BuildContext.World            = World;
+	BuildContext.DefaultMaterial        = Renderer.GetDefaultMaterial();
+	BuildContext.DefaultTextureMaterial = Renderer.GetDefaultTextureMaterial();
+	BuildContext.TextFeature            = Renderer.GetSceneTextFeature();
+	BuildContext.SubUVFeature           = Renderer.GetSceneSubUVFeature();
+	BuildContext.BillboardFeature       = Renderer.GetSceneBillboardFeature();
+	BuildContext.ResourceCache          = &ResourceCache;
+	BuildContext.TotalTimeSeconds       = Frame.TotalTimeSeconds;
+	BuildContext.World                  = World;
 
 	CommandBuilder.BuildSceneViewData(BuildContext, Packet, Frame, View, OutSceneViewData);
 	AppendAdditionalMeshBatches(Renderer, AdditionalMeshBatches, OutSceneViewData);

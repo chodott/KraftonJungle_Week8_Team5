@@ -210,6 +210,22 @@ void UStaticMesh::VisitMeshBVHNodes(const FBVHNodeVisitor& Visitor) const
 	}
 }
 
+void UStaticMesh::QueryMeshBVHTriangles(const FAABB& Bounds, TArray<int32>& OutTriangleIndices) const
+{
+	OutTriangleIndices.clear();
+	BuildAccelerationStructureIfNeeded();
+	if (TriangleBVH && TriangleBVH->IsValid())
+	{
+		TriangleBVH->QueryTriangles(Bounds, OutTriangleIndices);
+	}
+}
+
+bool UStaticMesh::GetMeshBVHTriangleData(int32 TriangleIndex, FMeshBVH::FTriangleData& OutTriangleData) const
+{
+	BuildAccelerationStructureIfNeeded();
+	return TriangleBVH && TriangleBVH->IsValid() && TriangleBVH->GetTriangleData(TriangleIndex, OutTriangleData);
+}
+
 
 FStaticMesh* UStaticMesh::GetRenderData(int32 LODIndex) const
 {

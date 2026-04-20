@@ -20,6 +20,7 @@ void BuildDefaultSceneRenderPipeline(FRenderPipeline& OutPipeline, const FMeshPa
 	OutPipeline.AddPass(std::make_unique<FForwardOpaquePass>(MeshPassProcessor));
 
 	// Scene Effects
+	OutPipeline.AddPass(std::make_unique<FMeshDecalPass>(MeshPassProcessor));
 	OutPipeline.AddPass(std::make_unique<FDecalCompositePass>());
 	OutPipeline.AddPass(std::make_unique<FFogPostPass>());
 	OutPipeline.AddPass(std::make_unique<FFireBallPass>());

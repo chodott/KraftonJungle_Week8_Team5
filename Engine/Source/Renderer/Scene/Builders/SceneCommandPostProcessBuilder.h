@@ -19,4 +19,9 @@ public:
 	void BuildDecalInputs(
 		const FSceneRenderPacket& Packet,
 		FSceneViewData& OutSceneViewData) const;
+
+	void BuildMeshDecalInputs(
+		const struct FSceneCommandBuildContext& BuildContext,
+		const FSceneRenderPacket& Packet,
+		FSceneViewData& OutSceneViewData) const;
 };

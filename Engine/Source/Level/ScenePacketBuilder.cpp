@@ -3,6 +3,7 @@
 #include "Actor/DecalActor.h"
 #include "Component/BillboardComponent.h"
 #include "Component/DecalComponent.h"
+#include "Component/MeshDecalComponent.h"
 #include "Component/ProjectileMovementComponent.h"
 #include "Component/StaticMeshComponent.h"
 #include "Component/SubUVComponent.h"
@@ -65,6 +66,7 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 	const bool bIsSubUV     = Primitive->IsA(USubUVComponent::StaticClass());
 	const bool bIsText      = Primitive->IsA(UTextRenderComponent::StaticClass());
 	const bool bIsBillboard = Primitive->IsA(UBillboardComponent::StaticClass());
+	const bool bIsMeshDecal = Primitive->IsA(UMeshDecalComponent::StaticClass());
 	const bool bIsDecal     = Primitive->IsA(UDecalComponent::StaticClass());
 
 	if (bIsUUID)
@@ -82,7 +84,7 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 		return ShowFlags.HasFlag(EEngineShowFlags::SF_Text);
 	}
 
-	if (bIsDecal)
+	if (bIsDecal || bIsMeshDecal)
 	{
 		return ShowFlags.HasFlag(EEngineShowFlags::SF_Decal);
 	}
@@ -135,6 +137,12 @@ void FScenePacketBuilder::BuildScenePacket(
 			continue;
 		}
 
+		if (Primitive->IsA(UMeshDecalComponent::StaticClass()))
+		{
+			OutPacket.MeshDecalPrimitives.push_back({static_cast<UMeshDecalComponent*>(Primitive)});
+			continue;
+		}
+
 		if (Primitive->IsA(UDecalComponent::StaticClass()))
 		{
 			OutPacket.DecalPrimitives.push_back({static_cast<UDecalComponent*>(Primitive)});
@@ -147,4 +155,5 @@ void FScenePacketBuilder::BuildScenePacket(
 			OutPacket.MeshPrimitives.push_back({ Primitive });
 		}
 	}
+
 }

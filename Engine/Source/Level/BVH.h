@@ -147,6 +147,13 @@ struct FAABB
 		OutTFar = tmax;
 		return true;
 	}
+
+	bool Overlaps(const FAABB& Other) const
+	{
+		return !(PMax.X < Other.PMin.X || PMin.X > Other.PMax.X
+			|| PMax.Y < Other.PMin.Y || PMin.Y > Other.PMax.Y
+			|| PMax.Z < Other.PMin.Z || PMin.Z > Other.PMax.Z);
+	}
 };
 
 struct FPrimRef
