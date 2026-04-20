@@ -46,13 +46,17 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 #endif
 
 	float3 V = normalize(CameraPosition.xyz - Input.WorldPosition);
+
+	float4 baseColor = TextureColor;
 	
 #if LIGHTING_MODEL_GOURAUD
-	finalPixel *= Input.VertexLighting;
+
+	baseColor.rgb *= Input.VertexLighting.rgb;
+	return float4(baseColor.rgb, baseColor.a);
 	
 #elif LIGHTING_MODEL_LAMBERT
 	
-	float4 lighting = 0.0f.xxxx;
+	float3 lighting = 0.0f.xxx;
     
     if (AmbientEnabled != 0)
     {
@@ -61,34 +65,37 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
     
     if (DirectionalLightCount > 0)
     {
-        float3 L_dir = normalize(-Directional.DirectionEtc.xyz);
-        float diff = max(0.0f, dot(N, L_dir));
-        lighting += float4(Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff, 1.0f);
+		float3 L_dir = normalize(-Directional.DirectionEtc.xyz);
+		float diff = max(0.0f, dot(N, L_dir));
+		lighting += Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff;
     }
     
-    lighting += ComputeClusteredLocalLightingLambert(Input.Position, Input.WorldPosition, N);
-    
-    finalPixel *= lighting;
+	lighting += ComputeClusteredLocalLightingLambert(Input.Position, Input.WorldPosition, N).rgb;
 
+	baseColor.rgb *= lighting;
+	return float4(baseColor.rgb, baseColor.a);
+	
 #elif LIGHTING_MODEL_PHONG
 
-	float4 lighting = 0.0f.xxxx;
+	float3 lighting = 0.0f.xxx;
 	
     // Diffuse + Specular (Blinn-Phong)
-    if (AmbientEnabled != 0)
-    {
-	    lighting += CalculateAmbientLight(Ambient);
-    }
-    
-    if (DirectionalLightCount > 0)
-    {
-		lighting += CalculateDirectionalLight(Directional, Input.WorldPosition, N, V);
-    }
-    
-    lighting += ComputeClusteredLocalLighting(Input.Position, Input.WorldPosition, N, V);
+	if (AmbientEnabled != 0)
+	{
+		lighting += CalculateAmbientLight(Ambient).rgb;
+	}
 
-    finalPixel *= lighting;
+	if (DirectionalLightCount > 0)
+	{
+		lighting += CalculateDirectionalLight(Directional, Input.WorldPosition, N, V).rgb;
+	}
+
+	lighting += ComputeClusteredLocalLighting(Input.Position, Input.WorldPosition, N, V).rgb;
+
+	baseColor.rgb *= lighting;
+	return float4(baseColor.rgb, baseColor.a);
 	
 #endif
-	return finalPixel;
+
+	return baseColor;
 }
