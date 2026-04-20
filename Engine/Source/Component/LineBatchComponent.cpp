@@ -1,6 +1,8 @@
 ﻿#include "Component/LineBatchComponent.h"
 #include "Math/MathUtility.h"
 #include "Object/Class.h"
+#include <algorithm>
+#include <cmath>
 
 namespace
 {
@@ -127,6 +129,104 @@ void ULineBatchComponent::DrawWireSphere(FVector InCenter, float InRadius, FVect
 			InCenter + FVector(S2, 0.0f, C2),
 			InColor
 		);
+	}
+}
+
+void ULineBatchComponent::DrawWireCone(
+	FVector InOrigin,
+	FVector InDirection,
+	float InLength,
+	float InAngleDegrees,
+	FVector4 InColor,
+	int32 InSegments,
+	int32 InSpokes,
+	bool bDrawSphericalCap)
+{
+	if (!LineMesh)
+	{
+		return;
+	}
+
+	const float ConeLength = (std::max)(0.0f, InLength);
+	if (ConeLength <= FMath::SmallNumber)
+	{
+		return;
+	}
+
+	const FVector ConeDirection = InDirection.GetSafeNormal();
+	const FVector NormalizedDirection = ConeDirection.IsNearlyZero() ? FVector::ForwardVector : ConeDirection;
+
+	// UE-style spotlight gizmo:
+	// volume is intersection of a sphere (radius=InLength) and a cone (half-angle=InAngleDegrees).
+	// so the cone boundary ring must lie on the sphere: axisDist = R*cos(a), ringRadius = R*sin(a).
+	const float ClampedHalfAngleDeg = FMath::Clamp(InAngleDegrees, 0.0f, 89.0f);
+	const float HalfAngleRad = FMath::DegreesToRadians(ClampedHalfAngleDeg);
+	const float ConeRadius = ConeLength * std::sin(HalfAngleRad);
+	const float ConeAxisDistance = ConeLength * std::cos(HalfAngleRad);
+	const FVector ConeBaseCenter = InOrigin + NormalizedDirection * ConeAxisDistance;
+
+	if (ConeRadius <= FMath::SmallNumber)
+	{
+		DrawLine(InOrigin, InOrigin + NormalizedDirection * ConeLength, InColor);
+		return;
+	}
+
+	const FVector UpCandidate = (std::abs(FVector::DotProduct(NormalizedDirection, FVector::UpVector)) > 0.99f)
+		? FVector::RightVector
+		: FVector::UpVector;
+	const FVector Tangent = FVector::CrossProduct(UpCandidate, NormalizedDirection).GetSafeNormal();
+	const FVector Bitangent = FVector::CrossProduct(NormalizedDirection, Tangent).GetSafeNormal();
+
+	const int32 SegmentCount = (std::max)(InSegments, 3);
+	const int32 SpokeCount = (std::max)(InSpokes, 0);
+	const float AngleStep = FMath::TwoPi / static_cast<float>(SegmentCount);
+	const int32 SpokeStep = SpokeCount > 0 ? (std::max)(1, SegmentCount / SpokeCount) : 0;
+
+	for (int32 SegmentIndex = 0; SegmentIndex < SegmentCount; ++SegmentIndex)
+	{
+		const float AngleA = static_cast<float>(SegmentIndex) * AngleStep;
+		const float AngleB = static_cast<float>(SegmentIndex + 1) * AngleStep;
+
+		const FVector RingPointA = ConeBaseCenter +
+			(Tangent * (std::cos(AngleA) * ConeRadius)) +
+			(Bitangent * (std::sin(AngleA) * ConeRadius));
+		const FVector RingPointB = ConeBaseCenter +
+			(Tangent * (std::cos(AngleB) * ConeRadius)) +
+			(Bitangent * (std::sin(AngleB) * ConeRadius));
+
+		DrawLine(RingPointA, RingPointB, InColor);
+
+		if (SpokeStep > 0 && SegmentIndex % SpokeStep == 0)
+		{
+			DrawLine(InOrigin, RingPointA, InColor);
+		}
+	}
+
+	if (bDrawSphericalCap)
+	{
+		const int32 CapArcCount = (std::max)(3, (std::min)(InSpokes, 8));
+		const int32 CapSteps = 10;
+		const float CapArcStep = FMath::TwoPi / static_cast<float>(CapArcCount);
+
+		for (int32 ArcIndex = 0; ArcIndex < CapArcCount; ++ArcIndex)
+		{
+			const float ArcAngle = static_cast<float>(ArcIndex) * CapArcStep;
+			const FVector ArcDir = (Tangent * std::cos(ArcAngle)) + (Bitangent * std::sin(ArcAngle));
+
+			FVector PrevPoint = InOrigin + NormalizedDirection * ConeLength;
+			for (int32 Step = 1; Step <= CapSteps; ++Step)
+			{
+				const float T = static_cast<float>(Step) / static_cast<float>(CapSteps);
+				const float Phi = HalfAngleRad * T;
+				const FVector CurrentPoint =
+					InOrigin +
+					(NormalizedDirection * (std::cos(Phi) * ConeLength)) +
+					(ArcDir * (std::sin(Phi) * ConeLength));
+
+				DrawLine(PrevPoint, CurrentPoint, InColor);
+				PrevPoint = CurrentPoint;
+			}
+		}
 	}
 }
 

@@ -8,10 +8,6 @@
 #include "Component/SubUVComponent.h"
 #include "Component/TextComponent.h"
 #include "Component/UUIDBillboardComponent.h"
-#include "Component/PointLightComponent.h"
-#include "Component/SpotLightComponent.h"
-#include "Component/DirectionalLightComponent.h"
-#include "Renderer/GraphicsCore/ComputeDispatch.h"
 
 bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive, const FShowFlags& ShowFlags) const
 {
@@ -71,10 +67,6 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 	const bool bIsBillboard = Primitive->IsA(UBillboardComponent::StaticClass());
 	const bool bIsDecal     = Primitive->IsA(UDecalComponent::StaticClass());
 
-	const bool bIsPointLight       = Primitive->IsA(UPointLightComponent::StaticClass());
-	const bool bIsSpotLight        = Primitive->IsA(USpotLightComponent::StaticClass());
-	const bool bIsDirectionalLight = Primitive->IsA(UDirectionalLightComponent::StaticClass());
-
 	if (bIsUUID)
 	{
 		return ShowFlags.HasFlag(EEngineShowFlags::SF_UUID);
@@ -95,17 +87,13 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 		return ShowFlags.HasFlag(EEngineShowFlags::SF_Decal);
 	}
 
-	if (bIsPointLight || bIsSpotLight || bIsDirectionalLight)
-	{
-		return ShowFlags.HasFlag(EEngineShowFlags::SF_Primitives);
-	}
-
 	if (!ShowFlags.HasFlag(EEngineShowFlags::SF_Primitives))
 	{
 		return false;
 	}
 
-	return Primitive->GetRenderMesh() != nullptr;
+	const bool bHasRenderMesh = (Primitive->GetRenderMesh() != nullptr);
+	return bHasRenderMesh;
 }
 
 void FScenePacketBuilder::BuildScenePacket(
@@ -125,7 +113,7 @@ void FScenePacketBuilder::BuildScenePacket(
 
 		if (Primitive->IsA(UStaticMeshComponent::StaticClass()))
 		{
-			OutPacket.MeshPrimitives.push_back({static_cast<UStaticMeshComponent*>(Primitive)});
+			OutPacket.MeshPrimitives.push_back({ Primitive });
 			continue;
 		}
 
@@ -153,21 +141,10 @@ void FScenePacketBuilder::BuildScenePacket(
 			continue;
 		}
 
-		if (Primitive->IsA(UPointLightComponent::StaticClass()))
+		// Generic primitive path: includes editor visualization primitives.
+		if (Primitive->GetRenderMesh() != nullptr)
 		{
-			OutPacket.PointLightPrimitives.push_back({static_cast<UPointLightComponent*>(Primitive)});
-			continue;
-		}
-
-		if (Primitive->IsA(USpotLightComponent::StaticClass()))
-		{
-			OutPacket.SpotLightPrimitives.push_back({static_cast<USpotLightComponent*>(Primitive)});
-			continue;
-		}
-
-		if (Primitive->IsA(UDirectionalLightComponent::StaticClass()))
-		{
-			OutPacket.DirectionalLightPrimitives.push_back({static_cast<UDirectionalLightComponent*>(Primitive)});
+			OutPacket.MeshPrimitives.push_back({ Primitive });
 		}
 	}
 }

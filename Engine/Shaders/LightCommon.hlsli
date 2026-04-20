@@ -106,12 +106,16 @@ StructuredBuffer<uint>           ObjectLightMasks  : register(t12);
 // 헬퍼 함수
 // ─────────────────────────────────────────
 // 감쇠 (Point / Spot)
-float CalculateAttenuation(float distance, float range)
+float CalculateAttenuation(float distance, float range, float falloffExponent)
 {
-    // 거리가 range를 넘으면 0, 이내면 역제곱 감쇠
-	float attenuation = 1.0f / (1.0f + (distance * distance));
-	float rangeFactor = saturate(1.0f - (distance / range));
-	return attenuation * rangeFactor * rangeFactor;
+	float safeRange = max(range, 1.0e-4f);
+	float distanceSq = max(distance * distance, 1.0f);
+	float normalizedDistance = saturate(distance / safeRange);
+	float rangeMask = pow(saturate(1.0f - pow(normalizedDistance, 4.0f)), 2.0f);
+	float attenuation = rangeMask / distanceSq;
+	float exponent = (falloffExponent > 0.0f) ? falloffExponent : 0.01f;
+	float artistMask = pow(saturate(1.0f - normalizedDistance), exponent);
+	return attenuation * artistMask;
 }
 
 #if HAS_NORMAL_MAP
@@ -152,10 +156,10 @@ float4 CalculateDirectionalLight(FDirectionalLightInfo info,
 	float Shininess = 32.0f; // test
 	float spec = pow(max(0.0f, dot(N, H)), Shininess);
 
-	float4 diffuse = info.ColorIntensity.xyz * info.ColorIntensity.w * diff;
-	float4 specular = info.ColorIntensity.xyz * info.ColorIntensity.w * spec;
+    float3 diffuse = info.ColorIntensity.xyz * info.ColorIntensity.w * diff;
+    float3 specular = info.ColorIntensity.xyz * info.ColorIntensity.w * spec;
 
-	return diffuse + specular;
+    return float4(diffuse + specular, 1.0f);
 }
 
 // Point Light
@@ -176,12 +180,12 @@ float4 CalculatePointLight(FLocalLightGPU info,
 	
 	float Shininess = 32.0f; // test
 	float spec = pow(max(0.0f, dot(N, H)), Shininess);
-	float attenuation = CalculateAttenuation(distance, info.PositionRange.w);
+	float attenuation = CalculateAttenuation(distance, info.PositionRange.w, info.AngleParams.z);
 
-	float4 diffuse = info.ColorIntensity.xyz * info.ColorIntensity.w * diff * attenuation;
-	float4 specular = info.ColorIntensity.xyz * info.ColorIntensity.w * spec * attenuation;
+    float3 diffuse = info.ColorIntensity.xyz * info.ColorIntensity.w * diff * attenuation;
+    float3 specular = info.ColorIntensity.xyz * info.ColorIntensity.w * spec * attenuation;
 
-	return diffuse + specular;
+    return float4(diffuse + specular, 1.0f);
 }
 
 // Spot Light
@@ -213,12 +217,12 @@ float4 CalculateSpotLight(FLocalLightGPU info,
 	
 	float Shininess = 32.0f; // test
 	float spec = pow(max(0.0f, dot(N, H)), Shininess);
-	float attenuation = CalculateAttenuation(distance, info.PositionRange.w);
+	float attenuation = CalculateAttenuation(distance, info.PositionRange.w, info.AngleParams.z);
 
-	float4 diffuse = info.ColorIntensity.xyz * info.ColorIntensity.w * diff * attenuation * intensity;
-	float4 specular = info.ColorIntensity.xyz * info.ColorIntensity.w * spec * attenuation * intensity;
+    float3 diffuse = info.ColorIntensity.xyz * info.ColorIntensity.w * diff * attenuation * intensity;
+    float3 specular = info.ColorIntensity.xyz * info.ColorIntensity.w * spec * attenuation * intensity;
 
-	return diffuse + specular;
+    return float4(diffuse + specular, 1.0f);
 }
 
 float4 ComputeLocalLight(FLocalLightGPU light, float3 worldPos, float3 N, float3 V)
@@ -247,35 +251,37 @@ uint ComputeClusterIndex(float4 svPosition, float3 worldPos)
 	uint tileY = min(pixel.y / 16u, ClusterCountY - 1u);
 	
 	float3 viewPos = mul(float4(worldPos, 1.0f), ClusterView).xyz;
-	float viewZ = max(-viewPos.z, NearZ);
-	uint zSlice = ComputeZSlice(viewZ);
+	float viewDepth = max(viewPos.x, NearZ);
+	uint zSlice = ComputeZSlice(viewDepth);
 	
 	return zSlice * (ClusterCountX * ClusterCountY) + tileY * ClusterCountX + tileX;
 }
 
-float4 ComputeObjectLocalLighting(float3 worldPos, float3 N, float3 V)
+float4 ComputeObjectLocalLighting(uint localLightMaskOffset, float3 worldPos, float3 N, float3 V)
 {
-	float4 lighting = 0.0f.xxxx;
-	
-	[loop]
-	for (uint w = 0; w < LIGHT_MASK_WORD_COUNT; ++w)
-	{
-		uint bits = ObjectLightMasks[LocalLightMaskOffset + w];
-		while (bits != 0u)
-		{
-			uint bit = firstbitlow(bits);
-			uint lightIndex = w * 32u + bit;
-			
-			if (lightIndex < LocalLightCount)
-			{
-				lighting += ComputeLocalLight(LocalLights[lightIndex], worldPos, N, V);
-			}
-			
-			bits &= (bits - 1u);
-		}
-	}
-	return lighting;
+    float4 lighting = 0.0f.xxxx;
+    
+    [loop]
+    for (uint w = 0; w < LIGHT_MASK_WORD_COUNT; ++w)
+    {
+        uint bits = ObjectLightMasks[localLightMaskOffset + w];
+        while (bits != 0u)
+        {
+            uint bit = firstbitlow(bits);
+            uint lightIndex = w * 32u + bit;
+            
+            if (lightIndex < LocalLightCount)
+            {
+                lighting += ComputeLocalLight(LocalLights[lightIndex], worldPos, N, V);
+            }
+            
+            bits &= (bits - 1u);
+        }
+    }
+
+    return lighting;
 }
+
 float4 ComputeClusteredLocalLighting(float4 svPosition, float3 worldPos, float3 N, float3 V)
 {
 	if (LightingEnabled == 0 || LocalLightCount == 0)

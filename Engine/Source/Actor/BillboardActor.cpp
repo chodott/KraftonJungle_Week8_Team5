@@ -12,7 +12,7 @@ void ABillboardActor::PostSpawnInitialize()
 	BillboardComponent = FObjectFactory::ConstructObject<UBillboardComponent>(this, "BillboardComponent");
 	AddOwnedComponent(BillboardComponent);
 
-	BillboardComponent->SetTexturePath((FPaths::IconDir() / L"Pawn_64x.png").wstring());
+	BillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_Pawn.png").wstring());
 
 	AActor::PostSpawnInitialize();
 }

@@ -1,4 +1,4 @@
-﻿#include "Renderer/Scene/SceneRenderer.h"
+#include "Renderer/Scene/SceneRenderer.h"
 
 #include "Renderer/Scene/MeshPassProcessor.h"
 #include "Renderer/Scene/Builders/SceneCommandBuilder.h"
@@ -10,11 +10,12 @@
 #include "Level/SceneRenderPacket.h"
 #include "Renderer/Scene/SceneViewData.h"
 #include "Renderer/Common/SceneRenderTargets.h"
+#include "Renderer/Features/Lighting/LightRenderFeature.h"
 
 FSceneRenderer::FSceneRenderer()
 	: SceneCommandBuilder(std::make_unique<FSceneCommandBuilder>())
-	, SceneCommandResourceCache(std::make_unique<FSceneCommandResourceCache>())
-	, MeshPassProcessor(std::make_unique<FMeshPassProcessor>())
+	  , SceneCommandResourceCache(std::make_unique<FSceneCommandResourceCache>())
+	  , MeshPassProcessor(std::make_unique<FMeshPassProcessor>())
 {
 }
 
@@ -22,7 +23,7 @@ FSceneRenderer::~FSceneRenderer() = default;
 
 void FSceneRenderer::BeginFrame()
 {
-	PrevCommandCount = (std::max)(PrevCommandCount, CurrentFramePeakCommandCount);
+	PrevCommandCount             = (std::max)(PrevCommandCount, CurrentFramePeakCommandCount);
 	CurrentFramePeakCommandCount = 0;
 	MeshPassProcessor->BeginFrame();
 }
@@ -38,12 +39,13 @@ const FMeshPassFrameStats& FSceneRenderer::GetMeshPassFrameStats() const
 }
 
 void FSceneRenderer::BuildSceneViewData(
-	FRenderer& Renderer,
+	FRenderer&                Renderer,
 	const FSceneRenderPacket& Packet,
-	const FFrameContext& Frame,
-	const FViewContext& View,
+	const FFrameContext&      Frame,
+	const FViewContext&       View,
+	UWorld*                   World,
 	const TArray<FMeshBatch>& AdditionalMeshBatches,
-	FSceneViewData& OutSceneViewData)
+	FSceneViewData&           OutSceneViewData)
 {
 	BuildSceneViewDataFromPacket(
 		Renderer,
@@ -52,6 +54,7 @@ void FSceneRenderer::BuildSceneViewData(
 		Packet,
 		Frame,
 		View,
+		World,
 		AdditionalMeshBatches,
 		OutSceneViewData);
 
@@ -59,17 +62,33 @@ void FSceneRenderer::BuildSceneViewData(
 }
 
 bool FSceneRenderer::RenderSceneView(
-	FRenderer& Renderer,
+	FRenderer&           Renderer,
 	FSceneRenderTargets& Targets,
-	FSceneViewData& SceneViewData,
-	const float ClearColor[4],
-	bool bForceWireframe,
-	FMaterial* WireframeMaterial)
+	FSceneViewData&      SceneViewData,
+	const float          ClearColor[4],
+	bool                 bForceWireframe,
+	FMaterial*           WireframeMaterial)
 {
 	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
 	if (!Context || !Targets.IsValid())
 	{
 		return false;
+	}
+
+	switch (SceneViewData.RenderMode)
+	{
+	case ERenderMode::Lit_Gouraud:
+		Renderer.GetLightFeature()->SetLightingModel(ELightingModel::Gouraud);
+		break;
+	case ERenderMode::Lit_Lambert:
+		Renderer.GetLightFeature()->SetLightingModel(ELightingModel::Lambert);
+		break;
+	case ERenderMode::Lit_Phong:
+		Renderer.GetLightFeature()->SetLightingModel(ELightingModel::Phong);
+		break;
+	default:
+		Renderer.GetLightFeature()->SetLightingModel(ELightingModel::Gouraud);
+		break;
 	}
 
 	if (bForceWireframe)

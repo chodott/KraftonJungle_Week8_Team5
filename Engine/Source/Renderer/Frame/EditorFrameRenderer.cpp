@@ -1,4 +1,4 @@
-﻿#include "Renderer/Frame/EditorFrameRenderer.h"
+#include "Renderer/Frame/EditorFrameRenderer.h"
 
 #include "Renderer/Frame/RenderFrameUtils.h"
 #include "Renderer/Renderer.h"
@@ -49,14 +49,17 @@ bool FEditorFrameRenderer::Render(FRenderer& Renderer, const FEditorFrameRequest
             ScenePass.ScenePacket,
             Frame,
             View,
+            ScenePass.DebugInputs.World,
             ScenePass.AdditionalMeshBatches,
             SceneViewData);
         Renderer.DecalTextureCache->ResolveTextureArray(Renderer.GetDevice(), SceneViewData);
         SceneViewData.ShowFlags = ScenePass.DebugInputs.ShowFlags;
+		SceneViewData.RenderMode = ScenePass.RenderMode;
         SceneViewData.bForceWireframe = ScenePass.bForceWireframe;
         SceneViewData.PostProcessInputs.OutlineItems = ScenePass.OutlineRequest.Items;
         SceneViewData.PostProcessInputs.bOutlineEnabled = ScenePass.OutlineRequest.bEnabled;
         BuildEditorLinePassInputs(ScenePass.DebugInputs, SceneViewData.DebugInputs.LinePass);
+        SceneViewData.DebugInputs.World = ScenePass.DebugInputs.World;
 
         if (!Renderer.GetSceneRenderer().RenderSceneView(
             Renderer,

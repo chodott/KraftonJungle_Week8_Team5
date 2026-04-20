@@ -3,7 +3,9 @@
 #include "imgui_impl_dx11.h"
 #include "imgui_impl_win32.h"
 #include "Actor/Actor.h"
+#include "Actor/PointLightActor.h"
 #include "Actor/PlayerCameraActor.h"
+#include "Actor/SpotLightActor.h"
 #include "Core/ShowFlags.h"
 #include "Object/Class.h"
 #include "Renderer/Mesh/MeshData.h"
@@ -76,6 +78,32 @@ namespace
 			PreviewCamera->SetFov(50.0f);
 		}
 	}
+
+	void RefreshLightActorGizmosForLevel(FEditorEngine* Engine, ULevel* Level)
+	{
+		if (!Engine || !Level)
+		{
+			return;
+		}
+
+		for (AActor* Actor : Level->GetActors())
+		{
+			if (!Actor || Actor->IsPendingDestroy())
+			{
+				continue;
+			}
+
+			const bool bSelected = Engine->IsActorSelected(Actor);
+			if (Actor->IsA(APointLightActor::StaticClass()))
+			{
+				static_cast<APointLightActor*>(Actor)->SetEditorGizmoVisible(bSelected);
+			}
+			else if (Actor->IsA(ASpotLightActor::StaticClass()))
+			{
+				static_cast<ASpotLightActor*>(Actor)->SetEditorGizmoVisible(bSelected);
+			}
+		}
+	}
 }
 
 FEditorEngine::~FEditorEngine() = default;
@@ -102,6 +130,7 @@ void FEditorEngine::Shutdown()
 void FEditorEngine::SetSelectedActor(AActor* InActor)
 {
 	SelectionSubsystem.SetSelectedActor(InActor);
+	RefreshLightGizmoSelectionVisibility();
 }
 
 AActor* FEditorEngine::GetSelectedActor() const
@@ -122,21 +151,25 @@ bool FEditorEngine::IsActorSelected(AActor* InActor) const
 void FEditorEngine::AddSelectedActor(AActor* InActor)
 {
 	SelectionSubsystem.AddSelectedActor(InActor);
+	RefreshLightGizmoSelectionVisibility();
 }
 
 void FEditorEngine::RemoveSelectedActor(AActor* InActor)
 {
 	SelectionSubsystem.RemoveSelectedActor(InActor);
+	RefreshLightGizmoSelectionVisibility();
 }
 
 void FEditorEngine::ToggleSelectedActor(AActor* InActor)
 {
 	SelectionSubsystem.ToggleSelectedActor(InActor);
+	RefreshLightGizmoSelectionVisibility();
 }
 
 void FEditorEngine::ClearSelectedActors()
 {
 	SelectionSubsystem.ClearSelection();
+	RefreshLightGizmoSelectionVisibility();
 }
 
 void FEditorEngine::PlaySimulation()
@@ -328,6 +361,22 @@ void FEditorEngine::FinalizeInitialize()
 	EditorUI.OnSlateReady();
 	CreateInitUI();
 	FObjManager::PreloadAllModelFiles(FPaths::FromPath(FPaths::MeshDir()).c_str());
+	RefreshLightGizmoSelectionVisibility();
+}
+
+void FEditorEngine::RefreshLightGizmoSelectionVisibility()
+{
+	RefreshLightActorGizmosForLevel(this, GetEditorScene());
+
+	for (FWorldContext* PreviewContext : PreviewWorldContexts)
+	{
+		if (!PreviewContext || !PreviewContext->World)
+		{
+			continue;
+		}
+
+		RefreshLightActorGizmosForLevel(this, PreviewContext->World->GetScene());
+	}
 }
 
 void FEditorEngine::PrepareFrame(float DeltaTime)
@@ -498,7 +547,7 @@ bool FEditorEngine::StartPIE()
 	{
 		PIEViewportEntry->WorldContext = PIEWorldContext;
 		PIEViewportId = PIEViewportEntry->Id;
-		PIEViewportEntry->LocalState.ViewMode = ERenderMode::Lighting;
+		PIEViewportEntry->LocalState.ViewMode = ERenderMode::Lit_Gouraud;
 		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_UUID, false);
 		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, false);
 		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, false);

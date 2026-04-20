@@ -66,7 +66,7 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 	UpdateClusterGlobalConstantBuffer(Renderer, SceneViewData);
 	UploadLocalLightBuffers(Renderer, SceneViewData);
 
-	if (SceneViewData.RenderMode != ERenderMode::Lighting)
+	if (SceneViewData.RenderMode == ERenderMode::Unlit)
 	{
 		return true;
 	}
@@ -76,8 +76,10 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 		return false;
 	}
 
-	const uint32     ClusterCountX  = (SceneViewData.View.Viewport.Width + LightCullingConfig::TileSizeX - 1u) / LightCullingConfig::TileSizeX;
-	const uint32     ClusterCountY  = (SceneViewData.View.Viewport.Height + LightCullingConfig::TileSizeY - 1u) / LightCullingConfig::TileSizeY;
+	const uint32     ViewportWidth  = static_cast<uint32>((std::max)(SceneViewData.View.Viewport.Width, 0.0f));
+	const uint32     ViewportHeight = static_cast<uint32>((std::max)(SceneViewData.View.Viewport.Height, 0.0f));
+	const uint32     ClusterCountX  = (ViewportWidth + LightCullingConfig::TileSizeX - 1u) / LightCullingConfig::TileSizeX;
+	const uint32     ClusterCountY  = (ViewportHeight + LightCullingConfig::TileSizeY - 1u) / LightCullingConfig::TileSizeY;
 	constexpr uint32 ClusterCountZ  = LightCullingConfig::ClusterCountZ;
 	const uint32     ClusterCount   = ClusterCountX * ClusterCountY * ClusterCountZ;
 	const uint32     TotalMaskWords = ClusterCount * LightMaskConfig::MaskWordCount;
@@ -478,7 +480,7 @@ void FLightRenderFeature::UpdateGlobalLightConstantBuffer(
 		SceneViewData.LightingInputs.Ambient.Color.Z,
 		SceneViewData.LightingInputs.Ambient.Intensity);
 
-	CB.Ambient.ColorIntensity.W = SceneViewData.LightingInputs.Ambient.Intensity > 0.0f ? 1u : 0u;
+	CB.AmbientEnabled = SceneViewData.LightingInputs.Ambient.Intensity > 0.0f ? 1u : 0u;
 
 	if (!SceneViewData.LightingInputs.DirectionalLights.empty())
 	{
@@ -526,14 +528,17 @@ void FLightRenderFeature::UpdateClusterGlobalConstantBuffer(
 		Width > 0.0f ? 1.0f / Width : 0.0f,
 		Height > 0.0f ? 1.0f / Height : 0.0f);
 
-	CB.ClusterCountX   = (SceneViewData.View.Viewport.Width + LightCullingConfig::TileSizeX - 1u) / LightCullingConfig::TileSizeX;
-	CB.ClusterCountY   = (SceneViewData.View.Viewport.Height + LightCullingConfig::TileSizeY - 1u) / LightCullingConfig::TileSizeY;
+	const uint32 ViewportWidthPx  = static_cast<uint32>((std::max)(SceneViewData.View.Viewport.Width, 0.0f));
+	const uint32 ViewportHeightPx = static_cast<uint32>((std::max)(SceneViewData.View.Viewport.Height, 0.0f));
+
+	CB.ClusterCountX   = (ViewportWidthPx + LightCullingConfig::TileSizeX - 1u) / LightCullingConfig::TileSizeX;
+	CB.ClusterCountY   = (ViewportHeightPx + LightCullingConfig::TileSizeY - 1u) / LightCullingConfig::TileSizeY;
 	CB.ClusterCountZ   = LightCullingConfig::ClusterCountZ;
 	CB.LocalLightCount = (std::min)(static_cast<uint32>(SceneViewData.LightingInputs.LocalLights.size()), LightMaskConfig::MaxLocalLights);
 
 	CB.DirectionalLightCount = static_cast<uint32>(SceneViewData.LightingInputs.DirectionalLights.size());
 	CB.LightMaskWordCount    = LightMaskConfig::MaskWordCount;
-	CB.LightingEnabled       = SceneViewData.RenderMode == ERenderMode::Lighting ? 1u : 0u;
+	CB.LightingEnabled       = SceneViewData.RenderMode != ERenderMode::Unlit ? 1u : 0u;
 
 	CB.NearZ = (std::max)(SceneViewData.View.NearZ, 1e-4f);
 	CB.FarZ  = (std::max)(SceneViewData.View.FarZ, CB.NearZ + 1e-3f);
@@ -566,7 +571,7 @@ void FLightRenderFeature::UploadLocalLightBuffers(
 		L.ColorIntensity = FVector4(Src.Color.X, Src.Color.Y, Src.Color.Z, Src.Intensity);
 		L.PositionRange  = FVector4(Src.PositionWS.X, Src.PositionWS.Y, Src.PositionWS.Z, Src.Range);
 		L.DirectionType  = FVector4(Src.DirectionWS.X, Src.DirectionWS.Y, Src.DirectionWS.Z, static_cast<float>(Src.LightClass));
-		L.AngleParams    = FVector4(Src.InnerAngleCos, Src.OuterAngleCos, 0.0f, 0.0f);
+		L.AngleParams    = FVector4(Src.InnerAngleCos, Src.OuterAngleCos, Src.FalloffExponent, 0.0f);
 		L.Axis0Extent    = FVector4(Src.Axis0.X, Src.Axis0.Y, Src.Axis0.Z, Src.Extent0);
 		L.Axis1Extent    = FVector4(Src.Axis1.X, Src.Axis1.Y, Src.Axis1.Z, Src.Extent1);
 		L.Axis2Extent    = FVector4(Src.Axis2.X, Src.Axis2.Y, Src.Axis2.Z, Src.Extent2);

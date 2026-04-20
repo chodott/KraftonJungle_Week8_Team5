@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Core/ShowFlags.h"
@@ -13,6 +13,8 @@
 #include "Renderer/Features/Lighting/LightTypes.h"
 
 #include <d3d11.h>
+
+class UWorld;
 
 struct ENGINE_API FAmbientLightRenderItem
 {
@@ -34,6 +36,7 @@ struct ENGINE_API FLocalLightRenderItem
 	FVector DirectionWS   = FVector(0.0f, 0.0f, -1.0f);
 	float   InnerAngleCos = 1.0f;
 	float   OuterAngleCos = 1.0f;
+	float   FalloffExponent = 0.0f;
 
 	uint32 Flags = 0;
 
@@ -116,10 +119,12 @@ struct ENGINE_API FScenePostProcessInputs
 
 struct ENGINE_API FSceneDebugInputs
 {
+	UWorld* World = nullptr;
 	FEditorLinePassInputs LinePass;
 
 	void Clear()
 	{
+		World = nullptr;
 		LinePass.Clear();
 	}
 };
@@ -135,6 +140,6 @@ struct ENGINE_API FSceneViewData
 	FSceneDebugInputs       DebugInputs;
 
 	FShowFlags  ShowFlags;
-	ERenderMode RenderMode      = ERenderMode::Lighting;
+	ERenderMode RenderMode      = ERenderMode::Lit_Gouraud;
 	bool        bForceWireframe = false;
 };

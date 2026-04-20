@@ -78,7 +78,7 @@ void ASpotLightFakeActor::PostSpawnInitialize()
         IconBillboardComponent->SetRelativeLocation(FVector::ZeroVector);
         IconBillboardComponent->SetSize(FVector2(1.5f, 1.5f));
         IconBillboardComponent->SetAxisLockMode(UBillboardComponent::EAxisLockMode::LocalZ);
-        IconBillboardComponent->SetTexturePath((FPaths::IconDir() / L"SpotLight_64x.png").wstring());
+        IconBillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_LightSpot.png").wstring());
         IconBillboardComponent->SetEditorVisualization(true);
         IconBillboardComponent->SetHiddenInGame(true);
     }

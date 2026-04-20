@@ -1,4 +1,4 @@
-﻿#include "Renderer/Frame/GameFrameRenderer.h"
+#include "Renderer/Frame/GameFrameRenderer.h"
 
 #include "Renderer/Frame/RenderFrameUtils.h"
 #include "Renderer/Renderer.h"
@@ -30,12 +30,15 @@ bool FGameFrameRenderer::Render(FRenderer& Renderer, const FGameFrameRequest& Re
         Request.ScenePacket,
         Frame,
         View,
+        Request.DebugInputs.World,
         Request.AdditionalMeshBatches,
         SceneViewData);
     Renderer.DecalTextureCache->ResolveTextureArray(Renderer.GetDevice(), SceneViewData);
     SceneViewData.ShowFlags = Request.DebugInputs.ShowFlags;
+    SceneViewData.RenderMode = Request.RenderMode;
     SceneViewData.bForceWireframe = Request.bForceWireframe;
     BuildEditorLinePassInputs(Request.DebugInputs, SceneViewData.DebugInputs.LinePass);
+    SceneViewData.DebugInputs.World = Request.DebugInputs.World;
 
     if (!Renderer.GetSceneRenderer().RenderSceneView(
         Renderer,

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Core/ShowFlags.h"
@@ -40,7 +40,7 @@ struct FGameFrameRequest
 	FSceneViewRenderRequest SceneView;
 	TArray<FMeshBatch> AdditionalMeshBatches;
 	FDebugSceneBuildInputs DebugInputs;
-    ERenderMode RenderMode = ERenderMode::Lighting;
+    ERenderMode RenderMode = ERenderMode::Lit_Gouraud;
 	EViewportCompositeMode CompositeMode = EViewportCompositeMode::SceneColor;
 	bool bForceWireframe = false;
 	FMaterial* WireframeMaterial = nullptr;
@@ -56,7 +56,7 @@ struct FViewportScenePassRequest
 	D3D11_VIEWPORT Viewport = {};
 	FSceneRenderPacket ScenePacket;
 	FSceneViewRenderRequest SceneView;
-	ERenderMode RenderMode = ERenderMode::Lighting;
+	ERenderMode RenderMode = ERenderMode::Lit_Gouraud;
 	TArray<FMeshBatch> AdditionalMeshBatches;
 	FOutlineRenderRequest OutlineRequest;
 	FDebugSceneBuildInputs DebugInputs;

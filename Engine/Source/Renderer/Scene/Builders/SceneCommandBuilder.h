@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Level/SceneRenderPacket.h"
@@ -16,6 +16,7 @@ class FDynamicMaterial;
 class FMaterial;
 class UBillboardComponent;
 class USubUVComponent;
+class UWorld;
 struct FSceneCommandBuildContext;
 
 class ENGINE_API FSceneCommandResourceCache
@@ -45,6 +46,7 @@ struct ENGINE_API FSceneCommandBuildContext
 	ISceneBillboardFeature*     BillboardFeature = nullptr;
 	FSceneCommandResourceCache* ResourceCache    = nullptr;
 	float                       TotalTimeSeconds = 0.0f;
+	UWorld*                     World            = nullptr;
 };
 
 class ENGINE_API FSceneCommandBuilder

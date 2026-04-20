@@ -3,12 +3,29 @@
 #include "Renderer/Scene/Builders/SceneCommandBuilder.h"
 #include "Renderer/Scene/Builders/SceneCommandBuilderUtils.h"
 
-#include "Component/StaticMeshComponent.h"
+#include "Component/LineBatchComponent.h"
+#include "Component/MeshComponent.h"
+#include "Component/PrimitiveComponent.h"
 #include "Renderer/Mesh/MeshData.h"
 #include "Renderer/Resources/Material/Material.h"
+#include "Renderer/Resources/Material/MaterialManager.h"
 
 #include <algorithm>
 #include <cmath>
+
+namespace
+{
+	void ApplyLineBatchGizmoMaterialOverrides(FMaterial* Material)
+	{
+		if (!Material)
+		{
+			return;
+		}
+
+		const float White[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+		Material->SetParameterData("BaseColor", White, sizeof(White));
+	}
+}
 
 void FSceneCommandMeshBuilder::BuildMeshInputs(
 	const FSceneCommandBuildContext& BuildContext,
@@ -17,19 +34,24 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 {
 	for (const FSceneMeshPrimitive& Primitive : Packet.MeshPrimitives)
 	{
-		UStaticMeshComponent* MeshComponent = Primitive.Component;
-		if (!MeshComponent)
+		UPrimitiveComponent* PrimitiveComponent = Primitive.Component;
+		if (!PrimitiveComponent)
 		{
 			continue;
 		}
 
-		const FMatrix               WorldTransform = MeshComponent->GetRenderWorldTransform();
-		const FBoxSphereBounds      WorldBounds    = MeshComponent->GetWorldBounds();
+		UMeshComponent* MeshComponent =
+			PrimitiveComponent->IsA(UMeshComponent::StaticClass())
+				? static_cast<UMeshComponent*>(PrimitiveComponent)
+				: nullptr;
+
+		const FMatrix               WorldTransform = PrimitiveComponent->GetRenderWorldTransform();
+		const FBoxSphereBounds      WorldBounds    = PrimitiveComponent->GetWorldBounds();
 		FRenderMeshSelectionContext SelectionContext;
 		SelectionContext.Distance = FVector::Dist(
 			OutSceneViewData.View.CameraPosition,
 			WorldBounds.Center);
-		FRenderMesh* TargetMesh = MeshComponent->GetRenderMesh(SelectionContext);
+		FRenderMesh* TargetMesh = PrimitiveComponent->GetRenderMesh(SelectionContext);
 		if (!TargetMesh)
 		{
 			continue;
@@ -39,15 +61,36 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 		if (SectionCount <= 0)
 		{
 			FMeshBatch Batch;
-			Batch.Mesh                          = TargetMesh;
-			Batch.World                         = WorldTransform;
-			std::shared_ptr<FMaterial> Material = MeshComponent->GetMaterial(0);
-			Batch.Material                      = Material ? Material.get() : BuildContext.DefaultMaterial;
-			if (MeshComponent->IsEditorVisualization())
+			Batch.Mesh              = TargetMesh;
+			Batch.World             = WorldTransform;
+			Batch.WorldBounds       = WorldBounds;
+			Batch.DistanceSqToCamera = (WorldBounds.Center - OutSceneViewData.View.CameraPosition).SizeSquared();
+			if (MeshComponent)
+			{
+				std::shared_ptr<FMaterial> Material = MeshComponent->GetMaterial(0);
+				Batch.Material                      = Material ? Material.get() : BuildContext.DefaultMaterial;
+			}
+			else
+			{
+				Batch.Material = BuildContext.DefaultMaterial;
+				if (PrimitiveComponent->IsEditorVisualization())
+				{
+					if (std::shared_ptr<FMaterial> GizmoMaterial = FMaterialManager::Get().FindByName("M_Gizmos"))
+					{
+						if (PrimitiveComponent->IsA(ULineBatchComponent::StaticClass()))
+						{
+							ApplyLineBatchGizmoMaterialOverrides(GizmoMaterial.get());
+						}
+						Batch.Material = GizmoMaterial.get();
+					}
+				}
+			}
+			if (PrimitiveComponent->IsEditorVisualization())
 			{
 				Batch.Domain             = EMaterialDomain::EditorPrimitive;
 				Batch.PassMask           = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
 				Batch.bDisableDepthWrite = true;
+				Batch.bDisableDepthTest  = PrimitiveComponent->IsA(ULineBatchComponent::StaticClass());
 			}
 			else
 			{
@@ -63,23 +106,43 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 
 		for (int32 SectionIndex = 0; SectionIndex < SectionCount; ++SectionIndex)
 		{
-			const FMeshSection&    Section  = TargetMesh->Sections[SectionIndex];
-			const FBoxSphereBounds WorldBox = MeshComponent->GetWorldBounds();
+			const FMeshSection& Section = TargetMesh->Sections[SectionIndex];
 
 			FMeshBatch Batch;
-			Batch.Mesh         = TargetMesh;
-			Batch.World        = WorldTransform;
-			Batch.SectionIndex = static_cast<uint32>(SectionIndex);
-			Batch.IndexStart   = Section.StartIndex;
-			Batch.IndexCount   = Section.IndexCount;
+			Batch.Mesh               = TargetMesh;
+			Batch.World              = WorldTransform;
+			Batch.WorldBounds        = WorldBounds;
+			Batch.DistanceSqToCamera = (WorldBounds.Center - OutSceneViewData.View.CameraPosition).SizeSquared();
+			Batch.SectionIndex       = static_cast<uint32>(SectionIndex);
+			Batch.IndexStart         = Section.StartIndex;
+			Batch.IndexCount         = Section.IndexCount;
 
-			std::shared_ptr<FMaterial> Material = MeshComponent->GetMaterial(SectionIndex);
-			Batch.Material                      = Material ? Material.get() : BuildContext.DefaultMaterial;
-			if (MeshComponent->IsEditorVisualization())
+			if (MeshComponent)
+			{
+				std::shared_ptr<FMaterial> Material = MeshComponent->GetMaterial(SectionIndex);
+				Batch.Material                      = Material ? Material.get() : BuildContext.DefaultMaterial;
+			}
+			else
+			{
+				Batch.Material = BuildContext.DefaultMaterial;
+				if (PrimitiveComponent->IsEditorVisualization())
+				{
+					if (std::shared_ptr<FMaterial> GizmoMaterial = FMaterialManager::Get().FindByName("M_Gizmos"))
+					{
+						if (PrimitiveComponent->IsA(ULineBatchComponent::StaticClass()))
+						{
+							ApplyLineBatchGizmoMaterialOverrides(GizmoMaterial.get());
+						}
+						Batch.Material = GizmoMaterial.get();
+					}
+				}
+			}
+			if (PrimitiveComponent->IsEditorVisualization())
 			{
 				Batch.Domain             = EMaterialDomain::EditorPrimitive;
 				Batch.PassMask           = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
 				Batch.bDisableDepthWrite = true;
+				Batch.bDisableDepthTest  = PrimitiveComponent->IsA(ULineBatchComponent::StaticClass());
 			}
 			else
 			{

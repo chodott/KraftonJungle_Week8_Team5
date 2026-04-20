@@ -14,10 +14,30 @@ public:
 	void DrawLine(FVector InStart, FVector InEnd, FVector4 color);
 	void DrawWireCube(FVector InCenter, FQuat InRotation, FVector InScale, FVector4 InColor);
 	void DrawWireSphere(FVector InCenter, float InRadius, FVector4 InColor);
+	void DrawWireCone(
+		FVector InOrigin,
+		FVector InDirection,
+		float InLength,
+		float InAngleDegrees,
+		FVector4 InColor,
+		int32 InSegments = 24,
+		int32 InSpokes = 8,
+		bool bDrawSphericalCap = false);
 	void Clear();
 
 	virtual FRenderMesh* GetRenderMesh() const override { return LineMesh.get(); }
+	virtual FRenderMesh* GetRenderMesh(const FRenderMeshSelectionContext& SelectionContext) const override
+	{
+		(void)SelectionContext;
+		return LineMesh.get();
+	}
+	virtual FRenderMesh* GetRenderMesh(const float& Distance) const override
+	{
+		(void)Distance;
+		return LineMesh.get();
+	}
 	virtual FBoxSphereBounds GetLocalBounds() const override;
+	virtual bool IsPickable() const override { return false; }
 	void DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
 
 private:

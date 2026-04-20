@@ -1,4 +1,4 @@
-﻿#include "ViewportTypes.h"
+#include "ViewportTypes.h"
 
 #include <algorithm>
 #include "Math/MathUtility.h"
@@ -15,7 +15,7 @@ FViewportLocalState FViewportLocalState::CreateDefault(EViewportType Type)
 	State.OrthoTarget = FVector::ZeroVector + FVector(0.0f, 0.0f, 1.0f);
 	State.OrthoZoom = 10.0f;
 	State.bShowGrid = true;
-	State.ViewMode = ERenderMode::Lighting;
+	State.ViewMode = ERenderMode::Lit_Gouraud;
 
 	switch (Type)
 	{

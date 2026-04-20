@@ -59,6 +59,8 @@ public:
 	virtual void BeginPlay();
 	/** 활성화된 컴포넌트들을 프레임마다 진행시킨다. */
 	virtual void Tick(float DeltaTime);
+	/** 소유 컴포넌트의 주요 속성 변경을 알림받는다. */
+	virtual void OnOwnedComponentPropertyChanged(UActorComponent* ChangedComponent);
 	/** 파괴 직전 별도 종료 처리 훅이다. */
 	virtual void EndPlay();
 	/** 액터를 삭제 예정 상태로 전환하고 모든 컴포넌트도 함께 정리 대상으로 표시한다. */

@@ -68,6 +68,11 @@ namespace
 			}
 
 			UPrimitiveComponent* PrimitiveComponent = static_cast<UPrimitiveComponent*>(Component);
+			if (PrimitiveComponent->IsEditorVisualization())
+			{
+				continue;
+			}
+
 			if (IsArrowVisualizationPrimitive(PrimitiveComponent)
 				|| IsHiddenByArrowVisualizationShowFlags(PrimitiveComponent, ShowFlags))
 			{

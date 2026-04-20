@@ -173,6 +173,8 @@ private:
 	bool ApplyPIEPlayerCameraByIndex(int32 CameraIndex);
 	// 활성 월드 종류에 따라 Editor/Preview ViewportClient를 전환한다.
 	void SyncViewportClient();
+	// 현재 선택 상태에 맞춰 Point/Spot Light Gizmo 표시 상태를 갱신한다.
+	void RefreshLightGizmoSelectionVisibility();
 	// 선택된 액터의 BVH를 디버그 라인 요청에 추가한다.
 
 	FEditorUI EditorUI;

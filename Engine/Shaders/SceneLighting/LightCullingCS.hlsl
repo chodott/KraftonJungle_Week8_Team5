@@ -11,7 +11,7 @@ float DeviceDepthToViewZ(float deviceDepth)
 {
     float4 clipPos = float4(0.0f, 0.0f, deviceDepth, 1.0f);
     float4 viewPos = mul(clipPos, ClusterInverseProjection);
-    return max(-viewPos.z / max(viewPos.w, kEpsilon), NearZ);
+    return max(viewPos.x / max(viewPos.w, kEpsilon), NearZ);
 }
 
 void ComputeClusterSliceDepthRange(uint clusterZ, out float zNear, out float zFar)
@@ -46,9 +46,9 @@ bool ComputeTileDepthBounds(uint2 tileCoord, out float minViewZ, out float maxVi
                 continue;
             }
 
-            float viewZ = DeviceDepthToViewZ(deviceDepth);
-            minViewZ = min(minViewZ, viewZ);
-            maxViewZ = max(maxViewZ, viewZ);
+            float viewDepth = DeviceDepthToViewZ(deviceDepth);
+            minViewZ = min(minViewZ, viewDepth);
+            maxViewZ = max(maxViewZ, viewDepth);
             hasGeometry = true;
         }
     }
@@ -78,13 +78,13 @@ float2 ComputeTileNdcMax(uint2 tileCoord)
         1.0f - (tileMinPx.y / screenSize.y) * 2.0f);
 }
 
-float3 NdcToView(float2 ndcXY, float viewZ)
+float3 NdcToView(float2 ndcXY, float viewDepth)
 {
     float4 clipPos = float4(ndcXY, 1.0f, 1.0f);
     float4 viewPos = mul(clipPos, ClusterInverseProjection);
     viewPos.xyz /= max(viewPos.w, kEpsilon);
 
-    float scale = viewZ / max(-viewPos.z, kEpsilon);
+    float scale = viewDepth / max(viewPos.x, kEpsilon);
     return viewPos.xyz * scale;
 }
 

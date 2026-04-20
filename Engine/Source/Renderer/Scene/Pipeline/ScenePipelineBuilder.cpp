@@ -6,8 +6,6 @@
 
 #include <memory>
 
-#include "Renderer/Scene/Passes/SceneLightingPasses.h"
-
 void BuildDefaultSceneRenderPipeline(FRenderPipeline& OutPipeline, const FMeshPassProcessor& MeshPassProcessor)
 {
 	OutPipeline.Reset();

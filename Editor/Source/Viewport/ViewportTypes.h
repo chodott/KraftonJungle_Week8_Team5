@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "CoreMinimal.h"
 #include "Core/ShowFlags.h"
 #include "Renderer/Common/RenderMode.h"
@@ -92,7 +92,7 @@ struct FViewportLocalState
 	FVector OrthoTarget = FVector::ZeroVector;
 	float OrthoZoom = 1000.f;
 
-	ERenderMode ViewMode = ERenderMode::Lighting;
+	ERenderMode ViewMode = ERenderMode::Lit_Gouraud;
 
 	bool bShowGrid = true;
 	float GridSize = 10.0f;

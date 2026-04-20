@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source">
@@ -162,6 +162,9 @@
     <ClCompile Include="Source\Actor\Actor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Actor\AmbientLightActor.cpp">
+      <Filter>Source\Actor</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Actor\BillboardActor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
@@ -169,6 +172,9 @@
       <Filter>Source\Actor</Filter>
     </ClCompile>
     <ClCompile Include="Source\Actor\DecalActor.cpp">
+      <Filter>Source\Actor</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Actor\DirectionalLightActor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
     <ClCompile Include="Source\Actor\HeightFogActor.cpp">
@@ -180,6 +186,9 @@
     <ClCompile Include="Source\Actor\PlaneActor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Actor\PointLightActor.cpp">
+      <Filter>Source\Actor</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Actor\PlayerCameraActor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
@@ -187,6 +196,9 @@
       <Filter>Source\Actor</Filter>
     </ClCompile>
     <ClCompile Include="Source\Actor\SphereActor.cpp">
+      <Filter>Source\Actor</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Actor\SpotLightActor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
     <ClCompile Include="Source\Actor\SpotLightFakeActor.cpp">
@@ -213,6 +225,9 @@
     <ClCompile Include="Source\Component\ActorComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Component\AmbientLightComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Component\BillboardComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
@@ -222,10 +237,19 @@
     <ClCompile Include="Source\Component\DecalComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Component\DirectionalLightComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Component\FireBallComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
     <ClCompile Include="Source\Component\HeightFogComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Component\LightComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Component\LightComponentBase.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
     <ClCompile Include="Source\Component\LineBatchComponent.cpp">
@@ -241,6 +265,9 @@
       <Filter>Source\Component</Filter>
     </ClCompile>
     <ClCompile Include="Source\Component\MovementComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Component\PointLightComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
     <ClCompile Include="Source\Component\PrimitiveComponent.cpp">
@@ -259,6 +286,9 @@
       <Filter>Source\Component</Filter>
     </ClCompile>
     <ClCompile Include="Source\Component\SkyComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Component\SpotLightComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
     <ClCompile Include="Source\Component\StaticMeshComponent.cpp">
@@ -584,6 +614,9 @@
     <ClInclude Include="Source\Actor\Actor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Actor\AmbientLightActor.h">
+      <Filter>Source\Actor</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Actor\BillboardActor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
@@ -591,6 +624,9 @@
       <Filter>Source\Actor</Filter>
     </ClInclude>
     <ClInclude Include="Source\Actor\DecalActor.h">
+      <Filter>Source\Actor</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Actor\DirectionalLightActor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
     <ClInclude Include="Source\Actor\HeightFogActor.h">
@@ -602,6 +638,9 @@
     <ClInclude Include="Source\Actor\PlaneActor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Actor\PointLightActor.h">
+      <Filter>Source\Actor</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Actor\PlayerCameraActor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
@@ -609,6 +648,9 @@
       <Filter>Source\Actor</Filter>
     </ClInclude>
     <ClInclude Include="Source\Actor\SphereActor.h">
+      <Filter>Source\Actor</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Actor\SpotLightActor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
     <ClInclude Include="Source\Actor\SpotLightFakeActor.h">
@@ -635,6 +677,9 @@
     <ClInclude Include="Source\Component\ActorComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Component\AmbientLightComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Component\BillboardComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
@@ -644,10 +689,19 @@
     <ClInclude Include="Source\Component\DecalComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Component\DirectionalLightComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Component\FireBallComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\HeightFogComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Component\LightComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Component\LightComponentBase.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\LineBatchComponent.h">
@@ -663,6 +717,9 @@
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\MovementComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Component\PointLightComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\PrimitiveComponent.h">
@@ -681,6 +738,9 @@
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\SkyComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Component\SpotLightComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\StaticMeshComponent.h">
