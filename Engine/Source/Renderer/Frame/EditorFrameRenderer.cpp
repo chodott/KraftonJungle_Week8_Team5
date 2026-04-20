@@ -58,6 +58,7 @@ bool FEditorFrameRenderer::Render(FRenderer& Renderer, const FEditorFrameRequest
         SceneViewData.PostProcessInputs.OutlineItems = ScenePass.OutlineRequest.Items;
         SceneViewData.PostProcessInputs.bOutlineEnabled = ScenePass.OutlineRequest.bEnabled;
         BuildEditorLinePassInputs(ScenePass.DebugInputs, SceneViewData.DebugInputs.LinePass);
+        SceneViewData.DebugInputs.World = ScenePass.DebugInputs.World;
 
         if (!Renderer.GetSceneRenderer().RenderSceneView(
             Renderer,

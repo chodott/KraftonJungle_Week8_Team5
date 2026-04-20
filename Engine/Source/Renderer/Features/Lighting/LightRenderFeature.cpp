@@ -4,6 +4,17 @@
 #include "Core/Paths.h"
 #include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Resources/Shader/ShaderResource.h"
+#include "World/World.h"
+#include "Actor/Actor.h"
+#include "Component/LightComponent.h"
+#include "Component/AmbientLightComponent.h"
+#include "Component/DirectionalLightComponent.h"
+#include "Component/UPointLightComponent.h"
+#include "Component/USpotLightComponent.h"
+#include "Math/MathUtility.h"
+
+#include <algorithm>
+#include <cmath>
 
 FLightRenderFeature::~FLightRenderFeature()
 {
@@ -98,7 +109,7 @@ bool FLightRenderFeature::Initialize(FRenderer& Renderer)
 	return true;
 }
 
-void FLightRenderFeature::UpdateLightConstantBuffer(FRenderer& Renderer, const FViewContext& View)
+void FLightRenderFeature::UpdateLightConstantBuffer(FRenderer& Renderer, const FSceneViewData& SceneViewData)
 {
 	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
 	if (!LightConstantBuffer || !DeviceContext)
@@ -108,75 +119,103 @@ void FLightRenderFeature::UpdateLightConstantBuffer(FRenderer& Renderer, const F
 
 	FLightConstantBuffer CBData = {};
 
-	// Test용 하드코딩 -> 이후 Component 나오면 거기서 데이터 받아오기 
-	// ── Ambient: 약한 전체 밝기 ──
-	CBData.Ambient.Color = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
-	CBData.Ambient.Intensity = 0.8f;
+	const UWorld* World = SceneViewData.DebugInputs.World;
+	if (World)
+	{
+		const TArray<AActor*> Actors = World->GetAllActors();
+		size_t PointLightCount = 0;
+		size_t SpotLightCount = 0;
 
-	// ── Directional: 태양광 (위에서 약간 앞쪽으로) ──
-	CBData.Directional.Color = FVector4(1.0f, 0.95f, 0.8f, 1.0f); // 따뜻한 흰색
-	CBData.Directional.Direction = FVector(0.0f, -1.0f, 1.0f);        // 위→아래, 뒤→앞
-	CBData.Directional.Intensity = 1.0f;
+		for (AActor* Actor : Actors)
+		{
+			if (!Actor || Actor->IsPendingDestroy() || !Actor->IsVisible())
+			{
+				continue;
+			}
 
-	// ── Point Light 0: 붉은 포인트 라이트 ──
-	CBData.PointLights[0].Color = FVector4(1.0f, 0.2f, 0.2f, 1.0f);
-	CBData.PointLights[0].Position = FVector(0.0f, 0.0f, 0.0f);
-	CBData.PointLights[0].Intensity = 10.0f;
-	CBData.PointLights[0].Range = 20.0f;
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				if (!Component || Component->IsPendingKill() || !Component->IsRegistered())
+				{
+					continue;
+				}
 
-	// ── Point Light 1: 푸른 포인트 라이트 ──
-	CBData.PointLights[1].Color = FVector4(0.2f, 0.4f, 1.0f, 1.0f);
-	CBData.PointLights[1].Position = FVector(5.0f, 5.0f, 5.0f);
-	CBData.PointLights[1].Intensity = 10.0f;
-	CBData.PointLights[1].Range = 20.0f;
+				if (!Component->IsA(ULightComponent::StaticClass()))
+				{
+					continue;
+				}
 
-	// ── Point Light 2: 초록 포인트 라이트 ──
-	CBData.PointLights[2].Color = FVector4(0.2f, 1.0f, 0.2f, 1.0f);
-	CBData.PointLights[2].Position = FVector(-5.0f, 5.0f, 5.0f);
-	CBData.PointLights[2].Intensity = 10.0f;
-	CBData.PointLights[2].Range = 20.0f;
+				ULightComponent* LightComponent = static_cast<ULightComponent*>(Component);
+				if (!LightComponent->GetVisible())
+				{
+					continue;
+				}
 
-	// ── Point Light 3: 노란 포인트 라이트 ──
-	CBData.PointLights[3].Color = FVector4(1.0f, 1.0f, 0.2f, 1.0f);
-	CBData.PointLights[3].Position = FVector(5.0f, 5.0f, -5.0f);
-	CBData.PointLights[3].Intensity = 10.0f;
-	CBData.PointLights[3].Range = 20.0f;
+				const FLinearColor LightColor = LightComponent->GetColor();
+				const FVector4 PackedColor(LightColor.R, LightColor.G, LightColor.B, 1.0f);
+				const float EffectiveIntensity = LightComponent->GetEffectiveIntensity();
 
-	// ── Spot Light 0: 위에서 아래로 흰색 스포트라이트 ──
-	CBData.SpotLights[0].Color = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
-	CBData.SpotLights[0].Position = FVector(0.0f, 10.0f, 0.0f);
-	CBData.SpotLights[0].Intensity = 20.0f;
-	CBData.SpotLights[0].Direction = FVector(0.0f, 0.0f, -1.0f);
-	CBData.SpotLights[0].Range = 30.0f;
-	CBData.SpotLights[0].InnerCutoff = cosf(15.0f * 3.14159265f / 180.0f);
-	CBData.SpotLights[0].OuterCutoff = cosf(25.0f * 3.14159265f / 180.0f);
+				if (LightComponent->IsA(UAmbientLightComponent::StaticClass()))
+				{
+					CBData.Ambient.Color = PackedColor;
+					CBData.Ambient.Intensity = EffectiveIntensity;
+					continue;
+				}
 
-	// ── Spot Light 1: 붉은 스포트라이트 ──
-	CBData.SpotLights[1].Color = FVector4(1.0f, 0.3f, 0.3f, 1.0f);
-	CBData.SpotLights[1].Position = FVector(10.0f, 10.0f, 0.0f);
-	CBData.SpotLights[1].Intensity = 20.0f;
-	CBData.SpotLights[1].Direction = FVector(-0.5f, 0.0f, -1.0f);
-	CBData.SpotLights[1].Range = 30.0f;
-	CBData.SpotLights[1].InnerCutoff = cosf(10.0f * 3.14159265f / 180.0f);
-	CBData.SpotLights[1].OuterCutoff = cosf(20.0f * 3.14159265f / 180.0f);
+				if (LightComponent->IsA(UDirectionalLightComponent::StaticClass()))
+				{
+					const FVector LightDirectionWS = LightComponent->GetDirectionToLightWS().GetSafeNormal();
+					CBData.Directional.Color = PackedColor;
+					CBData.Directional.Direction = LightDirectionWS.IsNearlyZero() ? FVector::BackwardVector : LightDirectionWS;
+					CBData.Directional.Intensity = EffectiveIntensity;
+					continue;
+				}
 
-	// ── Spot Light 2: 푸른 스포트라이트 ──
-	CBData.SpotLights[2].Color = FVector4(0.3f, 0.3f, 1.0f, 1.0f);
-	CBData.SpotLights[2].Position = FVector(-10.0f, 10.0f, 0.0f);
-	CBData.SpotLights[2].Intensity = 20.0f;
-	CBData.SpotLights[2].Direction = FVector(0.5f, -1.0f, 0.0f);
-	CBData.SpotLights[2].Range = 30.0f;
-	CBData.SpotLights[2].InnerCutoff = cosf(10.0f * 3.14159265f / 180.0f);
-	CBData.SpotLights[2].OuterCutoff = cosf(20.0f * 3.14159265f / 180.0f);
+				if (LightComponent->IsA(USpotLightComponent::StaticClass()))
+				{
+					if (SpotLightCount >= static_cast<size_t>(_countof(CBData.SpotLights)))
+					{
+						continue;
+					}
 
-	// ── Spot Light 3: 초록 스포트라이트 ──
-	CBData.SpotLights[3].Color = FVector4(0.3f, 1.0f, 0.3f, 1.0f);
-	CBData.SpotLights[3].Position = FVector(0.0f, 10.0f, 10.0f);
-	CBData.SpotLights[3].Intensity = 20.0f;
-	CBData.SpotLights[3].Direction = FVector(0.0f, -1.0f, -0.5f);
-	CBData.SpotLights[3].Range = 30.0f;
-	CBData.SpotLights[3].InnerCutoff = cosf(10.0f * 3.14159265f / 180.0f);
-	CBData.SpotLights[3].OuterCutoff = cosf(20.0f * 3.14159265f / 180.0f);
+					USpotLightComponent* SpotLight = static_cast<USpotLightComponent*>(LightComponent);
+					FSpotLightInfo& OutSpotLight = CBData.SpotLights[SpotLightCount++];
+
+					OutSpotLight.Color = PackedColor;
+					OutSpotLight.Position = SpotLight->GetWorldLocation();
+					OutSpotLight.Intensity = EffectiveIntensity;
+					OutSpotLight.Direction = SpotLight->GetEmissionDirectionWS().GetSafeNormal();
+					OutSpotLight.Range = SpotLight->GetAttenuationRadius();
+
+					const float InnerAngleRad = FMath::DegreesToRadians(FMath::Clamp(SpotLight->GetInnerConeAngle(), 0.0f, 89.0f));
+					const float OuterAngleRad = FMath::DegreesToRadians(FMath::Clamp(SpotLight->GetOuterConeAngle(), 0.0f, 89.0f));
+					OutSpotLight.InnerCutoff = std::cos(InnerAngleRad);
+					OutSpotLight.OuterCutoff = std::cos(OuterAngleRad);
+					if (OutSpotLight.InnerCutoff < OutSpotLight.OuterCutoff)
+					{
+						std::swap(OutSpotLight.InnerCutoff, OutSpotLight.OuterCutoff);
+					}
+					continue;
+				}
+
+				if (LightComponent->IsA(UPointLightComponent::StaticClass()))
+				{
+					if (PointLightCount >= static_cast<size_t>(_countof(CBData.PointLights)))
+					{
+						continue;
+					}
+
+					UPointLightComponent* PointLight = static_cast<UPointLightComponent*>(LightComponent);
+					FPointLightInfo& OutPointLight = CBData.PointLights[PointLightCount++];
+
+					OutPointLight.Color = PackedColor;
+					OutPointLight.Position = PointLight->GetWorldLocation();
+					OutPointLight.Intensity = EffectiveIntensity;
+					OutPointLight.Range = PointLight->GetAttenuationRadius();
+				}
+			}
+		}
+	}
 
 	D3D11_MAPPED_SUBRESOURCE Mapped = {};
 	if (SUCCEEDED(DeviceContext->Map(LightConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
@@ -199,13 +238,12 @@ bool FLightRenderFeature::CompileShaderVariants(FRenderer& Renderer)
 	D3D_SHADER_MACRO LambertMacros[] = { { "LIGHTING_MODEL_LAMBERT", "1" }, { nullptr, nullptr } };
 	D3D_SHADER_MACRO PhongMacros[] = { { "LIGHTING_MODEL_PHONG",   "1" }, { nullptr, nullptr } };
 
-	// ── Gouraud ──
+	// Gouraud
 	if (!GouraudVS)
 	{
 		auto Resource = FShaderResource::GetOrCompile(VSPath, "main", "vs_5_0", GouraudMacros);
 		if (!Resource) return false;
 
-		// InputLayout은 VS 바이트코드가 필요하므로 여기서 생성
 		if (!LightInputLayout)
 		{
 			const D3D11_INPUT_ELEMENT_DESC InputDesc[] =
@@ -244,7 +282,7 @@ bool FLightRenderFeature::CompileShaderVariants(FRenderer& Renderer)
 		}
 	}
 
-	// ── Lambert ──
+	// Lambert
 	if (!LambertVS)
 	{
 		auto Resource = FShaderResource::GetOrCompile(VSPath, "main", "vs_5_0", LambertMacros);
@@ -268,7 +306,7 @@ bool FLightRenderFeature::CompileShaderVariants(FRenderer& Renderer)
 		}
 	}
 
-	// ── Phong ──
+	// Phong
 	if (!PhongVS)
 	{
 		auto Resource = FShaderResource::GetOrCompile(VSPath, "main", "vs_5_0", PhongMacros);
@@ -297,8 +335,7 @@ bool FLightRenderFeature::CompileShaderVariants(FRenderer& Renderer)
 
 bool FLightRenderFeature::Render(
 	FRenderer& Renderer,
-	const FFrameContext& Frame,
-	const FViewContext& View,
+	const FSceneViewData& SceneViewData,
 	const FSceneRenderTargets& Targets)
 {
 	if (!Targets.SceneColorRTV || !Targets.SceneDepthSRV || !Initialize(Renderer))
@@ -312,7 +349,7 @@ bool FLightRenderFeature::Render(
 		return false;
 	}
 
-	UpdateLightConstantBuffer(Renderer, View);
+	UpdateLightConstantBuffer(Renderer, SceneViewData);
 
 	DeviceContext->VSSetConstantBuffers(4, 1, &LightConstantBuffer);
 	DeviceContext->PSSetConstantBuffers(4, 1, &LightConstantBuffer);
@@ -357,5 +394,3 @@ void FLightRenderFeature::Release()
 	if (LightRasterizerState) { LightRasterizerState->Release(); LightRasterizerState = nullptr; }
 	if (DepthSampler) { DepthSampler->Release();         DepthSampler = nullptr; }
 }
-
-

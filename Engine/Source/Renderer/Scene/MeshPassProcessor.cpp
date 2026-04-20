@@ -208,7 +208,7 @@ void FMeshPassProcessor::ExecutePass(
 
 	if (bApplyLighting)
 	{
-		Feature->Render(Renderer, SceneViewData.Frame, SceneViewData.View, Targets);
+		Feature->Render(Renderer, SceneViewData, Targets);
 	}
 
 	for (const FMeshBatch* Batch : Batches)

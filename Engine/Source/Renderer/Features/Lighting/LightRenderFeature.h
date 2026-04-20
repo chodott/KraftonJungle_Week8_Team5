@@ -4,6 +4,7 @@
 #include "Renderer/Features/Lighting/LightTypes.h"
 #include "Renderer/Common/RenderFrameContext.h"
 #include "Renderer/Common/SceneRenderTargets.h"
+#include "Renderer/Scene/SceneViewData.h"
 
 #include <d3d11.h>
 
@@ -22,8 +23,7 @@ public:
 
 	bool Render(
 		FRenderer& Renderer,
-		const FFrameContext& Frame,
-		const FViewContext& View,
+		const FSceneViewData& SceneViewData,
 		const FSceneRenderTargets& Targets);
 	void Release();
 
@@ -54,7 +54,7 @@ public:
 
 private:
 	bool Initialize(FRenderer& Renderer);
-	void UpdateLightConstantBuffer(FRenderer& Renderer, const FViewContext& View);
+	void UpdateLightConstantBuffer(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 	bool CompileShaderVariants(FRenderer& Renderer);
 
 private:

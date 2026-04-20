@@ -13,6 +13,8 @@
 
 #include <d3d11.h>
 
+class UWorld;
+
 struct ENGINE_API FSceneMeshInputs
 {
 	TArray<FMeshBatch> Batches;
@@ -48,10 +50,12 @@ struct ENGINE_API FScenePostProcessInputs
 struct ENGINE_API FSceneDebugInputs
 {
 	FEditorLinePassInputs LinePass;
+	UWorld* World = nullptr;
 
 	void Clear()
 	{
 		LinePass.Clear();
+		World = nullptr;
 	}
 };
 

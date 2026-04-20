@@ -36,6 +36,7 @@ bool FGameFrameRenderer::Render(FRenderer& Renderer, const FGameFrameRequest& Re
     SceneViewData.ShowFlags = Request.DebugInputs.ShowFlags;
     SceneViewData.bForceWireframe = Request.bForceWireframe;
     BuildEditorLinePassInputs(Request.DebugInputs, SceneViewData.DebugInputs.LinePass);
+    SceneViewData.DebugInputs.World = Request.DebugInputs.World;
 
     if (!Renderer.GetSceneRenderer().RenderSceneView(
         Renderer,
