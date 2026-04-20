@@ -1,0 +1,9 @@
+# Blender 5.1.0 MTL File: 'None'
+# www.blender.org
+
+newmtl LavaMaterial
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+map_Kd Texture/lava.png

@@ -9,5 +9,6 @@ enum class ERenderMode : uint8
 	Lit_Phong,
 	Unlit,
     Wireframe,
-    SceneDepth,
+	SceneDepth,
+	WorldNormal,
 };

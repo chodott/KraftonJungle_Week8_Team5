@@ -7,7 +7,7 @@ struct VS_INPUT
 	float4 Color : COLOR;
 	float3 Normal : NORMAL;
 	float2 UV : TEXCOORD0;
-	float3 Tangent : TANGENT;
+	float4 Tangent : TANGENT;
 };
 
 struct VS_OUTPUT

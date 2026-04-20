@@ -66,7 +66,7 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 	UpdateClusterGlobalConstantBuffer(Renderer, SceneViewData);
 	UploadLocalLightBuffers(Renderer, SceneViewData);
 
-	if (SceneViewData.RenderMode == ERenderMode::Unlit)
+	if (SceneViewData.RenderMode == ERenderMode::Unlit || SceneViewData.RenderMode == ERenderMode::WorldNormal)
 	{
 		return true;
 	}
@@ -168,25 +168,6 @@ bool FLightRenderFeature::Render(
 
 	DeviceContext->IASetInputLayout(LightInputLayout);
 
-	switch (CurrentLightingModel)
-	{
-	case ELightingModel::Gouraud:
-		DeviceContext->VSSetShader(GouraudVS, nullptr, 0);
-		DeviceContext->PSSetShader(GouraudPS, nullptr, 0);
-		break;
-
-	case ELightingModel::Lambert:
-		DeviceContext->VSSetShader(LambertVS, nullptr, 0);
-		DeviceContext->PSSetShader(LambertPS, nullptr, 0);
-		break;
-
-	case ELightingModel::Phong:
-	default:
-		DeviceContext->VSSetShader(PhongVS, nullptr, 0);
-		DeviceContext->PSSetShader(PhongPS, nullptr, 0);
-		break;
-	}
-
 	return true;
 }
 
@@ -210,35 +191,42 @@ void FLightRenderFeature::Release()
 
 	SafeRelease(LightCullingCS);
 
-	SafeRelease(GouraudVS);
-	SafeRelease(GouraudPS);
-	SafeRelease(LambertVS);
-	SafeRelease(LambertPS);
-	SafeRelease(PhongVS);
-	SafeRelease(PhongPS);
+	for (uint32 VariantIndex = 0; VariantIndex < ShaderVariantCount; ++VariantIndex)
+	{
+		SafeRelease(GouraudVS[VariantIndex]);
+		SafeRelease(GouraudPS[VariantIndex]);
+		SafeRelease(LambertVS[VariantIndex]);
+		SafeRelease(LambertPS[VariantIndex]);
+		SafeRelease(PhongVS[VariantIndex]);
+		SafeRelease(PhongPS[VariantIndex]);
+		SafeRelease(WorldNormalVS[VariantIndex]);
+		SafeRelease(WorldNormalPS[VariantIndex]);
+	}
 	SafeRelease(LightInputLayout);
 	SafeRelease(DepthSampler);
 }
 
-ID3D11VertexShader* FLightRenderFeature::GetCurrentVS() const
+ID3D11VertexShader* FLightRenderFeature::GetCurrentVS(bool bHasNormalMap, ERenderMode RenderMode) const
 {
+	const uint32 Variant = ToShaderVariantIndex(bHasNormalMap);
+	if (RenderMode == ERenderMode::WorldNormal) return WorldNormalVS[Variant];
 	switch (CurrentLightingModel)
 	{
-	case ELightingModel::Gouraud: return GouraudVS;
-	case ELightingModel::Lambert: return LambertVS;
-	case ELightingModel::Phong:
-	default: return PhongVS;
+	case ELightingModel::Lambert: return LambertVS[Variant];
+	case ELightingModel::Phong:   return PhongVS[Variant];
+	default:                      return GouraudVS[Variant];
 	}
 }
 
-ID3D11PixelShader* FLightRenderFeature::GetCurrentPS() const
+ID3D11PixelShader* FLightRenderFeature::GetCurrentPS(bool bHasNormalMap, ERenderMode RenderMode) const
 {
+	const uint32 Variant = ToShaderVariantIndex(bHasNormalMap);
+	if (RenderMode == ERenderMode::WorldNormal) return WorldNormalPS[Variant];
 	switch (CurrentLightingModel)
 	{
-	case ELightingModel::Gouraud: return GouraudPS;
-	case ELightingModel::Lambert: return LambertPS;
-	case ELightingModel::Phong:
-	default: return PhongPS;
+	case ELightingModel::Lambert: return LambertPS[Variant];
+	case ELightingModel::Phong:   return PhongPS[Variant];
+	default:                      return GouraudPS[Variant];
 	}
 }
 
@@ -333,13 +321,23 @@ bool FLightRenderFeature::CompileShaderVariants(FRenderer& Renderer)
 	const std::wstring VSPath = FPaths::ShaderDir().wstring() + L"SceneLighting/UberLitVertexShader.hlsl";
 	const std::wstring PSPath = FPaths::ShaderDir().wstring() + L"SceneLighting/UberLitPixelShader.hlsl";
 
-	D3D_SHADER_MACRO GouraudMacros[] = { { "LIGHTING_MODEL_GOURAUD", "1" }, { nullptr, nullptr } };
-	D3D_SHADER_MACRO LambertMacros[] = { { "LIGHTING_MODEL_LAMBERT", "1" }, { nullptr, nullptr } };
-	D3D_SHADER_MACRO PhongMacros[]   = { { "LIGHTING_MODEL_PHONG", "1" }, { nullptr, nullptr } };
-
-	if (!GouraudVS)
+	const D3D11_INPUT_ELEMENT_DESC InputDesc[] =
 	{
-		auto Resource = FShaderResource::GetOrCompile(VSPath.c_str(), "main", "vs_5_0", GouraudMacros);
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "TANGENT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	};
+
+	auto CreateVariantVertexShader = [&](ID3D11VertexShader*& OutShader, const D3D_SHADER_MACRO* Macros) -> bool
+	{
+		if (OutShader)
+		{
+			return true;
+		}
+
+		auto Resource = FShaderResource::GetOrCompile(VSPath.c_str(), "main", "vs_5_0", Macros);
 		if (!Resource)
 		{
 			return false;
@@ -347,119 +345,101 @@ bool FLightRenderFeature::CompileShaderVariants(FRenderer& Renderer)
 
 		if (!LightInputLayout)
 		{
-			const D3D11_INPUT_ELEMENT_DESC InputDesc[] =
-			{
-				{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-				{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-				{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-				{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 40, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-				{ "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-			};
-
 			if (FAILED(Device->CreateInputLayout(
-				InputDesc, _countof(InputDesc),
-				Resource->GetBufferPointer(), Resource->GetBufferSize(),
+				InputDesc,
+				_countof(InputDesc),
+				Resource->GetBufferPointer(),
+				Resource->GetBufferSize(),
 				&LightInputLayout)))
 			{
 				return false;
 			}
 		}
 
-		if (FAILED(Device->CreateVertexShader(
+		return SUCCEEDED(Device->CreateVertexShader(
 			Resource->GetBufferPointer(),
 			Resource->GetBufferSize(),
 			nullptr,
-			&GouraudVS)))
-		{
-			return false;
-		}
-	}
+			&OutShader));
+	};
 
-	if (!GouraudPS)
+	auto CreateVariantPixelShader = [&](ID3D11PixelShader*& OutShader, const D3D_SHADER_MACRO* Macros) -> bool
 	{
-		auto Resource = FShaderResource::GetOrCompile(PSPath.c_str(), "main", "ps_5_0", GouraudMacros);
+		if (OutShader)
+		{
+			return true;
+		}
+
+		auto Resource = FShaderResource::GetOrCompile(PSPath.c_str(), "main", "ps_5_0", Macros);
 		if (!Resource)
 		{
 			return false;
 		}
 
-		if (FAILED(Device->CreatePixelShader(
+		return SUCCEEDED(Device->CreatePixelShader(
 			Resource->GetBufferPointer(),
 			Resource->GetBufferSize(),
 			nullptr,
-			&GouraudPS)))
-		{
-			return false;
-		}
-	}
+			&OutShader));
+	};
 
-	if (!LambertVS)
+	for (uint32 VariantIndex = 0; VariantIndex < ShaderVariantCount; ++VariantIndex)
 	{
-		auto Resource = FShaderResource::GetOrCompile(VSPath.c_str(), "main", "vs_5_0", LambertMacros);
-		if (!Resource)
+		const bool bHasNormalMap = (VariantIndex != 0);
+		D3D_SHADER_MACRO GouraudVertexMacros[] =
 		{
-			return false;
-		}
-
-		if (FAILED(Device->CreateVertexShader(
-			Resource->GetBufferPointer(),
-			Resource->GetBufferSize(),
-			nullptr,
-			&LambertVS)))
+			{ "LIGHTING_MODEL_GOURAUD", "1" },
+			{ "VERTEX_NORMAL_MAP", bHasNormalMap ? "1" : "0" },
+			{ nullptr, nullptr }
+		};
+		D3D_SHADER_MACRO LambertVertexMacros[] =
 		{
-			return false;
-		}
-	}
-
-	if (!LambertPS)
-	{
-		auto Resource = FShaderResource::GetOrCompile(PSPath.c_str(), "main", "ps_5_0", LambertMacros);
-		if (!Resource)
+			{ "LIGHTING_MODEL_LAMBERT", "1" },
+			{ nullptr, nullptr }
+		};
+		D3D_SHADER_MACRO PhongVertexMacros[] =
 		{
-			return false;
-		}
-
-		if (FAILED(Device->CreatePixelShader(
-			Resource->GetBufferPointer(),
-			Resource->GetBufferSize(),
-			nullptr,
-			&LambertPS)))
+			{ "LIGHTING_MODEL_PHONG", "1" },
+			{ nullptr, nullptr }
+		};
+		D3D_SHADER_MACRO WorldNormalVertexMacros[] =
 		{
-			return false;
-		}
-	}
-
-	if (!PhongVS)
-	{
-		auto Resource = FShaderResource::GetOrCompile(VSPath.c_str(), "main", "vs_5_0", PhongMacros);
-		if (!Resource)
+			{ "VIEWMODE_WORLD_NORMAL", "1" },
+			{ nullptr, nullptr }
+		};
+		D3D_SHADER_MACRO GouraudPixelMacros[] =
 		{
-			return false;
-		}
-
-		if (FAILED(Device->CreateVertexShader(
-			Resource->GetBufferPointer(),
-			Resource->GetBufferSize(),
-			nullptr,
-			&PhongVS)))
+			{ "LIGHTING_MODEL_GOURAUD", "1" },
+			{ "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" },
+			{ nullptr, nullptr }
+		};
+		D3D_SHADER_MACRO LambertPixelMacros[] =
 		{
-			return false;
-		}
-	}
-
-	if (!PhongPS)
-	{
-		auto Resource = FShaderResource::GetOrCompile(PSPath.c_str(), "main", "ps_5_0", PhongMacros);
-		if (!Resource)
+			{ "LIGHTING_MODEL_LAMBERT", "1" },
+			{ "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" },
+			{ nullptr, nullptr }
+		};
+		D3D_SHADER_MACRO PhongPixelMacros[] =
 		{
-			return false;
-		}
+			{ "LIGHTING_MODEL_PHONG", "1" },
+			{ "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" },
+			{ nullptr, nullptr }
+		};
+		D3D_SHADER_MACRO WorldNormalPixelMacros[] =
+		{
+			{ "VIEWMODE_WORLD_NORMAL", "1" },
+			{ "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" },
+			{ nullptr, nullptr }
+		};
 
-		if (FAILED(Device->CreatePixelShader(
-			Resource->GetBufferPointer(),
-			Resource->GetBufferSize(),
-			nullptr,
-			&PhongPS)))
+		if (!CreateVariantVertexShader(GouraudVS[VariantIndex], GouraudVertexMacros)
+			|| !CreateVariantPixelShader(GouraudPS[VariantIndex], GouraudPixelMacros)
+			|| !CreateVariantVertexShader(LambertVS[VariantIndex], LambertVertexMacros)
+			|| !CreateVariantPixelShader(LambertPS[VariantIndex], LambertPixelMacros)
+			|| !CreateVariantVertexShader(PhongVS[VariantIndex], PhongVertexMacros)
+			|| !CreateVariantPixelShader(PhongPS[VariantIndex], PhongPixelMacros)
+			|| !CreateVariantVertexShader(WorldNormalVS[VariantIndex], WorldNormalVertexMacros)
+			|| !CreateVariantPixelShader(WorldNormalPS[VariantIndex], WorldNormalPixelMacros))
 		{
 			return false;
 		}

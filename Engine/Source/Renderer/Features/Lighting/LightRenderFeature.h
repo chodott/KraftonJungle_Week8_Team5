@@ -43,8 +43,8 @@ public:
 		return CurrentLightingModel;
 	}
 
-	ID3D11VertexShader* GetCurrentVS() const;
-	ID3D11PixelShader*  GetCurrentPS() const;
+	ID3D11VertexShader* GetCurrentVS(bool bHasNormalMap, ERenderMode RenderMode) const;
+	ID3D11PixelShader*  GetCurrentPS(bool bHasNormalMap, ERenderMode RenderMode) const;
 
 	ID3D11InputLayout* GetInputLayout() const
 	{
@@ -74,6 +74,9 @@ private:
 		ID3D11ShaderResourceView*&  SRV,
 		ID3D11UnorderedAccessView*& UAV);
 
+	static uint32 ToShaderVariantIndex(bool bHasNormalMap) { return bHasNormalMap ? 1u : 0u; }
+	static constexpr uint32 ShaderVariantCount = 2;
+
 	ID3D11Buffer* GlobalLightConstantBuffer   = nullptr;
 	ID3D11Buffer* ClusterGlobalConstantBuffer = nullptr;
 
@@ -95,12 +98,14 @@ private:
 	ID3D11InputLayout*  LightInputLayout = nullptr;
 	ID3D11SamplerState* DepthSampler     = nullptr;
 
-	ID3D11VertexShader* GouraudVS = nullptr;
-	ID3D11PixelShader*  GouraudPS = nullptr;
-	ID3D11VertexShader* LambertVS = nullptr;
-	ID3D11PixelShader*  LambertPS = nullptr;
-	ID3D11VertexShader* PhongVS   = nullptr;
-	ID3D11PixelShader*  PhongPS   = nullptr;
+	ID3D11VertexShader* GouraudVS[ShaderVariantCount] = {};
+	ID3D11PixelShader* GouraudPS[ShaderVariantCount] = {};
+	ID3D11VertexShader* LambertVS[ShaderVariantCount] = {};
+	ID3D11PixelShader* LambertPS[ShaderVariantCount] = {};
+	ID3D11VertexShader* PhongVS[ShaderVariantCount] = {};
+	ID3D11PixelShader* PhongPS[ShaderVariantCount] = {};
+	ID3D11VertexShader* WorldNormalVS[ShaderVariantCount] = {};
+	ID3D11PixelShader* WorldNormalPS[ShaderVariantCount] = {};
 
 	ELightingModel CurrentLightingModel = ELightingModel::Phong;
 };

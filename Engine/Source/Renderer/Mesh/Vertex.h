@@ -7,7 +7,7 @@ struct ENGINE_API FVertex
 	FVector4 Color;
 	FVector Normal;
 	FVector2 UV;
-	FVector Tangent;
+	FVector4 Tangent;
 };
 
 struct ENGINE_API FMeshSection

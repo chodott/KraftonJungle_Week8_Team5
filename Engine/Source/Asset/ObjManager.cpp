@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <vector>
 #include <Windows.h>
 
 #include "Core/Engine.h"
@@ -31,7 +32,8 @@ namespace
 	constexpr uint32 GModelVersionLegacy            = 1;
 	constexpr uint32 GModelVersionEmbeddedMaterials = 2;
 	constexpr uint32 GModelVersionSourceTimestamp   = 3;
-	constexpr uint32 GModelVersion                  = GModelVersionSourceTimestamp;
+	constexpr uint32 GModelVersionNormalTexture		= 4;
+	constexpr uint32 GModelVersion                  = GModelVersionNormalTexture;
 
 	constexpr char   GLODMagic[4]                    = {'L', 'O', 'D', 'F'};
 	constexpr uint32 GLODVersionLegacy               = 1;
@@ -876,18 +878,60 @@ namespace
 		return true;
 	}
 
+	FString ExtractTextureReferenceFromMtlStatement(const std::string& RawValue)
+	{
+		const FString Trimmed = ObjFileStringToUtf8(TrimAscii(RawValue));
+		if (Trimmed.empty())
+		{
+			return "";
+		}
+
+		std::stringstream SS(Trimmed);
+		TArray<FString> Tokens;
+		FString Token;
+		while (SS >> Token)
+		{
+			Tokens.push_back(Token);
+		}
+
+		return Tokens.empty() ? "" : Tokens.back();
+	}
+
+	bool TryLoadNormalTextureIntoMaterial(const std::shared_ptr<FMaterial>& Material, const std::filesystem::path& TexturePath, const char* LogPrefix)
+	{
+		if (!Material || TexturePath.empty())
+		{
+			return false;
+		}
+
+		ID3D11ShaderResourceView* NewSRV = nullptr;
+		if (!GEngine->GetRenderer()->CreateTextureFromSTB(GEngine->GetRenderer()->GetDevice(), TexturePath, &NewSRV))
+		{
+			return false;
+		}
+
+		auto NormalTexture = std::make_shared<FMaterialTexture>();
+		NormalTexture->TextureSRV = NewSRV;
+		Material->SetNormalTexture(NormalTexture);
+		UE_LOG("%s %s", LogPrefix, WideToUtf8(TexturePath.wstring()).c_str());
+		return true;
+	}
+
 	void CalculateTangents(FStaticMesh& Mesh)
 	{
+		std::vector<FVector> TangentAccum(Mesh.Vertices.size(), FVector::Zero());
+		std::vector<FVector> BitangentAccum(Mesh.Vertices.size(), FVector::Zero());
+
 		for (FVertex& Vertex : Mesh.Vertices)
 		{
-			Vertex.Tangent = FVector(0.f, 0.f, 0.f);
+			Vertex.Tangent = FVector4(0.f, 0.f, 0.f, 1.f);
 		}
 
 		for (size_t i = 0; i < Mesh.Indices.size(); i += 3)
 		{
-			FVertex& V0 = Mesh.Vertices[Mesh.Indices[i + 0]];
-			FVertex& V1 = Mesh.Vertices[Mesh.Indices[i + 1]];
-			FVertex& V2 = Mesh.Vertices[Mesh.Indices[i + 2]];
+			const FVertex& V0 = Mesh.Vertices[Mesh.Indices[i + 0]];
+			const FVertex& V1 = Mesh.Vertices[Mesh.Indices[i + 1]];
+			const FVertex& V2 = Mesh.Vertices[Mesh.Indices[i + 2]];
 
 			FVector E1 = V1.Position - V0.Position;
 			FVector E2 = V2.Position - V0.Position;
@@ -908,31 +952,42 @@ namespace
 			Tangent.Y = invDet * (dV2 * E1.Y - dV1 * E2.Y);
 			Tangent.Z = invDet * (dV2 * E1.Z - dV1 * E2.Z);
 
-			V0.Tangent = V0.Tangent + Tangent;
-			V1.Tangent = V1.Tangent + Tangent;
-			V2.Tangent = V2.Tangent + Tangent;
+			FVector Bitangent;
+			Bitangent.X = invDet * (-dU2 * E1.X + dU1 * E2.X);
+			Bitangent.Y = invDet * (-dU2 * E1.Y + dU1 * E2.Y);
+			Bitangent.Z = invDet * (-dU2 * E1.Z + dU1 * E2.Z);
+
+			const uint32 Index0 = Mesh.Indices[i + 0];
+			const uint32 Index1 = Mesh.Indices[i + 1];
+			const uint32 Index2 = Mesh.Indices[i + 2];
+
+			TangentAccum[Index0] += Tangent;
+			TangentAccum[Index1] += Tangent;
+			TangentAccum[Index2] += Tangent;
+
+			BitangentAccum[Index0] += Bitangent;
+			BitangentAccum[Index1] += Bitangent;
+			BitangentAccum[Index2] += Bitangent;
 		}
 
-		for (FVertex& Vertex : Mesh.Vertices)
+		for (size_t VertexIndex = 0; VertexIndex < Mesh.Vertices.size(); ++VertexIndex)
 		{
+			FVertex& Vertex = Mesh.Vertices[VertexIndex];
 			FVector N = Vertex.Normal;
-			FVector T = Vertex.Tangent;
+			FVector T = TangentAccum[VertexIndex];
+			FVector B = BitangentAccum[VertexIndex];
 
-			float dot = T.X * N.X + T.Y * N.Y + T.Z * N.Z;
-			T.X -= dot * N.X;
-			T.Y -= dot * N.Y;
-			T.Z -= dot * N.Z;
+			T -= N * FVector::DotProduct(T, N);
 
-			float length = sqrt(T.X * T.X + T.Y * T.Y + T.Z * T.Z);
-			if (length > 1e-6f)
+			if (T.Normalize())
 			{
-				Vertex.Tangent.X = T.X / length;
-				Vertex.Tangent.Y = T.Y / length;
-				Vertex.Tangent.Z = T.Z / length;
+				const FVector OrthoBitangent = FVector::CrossProduct(N, T);
+				const float Handedness = FVector::DotProduct(OrthoBitangent, B) < 0.0f ? -1.0f : 1.0f;
+				Vertex.Tangent = FVector4(T.X, T.Y, T.Z, Handedness);
 			}
 			else
 			{
-				Vertex.Tangent = FVector(1.f, 0.f, 0.f);
+				Vertex.Tangent = FVector4(1.f, 0.f, 0.f, 1.f);
 			}
 		}
 	}
@@ -1064,6 +1119,16 @@ namespace
 					UE_LOG("[.Model Loader] Failed to resolve embedded texture '%s' for material '%s'.",
 					       MaterialInfo.DiffuseTexturePath.c_str(),
 					       MaterialInfo.Name.c_str());
+				}
+			}
+			if (!MaterialInfo.NormalTexturePath.empty())
+			{
+				const std::filesystem::path TexturePath = ResolveTextureReferencePath(ModelPath, MaterialInfo.NormalTexturePath);
+				if (!TryLoadNormalTextureIntoMaterial(Material, TexturePath, "[.Model Loader] Auto-loaded normal map:"))
+				{
+					UE_LOG("[.Model Loader] Failed to resolve embedded normal map '%s' for material '%s'.",
+						MaterialInfo.NormalTexturePath.c_str(),
+						MaterialInfo.Name.c_str());
 				}
 			}
 
@@ -1360,7 +1425,7 @@ UStaticMesh* FObjManager::LoadModelStaticMeshAsset(const FString& PathFileName)
 		return nullptr;
 	}
 
-	if (Version == GModelVersionSourceTimestamp)
+	if (Version >= GModelVersionSourceTimestamp)
 	{
 		if (!ReadBinaryValue(File, SourceTimestamp))
 		{
@@ -1378,7 +1443,7 @@ UStaticMesh* FObjManager::LoadModelStaticMeshAsset(const FString& PathFileName)
 		return nullptr;
 	}
 
-	if (Version != GModelVersionLegacy && Version != GModelVersionEmbeddedMaterials && Version != GModelVersionSourceTimestamp)
+	if (Version != GModelVersionLegacy && Version != GModelVersionEmbeddedMaterials && Version != GModelVersionSourceTimestamp && Version != GModelVersionNormalTexture)
 	{
 		UE_LOG("[FObjManager] Unsupported .Model version %u: %s", Version, AbsolutePath.c_str());
 		return nullptr;
@@ -1466,7 +1531,8 @@ UStaticMesh* FObjManager::LoadModelStaticMeshAsset(const FString& PathFileName)
 			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.Y)
 			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.Z)
 			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.W)
-			|| !ReadUtf8String(File, MaterialInfo.DiffuseTexturePath))
+			|| !ReadUtf8String(File, MaterialInfo.DiffuseTexturePath)
+			|| (Version >= GModelVersionNormalTexture && !ReadUtf8String(File, MaterialInfo.NormalTexturePath)))
 		{
 			UE_LOG("[FObjManager] Failed to read .Model material metadata: %s", AbsolutePath.c_str());
 			return nullptr;
@@ -1706,7 +1772,8 @@ bool FObjManager::SaveModelStaticMeshAsset(const FString& PathFileName, const FS
 			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.Y)
 			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.Z)
 			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.W)
-			|| !WriteUtf8String(File, MaterialInfo.DiffuseTexturePath))
+			|| !WriteUtf8String(File, MaterialInfo.DiffuseTexturePath)
+			|| !WriteUtf8String(File, MaterialInfo.NormalTexturePath))
 		{
 			return false;
 		}
@@ -1814,6 +1881,7 @@ bool FObjManager::BuildModelMaterialInfosFromObj(
 	{
 		FVector4 BaseColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
 		FString  DiffuseTexturePath;
+		FString  NormalTexturePath;
 	};
 
 	TMap<FString, FParsedMaterialData> ParsedMaterials;
@@ -1883,7 +1951,7 @@ bool FObjManager::BuildModelMaterialInfosFromObj(
 			{
 				std::string TextureReferenceRaw;
 				std::getline(MtlSS, TextureReferenceRaw);
-				FString TextureReference = ObjFileStringToUtf8(TrimAscii(TextureReferenceRaw));
+				FString TextureReference = ExtractTextureReferenceFromMtlStatement(TextureReferenceRaw);
 				if (TextureReference.empty())
 				{
 					continue;
@@ -1901,6 +1969,28 @@ bool FObjManager::BuildModelMaterialInfosFromObj(
 					       CurrentMaterialName.c_str());
 				}
 			}
+			else if ((MtlType == "map_Bump" || MtlType == "bump") && !CurrentMaterialName.empty())
+			{
+				std::string TextureReferenceRaw;
+				std::getline(MtlSS, TextureReferenceRaw);
+				FString TextureReference = ExtractTextureReferenceFromMtlStatement(TextureReferenceRaw);
+				if (TextureReference.empty())
+				{
+					continue;
+				}
+
+				const std::filesystem::path TexturePath = ResolveTextureReferencePath(MtlPath, TextureReference);
+				if (PathExists(TexturePath))
+				{
+					ParsedMaterials[CurrentMaterialName].NormalTexturePath = MakeStoredTexturePath(ModelPath, TexturePath);
+				}
+				else
+				{
+					UE_LOG("[FObjManager] Failed to resolve MTL texture '%s' for material '%s'.",
+						TextureReference.c_str(),
+						CurrentMaterialName.c_str());
+				}
+			}
 		}
 	}
 
@@ -1911,6 +2001,7 @@ bool FObjManager::BuildModelMaterialInfosFromObj(
 		{
 			MaterialInfo.BaseColor          = It->second.BaseColor;
 			MaterialInfo.DiffuseTexturePath = It->second.DiffuseTexturePath;
+			MaterialInfo.NormalTexturePath = It->second.NormalTexturePath;
 		}
 	}
 
@@ -1963,7 +2054,7 @@ bool FObjManager::ParseMtlFile(const FString& MtlFIlePath)
 		{
 			std::string TextureReferenceRaw;
 			std::getline(SS, TextureReferenceRaw);
-			FString TextureReference = ObjFileStringToUtf8(TrimAscii(TextureReferenceRaw));
+			FString TextureReference = ExtractTextureReferenceFromMtlStatement(TextureReferenceRaw);
 
 			const std::filesystem::path TexturePath = ResolveTextureReferencePath(FilePath, TextureReference);
 			if (!TryLoadTextureIntoMaterial(CurrentMaterial, TexturePath, "[MTL Parser] Auto-loaded texture-backed pixel shader:"))
@@ -1971,6 +2062,20 @@ bool FObjManager::ParseMtlFile(const FString& MtlFIlePath)
 				UE_LOG("[MTL Parser] Failed to resolve texture '%s' referenced by '%s'.",
 				       TextureReference.c_str(),
 				       AbsolutePath.c_str());
+			}
+		}
+		else if ((Type == "map_Bump" || Type == "bump") && CurrentMaterial)
+		{
+			std::string TextureReferenceRaw;
+			std::getline(SS, TextureReferenceRaw);
+			FString TextureReference = ExtractTextureReferenceFromMtlStatement(TextureReferenceRaw);
+
+			const std::filesystem::path TexturePath = ResolveTextureReferencePath(FilePath, TextureReference);
+			if (!TryLoadNormalTextureIntoMaterial(CurrentMaterial, TexturePath, "[MTL Parser] Auto-loaded normal map:"))
+			{
+				UE_LOG("[MTL Parser] Failed to resolve normal map '%s' referenced by '%s'.",
+					TextureReference.c_str(),
+					AbsolutePath.c_str());
 			}
 		}
 	}

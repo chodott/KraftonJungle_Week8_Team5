@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Renderer/GraphicsCore/RenderState.h"
@@ -154,6 +154,7 @@ public:
 	void SetBlendOption(const FBlendStateOption InOption) { BlendOption = InOption; }
 	void SetBlendState(const std::shared_ptr<FBlendState> InState) { BlendState = InState; }
 	void SetMaterialTexture(const std::shared_ptr<FMaterialTexture> InTexture) { MaterialTexture = InTexture; }
+	void SetNormalTexture(const std::shared_ptr<FMaterialTexture> InTexture) { NormalTexture = InTexture; }
 	void SetPixelTextureBinding(uint32 Slot, ID3D11ShaderResourceView* TextureSRV, ID3D11SamplerState* SamplerState);
 	void ClearPixelTextureBinding();
 
@@ -167,7 +168,9 @@ public:
 	std::shared_ptr<FDepthStencilState> GetDepthStencilState() const { return DepthStencilState; }
 	std::shared_ptr<FBlendState> GetBlendState() const { return BlendState; }
 	std::shared_ptr<FMaterialTexture> GetMaterialTexture() const { return MaterialTexture; }
+	std::shared_ptr<FMaterialTexture> GetNormalTexture() const { return NormalTexture; }
 	bool HasPixelTextureBinding() const;
+	bool HasNormalTexture() const { return NormalTexture && NormalTexture->TextureSRV != nullptr; }
 
 	// FDynamicMaterial에서 파라미터 설정 시 사용
 	bool SetParameterData(const FString& ParamName, const void* Data, uint32 DataSize);
@@ -212,6 +215,7 @@ protected:
 	std::shared_ptr<FBlendState> BlendState = nullptr;
 	// Texture
 	std::shared_ptr<FMaterialTexture> MaterialTexture = nullptr;
+	std::shared_ptr<FMaterialTexture> NormalTexture = nullptr;
 	FMaterialPixelTextureBinding PixelTextureBinding = {};
 	std::array<FMaterialPassShaders, static_cast<size_t>(EMaterialPassType::Count)> PassShaderMap = {};
 	std::array<bool, static_cast<size_t>(EMaterialPassType::Count)> bHasPassShaderMap = {};

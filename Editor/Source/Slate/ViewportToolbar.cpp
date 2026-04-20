@@ -52,7 +52,8 @@ namespace
 			"Lit_Phong",
 			"Unlit",
 			"Wireframe",
-			"SceneDepth"
+			"SceneDepth",
+			"World Normal"
 		};
 		return Options;
 	}

@@ -165,6 +165,7 @@ void FMeshPassProcessor::ExecutePass(
 		if (Batch->Material != CurrentMaterial)
 		{
 			ID3D11ShaderResourceView* NullSRVs[4] = {nullptr, nullptr, nullptr, nullptr};
+			DeviceContext->VSSetShaderResources(0, 4, NullSRVs);
 			DeviceContext->PSSetShaderResources(0, 4, NullSRVs);
 
 			if (!Batch->Material->GetMaterialTexture())
@@ -186,8 +187,9 @@ void FMeshPassProcessor::ExecutePass(
 
 		if (bApplyLighting)
 		{
-			DeviceContext->VSSetShader(Feature->GetCurrentVS(), nullptr, 0);
-			DeviceContext->PSSetShader(Feature->GetCurrentPS(), nullptr, 0);
+			const bool bHasNormalMap = Batch->Material->HasNormalTexture();
+			DeviceContext->VSSetShader(Feature->GetCurrentVS(bHasNormalMap, SceneViewData.RenderMode), nullptr, 0);
+			DeviceContext->PSSetShader(Feature->GetCurrentPS(bHasNormalMap, SceneViewData.RenderMode), nullptr, 0);
 			DeviceContext->IASetInputLayout(Feature->GetInputLayout());
 		}
 

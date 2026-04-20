@@ -1,4 +1,4 @@
-﻿#include "Renderer/Resources/Material/Material.h"
+#include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Resources/Shader/Shader.h"
 #include <cstdint>
 #include <cstring>
@@ -30,6 +30,7 @@ void FMaterialTexture::Bind(ID3D11DeviceContext* DeviceContext)
 	if (SamplerState)
 	{
 		DeviceContext->PSSetSamplers(0, 1, &SamplerState);
+		DeviceContext->VSSetSamplers(0, 1, &SamplerState);
 	}
 }
 
@@ -267,6 +268,7 @@ std::unique_ptr<FDynamicMaterial> FMaterial::CreateDynamicMaterial() const
 	Dynamic->DepthStencilState = DepthStencilState;
 	Dynamic->BlendState = BlendState;
 	Dynamic->SetMaterialTexture(MaterialTexture);
+	Dynamic->SetNormalTexture(NormalTexture);
 	Dynamic->PixelTextureBinding = PixelTextureBinding;
 	Dynamic->PassShaderMap = PassShaderMap;
 	Dynamic->bHasPassShaderMap = bHasPassShaderMap;
@@ -328,6 +330,16 @@ void FMaterial::Bind(ID3D11DeviceContext* DeviceContext, EMaterialPassType PassT
 	}
 
 	if (MaterialTexture) MaterialTexture->Bind(DeviceContext);
+	if (NormalTexture && NormalTexture->TextureSRV)
+	{
+		DeviceContext->PSSetShaderResources(1, 1, &NormalTexture->TextureSRV);
+		DeviceContext->VSSetShaderResources(1, 1, &NormalTexture->TextureSRV);
+		if (!MaterialTexture && NormalTexture->SamplerState)
+		{
+			DeviceContext->PSSetSamplers(0, 1, &NormalTexture->SamplerState);
+			DeviceContext->VSSetSamplers(0, 1, &NormalTexture->SamplerState);
+		}
+	}
 	if (PixelTextureBinding.IsValid())
 	{
 		DeviceContext->PSSetShaderResources(PixelTextureBinding.Slot, 1, &PixelTextureBinding.TextureSRV);
@@ -356,6 +368,7 @@ void FMaterial::Release()
 	BlendState.reset();
 	PixelTextureBinding = {};
 	MaterialTexture.reset();
+	NormalTexture.reset();
 	for (size_t PassIndex = 0; PassIndex < PassShaderMap.size(); ++PassIndex)
 	{
 		PassShaderMap[PassIndex] = {};

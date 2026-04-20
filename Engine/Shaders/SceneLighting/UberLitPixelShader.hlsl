@@ -2,7 +2,6 @@
 #include "../ObjectCommon.hlsli"
 #include "../MeshVertexCommon.hlsli"
 #include "../ShaderCommon.hlsli"
-#include "../LightCommon.hlsli"
 
 Texture2D Texture : register(t0);
 SamplerState Sampler : register(s0);
@@ -10,6 +9,8 @@ SamplerState Sampler : register(s0);
 #if HAS_NORMAL_MAP
 Texture2D NormalMap : register(t1);
 #endif
+
+#include "../LightCommon.hlsli"
 
 /*cbuffer MaterialData : register(b2)
 {
@@ -38,6 +39,10 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
     float3 N = GetNormalFromMap(Input.Normal, Input.Tangent, Input.Bitangent, Input.UV);
 #else
 	float3 N = normalize(Input.Normal);
+#endif
+
+#if VIEWMODE_WORLD_NORMAL
+	return float4(N * 0.5f + 0.5f, 1.0f);
 #endif
 
 	float3 V = normalize(CameraPosition.xyz - Input.WorldPosition);

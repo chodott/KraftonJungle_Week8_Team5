@@ -1,0 +1,57 @@
+# Blender 5.0.1 MTL File: 'None'
+# www.blender.org
+
+newmtl Daun
+Ns 360.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd Monstera_1_dif.jpg
+map_Bump Monstera_1_norm.jpg
+
+newmtl FIber_Alpha
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.218182 0.218182 0.218182
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+illum 2
+map_Kd -o 2.1848495 -5.104229 0 -s 0.14285715 0.14285715 1 Fiber_coco_dif.jpg
+map_d -o 2.1848495 -5.104229 0 -s 0.14285715 0.14285715 1 Fiber_coco_mask.jpg
+map_Bump -o 2.1848495 -5.104229 0 -s 0.14285715 0.14285715 1 -bm 1.000000 Fiber_coco_norm.jpg
+
+newmtl Fiber
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.268182 0.268182 0.268182
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd -o 2.1848495 -5.104229 0 -s 0.14285715 0.14285715 1 Fiber_coco_dif.jpg
+
+newmtl Glazed_ceramic
+Ns 440.413177
+Ka 1.000000 1.000000 1.000000
+Kd 0.752942 0.723055 0.637597
+Ks 0.763000 0.763000 0.763000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd Vase_dif.jpg
+map_Bump Vase_norm.jpg
+
+newmtl Soil_1
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd Ground_3_1_dif.jpg
+map_Bump -bm 1.000000 Ground_3_norm.jpg
