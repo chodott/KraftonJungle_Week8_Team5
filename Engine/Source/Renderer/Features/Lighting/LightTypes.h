@@ -22,7 +22,8 @@ struct FPointLightInfo
 	FVector Position; // World Space
 	float Intensity;
 	float Range;
-	FVector Padding;
+	float FalloffExponent;
+	FVector2 Padding;
 };
 
 struct FSpotLightInfo
@@ -32,15 +33,16 @@ struct FSpotLightInfo
 	float Intensity;
 	FVector Direction;
 	float Range;
-	float InnerCutoff; // cos(내부 각도)
-	float OuterCutoff; // cos(외부 각도)
-	FVector2 Padding;
+	float InnerCutoff; // cos(inner angle)
+	float OuterCutoff; // cos(outer angle)
+	float FalloffExponent;
+	float Padding;
 };
 
 struct FLightConstantBuffer
 {
-	FAmbientLightInfo     Ambient;
+	FAmbientLightInfo Ambient;
 	FDirectionalLightInfo Directional;
-	FPointLightInfo       PointLights[4];
-	FSpotLightInfo        SpotLights[4];
+	FPointLightInfo PointLights[4];
+	FSpotLightInfo SpotLights[4];
 };

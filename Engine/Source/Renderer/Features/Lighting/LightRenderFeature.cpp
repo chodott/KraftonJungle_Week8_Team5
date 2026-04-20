@@ -186,6 +186,7 @@ void FLightRenderFeature::UpdateLightConstantBuffer(FRenderer& Renderer, const F
 					OutSpotLight.Intensity = EffectiveIntensity;
 					OutSpotLight.Direction = SpotLight->GetEmissionDirectionWS().GetSafeNormal();
 					OutSpotLight.Range = SpotLight->GetAttenuationRadius();
+					OutSpotLight.FalloffExponent = SpotLight->GetLightFalloffExponent();
 
 					const float InnerAngleRad = FMath::DegreesToRadians(FMath::Clamp(SpotLight->GetInnerConeAngle(), 0.0f, 89.0f));
 					const float OuterAngleRad = FMath::DegreesToRadians(FMath::Clamp(SpotLight->GetOuterConeAngle(), 0.0f, 89.0f));
@@ -212,6 +213,7 @@ void FLightRenderFeature::UpdateLightConstantBuffer(FRenderer& Renderer, const F
 					OutPointLight.Position = PointLight->GetWorldLocation();
 					OutPointLight.Intensity = EffectiveIntensity;
 					OutPointLight.Range = PointLight->GetAttenuationRadius();
+					OutPointLight.FalloffExponent = PointLight->GetLightFalloffExponent();
 				}
 			}
 		}

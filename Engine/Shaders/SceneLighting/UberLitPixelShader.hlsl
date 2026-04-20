@@ -67,7 +67,7 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 		{
 			float3 L = normalize(toLight);
 			float diff_p = max(0.0f, dot(N, L));
-			float atten = CalculateAttenuation(distance, PointLights[i].Range);
+			float atten = CalculateAttenuation(distance, PointLights[i].Range, PointLights[i].FalloffExponent);
 			lighting += PointLights[i].Color * PointLights[i].Intensity * diff_p * atten;
 		}
 	}
@@ -86,7 +86,7 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 				(SpotLights[j].InnerCutoff - SpotLights[j].OuterCutoff)
 			);
 			float diff_s = max(0.0f, dot(N, L));
-			float atten = CalculateAttenuation(distance, SpotLights[j].Range);
+			float atten = CalculateAttenuation(distance, SpotLights[j].Range, SpotLights[j].FalloffExponent);
 			lighting += SpotLights[j].Color * SpotLights[j].Intensity
 				* diff_s * atten * intensity;
 		}
