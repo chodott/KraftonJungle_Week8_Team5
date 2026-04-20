@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Core/ShowFlags.h"
@@ -75,14 +75,14 @@ struct ENGINE_API FSceneLightingInputs
 	FAmbientLightRenderItem             Ambient;
 	TArray<FLocalLightRenderItem>       LocalLights;
 	TArray<FDirectionalLightRenderItem> DirectionalLights;
-	TArray<uint32>                      ObjectLightMaskWords;
+	TArray<uint32>                      ObjectLightIndices;
 
 	void Clear()
 	{
 		Ambient = {};
 		LocalLights.clear();
 		DirectionalLights.clear();
-		ObjectLightMaskWords.clear();
+		ObjectLightIndices.clear();
 	}
 };
 

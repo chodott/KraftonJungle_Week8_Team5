@@ -53,7 +53,8 @@ namespace
 			"Unlit",
 			"Wireframe",
 			"SceneDepth",
-			"World Normal"
+			"World Normal",
+			"LightCullingHeatmap"
 		};
 		return Options;
 	}
