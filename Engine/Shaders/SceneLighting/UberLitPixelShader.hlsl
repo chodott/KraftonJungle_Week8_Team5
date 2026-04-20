@@ -42,7 +42,7 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 
 	    // ── 법선 결정 ──
 #if HAS_NORMAL_MAP
-    float3 N = GetNormalFromMap(Input.Normal, Input.Tangent, Input.Bitangent, Input.UV);
+    float3 N = GetNormalFromMap(NormalMap, Sampler, Input.Normal, Input.Tangent, Input.Bitangent, Input.UV);
 #else
 	float3 N = normalize(Input.Normal);
 #endif

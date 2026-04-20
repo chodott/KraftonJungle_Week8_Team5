@@ -126,10 +126,15 @@ float CalculateAttenuation(float distance, float range, float falloffExponent)
 }
 
 #if HAS_NORMAL_MAP
-float3 GetNormalFromMap(float3 vertexNormal, float3 tangent,
-                        float3 bitangent, float2 uv)
+float3 GetNormalFromMap(
+	Texture2D normalMapTexture,
+	SamplerState normalMapSampler,
+	float3 vertexNormal,
+	float3 tangent,
+	float3 bitangent,
+	float2 uv)
 {
-    float3 tangentNormal = NormalMap.Sample(Sampler, uv).rgb * 2.0f - 1.0f;
+    float3 tangentNormal = normalMapTexture.Sample(normalMapSampler, uv).rgb * 2.0f - 1.0f;
 
     float3 T = normalize(tangent);
     float3 B = normalize(bitangent);

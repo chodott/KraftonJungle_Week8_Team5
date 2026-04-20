@@ -195,12 +195,13 @@ namespace
 		return Token;
 	}
 
-	[[noreturn]] void FatalShaderError(const std::wstring& Message)
-	{
-		OutputDebugStringW((L"[Shader Fatal] " + Message + L"\n").c_str());
-		assert(false && "Fatal shader error");
-		std::abort();
-	}
+		[[noreturn]] void FatalShaderError(const std::wstring& Message)
+		{
+			OutputDebugStringW((L"[Shader Fatal] " + Message + L"\n").c_str());
+			MessageBoxW(nullptr, Message.c_str(), L"Shader Fatal Error", MB_OK | MB_ICONERROR);
+			assert(false && "Fatal shader error");
+			std::abort();
+		}
 }
 
 std::unordered_map<std::wstring, std::shared_ptr<FShaderResource>> FShaderResource::Cache;
