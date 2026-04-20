@@ -1,4 +1,4 @@
-#include "Renderer/Renderer.h"
+﻿#include "Renderer/Renderer.h"
 #include "Actor/Actor.h"
 #include "Component/DecalComponent.h"
 #include "Component/StaticMeshComponent.h"
@@ -557,10 +557,10 @@ void FRenderer::UpdateObjectConstantBuffer(const FMatrix& World)
 	FObjectConstantBuffer CBData;
 	CBData.World                = World.GetTransposed();
 	CBData.WorldInvTranspose    = World.GetInverse().GetTransposed();
-	CBData.LocalLightMaskOffset = 0;
+	CBData.LocalLightListOffset = 0;
+	CBData.LocalLightListCount  = 0;
 	CBData.ObjectFlags          = 0;
 	CBData.Pad0                 = 0;
-	CBData.Pad1                 = 0;
 
 	D3D11_MAPPED_SUBRESOURCE Mapped;
 	if (SUCCEEDED(DeviceContext->Map(ObjectConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
@@ -581,10 +581,10 @@ void FRenderer::UpdateObjectConstantBuffer(const FMeshBatch& Batch)
 	FObjectConstantBuffer CBData;
 	CBData.World                = Batch.World.GetTransposed();
 	CBData.WorldInvTranspose    = Batch.World.GetInverse().GetTransposed();
-	CBData.LocalLightMaskOffset = Batch.LocalLightMaskOffset;
+	CBData.LocalLightListOffset = Batch.LocalLightListOffset;
+	CBData.LocalLightListCount  = Batch.LocalLightListCount;
 	CBData.ObjectFlags          = 0;
 	CBData.Pad0                 = 0;
-	CBData.Pad1                 = 0;
 
 	D3D11_MAPPED_SUBRESOURCE Mapped;
 	if (SUCCEEDED(DeviceContext->Map(ObjectConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))

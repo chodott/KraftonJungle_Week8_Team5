@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 
@@ -75,5 +75,6 @@ struct ENGINE_API FMeshBatch
 	float  DistanceSqToCamera = 0.0f;
 	uint64 SubmissionOrder    = 0;
 
-	uint32 LocalLightMaskOffset = 0;
+	uint32 LocalLightListOffset = 0;
+	uint32 LocalLightListCount  = 0;
 };

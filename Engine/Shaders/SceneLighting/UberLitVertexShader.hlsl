@@ -50,20 +50,20 @@ VS_OUTPUT main(VS_INPUT Input)
 #endif
 	float3 V = normalize(CameraPosition.xyz - Output.WorldPosition);
 
-	float4 lighting = float4(0, 0, 0, 0);
+	float3 lighting = float3(0, 0, 0);
 	
 	if (AmbientEnabled != 0)
 	{
-		lighting += CalculateAmbientLight(Ambient);
+		lighting += CalculateAmbientLight(Ambient).rgb;
 	}
 	
 	if (DirectionalLightCount > 0)
 	{
-		lighting += CalculateDirectionalLight(Directional, Output.WorldPosition, N, V);
+		lighting += CalculateDirectionalLight(Directional, Output.WorldPosition, N, V).rgb;
 	}
 	
-	lighting += ComputeObjectLocalLighting(LocalLightMaskOffset, Output.WorldPosition, N, V);
-	Output.VertexLighting = lighting;
+	lighting += ComputeObjectLocalLighting(LocalLightListOffset, LocalLightListCount, Output.WorldPosition, N, V).rgb;
+	Output.VertexLighting = float4(lighting, 1.0f);
 
 #elif LIGHTING_MODEL_LAMBERT
 

@@ -1,4 +1,4 @@
-#include "Renderer/Features/Lighting/LightRenderFeature.h"
+﻿#include "Renderer/Features/Lighting/LightRenderFeature.h"
 
 #include <algorithm>
 #include <cstring>
@@ -81,16 +81,28 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 	const uint32     ClusterCountX  = (ViewportWidth + LightCullingConfig::TileSizeX - 1u) / LightCullingConfig::TileSizeX;
 	const uint32     ClusterCountY  = (ViewportHeight + LightCullingConfig::TileSizeY - 1u) / LightCullingConfig::TileSizeY;
 	constexpr uint32 ClusterCountZ  = LightCullingConfig::ClusterCountZ;
-	const uint32     ClusterCount   = ClusterCountX * ClusterCountY * ClusterCountZ;
-	const uint32     TotalMaskWords = ClusterCount * LightMaskConfig::MaskWordCount;
+	const uint32 ClusterCount       = ClusterCountX * ClusterCountY * ClusterCountZ;
+	const uint32 ClusterHeaderCount = ClusterCount;
+	const uint32 ClusterIndexCount  = ClusterCount * LightListConfig::MaxLightsPerCluster;
+
+	if (!EnsureDefaultStructuredBufferSRVUAV(
+		Renderer,
+		sizeof(FLightClusterHeaderGPU),
+		(std::max)(1u, ClusterHeaderCount),
+		ClusterLightHeaderBuffer,
+		ClusterLightHeaderSRV,
+		ClusterLightHeaderUAV))
+	{
+		return false;
+	}
 
 	if (!EnsureDefaultStructuredBufferSRVUAV(
 		Renderer,
 		sizeof(uint32),
-		(std::max)(1u, TotalMaskWords),
-		ClusterLightMaskBuffer,
-		ClusterLightMaskSRV,
-		ClusterLightMaskUAV))
+		(std::max)(1u, ClusterIndexCount),
+		ClusterLightIndexBuffer,
+		ClusterLightIndexSRV,
+		ClusterLightIndexUAV))
 	{
 		return false;
 	}
@@ -102,7 +114,8 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 	}
 
 	constexpr UINT ClearValues[4] = { 0, 0, 0, 0 };
-	DeviceContext->ClearUnorderedAccessViewUint(ClusterLightMaskUAV, ClearValues);
+	DeviceContext->ClearUnorderedAccessViewUint(ClusterLightHeaderUAV, ClearValues);
+	DeviceContext->ClearUnorderedAccessViewUint(ClusterLightIndexUAV, ClearValues);
 
 	DeviceContext->CSSetShader(LightCullingCS, nullptr, 0);
 	DeviceContext->CSSetConstantBuffers(LightClusterSlots::ClusterGlobalCB, 1, &ClusterGlobalConstantBuffer);
@@ -110,18 +123,18 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 	ID3D11ShaderResourceView* CSRVs[2] = { LightCullProxySRV, Targets.SceneDepthSRV };
 	DeviceContext->CSSetShaderResources(0, 2, CSRVs);
 
-	ID3D11UnorderedAccessView* CSUAVs[1]           = { ClusterLightMaskUAV };
-	UINT                       UAVInitialCounts[1] = { 0u };
-	DeviceContext->CSSetUnorderedAccessViews(0, 1, CSUAVs, UAVInitialCounts);
+	ID3D11UnorderedAccessView* CSUAVs[2]           = { ClusterLightHeaderUAV, ClusterLightIndexUAV };
+	UINT                       UAVInitialCounts[2] = { 0u, 0u };
+	DeviceContext->CSSetUnorderedAccessViews(0, 2, CSUAVs, UAVInitialCounts);
 
 	DeviceContext->Dispatch(ClusterCountX, ClusterCountY, ClusterCountZ);
 
 	ID3D11ShaderResourceView*  NullSRV[2] = { nullptr, nullptr };
-	ID3D11UnorderedAccessView* NullUAV[1] = { nullptr };
+	ID3D11UnorderedAccessView* NullUAV[2] = { nullptr, nullptr };
 	ID3D11Buffer*              NullCB[1]  = { nullptr };
 
 	DeviceContext->CSSetShaderResources(0, 2, NullSRV);
-	DeviceContext->CSSetUnorderedAccessViews(0, 1, NullUAV, UAVInitialCounts);
+	DeviceContext->CSSetUnorderedAccessViews(0, 2, NullUAV, UAVInitialCounts);
 	DeviceContext->CSSetConstantBuffers(LightClusterSlots::ClusterGlobalCB, 1, NullCB);
 	DeviceContext->CSSetShader(nullptr, nullptr, 0);
 
@@ -151,19 +164,25 @@ bool FLightRenderFeature::Render(
 	DeviceContext->VSSetConstantBuffers(LightClusterSlots::ClusterGlobalCB, 1, &ClusterGlobalConstantBuffer);
 	DeviceContext->PSSetConstantBuffers(LightClusterSlots::ClusterGlobalCB, 1, &ClusterGlobalConstantBuffer);
 
-	if (ObjectLightMaskSRV)
-	{
-		DeviceContext->VSSetShaderResources(LightClusterSlots::ObjectLightMaskSRV, 1, &ObjectLightMaskSRV);
-	}
 	if (LocalLightSRV)
 	{
 		DeviceContext->VSSetShaderResources(LightClusterSlots::LocalLightSRV, 1, &LocalLightSRV);
 		DeviceContext->PSSetShaderResources(LightClusterSlots::LocalLightSRV, 1, &LocalLightSRV);
 	}
 
-	if (ClusterLightMaskSRV)
+	if (ObjectLightIndexSRV)
 	{
-		DeviceContext->PSSetShaderResources(LightClusterSlots::ClusterLightMaskSRV, 1, &ClusterLightMaskSRV);
+		DeviceContext->VSSetShaderResources(LightClusterSlots::ObjectLightIndexSRV, 1, &ObjectLightIndexSRV);
+	}
+
+	if (ClusterLightHeaderSRV)
+	{
+		DeviceContext->PSSetShaderResources(LightClusterSlots::ClusterLightHeaderSRV, 1, &ClusterLightHeaderSRV);
+	}
+
+	if (ClusterLightIndexSRV)
+	{
+		DeviceContext->PSSetShaderResources(LightClusterSlots::ClusterLightIndexSRV, 1, &ClusterLightIndexSRV);
 	}
 
 	DeviceContext->IASetInputLayout(LightInputLayout);
@@ -182,12 +201,16 @@ void FLightRenderFeature::Release()
 	SafeRelease(LightCullProxySRV);
 	SafeRelease(LightCullProxyBuffer);
 
-	SafeRelease(ObjectLightMaskSRV);
-	SafeRelease(ObjectLightMaskBuffer);
+	SafeRelease(ObjectLightIndexSRV);
+	SafeRelease(ObjectLightIndexBuffer);
 
-	SafeRelease(ClusterLightMaskUAV);
-	SafeRelease(ClusterLightMaskSRV);
-	SafeRelease(ClusterLightMaskBuffer);
+	SafeRelease(ClusterLightHeaderUAV);
+	SafeRelease(ClusterLightHeaderSRV);
+	SafeRelease(ClusterLightHeaderBuffer);
+
+	SafeRelease(ClusterLightIndexUAV);
+	SafeRelease(ClusterLightIndexSRV);
+	SafeRelease(ClusterLightIndexBuffer);
 
 	SafeRelease(LightCullingCS);
 
@@ -514,11 +537,12 @@ void FLightRenderFeature::UpdateClusterGlobalConstantBuffer(
 	CB.ClusterCountX   = (ViewportWidthPx + LightCullingConfig::TileSizeX - 1u) / LightCullingConfig::TileSizeX;
 	CB.ClusterCountY   = (ViewportHeightPx + LightCullingConfig::TileSizeY - 1u) / LightCullingConfig::TileSizeY;
 	CB.ClusterCountZ   = LightCullingConfig::ClusterCountZ;
-	CB.LocalLightCount = (std::min)(static_cast<uint32>(SceneViewData.LightingInputs.LocalLights.size()), LightMaskConfig::MaxLocalLights);
+	CB.LocalLightCount = (std::min)(static_cast<uint32>(SceneViewData.LightingInputs.LocalLights.size()), LightListConfig::MaxLocalLights);
 
 	CB.DirectionalLightCount = static_cast<uint32>(SceneViewData.LightingInputs.DirectionalLights.size());
-	CB.LightMaskWordCount    = LightMaskConfig::MaskWordCount;
+	CB.MaxLightsPerCluster   = LightListConfig::MaxLightsPerCluster;
 	CB.LightingEnabled       = SceneViewData.RenderMode != ERenderMode::Unlit ? 1u : 0u;
+	CB.VisualizationMode     = SceneViewData.RenderMode == ERenderMode::LightCullingHeatmap ? 1u : 0u;
 
 	CB.NearZ = (std::max)(SceneViewData.View.NearZ, 1e-4f);
 	CB.FarZ  = (std::max)(SceneViewData.View.FarZ, CB.NearZ + 1e-3f);
@@ -540,13 +564,18 @@ void FLightRenderFeature::UploadLocalLightBuffers(
 {
 	TArray<FLocalLightGPU>     LocalLightsGPU;
 	TArray<FLightCullProxyGPU> ProxiesGPU;
-	TArray<uint32>             ObjectMaskWordsGPU = SceneViewData.LightingInputs.ObjectLightMaskWords;
+	TArray<uint32>             ObjectLightIndicesGPU = SceneViewData.LightingInputs.ObjectLightIndices;
 
 	LocalLightsGPU.reserve(SceneViewData.LightingInputs.LocalLights.size());
 	ProxiesGPU.reserve(SceneViewData.LightingInputs.LocalLights.size());
 
 	for (const FLocalLightRenderItem& Src : SceneViewData.LightingInputs.LocalLights)
 	{
+		if (LocalLightsGPU.size() >= LightListConfig::MaxLocalLights)
+		{
+			break;
+		}
+
 		FLocalLightGPU L = {};
 		L.ColorIntensity = FVector4(Src.Color.X, Src.Color.Y, Src.Color.Z, Src.Intensity);
 		L.PositionRange  = FVector4(Src.PositionWS.X, Src.PositionWS.Y, Src.PositionWS.Z, Src.Range);
@@ -586,9 +615,9 @@ void FLightRenderFeature::UploadLocalLightBuffers(
 	{
 		ProxiesGPU.push_back(FLightCullProxyGPU {});
 	}
-	if (ObjectMaskWordsGPU.empty())
+	if (ObjectLightIndicesGPU.empty())
 	{
-		ObjectMaskWordsGPU.push_back(0u);
+		ObjectLightIndicesGPU.push_back(0u);
 	}
 
 	EnsureDynamicStructuredBufferSRV(
@@ -608,9 +637,9 @@ void FLightRenderFeature::UploadLocalLightBuffers(
 	EnsureDynamicStructuredBufferSRV(
 		Renderer,
 		sizeof(uint32),
-		static_cast<uint32>(ObjectMaskWordsGPU.size()),
-		ObjectLightMaskBuffer,
-		ObjectLightMaskSRV);
+		static_cast<uint32>(ObjectLightIndicesGPU.size()),
+		ObjectLightIndexBuffer,
+		ObjectLightIndexSRV);
 
 	UploadDynamicBuffer(
 		Renderer.GetDeviceContext(),
@@ -626,9 +655,9 @@ void FLightRenderFeature::UploadLocalLightBuffers(
 
 	UploadDynamicBuffer(
 		Renderer.GetDeviceContext(),
-		ObjectLightMaskBuffer,
-		ObjectMaskWordsGPU.data(),
-		sizeof(uint32) * ObjectMaskWordsGPU.size());
+		ObjectLightIndexBuffer,
+		ObjectLightIndicesGPU.data(),
+		sizeof(uint32) * ObjectLightIndicesGPU.size());
 }
 
 bool FLightRenderFeature::EnsureDynamicStructuredBufferSRV(

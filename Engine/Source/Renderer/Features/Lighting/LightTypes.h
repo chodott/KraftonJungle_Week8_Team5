@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 
@@ -9,10 +9,11 @@ namespace LightCullingConfig
 	static constexpr uint32 ClusterCountZ = 24;
 }
 
-namespace LightMaskConfig
+namespace LightListConfig
 {
-	static constexpr uint32 MaxLocalLights = 256;
-	static constexpr uint32 MaskWordCount  = MaxLocalLights / 32;
+	static constexpr uint32 MaxLocalLights          = 256;
+	static constexpr uint32 MaxLightsPerCluster     = 64;
+	static constexpr uint32 HeatmapVisualizationMax = 16;
 }
 
 namespace LightClusterSlots
@@ -20,9 +21,10 @@ namespace LightClusterSlots
 	static constexpr uint32 GlobalLightCB   = 4;
 	static constexpr uint32 ClusterGlobalCB = 8;
 
-	static constexpr uint32 ClusterLightMaskSRV = 10;
-	static constexpr uint32 LocalLightSRV       = 11;
-	static constexpr uint32 ObjectLightMaskSRV  = 12;
+	static constexpr uint32 ClusterLightHeaderSRV = 10;
+	static constexpr uint32 ClusterLightIndexSRV  = 11;
+	static constexpr uint32 LocalLightSRV         = 12;
+	static constexpr uint32 ObjectLightIndexSRV   = 13;
 }
 
 enum class ELightClass : uint32
@@ -104,7 +106,7 @@ struct FLightClusterHeaderGPU
 {
 	uint32 Offset = 0;
 	uint32 Count  = 0;
-	uint32 Pad0   = 0;
+	uint32 Pad0   = 0; // raw unclamped count
 	uint32 Pad1   = 0;
 };
 
@@ -123,10 +125,10 @@ struct FLightClusterGlobalCB
 	uint32 ClusterCountZ   = 0;
 	uint32 LocalLightCount = 0;
 
-	uint32 DirectionalLightCount = 0;
-	uint32 LightMaskWordCount    = LightMaskConfig::MaskWordCount;
-	uint32 LightingEnabled       = 1;
-	uint32 Pad0                  = 0;
+	uint32 DirectionalLightCount     = 0;
+	uint32 MaxLightsPerCluster     = LightListConfig::MaxLightsPerCluster;
+	uint32 LightingEnabled         = 1;
+	uint32 VisualizationMode       = 0;
 
 	float NearZ     = 0.1f;
 	float FarZ      = 1000.0f;

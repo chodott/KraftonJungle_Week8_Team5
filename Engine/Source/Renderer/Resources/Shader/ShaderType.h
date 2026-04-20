@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "Math/Matrix.h"
 
 // b0: 프레임당 1회 업데이트 (카메라)
@@ -19,8 +19,8 @@ struct FObjectConstantBuffer
 	FMatrix World;
 	FMatrix WorldInvTranspose;
 
-	uint32 LocalLightMaskOffset = 0;
+	uint32 LocalLightListOffset = 0;
+	uint32 LocalLightListCount  = 0;
 	uint32 ObjectFlags          = 0;
 	uint32 Pad0                 = 0;
-	uint32 Pad1                 = 0;
 };
