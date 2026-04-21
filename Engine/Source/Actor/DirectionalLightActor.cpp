@@ -84,11 +84,12 @@ void ADirectionalLightActor::PostSpawnInitialize()
 			FQuat::Identity,
 			FVector(0.0f, 0.0f, 0.0f),
 			FVector(0.02f, 0.02f, 0.02f)));
-		ArrowComponent->SetStaticMesh(GetDirectionalLightArrowMesh());
-		ArrowComponent->SetIgnoreParentScaleInRender(true);
-		ArrowComponent->SetEditorVisualization(true);
-		ArrowComponent->SetDrawDebugBounds(false);
-	}
+			ArrowComponent->SetStaticMesh(GetDirectionalLightArrowMesh());
+			ArrowComponent->SetIgnoreParentScaleInRender(true);
+			ArrowComponent->SetEditorVisualization(true);
+			ArrowComponent->SetHiddenInGame(true);
+			ArrowComponent->SetDrawDebugBounds(false);
+		}
 
 	AActor::PostSpawnInitialize();
 }
@@ -151,12 +152,13 @@ void ADirectionalLightActor::Serialize(FArchive& Ar)
 			ArrowComponent->AttachTo(DirectionalLightComponent);
 		}
 
-		if (!ArrowComponent->GetStaticMesh())
-		{
-			ArrowComponent->SetStaticMesh(GetDirectionalLightArrowMesh());
+			if (!ArrowComponent->GetStaticMesh())
+			{
+				ArrowComponent->SetStaticMesh(GetDirectionalLightArrowMesh());
+			}
+			ArrowComponent->SetHiddenInGame(true);
+			ArrowComponent->SetDrawDebugBounds(false);
 		}
-		ArrowComponent->SetDrawDebugBounds(false);
-	}
 
 	UpdateBillboardTint();
 }
