@@ -108,16 +108,24 @@ bool FRendererResourceBootstrap::Initialize(FRenderer& Renderer)
 		Renderer.DefaultTextureMaterial->SetDepthStencilOption(depthStencilOption);
 		Renderer.DefaultTextureMaterial->SetDepthStencilState(DSS);
 
-		int32 SlotIndex = Renderer.DefaultTextureMaterial->CreateConstantBuffer(Device, 32);
+		int32 SlotIndex = Renderer.DefaultTextureMaterial->CreateConstantBuffer(Device, 64);
 		if (SlotIndex >= 0)
 		{
 			Renderer.DefaultTextureMaterial->RegisterParameter("BaseColor", SlotIndex, 0, 16);
-			float White[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+			constexpr float White[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 			Renderer.DefaultTextureMaterial->GetConstantBuffer(SlotIndex)->SetData(White, sizeof(White));
 
 			Renderer.DefaultTextureMaterial->RegisterParameter("UVScrollSpeed", SlotIndex, 16, 16);
-			float DefaultScroll[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+			constexpr float DefaultScroll[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 			Renderer.DefaultTextureMaterial->GetConstantBuffer(SlotIndex)->SetData(DefaultScroll, sizeof(DefaultScroll), 16);
+
+			Renderer.DefaultTextureMaterial->RegisterParameter("EmissiveColor", SlotIndex, 32, 16);
+			constexpr float DefaultEmissive[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+			Renderer.DefaultTextureMaterial->GetConstantBuffer(SlotIndex)->SetData(DefaultEmissive, sizeof(DefaultEmissive), 32);
+
+			Renderer.DefaultTextureMaterial->RegisterParameter("Shininess", SlotIndex, 48, 16);
+			constexpr float DefaultShininess[4] = { 32.0f, 0.0f, 0.0f, 0.0f };
+			Renderer.DefaultTextureMaterial->GetConstantBuffer(SlotIndex)->SetData(DefaultShininess, sizeof(DefaultShininess), 48);
 		}
 
 		Renderer.ConfigureMaterialPasses(*Renderer.DefaultTextureMaterial, true);
