@@ -11,7 +11,7 @@ void USpotLightComponent::PostConstruct()
 {
 	UPointLightComponent::PostConstruct();
 	
-	Intensity = 8.f;
+	Intensity = 5.f;
 }
 
 void USpotLightComponent::SetInnerConeAngle(float innerConeAngle)

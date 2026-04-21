@@ -113,16 +113,23 @@ StructuredBuffer<uint>                ClusterLightIndices : register(t11);
 StructuredBuffer<FLocalLightGPU>      LocalLights         : register(t12);
 StructuredBuffer<uint>                ObjectLightIndices  : register(t13);
 
-float CalculateAttenuation(float distance, float range, float falloffExponent)
+float CalculateAttenuation(float distance, float range)
 {
 	float safeRange = max(range, 1.0e-4f);
-	float distanceSq = max(distance * distance, 1.0f);
-	float normalizedDistance = saturate(distance / safeRange);
-	float rangeMask = pow(saturate(1.0f - pow(normalizedDistance, 4.0f)), 2.0f);
-	float attenuation = rangeMask / distanceSq;
-	float exponent = (falloffExponent > 0.0f) ? falloffExponent : 0.01f;
-	float artistMask = pow(saturate(1.0f - normalizedDistance), exponent);
-	return attenuation * artistMask;
+	float d = max(distance, 0.0f);
+	float distanceSq = d * d;
+	float invRangeSq = 1.0f / (safeRange * safeRange);
+
+	// UE 스타일 radius window: (1 - (d/r)^4)^2
+	float x = distanceSq * invRangeSq; // (d/r)^2
+	float rangeMask = saturate(1.0f - x * x);
+	rangeMask *= rangeMask;
+
+	// 근거리 과노출 방지
+	const float MinDistanceSq = 0.25f;
+	float inverseSquare = 1.0f / max(distanceSq, MinDistanceSq);
+
+	return rangeMask * inverseSquare;
 }
 
 #if HAS_NORMAL_MAP
@@ -181,7 +188,7 @@ float4 CalculatePointLight(FLocalLightGPU info,
 	float diff = max(0.0f, dot(N, L));
 	float Shininess = 32.0f;
 	float spec = pow(max(0.0f, dot(N, H)), Shininess);
-	float attenuation = CalculateAttenuation(distance, info.PositionRange.w, info.AngleParams.z);
+	float attenuation = CalculateAttenuation(distance, info.PositionRange.w);
 
     float3 diffuse = info.ColorIntensity.xyz * info.ColorIntensity.w * diff * attenuation;
     float3 specular = info.ColorIntensity.xyz * info.ColorIntensity.w * spec * attenuation;
@@ -212,7 +219,7 @@ float4 CalculateSpotLight(FLocalLightGPU info,
 	float diff = max(0.0f, dot(N, L));
 	float Shininess = 32.0f;
 	float spec = pow(max(0.0f, dot(N, H)), Shininess);
-	float attenuation = CalculateAttenuation(distance, info.PositionRange.w, info.AngleParams.z);
+	float attenuation = CalculateAttenuation(distance, info.PositionRange.w);
 
     float3 diffuse = info.ColorIntensity.xyz * info.ColorIntensity.w * diff * attenuation * intensity;
     float3 specular = info.ColorIntensity.xyz * info.ColorIntensity.w * spec * attenuation * intensity;
@@ -319,7 +326,7 @@ float4 ComputeClusteredLocalLightingLambert(float4 svPosition, float3 worldPos, 
             {
                 float3 L = toLight / max(distance, 1.0e-5f);
                 float diff = max(dot(N, L), 0.0f);
-                float atten = CalculateAttenuation(distance, light.PositionRange.w, light.AngleParams.z);
+	                float atten = CalculateAttenuation(distance, light.PositionRange.w);
 
                 uint lightClass = (uint)light.DirectionType.w;
 
