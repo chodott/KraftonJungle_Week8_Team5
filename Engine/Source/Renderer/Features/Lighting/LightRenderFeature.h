@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Renderer/Features/Lighting/LightStats.h"
@@ -79,8 +79,22 @@ private:
 		ID3D11ShaderResourceView*&  SRV,
 		ID3D11UnorderedAccessView*& UAV);
 
+	bool EnsureTimingQueries(FRenderer& Renderer);
+	void ResolveTimingQueries(ID3D11DeviceContext* DeviceContext);
+
 	static uint32 ToShaderVariantIndex(bool bHasNormalMap) { return bHasNormalMap ? 1u : 0u; }
 	static constexpr uint32 ShaderVariantCount = 2;
+	static constexpr uint32 TimingQueryBufferCount = 3;
+
+	struct FLightTimingQuerySet
+	{
+		ID3D11Query* Disjoint = nullptr;
+		ID3D11Query* TileDepthBoundsStart = nullptr;
+		ID3D11Query* TileDepthBoundsEnd = nullptr;
+		ID3D11Query* LightCullingStart = nullptr;
+		ID3D11Query* LightCullingEnd = nullptr;
+		bool bPending = false;
+	};
 
 	ID3D11Buffer* GlobalLightConstantBuffer   = nullptr;
 	ID3D11Buffer* ClusterGlobalConstantBuffer = nullptr;
@@ -102,6 +116,11 @@ private:
 	ID3D11ShaderResourceView* ClusterLightIndexSRV    = nullptr;
 	ID3D11UnorderedAccessView* ClusterLightIndexUAV   = nullptr;
 
+	ID3D11Buffer*              TileDepthBoundsBuffer = nullptr;
+	ID3D11ShaderResourceView*  TileDepthBoundsSRV    = nullptr;
+	ID3D11UnorderedAccessView* TileDepthBoundsUAV    = nullptr;
+
+	ID3D11ComputeShader* TileDepthBoundsCS = nullptr;
 	ID3D11ComputeShader* LightCullingCS = nullptr;
 
 	ID3D11InputLayout*  LightInputLayout = nullptr;
@@ -121,6 +140,8 @@ private:
 	ID3D11Buffer* ClusterHeaderStagingBuffer  = nullptr;
 	uint32        PendingReadbackClusterCount  = 0;
 	bool          bHasPendingReadback          = false;
+	FLightTimingQuerySet TimingQuerySets[TimingQueryBufferCount] = {};
+	uint32               TimingQueryWriteIndex = 0;
 
 	FLightStats Stats;
 };

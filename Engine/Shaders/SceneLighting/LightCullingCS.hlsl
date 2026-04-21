@@ -1,19 +1,11 @@
 #include "../LightCommon.hlsli"
 
-Texture2D<float> InputDepthTexture : register(t1);
 StructuredBuffer<FLightCullProxyGPU> InputLightCullProxies : register(t0);
+StructuredBuffer<FTileDepthBoundsGPU> InputTileDepthBounds : register(t1);
 RWStructuredBuffer<FLightClusterHeader> OutClusterLightHeaders : register(u0);
 RWStructuredBuffer<uint>                OutClusterLightIndices : register(u1);
 
 static const float kEpsilon = 1e-5f;
-static const float kDepthSkyThreshold = 0.999999f;
-
-float DeviceDepthToViewZ(float deviceDepth)
-{
-    float4 clipPos = float4(0.0f, 0.0f, deviceDepth, 1.0f);
-    float4 viewPos = mul(clipPos, ClusterInverseProjection);
-    return max(viewPos.x / max(viewPos.w, kEpsilon), NearZ);
-}
 
 void ComputeClusterSliceDepthRange(uint clusterZ, out float zNear, out float zFar)
 {
@@ -22,39 +14,6 @@ void ComputeClusterSliceDepthRange(uint clusterZ, out float zNear, out float zFa
 
     zNear = clamp(zNear, NearZ, FarZ);
     zFar  = clamp(zFar,  NearZ, FarZ);
-}
-
-bool ComputeTileDepthBounds(uint2 tileCoord, out float minViewZ, out float maxViewZ)
-{
-    uint2 tileMinPx = tileCoord * uint2(16, 16);
-    uint2 tileMaxPx = min(tileMinPx + uint2(16, 16), uint2((uint)ScreenParams.x, (uint)ScreenParams.y));
-
-    minViewZ = FarZ;
-    maxViewZ = NearZ;
-
-    bool hasGeometry = false;
-
-    [loop]
-    for (uint y = tileMinPx.y; y < tileMaxPx.y; ++y)
-    {
-        [loop]
-        for (uint x = tileMinPx.x; x < tileMaxPx.x; ++x)
-        {
-            float deviceDepth = InputDepthTexture.Load(int3(x, y, 0));
-
-            if (deviceDepth >= kDepthSkyThreshold)
-            {
-                continue;
-            }
-
-            float viewDepth = DeviceDepthToViewZ(deviceDepth);
-            minViewZ = min(minViewZ, viewDepth);
-            maxViewZ = max(maxViewZ, viewDepth);
-            hasGeometry = true;
-        }
-    }
-
-    return hasGeometry;
 }
 
 float2 ComputeTileNdcMin(uint2 tileCoord)
@@ -142,6 +101,31 @@ bool BuildDepthAwareClusterBoundingSphere(
     return true;
 }
 
+bool BuildClusterBoundingSphereWS(
+    uint3 clusterCoord,
+    float tileMinViewZ,
+    float tileMaxViewZ,
+    out float3 centerWS,
+    out float radius)
+{
+    float3 centerVS;
+    if (!BuildDepthAwareClusterBoundingSphere(
+        clusterCoord.xy,
+        clusterCoord.z,
+        tileMinViewZ,
+        tileMaxViewZ,
+        centerVS,
+        radius))
+    {
+        centerWS = 0.0f.xxx;
+        radius   = 0.0f;
+        return false;
+    }
+
+    centerWS = mul(float4(centerVS, 1.0f), ClusterInverseView).xyz;
+    return true;
+}
+
 bool IntersectsSphereBroadphase(float3 clusterCenterWS, float clusterRadius, FLightCullProxyGPU proxy)
 {
     float lightRadius = proxy.CullCenterRadius.w;
@@ -175,27 +159,11 @@ bool IntersectsConeNarrowphase(float3 clusterCenterWS, float clusterRadius, FLig
     return cosAngle >= (outerCos - angularSlack);
 }
 
-bool IntersectsDepthAwareCluster(
-    uint3 clusterCoord,
-    float tileMinViewZ,
-    float tileMaxViewZ,
+bool IntersectsPrecomputedCluster(
+    float3 clusterCenterWS,
+    float clusterRadius,
     FLightCullProxyGPU proxy)
 {
-    float3 clusterCenterVS;
-    float clusterRadius;
-    if (!BuildDepthAwareClusterBoundingSphere(
-        clusterCoord.xy,
-        clusterCoord.z,
-        tileMinViewZ,
-        tileMaxViewZ,
-        clusterCenterVS,
-        clusterRadius))
-    {
-        return false;
-    }
-
-    float3 clusterCenterWS = mul(float4(clusterCenterVS, 1.0f), ClusterInverseView).xyz;
-
     if (!IntersectsSphereBroadphase(clusterCenterWS, clusterRadius, proxy))
         return false;
 
@@ -210,7 +178,7 @@ bool IntersectsDepthAwareCluster(
     }
 }
 
-[numthreads(1, 1, 1)]
+[numthreads(8, 8, 1)]
 void main(uint3 DispatchThreadID : SV_DispatchThreadID)
 {
     uint clusterX = DispatchThreadID.x;
@@ -232,20 +200,27 @@ void main(uint3 DispatchThreadID : SV_DispatchThreadID)
 
     OutClusterLightHeaders[clusterIndex] = header;
 
-    float tileMinViewZ;
-    float tileMaxViewZ;
-    if (!ComputeTileDepthBounds(uint2(clusterX, clusterY), tileMinViewZ, tileMaxViewZ))
+    const uint tileIndex = clusterY * ClusterCountX + clusterX;
+    FTileDepthBoundsGPU tileDepthBounds = InputTileDepthBounds[tileIndex];
+
+    if (tileDepthBounds.HasGeometry == 0u)
     {
         return;
     }
 
-    uint tileMinSlice = ComputeZSlice(tileMinViewZ);
-    uint tileMaxSlice = ComputeZSlice(tileMaxViewZ);
+    if (clusterZ < tileDepthBounds.TileMinSlice || clusterZ > tileDepthBounds.TileMaxSlice)
+    {
+        return;
+    }
 
-    tileMinSlice = (tileMinSlice > 0u) ? (tileMinSlice - 1u) : 0u;
-    tileMaxSlice = min(tileMaxSlice + 1u, ClusterCountZ - 1u);
-
-    if (clusterZ < tileMinSlice || clusterZ > tileMaxSlice)
+    float3 clusterCenterWS;
+    float clusterRadius;
+    if (!BuildClusterBoundingSphereWS(
+        uint3(clusterX, clusterY, clusterZ),
+        tileDepthBounds.MinViewZ,
+        tileDepthBounds.MaxViewZ,
+        clusterCenterWS,
+        clusterRadius))
     {
         return;
     }
@@ -258,7 +233,7 @@ void main(uint3 DispatchThreadID : SV_DispatchThreadID)
     {
         FLightCullProxyGPU proxy = InputLightCullProxies[lightIndex];
 
-        if (IntersectsDepthAwareCluster(uint3(clusterX, clusterY, clusterZ), tileMinViewZ, tileMaxViewZ, proxy))
+        if (IntersectsPrecomputedCluster(clusterCenterWS, clusterRadius, proxy))
         {
             if (writeCount < RuntimeMaxLightsPerCluster)
             {

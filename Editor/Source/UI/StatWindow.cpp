@@ -570,11 +570,21 @@ void FStatWindow::RenderLightStats(FRenderer* Renderer)
 	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.MaxLightsPerCluster);
 	AddStatLine(Lines, "Max Lights Per Cluster", Buffer);
 
+	AddStatHeader(Lines, "[GPU Time]");
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.TileDepthBoundsPassTimeMs);
+	AddStatLine(Lines, "Tile Depth Bounds Pass", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.LightCullingPassTimeMs);
+	AddStatLine(Lines, "Light Culling Pass", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f ms", Stats.TotalCullingTimeMs);
+	AddStatLine(Lines, "Total Culling GPU Time", Buffer);
+
 	AddStatHeader(Lines, "[GPU Buffers]");
 	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.LocalLightBufferBytes / 1024.0);
 	AddStatLine(Lines, "Local Light Buffer", Buffer);
 	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.CullProxyBufferBytes / 1024.0);
 	AddStatLine(Lines, "Cull Proxy Buffer", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.TileDepthBoundsBufferBytes / 1024.0);
+	AddStatLine(Lines, "Tile Depth Bounds Buffer", Buffer);
 	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.ClusterHeaderBufferBytes / 1024.0);
 	AddStatLine(Lines, "Cluster Header Buffer", Buffer);
 	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.ClusterIndexBufferBytes / 1024.0);

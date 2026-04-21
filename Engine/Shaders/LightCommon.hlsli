@@ -14,7 +14,7 @@
 #define CULL_SHAPE_CUSTOM 4
 
 #define MAX_LOCAL_LIGHTS 1024
-#define MAX_LIGHTS_PER_CLUSTER 256
+#define MAX_LIGHTS_PER_CLUSTER 1024
 #define LIGHT_VISUALIZATION_NONE 0
 #define LIGHT_VISUALIZATION_CLUSTER_HEATMAP 1
 
@@ -82,6 +82,18 @@ struct FLightClusterHeader
 	uint Pad1;
 };
 
+struct FTileDepthBoundsGPU
+{
+	float MinViewZ;
+	float MaxViewZ;
+	uint TileMinSlice;
+	uint TileMaxSlice;
+	uint HasGeometry;
+	uint Pad0;
+	uint Pad1;
+	uint Pad2;
+};
+
 cbuffer LightClusterGlobals : register(b8)
 {
 	float4x4 ClusterView;
@@ -120,12 +132,12 @@ float CalculateAttenuation(float distance, float range)
 	float distanceSq = d * d;
 	float invRangeSq = 1.0f / (safeRange * safeRange);
 
-	// UE 스타일 radius window: (1 - (d/r)^4)^2
+	// UE ?????radius window: (1 - (d/r)^4)^2
 	float x = distanceSq * invRangeSq; // (d/r)^2
 	float rangeMask = saturate(1.0f - x * x);
 	rangeMask *= rangeMask;
 
-	// 근거리 과노출 방지
+	// 域뱀눊援끿뵳??⑥눖?귞빊?獄쎻뫗?
 	const float MinDistanceSq = 0.25f;
 	float inverseSquare = 1.0f / max(distanceSq, MinDistanceSq);
 
@@ -239,6 +251,55 @@ float4 ComputeLocalLight(FLocalLightGPU light, float3 worldPos, float3 N, float3
 	}
 }
 
+void ComputeLocalLightContributions(
+	FLocalLightGPU light,
+	float3 worldPos,
+	float3 N,
+	float3 V,
+	out float3 totalLighting,
+	out float3 diffuseLighting)
+{
+	totalLighting = 0.0f.xxx;
+	diffuseLighting = 0.0f.xxx;
+
+	float3 toLight = light.PositionRange.xyz - worldPos;
+	float distance = length(toLight);
+	if (distance > light.PositionRange.w)
+	{
+		return;
+	}
+
+	float3 L = toLight / max(distance, 1.0e-5f);
+	float attenuation = CalculateAttenuation(distance, light.PositionRange.w);
+	float intensity = 1.0f;
+
+	const uint lightClass = (uint)light.DirectionType.w;
+	if (lightClass == LIGHT_CLASS_SPOT)
+	{
+		float theta = dot(L, normalize(-light.DirectionType.xyz));
+		float innerCutoff = light.AngleParams.x;
+		float outerCutoff = light.AngleParams.y;
+		intensity = saturate((theta - outerCutoff) / max(innerCutoff - outerCutoff, 1.0e-5f));
+		if (intensity <= 0.0f)
+		{
+			return;
+		}
+	}
+	else if (lightClass != LIGHT_CLASS_POINT)
+	{
+		return;
+	}
+
+	float diff = max(dot(N, L), 0.0f);
+	diffuseLighting = light.ColorIntensity.xyz * light.ColorIntensity.w * diff * attenuation * intensity;
+
+	float3 H = normalize(L + V);
+	float spec = pow(max(dot(N, H), 0.0f), 32.0f);
+	float3 specularLighting = light.ColorIntensity.xyz * light.ColorIntensity.w * spec * attenuation * intensity;
+
+	totalLighting = diffuseLighting + specularLighting;
+}
+
 uint ComputeZSlice(float viewZ)
 {
 	float z = max(viewZ, NearZ);
@@ -317,6 +378,33 @@ float4 ComputeObjectLocalLightingLambert(uint localLightListOffset, uint localLi
 	return lighting;
 }
 
+void ComputeObjectLocalLightingContributions(
+	uint localLightListOffset,
+	uint localLightListCount,
+	float3 worldPos,
+	float3 N,
+	float3 V,
+	out float3 totalLighting,
+	out float3 diffuseLighting)
+{
+	totalLighting = 0.0f.xxx;
+	diffuseLighting = 0.0f.xxx;
+
+	[loop]
+	for (uint i = 0; i < localLightListCount; ++i)
+	{
+		uint lightIndex = ObjectLightIndices[localLightListOffset + i];
+		if (lightIndex < LocalLightCount)
+		{
+			float3 lightTotal;
+			float3 lightDiffuse;
+			ComputeLocalLightContributions(LocalLights[lightIndex], worldPos, N, V, lightTotal, lightDiffuse);
+			totalLighting += lightTotal;
+			diffuseLighting += lightDiffuse;
+		}
+	}
+}
+
 FLightClusterHeader GetClusterLightHeader(float4 svPosition, float3 worldPos)
 {
 	uint clusterIndex = ComputeClusterIndex(svPosition, worldPos);
@@ -342,6 +430,39 @@ float4 ComputeClusteredLocalLighting(float4 svPosition, float3 worldPos, float3 
 	}
 
 	return lighting;
+}
+
+void ComputeClusteredLocalLightingContributions(
+	float4 svPosition,
+	float3 worldPos,
+	float3 N,
+	float3 V,
+	out float3 totalLighting,
+	out float3 diffuseLighting)
+{
+	totalLighting = 0.0f.xxx;
+	diffuseLighting = 0.0f.xxx;
+
+	if (LightingEnabled == 0 || LocalLightCount == 0)
+	{
+		return;
+	}
+
+	FLightClusterHeader header = GetClusterLightHeader(svPosition, worldPos);
+
+	[loop]
+	for (uint i = 0; i < header.Count; ++i)
+	{
+		uint lightIndex = ClusterLightIndices[header.Offset + i];
+		if (lightIndex < LocalLightCount)
+		{
+			float3 lightTotal;
+			float3 lightDiffuse;
+			ComputeLocalLightContributions(LocalLights[lightIndex], worldPos, N, V, lightTotal, lightDiffuse);
+			totalLighting += lightTotal;
+			diffuseLighting += lightDiffuse;
+		}
+	}
 }
 
 float4 ComputeClusteredLocalLightingLambert(float4 svPosition, float3 worldPos, float3 N)

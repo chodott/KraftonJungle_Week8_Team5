@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 
@@ -12,7 +12,7 @@ namespace LightCullingConfig
 namespace LightListConfig
 {
 	static constexpr uint32 MaxLocalLights          = 1024;
-	static constexpr uint32 MaxLightsPerCluster     = 256;
+	static constexpr uint32 MaxLightsPerCluster     = 1024;
 	static constexpr uint32 HeatmapVisualizationMax = 16;
 }
 
@@ -110,6 +110,18 @@ struct FLightClusterHeaderGPU
 	uint32 Pad1   = 0;
 };
 
+struct FTileDepthBoundsGPU
+{
+	float  MinViewZ     = 0.0f;
+	float  MaxViewZ     = 0.0f;
+	uint32 TileMinSlice = 0;
+	uint32 TileMaxSlice = 0;
+	uint32 HasGeometry  = 0;
+	uint32 Pad0         = 0;
+	uint32 Pad1         = 0;
+	uint32 Pad2         = 0;
+};
+
 struct FLightClusterGlobalCB
 {
 	FMatrix View              = FMatrix::Identity;
@@ -125,10 +137,10 @@ struct FLightClusterGlobalCB
 	uint32 ClusterCountZ   = 0;
 	uint32 LocalLightCount = 0;
 
-	uint32 DirectionalLightCount     = 0;
-	uint32 MaxLightsPerCluster     = LightListConfig::MaxLightsPerCluster;
-	uint32 LightingEnabled         = 1;
-	uint32 VisualizationMode       = 0;
+	uint32 DirectionalLightCount = 0;
+	uint32 MaxLightsPerCluster   = LightListConfig::MaxLightsPerCluster;
+	uint32 LightingEnabled       = 1;
+	uint32 VisualizationMode     = 0;
 
 	float NearZ     = 0.1f;
 	float FarZ      = 1000.0f;

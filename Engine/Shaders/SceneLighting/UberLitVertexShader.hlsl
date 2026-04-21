@@ -34,7 +34,7 @@ VS_OUTPUT main(VS_INPUT Input)
 	
 	Output.Normal = normalize(mul(Input.Normal, (float3x3) WorldInvTranspose));
 	
-	// ── Normal Map 여부에 따라 Tangent 계산 ── 
+	// ?? Normal Map ?щ????곕씪 Tangent 怨꾩궛 ?? 
 	Output.Tangent = normalize(mul(Input.Tangent.xyz, (float3x3)World));
 	Output.Tangent = normalize(Output.Tangent - dot(Output.Tangent, Output.Normal) * Output.Normal);
 	Output.Bitangent = cross(Output.Normal, Output.Tangent) * Input.Tangent.w;
@@ -42,7 +42,7 @@ VS_OUTPUT main(VS_INPUT Input)
 	Output.VertexLighting = float4(1, 1, 1, 1);
 	Output.VertexSpecular = 0.0f.xxx;
 	
-	// ── Gouraud: VS에서 Blinn-Phong으로 모든 광원 계산 ──
+	// ?? Gouraud: VS?먯꽌 Blinn-Phong?쇰줈 紐⑤뱺 愿묒썝 怨꾩궛 ??
 #if LIGHTING_MODEL_GOURAUD
 #if VERTEX_NORMAL_MAP
 	float3 N = GetVertexNormalFromMap(Output.Normal, Output.Tangent, Output.Bitangent, Output.UV);
@@ -53,6 +53,8 @@ VS_OUTPUT main(VS_INPUT Input)
 
 	float3 totalLighting = float3(0, 0, 0);
 	float3 diffuseLighting = float3(0, 0, 0);
+	float3 localTotalLighting = float3(0, 0, 0);
+	float3 localDiffuseLighting = float3(0, 0, 0);
 	
 	if (AmbientEnabled != 0)
 	{
@@ -70,8 +72,16 @@ VS_OUTPUT main(VS_INPUT Input)
 		totalLighting += CalculateDirectionalLight(Directional, Output.WorldPosition, N, V).rgb;
 	}
 	
-	totalLighting += ComputeObjectLocalLighting(LocalLightListOffset, LocalLightListCount, Output.WorldPosition, N, V).rgb;
-	diffuseLighting += ComputeObjectLocalLightingLambert(LocalLightListOffset, LocalLightListCount, Output.WorldPosition, N).rgb;
+	ComputeObjectLocalLightingContributions(
+		LocalLightListOffset,
+		LocalLightListCount,
+		Output.WorldPosition,
+		N,
+		V,
+		localTotalLighting,
+		localDiffuseLighting);
+	totalLighting += localTotalLighting;
+	diffuseLighting += localDiffuseLighting;
 
 	float3 specularLighting = max(totalLighting - diffuseLighting, 0.0f.xxx);
 	Output.VertexLighting = float4(diffuseLighting, 1.0f);
