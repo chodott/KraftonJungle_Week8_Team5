@@ -26,6 +26,7 @@
 #include "Component/MovementComponent.h"
 #include "Component/RotatingMovementComponent.h"
 #include "Component/ProjectileMovementComponent.h"
+#include "Component/SpringArmComponent.h"
 #include "Level/Level.h"
 #include "Object/Class.h"
 #include "Object/ObjectFactory.h"
@@ -62,6 +63,7 @@ namespace
 		{ "Move Component", "MoveComponent", &UMoveComponent::StaticClass},
 		{ "Rotating Movement Component", "RotatingMovementComponent", &URotatingMovementComponent::StaticClass },
 		{ "Projectile Movement Component", "ProjectileMovementComponent", &UProjectileMovementComponent::StaticClass },
+		{ "Spring Arm Component", "SpringArmComponent", &USpringArmComponent::StaticClass },
 		{ "FireBall Component", "FireBallComponent", &UFireBallComponent::StaticClass},
 		{ "Decal Component", "DecalComponent", &UDecalComponent::StaticClass },
 		{ "Mesh Decal Component", "MeshDecalComponent", &UMeshDecalComponent::StaticClass },
@@ -696,7 +698,7 @@ void FPropertyWindow::DrawRotatingMovementComponentDetails(URotatingMovementComp
 	}
 }
 
-void FPropertyWindow::DrawProjectileMovementComponentDetails(UProjectileMovementComponent* ProjectileMovementComponent, FEditorEngine* Engine) 
+void FPropertyWindow::DrawProjectileMovementComponentDetails(UProjectileMovementComponent* ProjectileMovementComponent, FEditorEngine* Engine)
 {
 	if (!ProjectileMovementComponent)
 	{
@@ -760,6 +762,31 @@ void FPropertyWindow::DrawProjectileMovementComponentDetails(UProjectileMovement
 		{
 			ImGui::TextDisabled("Manual start is available while PIE is running.");
 		}
+	}
+}
+
+void FPropertyWindow::DrawSpringArmComponentDetails(USpringArmComponent* SpringArmComponent)
+{
+	if (!SpringArmComponent)
+	{
+		return;
+	}
+
+	ImGui::Spacing();
+	ImGui::TextDisabled("Spring Arm");
+
+	float TargetArmLength = SpringArmComponent->GetTargetArmLength();
+	if (ImGui::DragFloat("Target Arm Length", &TargetArmLength, 1.0f, 0.0f, 10000.0f, "%.2f"))
+	{
+		SpringArmComponent->SetTargetArmLength(TargetArmLength);
+	}
+
+	FVector SocketOffset = SpringArmComponent->GetSocketOffset();
+	ImGui::Text("Socket Offset");
+	ImGui::NextColumn();
+	if (DrawVector3Control("Socket Offset", SocketOffset, SocketOffset, 0.1f, "%.2f"))
+	{
+		SpringArmComponent->SetSocketOffset(SocketOffset);
 	}
 }
 
@@ -1472,6 +1499,11 @@ void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngi
 	if (Component->IsA(UProjectileMovementComponent::StaticClass()))
 	{
 		DrawProjectileMovementComponentDetails(static_cast<UProjectileMovementComponent*>(Component), Engine);
+	}
+
+	if (Component->IsA(USpringArmComponent::StaticClass()))
+	{
+		DrawSpringArmComponentDetails(static_cast<USpringArmComponent*>(Component));
 	}
 
 	if (Component->IsA(UStaticMeshComponent::StaticClass()))

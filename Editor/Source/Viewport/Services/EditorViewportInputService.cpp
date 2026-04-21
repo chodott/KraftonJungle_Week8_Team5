@@ -16,6 +16,9 @@
 #include "Viewport/Viewport.h"
 #include "World/World.h"
 #include "World/WorldContext.h"
+#include "Component/CameraComponent.h"
+#include "Component/SpringArmComponent.h"
+#include <algorithm>
 
 namespace
 {
@@ -97,14 +100,78 @@ void FEditorViewportInputService::TickCameraNavigation(
 
 	if (IsPIEViewportEntry(FocusedEntry))
 	{
-		if (EditorEngine->IsPIEPaused() || !EditorEngine->IsPIEInputCaptured() || FocusedEntry->Viewport == nullptr)
+		if (EditorEngine->IsPIEPaused() || FocusedEntry->Viewport == nullptr)
 		{
+			return;
+		}
+
+		if (!EditorEngine->IsPIEInputCaptured())
+		{
+			if (!Input->IsMouseButtonDown(FInputManager::MOUSE_RIGHT) || Gizmo.IsDragging())
+			{
+				return;
+			}
+
+			float Sensitivity = 0.2f;
+			float Speed = 5.0f;
+			if (ULevel* Scene = GetViewportScene(FocusedEntry))
+			{
+				if (FCamera* Cam = Scene->GetCamera())
+				{
+					Sensitivity = Cam->GetMouseSensitivity();
+					Speed = Cam->GetSpeed();
+				}
+			}
+
+			const float DeltaX = Input->GetMouseDeltaX();
+			const float DeltaY = Input->GetMouseDeltaY();
+			FocusedEntry->LocalState.Rotation.Yaw += DeltaX * Sensitivity;
+			FocusedEntry->LocalState.Rotation.Pitch -= DeltaY * Sensitivity;
+			FocusedEntry->LocalState.Rotation.Pitch = std::clamp(FocusedEntry->LocalState.Rotation.Pitch, -89.0f, 89.0f);
+
+			const FVector Forward = FocusedEntry->LocalState.Rotation.Vector().GetSafeNormal();
+			const FVector Right = FVector::CrossProduct(FVector(0.0f, 0.0f, 1.0f), Forward).GetSafeNormal();
+			FVector MoveDelta = FVector::ZeroVector;
+			if (Input->IsKeyDown('W')) MoveDelta += Forward;
+			if (Input->IsKeyDown('S')) MoveDelta -= Forward;
+			if (Input->IsKeyDown('D')) MoveDelta += Right;
+			if (Input->IsKeyDown('A')) MoveDelta -= Right;
+			if (Input->IsKeyDown('E')) MoveDelta += FVector(0.0f, 0.0f, 1.0f);
+			if (Input->IsKeyDown('Q')) MoveDelta -= FVector(0.0f, 0.0f, 1.0f);
+			if (!MoveDelta.IsNearlyZero())
+			{
+				FocusedEntry->LocalState.Position += MoveDelta.GetSafeNormal() * (Speed * EditorEngine->GetDeltaTime());
+			}
+
 			return;
 		}
 
 		float Sensitivity = 0.2f;
 		float Speed = 5.0f;
-		if (ULevel* Scene = GetViewportScene(FocusedEntry))
+		FCamera* ActiveCamera = nullptr;
+		UCameraComponent* ActiveCameraComponent = nullptr;
+		AActor* ActiveCameraOwner = nullptr;
+		USpringArmComponent* OwnerSpringArm = nullptr;
+		if (UWorld* PIEWorld = GetViewportWorld(FocusedEntry))
+		{
+			ActiveCameraComponent = PIEWorld->GetActiveCameraComponent();
+			if (ActiveCameraComponent)
+			{
+				ActiveCamera = ActiveCameraComponent->GetCamera();
+				ActiveCameraOwner = ActiveCameraComponent->GetOwner();
+				if (ActiveCameraOwner)
+				{
+					OwnerSpringArm = ActiveCameraOwner->GetComponentByClass<USpringArmComponent>();
+				}
+			}
+		}
+
+		if (ActiveCamera)
+		{
+			Sensitivity = ActiveCamera->GetMouseSensitivity();
+			Speed = ActiveCamera->GetSpeed();
+		}
+		else if (ULevel* Scene = GetViewportScene(FocusedEntry))
 		{
 			if (FCamera* Cam = Scene->GetCamera())
 			{
@@ -146,30 +213,104 @@ void FEditorViewportInputService::TickCameraNavigation(
 
 		const float DeltaX = static_cast<float>(CursorPos.x - Center.x);
 		const float DeltaY = static_cast<float>(CursorPos.y - Center.y);
+		const bool bUsePawnDrivenMotion =
+			ActiveCamera &&
+			ActiveCameraOwner &&
+			ActiveCameraOwner->GetName() == "PIE_DefaultPawn";
+		float CameraYaw = ActiveCamera ? ActiveCamera->GetYaw() : FocusedEntry->LocalState.Rotation.Yaw;
+		float CameraPitch = ActiveCamera ? ActiveCamera->GetPitch() : FocusedEntry->LocalState.Rotation.Pitch;
 
-		FocusedEntry->LocalState.Rotation.Yaw += DeltaX * Sensitivity;
-		FocusedEntry->LocalState.Rotation.Pitch -= DeltaY * Sensitivity;
-		if (FocusedEntry->LocalState.Rotation.Pitch > 89.0f)
+		if (bUsePawnDrivenMotion)
 		{
-			FocusedEntry->LocalState.Rotation.Pitch = 89.0f;
+			FTransform PawnTransform = ActiveCameraOwner->GetActorTransform();
+			FRotator PawnRotation = PawnTransform.Rotator();
+			CameraYaw = PawnRotation.Yaw + DeltaX * Sensitivity;
+			CameraPitch = std::clamp(ActiveCamera->GetPitch() - DeltaY * Sensitivity, -89.0f, 89.0f);
+
+			PawnRotation.Yaw = CameraYaw;
+			PawnRotation.Pitch = 0.0f;
+			PawnRotation.Roll = 0.0f;
+			PawnTransform.SetRotation(PawnRotation);
+			ActiveCameraOwner->SetActorTransform(PawnTransform);
+			ActiveCamera->SetRotation(CameraYaw, CameraPitch);
 		}
-		if (FocusedEntry->LocalState.Rotation.Pitch < -89.0f)
+		else if (ActiveCamera)
 		{
-			FocusedEntry->LocalState.Rotation.Pitch = -89.0f;
+			ActiveCamera->Rotate(DeltaX * Sensitivity, -DeltaY * Sensitivity);
+			CameraYaw = ActiveCamera->GetYaw();
+			CameraPitch = ActiveCamera->GetPitch();
+		}
+		else
+		{
+			CameraYaw += DeltaX * Sensitivity;
+			CameraPitch = std::clamp(CameraPitch - DeltaY * Sensitivity, -89.0f, 89.0f);
+			FocusedEntry->LocalState.Rotation.Yaw = CameraYaw;
+			FocusedEntry->LocalState.Rotation.Pitch = CameraPitch;
 		}
 
-		const FVector Forward = FocusedEntry->LocalState.Rotation.Vector().GetSafeNormal();
-		const FVector Right = FVector::CrossProduct(FVector(0.0f, 0.0f, 1.0f), Forward).GetSafeNormal();
-		FVector MoveDelta = FVector::ZeroVector;
-		if (Input->IsKeyDown('W')) MoveDelta += Forward;
-		if (Input->IsKeyDown('S')) MoveDelta -= Forward;
-		if (Input->IsKeyDown('D')) MoveDelta += Right;
-		if (Input->IsKeyDown('A')) MoveDelta -= Right;
-		if (Input->IsKeyDown('E')) MoveDelta += FVector(0.0f, 0.0f, 1.0f);
-		if (Input->IsKeyDown('Q')) MoveDelta -= FVector(0.0f, 0.0f, 1.0f);
-		if (!MoveDelta.IsNearlyZero())
+		const float DeltaTime = EditorEngine->GetDeltaTime();
+		if (bUsePawnDrivenMotion)
 		{
-			FocusedEntry->LocalState.Position += MoveDelta.GetSafeNormal() * (Speed * EditorEngine->GetDeltaTime());
+			const FRotator PawnRotation = ActiveCameraOwner->GetActorTransform().Rotator();
+			const FVector MoveForward = FRotator(0.0f, PawnRotation.Yaw, 0.0f).Vector().GetSafeNormal();
+			const FVector MoveRight = FVector::CrossProduct(FVector(0.0f, 0.0f, 1.0f), MoveForward).GetSafeNormal();
+			FVector MoveDelta = FVector::ZeroVector;
+			if (Input->IsKeyDown('W')) MoveDelta += MoveForward;
+			if (Input->IsKeyDown('S')) MoveDelta -= MoveForward;
+			if (Input->IsKeyDown('D')) MoveDelta += MoveRight;
+			if (Input->IsKeyDown('A')) MoveDelta -= MoveRight;
+			if (Input->IsKeyDown('E')) MoveDelta += FVector(0.0f, 0.0f, 1.0f);
+			if (Input->IsKeyDown('Q')) MoveDelta -= FVector(0.0f, 0.0f, 1.0f);
+			if (!MoveDelta.IsNearlyZero())
+			{
+				const FVector NewLocation = ActiveCameraOwner->GetActorLocation() + MoveDelta.GetSafeNormal() * (Speed * DeltaTime);
+				ActiveCameraOwner->SetActorLocation(NewLocation);
+			}
+
+			if (OwnerSpringArm)
+			{
+				const FVector PawnPivot = ActiveCameraOwner->GetActorLocation();
+				const float ArmLength = OwnerSpringArm->GetTargetArmLength();
+				const FVector Forward = FRotator(CameraPitch, CameraYaw, 0.0f).Vector().GetSafeNormal();
+				ActiveCamera->SetPosition(PawnPivot - Forward * ArmLength);
+			}
+			else if (ActiveCameraComponent)
+			{
+				ActiveCamera->SetPosition(ActiveCameraComponent->GetWorldLocation());
+			}
+			ActiveCamera->SetRotation(CameraYaw, CameraPitch);
+
+			FocusedEntry->LocalState.Position = ActiveCamera->GetPosition();
+			FocusedEntry->LocalState.Rotation = FRotator(ActiveCamera->GetPitch(), ActiveCamera->GetYaw(), 0.0f);
+		}
+		else if (ActiveCamera)
+		{
+			ActiveCamera->SetSpeed(Speed);
+			if (Input->IsKeyDown('W')) ActiveCamera->MoveForward(DeltaTime);
+			if (Input->IsKeyDown('S')) ActiveCamera->MoveForward(-DeltaTime);
+			if (Input->IsKeyDown('D')) ActiveCamera->MoveRight(DeltaTime);
+			if (Input->IsKeyDown('A')) ActiveCamera->MoveRight(-DeltaTime);
+			if (Input->IsKeyDown('E')) ActiveCamera->MoveUp(DeltaTime);
+			if (Input->IsKeyDown('Q')) ActiveCamera->MoveUp(-DeltaTime);
+
+			FocusedEntry->LocalState.Position = ActiveCamera->GetPosition();
+			FocusedEntry->LocalState.Rotation = FRotator(ActiveCamera->GetPitch(), ActiveCamera->GetYaw(), 0.0f);
+		}
+		else
+		{
+			const FVector Forward = FocusedEntry->LocalState.Rotation.Vector().GetSafeNormal();
+			const FVector Right = FVector::CrossProduct(FVector(0.0f, 0.0f, 1.0f), Forward).GetSafeNormal();
+			FVector MoveDelta = FVector::ZeroVector;
+			if (Input->IsKeyDown('W')) MoveDelta += Forward;
+			if (Input->IsKeyDown('S')) MoveDelta -= Forward;
+			if (Input->IsKeyDown('D')) MoveDelta += Right;
+			if (Input->IsKeyDown('A')) MoveDelta -= Right;
+			if (Input->IsKeyDown('E')) MoveDelta += FVector(0.0f, 0.0f, 1.0f);
+			if (Input->IsKeyDown('Q')) MoveDelta -= FVector(0.0f, 0.0f, 1.0f);
+			if (!MoveDelta.IsNearlyZero())
+			{
+				FocusedEntry->LocalState.Position += MoveDelta.GetSafeNormal() * (Speed * DeltaTime);
+			}
 		}
 
 		::SetCursorPos(Center.x, Center.y);
@@ -367,6 +508,12 @@ void FEditorViewportInputService::HandleMessage(
 
 		if (Entry && IsPIEViewportEntry(Entry))
 		{
+			if (WParam == VK_F8)
+			{
+				EditorEngine->TogglePIEPossession();
+				return;
+			}
+
 			const bool bShiftDown = (::GetKeyState(VK_SHIFT) & 0x8000) != 0;
 			if (WParam == VK_F1 && bShiftDown && EditorEngine->IsPIEInputCaptured())
 			{
@@ -428,24 +575,9 @@ void FEditorViewportInputService::HandleMessage(
 	case WM_LBUTTONDOWN:
 	{
 		FViewport* ClickedViewport = ViewportRegistry.GetViewportById(Slate->GetFocusedViewportId());
-		if (Entry && IsPIEViewportEntry(Entry) && ClickedViewport)
-		{
-			const FRect& ClickedRect = ClickedViewport->GetRect();
-			const bool bHoveringPIEViewport = (Slate->GetHoveredViewportId() == Slate->GetFocusedViewportId());
-			const bool bClickedPIEViewportScene =
-				bHoveringPIEViewport &&
-				ClickedRect.IsValid() &&
-				(ClickedRect.X < MouseX && MouseX < ClickedRect.X + ClickedRect.Width) &&
-				(ClickedRect.Y < MouseY && MouseY < ClickedRect.Y + ClickedRect.Height);
-			if (bClickedPIEViewportScene)
-			{
-				EditorEngine->CapturePIEInput();
-				return;
-			}
-		}
-
 		FViewport* Viewport = ClickedViewport;
-		if (!Viewport || !Entry || !IsEditorViewportEntry(Entry))
+		const bool bEditablePIEViewport = Entry && IsPIEViewportEntry(Entry) && !EditorEngine->IsPIEInputCaptured();
+		if (!Viewport || !Entry || (!IsEditorViewportEntry(Entry) && !bEditablePIEViewport))
 		{
 			return;
 		}
@@ -486,7 +618,11 @@ void FEditorViewportInputService::HandleMessage(
 		}
 
 		FViewportEntry* HoveredEntry = ViewportRegistry.FindEntryByViewportID(Slate->GetHoveredViewportId());
-		if (!IsEditorViewportEntry(HoveredEntry))
+		const bool bEditablePIEViewport =
+			HoveredEntry &&
+			IsPIEViewportEntry(HoveredEntry) &&
+			!EditorEngine->IsPIEInputCaptured();
+		if (!IsEditorViewportEntry(HoveredEntry) && !bEditablePIEViewport)
 		{
 			if (Gizmo.IsDragging())
 			{
@@ -522,7 +658,8 @@ void FEditorViewportInputService::HandleMessage(
 
 	case WM_LBUTTONUP:
 	{
-		if (!Entry || !IsEditorViewportEntry(Entry))
+		const bool bEditablePIEViewport = Entry && IsPIEViewportEntry(Entry) && !EditorEngine->IsPIEInputCaptured();
+		if (!Entry || (!IsEditorViewportEntry(Entry) && !bEditablePIEViewport))
 		{
 			Gizmo.EndDrag();
 			Gizmo.ClearHover();

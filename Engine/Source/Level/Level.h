@@ -8,10 +8,19 @@
 #include "Level/BVH.h"
 
 class AActor;
+class UBillboardComponent;
 class FCamera;
 class FFrustum;
 class UCameraComponent;
 class UPrimitiveComponent;
+
+struct FLevelGameplaySettings
+{
+	FString DefaultPawnMeshAsset = "cube-tex.obj";
+	bool bAutoSpawnPlayerStart = true;
+	float DefaultPawnSpringArmLength = 4.0f;
+	FVector DefaultPawnSpringArmSocketOffset = FVector(0.0f, 0.0f, 1.5f);
+};
 
 // 씬 -> 레벨로 이름 변경.
 class ENGINE_API ULevel : public UObject
@@ -57,6 +66,18 @@ public:
 
 	/** 모든 액터를 파괴하고 씬을 빈 상태로 되돌린다. */
 	void ClearActors();
+	/** 레벨 게임플레이 설정을 반환한다. */
+	const FLevelGameplaySettings& GetGameplaySettings() const;
+	/** 레벨 게임플레이 설정을 갱신한다. */
+	void SetGameplaySettings(const FLevelGameplaySettings& InSettings);
+	/** PlayerStart로 인식되는 액터를 반환한다. */
+	AActor* FindPlayerStartActor() const;
+	/** PlayerStart로 인식되는 액터 수를 반환한다. */
+	int32 GetPlayerStartActorCount() const;
+	/** PlayerStart가 없으면 생성하고, 여러 개면 하나만 남긴다. */
+	AActor* EnsurePlayerStartActor();
+	/** Directional/Ambient/PlayerStart 기본 액터 존재를 보장한다. */
+	void EnsureEssentialActors();
 
 	void MarkSpatialDirty();
 	void QueryPrimitivesByFrustum(const FFrustum& Frustum, TArray<UPrimitiveComponent*>& OutPrimitives) const;
@@ -80,6 +101,7 @@ private:
 	void RebuildSpatialIfNeeded() const;
 
 	TArray<AActor*> Actors;
+	FLevelGameplaySettings GameplaySettings;
 	mutable BVH SpatialBVH;
 	mutable BVH DebugSpatialBVH;
 	mutable bool bSpatialDirty = true;
