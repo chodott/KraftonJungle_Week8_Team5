@@ -976,20 +976,10 @@ namespace
 
 	bool TryLoadNormalTextureIntoMaterial(const std::shared_ptr<FMaterial>& Material, const std::filesystem::path& TexturePath, const char* LogPrefix)
 	{
-		if (!Material || TexturePath.empty())
+		if (!LoadNormalTextureFromFile(Material, TexturePath))
 		{
 			return false;
 		}
-
-		ID3D11ShaderResourceView* NewSRV = nullptr;
-		if (!GEngine->GetRenderer()->CreateTextureFromSTB(GEngine->GetRenderer()->GetDevice(), TexturePath, &NewSRV))
-		{
-			return false;
-		}
-
-		auto NormalTexture = std::make_shared<FMaterialTexture>();
-		NormalTexture->TextureSRV = NewSRV;
-		Material->SetNormalTexture(NormalTexture);
 		UE_LOG("%s %s", LogPrefix, WideToUtf8(TexturePath.wstring()).c_str());
 		return true;
 	}

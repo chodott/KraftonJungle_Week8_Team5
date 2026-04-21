@@ -1,7 +1,10 @@
 #include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Resources/Shader/Shader.h"
+#include "Renderer/Renderer.h"
+#include "Core/Engine.h"
+#include "Debug/EngineLog.h"
 #include <cstdint>
-#include <cstring>
+#include <cstring>		
 
 
 FMaterialTexture::~FMaterialTexture()
@@ -379,4 +382,34 @@ void FMaterial::Release()
 		CB.Release();
 	}
 	ConstantBuffers.clear();
+}
+
+bool LoadNormalTextureFromFile(const std::shared_ptr<FMaterial>& Material, const std::filesystem::path& TexturePath)
+{
+	if (!Material || TexturePath.empty())
+	{
+		return false;
+	}
+
+	ID3D11ShaderResourceView* NewSRV = nullptr;
+	if (!GEngine->GetRenderer()->CreateTextureFromSTB(GEngine->GetRenderer()->GetDevice(), TexturePath, &NewSRV))
+	{
+		return false;
+	}
+
+	auto NormalTexture = std::make_shared<FMaterialTexture>();
+	NormalTexture->TextureSRV = NewSRV;
+	NormalTexture->SourcePath = TexturePath.string();
+	Material->SetNormalTexture(NormalTexture);
+	UE_LOG("[Material] Loaded normal map: %s", TexturePath.string().c_str());
+	return true;
+}
+
+void ClearNormalTexture(const std::shared_ptr<FMaterial>& Material)
+{
+	if (!Material)
+	{
+		return;
+	}
+	Material->SetNormalTexture(nullptr);
 }

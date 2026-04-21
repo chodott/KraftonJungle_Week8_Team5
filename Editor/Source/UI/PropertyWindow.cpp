@@ -136,6 +136,68 @@ namespace
 		return Ext == L".png" || Ext == L".dds" || Ext == L".jpg" ||
 			Ext == L".jpeg" || Ext == L".tga" || Ext == L".bmp";
 	}
+	
+	// FPaths::TextureDir()를 스캔해서 사용 가능한 텍스처 파일 목록을 반환.
+	// 콤보 오픈 시에만 호출되므로 매번 디스크 스캔해도 비용이 작음 — 런타임에 추가된 파일도 즉시 반영.
+	TArray<std::filesystem::path> GetAvailableTexturePaths()
+	{
+		TArray<std::filesystem::path> Paths;
+
+		std::error_code ErrorCode;
+		const std::filesystem::path TextureDir = FPaths::TextureDir();
+		if (!std::filesystem::exists(TextureDir, ErrorCode))
+		{
+			return Paths;
+		}
+
+		for (auto& Entry : std::filesystem::recursive_directory_iterator(TextureDir, ErrorCode))
+		{
+			if (Entry.is_regular_file(ErrorCode) && IsSupportedTextureFile(Entry.path()))
+			{
+				Paths.push_back(Entry.path());
+			}
+		}
+		std::sort(Paths.begin(), Paths.end());
+		return Paths;
+	}
+
+	// Material의 현재 Normal Texture 슬롯에 대한 콤보 박스 UI.
+	// None 선택 시 해제, 파일 선택 시 디스크에서 로드. 반환값은 변경 여부 (현재는 사용하지 않음).
+	bool DrawNormalTextureCombo(const std::shared_ptr<FMaterial>& CurrentMaterial)
+	{
+		if (!CurrentMaterial)
+		{
+			return false;
+		}
+
+		const bool bHasNormal = CurrentMaterial->HasNormalTexture();
+		const std::string CurrentLabel = bHasNormal ? "(Custom)" : "None";
+		bool bChanged = false;
+
+		if (ImGui::BeginCombo("Normal Texture", CurrentLabel.c_str()))
+		{
+			if (ImGui::Selectable("None", !bHasNormal))
+			{
+				ClearNormalTexture(CurrentMaterial);
+				bChanged = true;
+			}
+
+			for (const std::filesystem::path& Path : GetAvailableTexturePaths())
+			{
+				const std::string Name = Path.filename().string();
+				ImGui::PushID(Name.c_str());
+				if (ImGui::Selectable(Name.c_str(), false))
+				{
+					LoadNormalTextureFromFile(CurrentMaterial, Path);
+					bChanged = true;
+				}
+				ImGui::PopID();
+			}
+			ImGui::EndCombo();
+		}
+
+		return bChanged;
+	}
 
 	USceneComponent* GetComponentTreeParentSceneComponent(UActorComponent* Component)
 	{
@@ -599,6 +661,8 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 			{
 				CurrentMaterial->SetParameterData("Shininess", &ShininessArray, sizeof(ShininessArray));
 			}
+			
+			DrawNormalTextureCombo(CurrentMaterial);
 		}
 		ImGui::Spacing();
 		ImGui::PopID();
@@ -2150,6 +2214,10 @@ void FPropertyWindow::Render(FEditorEngine* Engine)
 									ImGui::PopID();
 
 								}
+								
+								ImGui::PushID(i + 3000);
+								DrawNormalTextureCombo(CurrentMat);
+								ImGui::PopID();
 							}
 							ImGui::PopID(); // PushID(i)에 대한 Pop
 							ImGui::Spacing();

@@ -4,6 +4,7 @@
 #include "Renderer/GraphicsCore/RenderState.h"
 #include <d3d11.h>
 #include <array>
+#include <filesystem>
 #include <memory>
 
 class FVertexShader;
@@ -36,6 +37,7 @@ struct FMaterialTexture
 {
 	ID3D11ShaderResourceView* TextureSRV = nullptr;
 	ID3D11SamplerState* SamplerState = nullptr;
+	FString SourcePath;
 
 	FMaterialTexture() = default;
 	~FMaterialTexture();
@@ -194,6 +196,7 @@ public:
 
 	void Release();
 
+
 protected:
 
 	// TODO: ShaderId가 실제 사용하는 쉐이더를 반영하도록 변경
@@ -239,3 +242,5 @@ public:
 	bool SetVector3Parameter(const FString& ParamName, const FVector& Value);
 };
 
+ENGINE_API bool LoadNormalTextureFromFile(const std::shared_ptr<FMaterial>& Material, const std::filesystem::path& TexturePath);
+ENGINE_API void ClearNormalTexture(const std::shared_ptr<FMaterial>& Material);
