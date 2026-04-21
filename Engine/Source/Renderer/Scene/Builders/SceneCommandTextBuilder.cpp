@@ -62,13 +62,17 @@ void FSceneCommandTextBuilder::BuildTextInputs(
 		FMeshBatch Batch;
 		Batch.Mesh = TextMesh;
 		Batch.Material = TextMaterial;
-		Batch.Domain = TextComponent->IsA(UUUIDBillboardComponent::StaticClass()) ? EMaterialDomain::EditorPrimitive : EMaterialDomain::Opaque;
+		Batch.Domain = TextComponent->IsA(UUUIDBillboardComponent::StaticClass()) ? EMaterialDomain::EditorPrimitive : EMaterialDomain::Transparent;
 		Batch.PassMask = Batch.Domain == EMaterialDomain::EditorPrimitive
 			? static_cast<uint32>(EMeshPassMask::EditorPrimitive)
-			: static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+			: static_cast<uint32>(EMeshPassMask::ForwardTransparent);
 		if (Batch.Domain == EMaterialDomain::EditorPrimitive)
 		{
 			Batch.bDisableDepthTest = true;
+			Batch.bDisableDepthWrite = true;
+		}
+		else
+		{
 			Batch.bDisableDepthWrite = true;
 		}
 

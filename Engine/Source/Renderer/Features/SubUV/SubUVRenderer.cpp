@@ -104,12 +104,17 @@ bool FSubUVRenderer::Initialize(FRenderer* InRenderer, const std::wstring& Textu
 	SubUVMaterial->SetBlendOption(blendOption);
 	SubUVMaterial->SetBlendState(BS);
 
-	// b2: SubUV 파라미터 (CellSize(8), UVOffset(8)) = 16 bytes
-	int32 SlotIndex = SubUVMaterial->CreateConstantBuffer(Device, 16);
+	// b2: SubUV 파라미터 (CellSize(8), UVOffset(8), BaseColor(16)) = 32 bytes
+	int32 SlotIndex = SubUVMaterial->CreateConstantBuffer(Device, 32);
 	if (SlotIndex >= 0)
 	{
 		SubUVMaterial->RegisterParameter("CellSize", SlotIndex, 0, 8);
 		SubUVMaterial->RegisterParameter("UVOffset", SlotIndex, 8, 8);
+		SubUVMaterial->RegisterParameter("BaseColor", SlotIndex, 16, 16);
+
+		// 기본 색상을 흰색으로 초기화
+		const FVector4 White(1.0f, 1.0f, 1.0f, 1.0f);
+		SubUVMaterial->SetParameterData("BaseColor", &White, 16);
 	}
 
 	return true;

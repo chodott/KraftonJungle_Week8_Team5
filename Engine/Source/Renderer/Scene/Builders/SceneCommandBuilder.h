@@ -31,10 +31,11 @@ public:
 private:
 	static uint32 ToColorKey(const FVector4& Color);
 	static void   UpdateSubUVMaterialParams(
-		FMaterial& Material,
-		int32      Columns,
-		int32      Rows,
-		int32      CurrentFrame);
+		FMaterial&      Material,
+		int32           Columns,
+		int32           Rows,
+		int32           CurrentFrame,
+		const FVector4& Color);
 
 	TMap<uint32, std::shared_ptr<FDynamicMaterial>>                 TextMaterialsByColor;
 	TMap<const USubUVComponent*, std::shared_ptr<FDynamicMaterial>> SubUVMaterialsByComponent;
