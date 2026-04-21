@@ -12,9 +12,10 @@ float3 GetVertexNormalFromMap(float3 vertexNormal, float3 tangent, float3 bitang
 {
 	float3 tangentNormal = NormalMap.SampleLevel(Sampler, uv, 0.0f).rgb * 2.0f - 1.0f;
 
-	float3 T = normalize(tangent);
-	float3 B = normalize(bitangent);
-	float3 N = normalize(vertexNormal);
+	float3 T;
+	float3 B;
+	float3 N;
+	ReOrthonormalizeTBN(vertexNormal, tangent, bitangent, N, T, B);
 	float3x3 TBN = float3x3(T, B, N);
 
 	return normalize(mul(tangentNormal, TBN));
@@ -34,7 +35,7 @@ VS_OUTPUT main(VS_INPUT Input)
 	
 	Output.Normal = normalize(mul(Input.Normal, (float3x3) WorldInvTranspose));
 	
-	// ?? Normal Map ?щ????곕씪 Tangent 怨꾩궛 ?? 
+	// ── Normal Map 여부에 따라 Tangent 계산 ── 
 	Output.Tangent = normalize(mul(Input.Tangent.xyz, (float3x3)World));
 	Output.Tangent = normalize(Output.Tangent - dot(Output.Tangent, Output.Normal) * Output.Normal);
 	Output.Bitangent = cross(Output.Normal, Output.Tangent) * Input.Tangent.w;
@@ -42,7 +43,7 @@ VS_OUTPUT main(VS_INPUT Input)
 	Output.VertexLighting = float4(1, 1, 1, 1);
 	Output.VertexSpecular = 0.0f.xxx;
 	
-	// ?? Gouraud: VS?먯꽌 Blinn-Phong?쇰줈 紐⑤뱺 愿묒썝 怨꾩궛 ??
+	// ── Gouraud: VS에서 Blinn-Phong으로 모든 광원 계산 ──
 #if LIGHTING_MODEL_GOURAUD
 #if VERTEX_NORMAL_MAP
 	float3 N = GetVertexNormalFromMap(Output.Normal, Output.Tangent, Output.Bitangent, Output.UV);

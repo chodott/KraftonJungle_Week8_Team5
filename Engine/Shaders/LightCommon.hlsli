@@ -154,6 +154,37 @@ float CalculateAttenuation(float distance, float range)
 	return rangeMask * inverseSquare;
 }
 
+float3 BuildFallbackTangent(float3 normal)
+{
+	float3 referenceAxis = (abs(normal.z) < 0.999f) ? float3(0.0f, 0.0f, 1.0f) : float3(0.0f, 1.0f, 0.0f);
+	return normalize(cross(referenceAxis, normal));
+}
+
+void ReOrthonormalizeTBN(
+	float3 inputNormal,
+	float3 inputTangent,
+	float3 inputBitangent,
+	out float3 outNormal,
+	out float3 outTangent,
+	out float3 outBitangent)
+{
+	outNormal = normalize(inputNormal);
+
+	float3 orthogonalTangent = inputTangent - outNormal * dot(inputTangent, outNormal);
+	float tangentLengthSq = dot(orthogonalTangent, orthogonalTangent);
+	if (tangentLengthSq > 1.0e-8f)
+	{
+		outTangent = orthogonalTangent * rsqrt(tangentLengthSq);
+	}
+	else
+	{
+		outTangent = BuildFallbackTangent(outNormal);
+	}
+
+	float handedness = (dot(cross(outNormal, outTangent), inputBitangent) < 0.0f) ? -1.0f : 1.0f;
+	outBitangent = normalize(cross(outNormal, outTangent)) * handedness;
+}
+
 #if HAS_NORMAL_MAP
 float3 GetNormalFromMap(
 	Texture2D normalMapTexture,
@@ -163,14 +194,15 @@ float3 GetNormalFromMap(
 	float3 bitangent,
 	float2 uv)
 {
-    float3 tangentNormal = normalMapTexture.Sample(normalMapSampler, uv).rgb * 2.0f - 1.0f;
+	float3 tangentNormal = normalMapTexture.Sample(normalMapSampler, uv).rgb * 2.0f - 1.0f;
 
-    float3 T = normalize(tangent);
-    float3 B = normalize(bitangent);
-    float3 N = normalize(vertexNormal);
-    float3x3 TBN = float3x3(T, B, N);
+	float3 T;
+	float3 B;
+	float3 N;
+	ReOrthonormalizeTBN(vertexNormal, tangent, bitangent, N, T, B);
+	float3x3 TBN = float3x3(T, B, N);
 
-    return normalize(mul(tangentNormal, TBN));
+	return normalize(mul(tangentNormal, TBN));
 }
 #endif
 
