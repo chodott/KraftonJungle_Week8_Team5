@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Renderer/Features/Fog/FogStats.h"
+#include "Renderer/Features/Lighting/LightStats.h"
 #include "Renderer/GPUStats.h"
 #include "Renderer/Features/Outline/OutlineTypes.h"
 #include "Renderer/Features/Decal/DecalProjectionMode.h"
@@ -184,6 +185,7 @@ public:
 
 	FDecalStats    GetDecalStats() const;
 	FFogStats      GetFogStats() const;
+	FLightStats    GetLightStats() const;
 	FGPUFrameStats GetGPUStats() const;
 
 	ID3D11SamplerState* GetDefaultSampler() const

@@ -446,6 +446,15 @@ FFogStats FRenderer::GetFogStats() const
 	return Stats;
 }
 
+FLightStats FRenderer::GetLightStats() const
+{
+	if (LightFeature)
+	{
+		return LightFeature->GetStats();
+	}
+	return FLightStats{};
+}
+
 FGPUFrameStats FRenderer::GetGPUStats() const
 {
 	FGPUFrameStats            Stats;

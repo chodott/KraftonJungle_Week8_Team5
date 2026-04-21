@@ -31,6 +31,8 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 		return VisualizeClusterLightCulling(Input.Position, Input.WorldPosition);
 	}
 
+	float4 finalPixel = TextureColor;
+
 	    // ── 법선 결정 ──
 #if HAS_NORMAL_MAP
     float3 N = GetNormalFromMap(NormalMap, Sampler, Input.Normal, Input.Tangent, Input.Bitangent, Input.UV);
@@ -78,6 +80,8 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 
 	float3 totalLighting = 0.0f.xxx;
 	float3 diffuseLighting = 0.0f.xxx;
+	float3 localTotalLighting = 0.0f.xxx;
+	float3 localDiffuseLighting = 0.0f.xxx;
 	
     // Diffuse + Specular (Blinn-Phong)
 	if (AmbientEnabled != 0)
@@ -96,8 +100,15 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 		totalLighting += CalculateDirectionalLight(Directional, Input.WorldPosition, N, V).rgb;
 	}
 
-	totalLighting += ComputeClusteredLocalLighting(Input.Position, Input.WorldPosition, N, V).rgb;
-	diffuseLighting += ComputeClusteredLocalLightingLambert(Input.Position, Input.WorldPosition, N).rgb;
+	ComputeClusteredLocalLightingContributions(
+		Input.Position,
+		Input.WorldPosition,
+		N,
+		V,
+		localTotalLighting,
+		localDiffuseLighting);
+	totalLighting += localTotalLighting;
+	diffuseLighting += localDiffuseLighting;
 
 	float3 specularLighting = max(totalLighting - diffuseLighting, 0.0f.xxx);
 	float3 finalColor = baseColor.rgb * diffuseLighting + specularLighting;

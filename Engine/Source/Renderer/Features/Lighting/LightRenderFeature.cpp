@@ -1,4 +1,4 @@
-﻿#include "Renderer/Features/Lighting/LightRenderFeature.h"
+#include "Renderer/Features/Lighting/LightRenderFeature.h"
 
 #include <algorithm>
 #include <cstring>
@@ -25,6 +25,16 @@ namespace
 		return (Value + 15u) & ~15u;
 	}
 
+	double TicksToMilliseconds(uint64 StartTick, uint64 EndTick, uint64 Frequency)
+	{
+		if (EndTick <= StartTick || Frequency == 0u)
+		{
+			return 0.0;
+		}
+
+		return static_cast<double>(EndTick - StartTick) * 1000.0 / static_cast<double>(Frequency);
+	}
+
 	bool UploadDynamicBuffer(
 		ID3D11DeviceContext* DeviceContext,
 		ID3D11Buffer*        Buffer,
@@ -46,6 +56,20 @@ namespace
 		DeviceContext->Unmap(Buffer, 0);
 		return true;
 	}
+
+	bool NeedObejctLightIndexUpload(const FSceneViewData& SceneViewData)
+	{
+		switch (SceneViewData.RenderMode)
+		{
+		case ERenderMode::Lit_Gouraud:
+			return true;
+		case ERenderMode::Lit_Lambert:
+		case ERenderMode::Lit_Phong:
+		case ERenderMode::Unlit:
+		default:
+			return false;
+		}
+	}
 }
 
 FLightRenderFeature::~FLightRenderFeature()
@@ -63,6 +87,36 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 		return false;
 	}
 
+	if (ID3D11DeviceContext* TimingContext = Renderer.GetDeviceContext())
+	{
+		ResolveTimingQueries(TimingContext);
+	}
+
+	if (bHasPendingReadback && ClusterHeaderStagingBuffer)
+	{
+		ID3D11DeviceContext*     DC     = Renderer.GetDeviceContext();
+		D3D11_MAPPED_SUBRESOURCE Mapped = {};
+		if (DC && SUCCEEDED(DC->Map(ClusterHeaderStagingBuffer, 0, D3D11_MAP_READ, 0, &Mapped)))
+		{
+			auto   Headers          = static_cast<const FLightClusterHeaderGPU*>(Mapped.pData);
+			uint32 TotalAssignments = 0;
+			uint32 OverflowDropped  = 0;
+			for (uint32 i = 0; i < PendingReadbackClusterCount; ++i)
+			{
+				TotalAssignments      += Headers[i].Count;
+				const uint32 RawCount = Headers[i].Pad0;
+				if (RawCount > Headers[i].Count)
+				{
+					OverflowDropped += RawCount - Headers[i].Count;
+				}
+			}
+			Stats.TotalLightClusterAssignments = TotalAssignments;
+			Stats.OverflowCulledSlots          = OverflowDropped;
+			DC->Unmap(ClusterHeaderStagingBuffer, 0);
+		}
+		bHasPendingReadback = false;
+	}
+
 	UpdateClusterGlobalConstantBuffer(Renderer, SceneViewData);
 	UploadLocalLightBuffers(Renderer, SceneViewData);
 
@@ -76,14 +130,40 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 		return false;
 	}
 
-	const uint32     ViewportWidth  = static_cast<uint32>((std::max)(SceneViewData.View.Viewport.Width, 0.0f));
-	const uint32     ViewportHeight = static_cast<uint32>((std::max)(SceneViewData.View.Viewport.Height, 0.0f));
-	const uint32     ClusterCountX  = (ViewportWidth + LightCullingConfig::TileSizeX - 1u) / LightCullingConfig::TileSizeX;
-	const uint32     ClusterCountY  = (ViewportHeight + LightCullingConfig::TileSizeY - 1u) / LightCullingConfig::TileSizeY;
-	constexpr uint32 ClusterCountZ  = LightCullingConfig::ClusterCountZ;
-	const uint32 ClusterCount       = ClusterCountX * ClusterCountY * ClusterCountZ;
-	const uint32 ClusterHeaderCount = ClusterCount;
-	const uint32 ClusterIndexCount  = ClusterCount * LightListConfig::MaxLightsPerCluster;
+	const uint32     ViewportWidth      = static_cast<uint32>((std::max)(SceneViewData.View.Viewport.Width, 0.0f));
+	const uint32     ViewportHeight     = static_cast<uint32>((std::max)(SceneViewData.View.Viewport.Height, 0.0f));
+	const uint32     ClusterCountX      = (ViewportWidth + LightCullingConfig::TileSizeX - 1u) / LightCullingConfig::TileSizeX;
+	const uint32     ClusterCountY      = (ViewportHeight + LightCullingConfig::TileSizeY - 1u) / LightCullingConfig::TileSizeY;
+	constexpr uint32 ClusterCountZ      = LightCullingConfig::ClusterCountZ;
+	const uint32     ClusterCount       = ClusterCountX * ClusterCountY * ClusterCountZ;
+	const uint32     TileCount          = ClusterCountX * ClusterCountY;
+	const uint32     ClusterHeaderCount = ClusterCount;
+
+	Stats.ClusterCountX            = ClusterCountX;
+	Stats.ClusterCountY            = ClusterCountY;
+	Stats.ClusterCountZ            = ClusterCountZ;
+	Stats.TotalClusters            = ClusterCount;
+	Stats.MaxLightsPerCluster      = LightListConfig::MaxLightsPerCluster;
+	Stats.MaxLocalLights           = LightListConfig::MaxLocalLights;
+	const uint32 ClusterIndexCount = ClusterCount * LightListConfig::MaxLightsPerCluster;
+
+	Stats.TileDepthBoundsBufferBytes = sizeof(FTileDepthBoundsGPU) * (std::max)(1u, TileCount);
+	Stats.ClusterHeaderBufferBytes   = sizeof(FLightClusterHeaderGPU) * (std::max)(1u, ClusterHeaderCount);
+	Stats.ClusterIndexBufferBytes    = sizeof(uint32) * (std::max)(1u, ClusterIndexCount);
+	Stats.TotalBufferBytes           = Stats.LocalLightBufferBytes + Stats.CullProxyBufferBytes
+			+ Stats.TileDepthBoundsBufferBytes + Stats.ClusterHeaderBufferBytes
+			+ Stats.ClusterIndexBufferBytes;
+
+	if (!EnsureDefaultStructuredBufferSRVUAV(
+		Renderer,
+		sizeof(FTileDepthBoundsGPU),
+		(std::max)(1u, TileCount),
+		TileDepthBoundsBuffer,
+		TileDepthBoundsSRV,
+		TileDepthBoundsUAV))
+	{
+		return false;
+	}
 
 	if (!EnsureDefaultStructuredBufferSRVUAV(
 		Renderer,
@@ -117,10 +197,44 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 	DeviceContext->ClearUnorderedAccessViewUint(ClusterLightHeaderUAV, ClearValues);
 	DeviceContext->ClearUnorderedAccessViewUint(ClusterLightIndexUAV, ClearValues);
 
+	FLightTimingQuerySet* ActiveTimingQuerySet = nullptr;
+	if (EnsureTimingQueries(Renderer))
+	{
+		FLightTimingQuerySet& TimingQuerySet = TimingQuerySets[TimingQueryWriteIndex];
+		if (!TimingQuerySet.bPending)
+		{
+			DeviceContext->Begin(TimingQuerySet.Disjoint);
+			DeviceContext->End(TimingQuerySet.TileDepthBoundsStart);
+			ActiveTimingQuerySet = &TimingQuerySet;
+		}
+	}
+
+	DeviceContext->CSSetShader(TileDepthBoundsCS, nullptr, 0);
+	DeviceContext->CSSetConstantBuffers(LightClusterSlots::ClusterGlobalCB, 1, &ClusterGlobalConstantBuffer);
+
+	ID3D11ShaderResourceView*  TileDepthSRV[1]     = { Targets.SceneDepthSRV };
+	ID3D11UnorderedAccessView* TileDepthUAV[1]     = { TileDepthBoundsUAV };
+	UINT                       TileInitialCount[1] = { 0u };
+
+	DeviceContext->CSSetShaderResources(0, 1, TileDepthSRV);
+	DeviceContext->CSSetUnorderedAccessViews(0, 1, TileDepthUAV, TileInitialCount);
+	DeviceContext->Dispatch(ClusterCountX, ClusterCountY, 1u);
+
+	if (ActiveTimingQuerySet)
+	{
+		DeviceContext->End(ActiveTimingQuerySet->TileDepthBoundsEnd);
+		DeviceContext->End(ActiveTimingQuerySet->LightCullingStart);
+	}
+
+	ID3D11ShaderResourceView*  NullTileSRV[1] = { nullptr };
+	ID3D11UnorderedAccessView* NullTileUAV[1] = { nullptr };
+	DeviceContext->CSSetShaderResources(0, 1, NullTileSRV);
+	DeviceContext->CSSetUnorderedAccessViews(0, 1, NullTileUAV, TileInitialCount);
+
 	DeviceContext->CSSetShader(LightCullingCS, nullptr, 0);
 	DeviceContext->CSSetConstantBuffers(LightClusterSlots::ClusterGlobalCB, 1, &ClusterGlobalConstantBuffer);
 
-	ID3D11ShaderResourceView* CSRVs[2] = { LightCullProxySRV, Targets.SceneDepthSRV };
+	ID3D11ShaderResourceView* CSRVs[2] = { LightCullProxySRV, TileDepthBoundsSRV };
 	DeviceContext->CSSetShaderResources(0, 2, CSRVs);
 
 	ID3D11UnorderedAccessView* CSUAVs[2]           = { ClusterLightHeaderUAV, ClusterLightIndexUAV };
@@ -128,6 +242,14 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 	DeviceContext->CSSetUnorderedAccessViews(0, 2, CSUAVs, UAVInitialCounts);
 
 	DeviceContext->Dispatch(ClusterCountX, ClusterCountY, ClusterCountZ);
+
+	if (ActiveTimingQuerySet)
+	{
+		DeviceContext->End(ActiveTimingQuerySet->LightCullingEnd);
+		DeviceContext->End(ActiveTimingQuerySet->Disjoint);
+		ActiveTimingQuerySet->bPending = true;
+		TimingQueryWriteIndex          = (TimingQueryWriteIndex + 1u) % TimingQueryBufferCount;
+	}
 
 	ID3D11ShaderResourceView*  NullSRV[2] = { nullptr, nullptr };
 	ID3D11UnorderedAccessView* NullUAV[2] = { nullptr, nullptr };
@@ -137,6 +259,14 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 	DeviceContext->CSSetUnorderedAccessViews(0, 2, NullUAV, UAVInitialCounts);
 	DeviceContext->CSSetConstantBuffers(LightClusterSlots::ClusterGlobalCB, 1, NullCB);
 	DeviceContext->CSSetShader(nullptr, nullptr, 0);
+
+	if (ClusterLightHeaderBuffer &&
+		EnsureStagingBuffer(Renderer, sizeof(FLightClusterHeaderGPU), (std::max)(1u, ClusterCount), ClusterHeaderStagingBuffer))
+	{
+		DeviceContext->CopyResource(ClusterHeaderStagingBuffer, ClusterLightHeaderBuffer);
+		PendingReadbackClusterCount = ClusterCount;
+		bHasPendingReadback         = true;
+	}
 
 	return true;
 }
@@ -212,6 +342,24 @@ void FLightRenderFeature::Release()
 	SafeRelease(ClusterLightIndexSRV);
 	SafeRelease(ClusterLightIndexBuffer);
 
+	SafeRelease(TileDepthBoundsUAV);
+	SafeRelease(TileDepthBoundsSRV);
+	SafeRelease(TileDepthBoundsBuffer);
+
+	for (FLightTimingQuerySet& TimingQuerySet : TimingQuerySets)
+	{
+		SafeRelease(TimingQuerySet.Disjoint);
+		SafeRelease(TimingQuerySet.TileDepthBoundsStart);
+		SafeRelease(TimingQuerySet.TileDepthBoundsEnd);
+		SafeRelease(TimingQuerySet.LightCullingStart);
+		SafeRelease(TimingQuerySet.LightCullingEnd);
+		TimingQuerySet.bPending = false;
+	}
+	TimingQueryWriteIndex = 0;
+
+	SafeRelease(ClusterHeaderStagingBuffer);
+
+	SafeRelease(TileDepthBoundsCS);
 	SafeRelease(LightCullingCS);
 
 	for (uint32 VariantIndex = 0; VariantIndex < ShaderVariantCount; ++VariantIndex)
@@ -232,24 +380,30 @@ void FLightRenderFeature::Release()
 ID3D11VertexShader* FLightRenderFeature::GetCurrentVS(bool bHasNormalMap, ERenderMode RenderMode) const
 {
 	const uint32 Variant = ToShaderVariantIndex(bHasNormalMap);
-	if (RenderMode == ERenderMode::WorldNormal) return WorldNormalVS[Variant];
+	if (RenderMode == ERenderMode::WorldNormal)
+	{
+		return WorldNormalVS[Variant];
+	}
 	switch (CurrentLightingModel)
 	{
 	case ELightingModel::Lambert: return LambertVS[Variant];
-	case ELightingModel::Phong:   return PhongVS[Variant];
-	default:                      return GouraudVS[Variant];
+	case ELightingModel::Phong: return PhongVS[Variant];
+	default: return GouraudVS[Variant];
 	}
 }
 
 ID3D11PixelShader* FLightRenderFeature::GetCurrentPS(bool bHasNormalMap, ERenderMode RenderMode) const
 {
 	const uint32 Variant = ToShaderVariantIndex(bHasNormalMap);
-	if (RenderMode == ERenderMode::WorldNormal) return WorldNormalPS[Variant];
+	if (RenderMode == ERenderMode::WorldNormal)
+	{
+		return WorldNormalPS[Variant];
+	}
 	switch (CurrentLightingModel)
 	{
 	case ELightingModel::Lambert: return LambertPS[Variant];
-	case ELightingModel::Phong:   return PhongPS[Variant];
-	default:                      return GouraudPS[Variant];
+	case ELightingModel::Phong: return PhongPS[Variant];
+	default: return GouraudPS[Variant];
 	}
 }
 
@@ -308,6 +462,25 @@ bool FLightRenderFeature::Initialize(FRenderer& Renderer)
 			Resource->GetBufferSize(),
 			nullptr,
 			&LightCullingCS)))
+		{
+			return false;
+		}
+	}
+
+	if (!TileDepthBoundsCS)
+	{
+		const std::wstring CSPath   = FPaths::ShaderDir().wstring() + L"SceneLighting/TileDepthBoundsCS.hlsl";
+		auto               Resource = FShaderResource::GetOrCompile(CSPath.c_str(), "main", "cs_5_0", nullptr);
+		if (!Resource)
+		{
+			return false;
+		}
+
+		if (FAILED(Device->CreateComputeShader(
+			Resource->GetBufferPointer(),
+			Resource->GetBufferSize(),
+			nullptr,
+			&TileDepthBoundsCS)))
 		{
 			return false;
 		}
@@ -408,7 +581,7 @@ bool FLightRenderFeature::CompileShaderVariants(FRenderer& Renderer)
 
 	for (uint32 VariantIndex = 0; VariantIndex < ShaderVariantCount; ++VariantIndex)
 	{
-		const bool bHasNormalMap = (VariantIndex != 0);
+		const bool       bHasNormalMap         = (VariantIndex != 0);
 		D3D_SHADER_MACRO GouraudVertexMacros[] =
 		{
 			{ "LIGHTING_MODEL_GOURAUD", "1" },
@@ -566,6 +739,11 @@ void FLightRenderFeature::UploadLocalLightBuffers(
 	TArray<FLightCullProxyGPU> ProxiesGPU;
 	TArray<uint32>             ObjectLightIndicesGPU = SceneViewData.LightingInputs.ObjectLightIndices;
 
+	if (NeedObejctLightIndexUpload(SceneViewData))
+	{
+		ObjectLightIndicesGPU = SceneViewData.LightingInputs.ObjectLightIndices;
+	}
+
 	LocalLightsGPU.reserve(SceneViewData.LightingInputs.LocalLights.size());
 	ProxiesGPU.reserve(SceneViewData.LightingInputs.LocalLights.size());
 
@@ -658,6 +836,57 @@ void FLightRenderFeature::UploadLocalLightBuffers(
 		ObjectLightIndexBuffer,
 		ObjectLightIndicesGPU.data(),
 		sizeof(uint32) * ObjectLightIndicesGPU.size());
+
+	const uint32 SceneLightCount  = static_cast<uint32>(SceneViewData.LightingInputs.LocalLights.size());
+	const uint32 ActualLightCount = (std::min)(SceneLightCount, LightListConfig::MaxLocalLights);
+
+	Stats.TotalSceneLights   = SceneLightCount;
+	Stats.TotalLocalLights   = ActualLightCount;
+	Stats.BudgetCulledLights = SceneLightCount > LightListConfig::MaxLocalLights
+		                           ? SceneLightCount - LightListConfig::MaxLocalLights
+		                           : 0u;
+	Stats.LocalLightBufferBytes    = sizeof(FLocalLightGPU) * LocalLightsGPU.size();
+	Stats.CullProxyBufferBytes     = sizeof(FLightCullProxyGPU) * ProxiesGPU.size();
+	Stats.ClusterHeaderBufferBytes = sizeof(FLightClusterHeaderGPU) * (std::max)(1u, Stats.TotalClusters);
+	Stats.ClusterIndexBufferBytes  = sizeof(uint32) * (std::max)(1u, Stats.TotalClusters) * LightListConfig::MaxLightsPerCluster;
+	Stats.TotalBufferBytes         = Stats.LocalLightBufferBytes + Stats.CullProxyBufferBytes
+			+ Stats.ClusterHeaderBufferBytes + Stats.ClusterIndexBufferBytes;
+}
+
+bool FLightRenderFeature::EnsureStagingBuffer(
+	FRenderer&     Renderer,
+	uint32         ElementStride,
+	uint32         ElementCount,
+	ID3D11Buffer*& Buffer)
+{
+	ID3D11Device* Device = Renderer.GetDevice();
+	if (!Device)
+	{
+		return false;
+	}
+
+	const uint32 ByteWidth = ElementStride * (std::max)(1u, ElementCount);
+
+	if (Buffer)
+	{
+		D3D11_BUFFER_DESC Desc = {};
+		Buffer->GetDesc(&Desc);
+		if (Desc.ByteWidth >= ByteWidth)
+		{
+			return true;
+		}
+		SafeRelease(Buffer);
+	}
+
+	D3D11_BUFFER_DESC Desc   = {};
+	Desc.ByteWidth           = ByteWidth;
+	Desc.Usage               = D3D11_USAGE_STAGING;
+	Desc.BindFlags           = 0;
+	Desc.CPUAccessFlags      = D3D11_CPU_ACCESS_READ;
+	Desc.MiscFlags           = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+	Desc.StructureByteStride = ElementStride;
+
+	return SUCCEEDED(Device->CreateBuffer(&Desc, nullptr, &Buffer));
 }
 
 bool FLightRenderFeature::EnsureDynamicStructuredBufferSRV(
@@ -807,4 +1036,94 @@ bool FLightRenderFeature::EnsureDefaultStructuredBufferSRVUAV(
 	}
 
 	return true;
+}
+
+bool FLightRenderFeature::EnsureTimingQueries(FRenderer& Renderer)
+{
+	ID3D11Device* Device = Renderer.GetDevice();
+	if (!Device)
+	{
+		return false;
+	}
+
+	for (FLightTimingQuerySet& TimingQuerySet : TimingQuerySets)
+	{
+		if (!TimingQuerySet.Disjoint)
+		{
+			D3D11_QUERY_DESC Desc = {};
+			Desc.Query            = D3D11_QUERY_TIMESTAMP_DISJOINT;
+			if (FAILED(Device->CreateQuery(&Desc, &TimingQuerySet.Disjoint)))
+			{
+				return false;
+			}
+		}
+
+		auto CreateTimestampQuery = [&Device](ID3D11Query*& Query) -> bool
+		{
+			if (Query)
+			{
+				return true;
+			}
+
+			D3D11_QUERY_DESC Desc = {};
+			Desc.Query            = D3D11_QUERY_TIMESTAMP;
+			return SUCCEEDED(Device->CreateQuery(&Desc, &Query));
+		};
+
+		if (!CreateTimestampQuery(TimingQuerySet.TileDepthBoundsStart)
+			|| !CreateTimestampQuery(TimingQuerySet.TileDepthBoundsEnd)
+			|| !CreateTimestampQuery(TimingQuerySet.LightCullingStart)
+			|| !CreateTimestampQuery(TimingQuerySet.LightCullingEnd))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void FLightRenderFeature::ResolveTimingQueries(ID3D11DeviceContext* DeviceContext)
+{
+	if (!DeviceContext)
+	{
+		return;
+	}
+
+	for (FLightTimingQuerySet& TimingQuerySet : TimingQuerySets)
+	{
+		if (!TimingQuerySet.bPending)
+		{
+			continue;
+		}
+
+		D3D11_QUERY_DATA_TIMESTAMP_DISJOINT DisjointData = {};
+		if (DeviceContext->GetData(TimingQuerySet.Disjoint, &DisjointData, sizeof(DisjointData), 0) != S_OK)
+		{
+			continue;
+		}
+
+		UINT64 TileDepthBoundsStart = 0u;
+		UINT64 TileDepthBoundsEnd   = 0u;
+		UINT64 LightCullingStart    = 0u;
+		UINT64 LightCullingEnd      = 0u;
+
+		if (DeviceContext->GetData(TimingQuerySet.TileDepthBoundsStart, &TileDepthBoundsStart, sizeof(TileDepthBoundsStart), 0) != S_OK
+			|| DeviceContext->GetData(TimingQuerySet.TileDepthBoundsEnd, &TileDepthBoundsEnd, sizeof(TileDepthBoundsEnd), 0) != S_OK
+			|| DeviceContext->GetData(TimingQuerySet.LightCullingStart, &LightCullingStart, sizeof(LightCullingStart), 0) != S_OK
+			|| DeviceContext->GetData(TimingQuerySet.LightCullingEnd, &LightCullingEnd, sizeof(LightCullingEnd), 0) != S_OK)
+		{
+			continue;
+		}
+
+		TimingQuerySet.bPending = false;
+
+		if (DisjointData.Disjoint || DisjointData.Frequency == 0u)
+		{
+			continue;
+		}
+
+		Stats.TileDepthBoundsPassTimeMs = TicksToMilliseconds(TileDepthBoundsStart, TileDepthBoundsEnd, DisjointData.Frequency);
+		Stats.LightCullingPassTimeMs    = TicksToMilliseconds(LightCullingStart, LightCullingEnd, DisjointData.Frequency);
+		Stats.TotalCullingTimeMs        = Stats.TileDepthBoundsPassTimeMs + Stats.LightCullingPassTimeMs;
+	}
 }

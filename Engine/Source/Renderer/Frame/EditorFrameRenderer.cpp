@@ -44,6 +44,7 @@ bool FEditorFrameRenderer::Render(FRenderer& Renderer, const FEditorFrameRequest
         const FViewContext View = BuildRenderViewContext(ScenePass.SceneView, ScenePass.Viewport);
 
         FSceneViewData SceneViewData;
+        SceneViewData.RenderMode = ScenePass.RenderMode;
         Renderer.GetSceneRenderer().BuildSceneViewData(
             Renderer,
             ScenePass.ScenePacket,
@@ -54,7 +55,6 @@ bool FEditorFrameRenderer::Render(FRenderer& Renderer, const FEditorFrameRequest
             SceneViewData);
         Renderer.DecalTextureCache->ResolveTextureArray(Renderer.GetDevice(), SceneViewData);
         SceneViewData.ShowFlags = ScenePass.DebugInputs.ShowFlags;
-		SceneViewData.RenderMode = ScenePass.RenderMode;
         SceneViewData.bForceWireframe = ScenePass.bForceWireframe;
         SceneViewData.PostProcessInputs.OutlineItems = ScenePass.OutlineRequest.Items;
         SceneViewData.PostProcessInputs.bOutlineEnabled = ScenePass.OutlineRequest.bEnabled;

@@ -18,6 +18,7 @@ enum class EStatWindowMode : uint8
 	Decal,
 	Fog,
 	GPU,
+	Light,
 };
 
 class FStatWindow
@@ -33,6 +34,7 @@ private:
 	void RenderDecalStats(FRenderer* Renderer);
 	void RenderFogStats(FRenderer* Renderer);
 	void RenderGPUStats(FRenderer* Renderer);
+	void RenderLightStats(FRenderer* Renderer);
 
 	uint32 ObjectCount = 0;
 	uint32 HeapUsageBytes = 0;

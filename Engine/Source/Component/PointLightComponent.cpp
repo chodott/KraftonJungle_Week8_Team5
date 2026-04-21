@@ -7,6 +7,15 @@
 
 IMPLEMENT_RTTI(UPointLightComponent, ULightComponent)
 
+void UPointLightComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const
+{
+	ULightComponent::DuplicateShallow(DuplicatedObject, Context);
+
+	UPointLightComponent* DuplicatedPointLightComponent = static_cast<UPointLightComponent*>(DuplicatedObject);
+	DuplicatedPointLightComponent->AttenuationRadius = AttenuationRadius;
+	DuplicatedPointLightComponent->LightFalloffExponent = LightFalloffExponent;
+}
+
 void UPointLightComponent::PostConstruct()
 {
 	ULightComponent::PostConstruct();
