@@ -12,7 +12,7 @@ void UPointLightComponent::PostConstruct()
 	ULightComponent::PostConstruct();
 	IntensityUnits = ELightUnits::Candelas;
 	
-	Intensity = 10.f;
+	Intensity = 7.f;
 }
 
 void UPointLightComponent::SetAttenuationRadius(float radius)

@@ -40,6 +40,7 @@ VS_OUTPUT main(VS_INPUT Input)
 	Output.Bitangent = cross(Output.Normal, Output.Tangent) * Input.Tangent.w;
 	
 	Output.VertexLighting = float4(1, 1, 1, 1);
+	Output.VertexSpecular = 0.0f.xxx;
 	
 	// ── Gouraud: VS에서 Blinn-Phong으로 모든 광원 계산 ──
 #if LIGHTING_MODEL_GOURAUD
@@ -50,20 +51,31 @@ VS_OUTPUT main(VS_INPUT Input)
 #endif
 	float3 V = normalize(CameraPosition.xyz - Output.WorldPosition);
 
-	float3 lighting = float3(0, 0, 0);
+	float3 totalLighting = float3(0, 0, 0);
+	float3 diffuseLighting = float3(0, 0, 0);
 	
 	if (AmbientEnabled != 0)
 	{
-		lighting += CalculateAmbientLight(Ambient).rgb;
+		float3 ambient = CalculateAmbientLight(Ambient).rgb;
+		totalLighting += ambient;
+		diffuseLighting += ambient;
 	}
 	
 	if (DirectionalLightCount > 0)
 	{
-		lighting += CalculateDirectionalLight(Directional, Output.WorldPosition, N, V).rgb;
+		float3 L_dir = normalize(-Directional.DirectionEtc.xyz);
+		float diff = max(0.0f, dot(N, L_dir));
+		float3 dirDiffuse = Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff;
+		diffuseLighting += dirDiffuse;
+		totalLighting += CalculateDirectionalLight(Directional, Output.WorldPosition, N, V).rgb;
 	}
 	
-	lighting += ComputeObjectLocalLighting(LocalLightListOffset, LocalLightListCount, Output.WorldPosition, N, V).rgb;
-	Output.VertexLighting = float4(lighting, 1.0f);
+	totalLighting += ComputeObjectLocalLighting(LocalLightListOffset, LocalLightListCount, Output.WorldPosition, N, V).rgb;
+	diffuseLighting += ComputeObjectLocalLightingLambert(LocalLightListOffset, LocalLightListCount, Output.WorldPosition, N).rgb;
+
+	float3 specularLighting = max(totalLighting - diffuseLighting, 0.0f.xxx);
+	Output.VertexLighting = float4(diffuseLighting, 1.0f);
+	Output.VertexSpecular = specularLighting;
 
 #elif LIGHTING_MODEL_LAMBERT
 

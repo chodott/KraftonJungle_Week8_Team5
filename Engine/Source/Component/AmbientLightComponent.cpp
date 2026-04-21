@@ -9,7 +9,7 @@ void UAmbientLightComponent::PostConstruct()
 	ULightComponent::PostConstruct();
 	IntensityUnits = ELightUnits::Unitless;
 	
-	Intensity = 1.0f;
+	Intensity = 0.7f;
 }
 
 void UAmbientLightComponent::MarkTransformDirty()
