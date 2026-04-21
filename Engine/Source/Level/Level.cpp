@@ -2,10 +2,14 @@
 
 #include "Core/Paths.h"
 #include "Actor/Actor.h"
+#include "Actor/AmbientLightActor.h"
+#include "Actor/DirectionalLightActor.h"
 #include "Camera/Camera.h"
+#include "Component/BillboardComponent.h"
 #include "Component/CameraComponent.h"
 #include "Object/ObjectFactory.h"
 #include "Component/PrimitiveComponent.h"
+#include "Component/SceneComponent.h"
 #include "Component/UUIDBillboardComponent.h"
 #include "Level/PrimitiveVisibilityUtils.h"
 #include "Object/Class.h"
@@ -19,6 +23,42 @@
 #include "Component/LineBatchComponent.h"
 
 IMPLEMENT_RTTI(ULevel, UObject)
+
+namespace
+{
+	constexpr const char* PlayerStartNamePrefix = "PlayerStart";
+	constexpr const char* PlayerStartRootComponentName = "PlayerStartRootComponent";
+	constexpr const char* PlayerStartBillboardComponentName = "PlayerStartBillboardComponent";
+
+	bool IsPlayerStartActor(const AActor* Actor)
+	{
+		if (!Actor || Actor->IsPendingDestroy())
+		{
+			return false;
+		}
+
+		const FString& ActorName = Actor->GetName();
+		if (!ActorName.empty() && ActorName.rfind(PlayerStartNamePrefix, 0) == 0)
+		{
+			return true;
+		}
+
+		for (UActorComponent* Component : Actor->GetComponents())
+		{
+			if (!Component || !Component->IsA(UBillboardComponent::StaticClass()))
+			{
+				continue;
+			}
+
+			if (Component->GetName() == PlayerStartBillboardComponentName)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+}
 
 ULevel::~ULevel()
 {
@@ -59,10 +99,21 @@ bool ULevel::IsGameScene() const
 	return WorldType == EWorldType::Game || WorldType == EWorldType::PIE;
 }
 
+const FLevelGameplaySettings& ULevel::GetGameplaySettings() const
+{
+	return GameplaySettings;
+}
+
+void ULevel::SetGameplaySettings(const FLevelGameplaySettings& InSettings)
+{
+	GameplaySettings = InSettings;
+}
+
 void ULevel::DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const
 {
 	ULevel* DuplicatedLevel = static_cast<ULevel*>(DuplicatedObject);
 	DuplicatedLevel->Actors.clear();
+	DuplicatedLevel->GameplaySettings = GameplaySettings;
 	DuplicatedLevel->SpatialBVH.Reset();
 	DuplicatedLevel->DebugSpatialBVH.Reset();
 	DuplicatedLevel->bSpatialDirty = true;
@@ -139,6 +190,148 @@ void ULevel::ClearActors()
 	CleanupDestroyedActors();
 
 	MarkSpatialDirty();
+}
+
+AActor* ULevel::FindPlayerStartActor() const
+{
+	for (AActor* Actor : Actors)
+	{
+		if (IsPlayerStartActor(Actor))
+		{
+			return Actor;
+		}
+	}
+
+	return nullptr;
+}
+
+int32 ULevel::GetPlayerStartActorCount() const
+{
+	int32 Count = 0;
+	for (AActor* Actor : Actors)
+	{
+		if (IsPlayerStartActor(Actor))
+		{
+			++Count;
+		}
+	}
+
+	return Count;
+}
+
+AActor* ULevel::EnsurePlayerStartActor()
+{
+	AActor* PrimaryPlayerStart = nullptr;
+	TArray<AActor*> RedundantPlayerStarts;
+	for (AActor* Actor : Actors)
+	{
+		if (!IsPlayerStartActor(Actor))
+		{
+			continue;
+		}
+
+		if (!PrimaryPlayerStart)
+		{
+			PrimaryPlayerStart = Actor;
+		}
+		else
+		{
+			RedundantPlayerStarts.push_back(Actor);
+		}
+	}
+
+	for (AActor* RedundantActor : RedundantPlayerStarts)
+	{
+		DestroyActor(RedundantActor);
+	}
+
+	if (PrimaryPlayerStart)
+	{
+		return PrimaryPlayerStart;
+	}
+
+	PrimaryPlayerStart = SpawnActor<AActor>(PlayerStartNamePrefix);
+	if (!PrimaryPlayerStart)
+	{
+		return nullptr;
+	}
+
+	USceneComponent* PlayerStartRootComponent = FObjectFactory::ConstructObject<USceneComponent>(
+		PrimaryPlayerStart, PlayerStartRootComponentName);
+	if (PlayerStartRootComponent)
+	{
+		PrimaryPlayerStart->AddOwnedComponent(PlayerStartRootComponent);
+		PrimaryPlayerStart->SetRootComponent(PlayerStartRootComponent);
+		if (!PlayerStartRootComponent->IsRegistered())
+		{
+			PlayerStartRootComponent->OnRegister();
+		}
+	}
+
+	UBillboardComponent* PlayerStartBillboardComponent = FObjectFactory::ConstructObject<UBillboardComponent>(
+		PrimaryPlayerStart, PlayerStartBillboardComponentName);
+	if (PlayerStartBillboardComponent)
+	{
+		PrimaryPlayerStart->AddOwnedComponent(PlayerStartBillboardComponent);
+		if (PlayerStartRootComponent)
+		{
+			PlayerStartBillboardComponent->AttachTo(PlayerStartRootComponent);
+		}
+
+		PlayerStartBillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_Player.PNG").wstring());
+		PlayerStartBillboardComponent->SetSize(FVector2(0.8f, 0.8f));
+		PlayerStartBillboardComponent->SetIgnoreParentScaleInRender(true);
+		PlayerStartBillboardComponent->SetEditorVisualization(true);
+		PlayerStartBillboardComponent->SetHiddenInGame(true);
+		if (!PlayerStartBillboardComponent->IsRegistered())
+		{
+			PlayerStartBillboardComponent->OnRegister();
+		}
+		PlayerStartBillboardComponent->UpdateBounds();
+	}
+
+	PrimaryPlayerStart->SetActorLocation(FVector(0.0f, 0.0f, 0.0f));
+	MarkSpatialDirty();
+	return PrimaryPlayerStart;
+}
+
+void ULevel::EnsureEssentialActors()
+{
+	bool bHasDirectionalLight = false;
+	bool bHasAmbientLight = false;
+
+	for (AActor* Actor : Actors)
+	{
+		if (!Actor || Actor->IsPendingDestroy())
+		{
+			continue;
+		}
+
+		if (!bHasDirectionalLight && Actor->IsA(ADirectionalLightActor::StaticClass()))
+		{
+			bHasDirectionalLight = true;
+		}
+
+		if (!bHasAmbientLight && Actor->IsA(AAmbientLightActor::StaticClass()))
+		{
+			bHasAmbientLight = true;
+		}
+	}
+
+	if (!bHasDirectionalLight)
+	{
+		SpawnActor<ADirectionalLightActor>("DirectionalLight");
+	}
+
+	if (!bHasAmbientLight)
+	{
+		SpawnActor<AAmbientLightActor>("AmbientLight");
+	}
+
+	if (GameplaySettings.bAutoSpawnPlayerStart)
+	{
+		EnsurePlayerStartActor();
+	}
 }
 
 void ULevel::RegisterActor(AActor* InActor)

@@ -537,6 +537,7 @@ void FEditorUI::BuildDefaultLayout(uint32 DockID)
     ImGui::DockBuilderDockWindow("Stats", DockLeft);
     ImGui::DockBuilderDockWindow("Properties", DockRightTop);
     ImGui::DockBuilderDockWindow("Control Panel", DockRightBottom);
+    ImGui::DockBuilderDockWindow("Level Gameplay", DockRightBottom);
     ImGui::DockBuilderDockWindow("Console", DockBottom);
 
     ImGui::DockBuilderFinish(DockID);
@@ -873,6 +874,7 @@ void FEditorUI::Render()
                         Cam->GetCamera()->SetRotation(0.f, 0.f);
                     }
                     Engine->GetEditorScene()->ClearActors();
+                    Engine->GetEditorScene()->EnsureEssentialActors();
                     Engine->CollectGarbage();
                     UE_LOG("New scene created");
                 }
@@ -1003,6 +1005,8 @@ void FEditorUI::Render()
         }
         if (ImGui::BeginMenu("Show"))
         {
+            ImGui::MenuItem("Level Gameplay Panel", nullptr, &bShowLevelGameplayWindow);
+
             if (Engine)
             {
                 FEditorViewportRegistry &ViewportRegistry = Engine->GetViewportRegistry();
@@ -1345,6 +1349,10 @@ void FEditorUI::Render()
     }
 
     ControlPanel.Render(Engine);
+    if (bShowLevelGameplayWindow)
+    {
+        ControlPanel.RenderLevelGameplay(Engine, &bShowLevelGameplayWindow);
+    }
     Property.Render(Engine);
     Console.Render();
     if (DebugState.StatDisplayMode != EStatDisplayMode::None)

@@ -72,6 +72,11 @@ void UWorld::InitializeWorld(float AspectRatio, ID3D11Device* Device)
 			SceneDir / "Default.scene"
 		});
 	}
+
+	if (PersistentLevel)
+	{
+		PersistentLevel->EnsureEssentialActors();
+	}
 }
 
 void UWorld::BeginPlay()

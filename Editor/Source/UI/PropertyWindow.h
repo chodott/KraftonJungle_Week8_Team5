@@ -37,6 +37,7 @@ private:
 	void DrawStaticMeshComponentDetails(class UStaticMeshComponent* MeshComponent);
 	void DrawRotatingMovementComponentDetails(class URotatingMovementComponent* RotatingMovementComponent);
 	void DrawProjectileMovementComponentDetails(class UProjectileMovementComponent* ProjectileMovementComponent, FEditorEngine* Engine);
+	void DrawSpringArmComponentDetails(class USpringArmComponent* SpringArmComponent);
 	void DrawTextComponentDetails(class UTextRenderComponent* TextComponent);
 	void DrawSubUVComponentDetails(class USubUVComponent* SubUVComponent);
 	void DrawHeightFogComponentDetails(class UHeightFogComponent* HeightFogComponent);

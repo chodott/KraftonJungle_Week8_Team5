@@ -12,6 +12,7 @@
 #include "EditorEngine.h"
 #include "Level/Level.h"
 #include "Object/ObjectFactory.h"
+#include "Object/ObjectIterator.h"
 #include "Renderer/Renderer.h"
 #include "Serializer/SceneSerializer.h"
 #include "World/WorldContext.h"
@@ -62,6 +63,103 @@ const char *GetWorldTypeLabel(EWorldType WorldType)
     default:
         return "Unknown";
     }
+}
+
+void RenderLevelGameplaySettings(FEditorEngine* Engine)
+{
+	if (!Engine)
+	{
+		return;
+	}
+
+	ULevel* CurrentScene = Engine->GetScene();
+	if (!CurrentScene)
+	{
+		ImGui::TextDisabled("Scene unavailable.");
+		return;
+	}
+
+	FLevelGameplaySettings GameplaySettings = CurrentScene->GetGameplaySettings();
+
+	bool bAutoSpawnPlayerStart = GameplaySettings.bAutoSpawnPlayerStart;
+	if (ImGui::Checkbox("Auto Spawn PlayerStart", &bAutoSpawnPlayerStart))
+	{
+		GameplaySettings.bAutoSpawnPlayerStart = bAutoSpawnPlayerStart;
+		CurrentScene->SetGameplaySettings(GameplaySettings);
+
+		if (bAutoSpawnPlayerStart)
+		{
+			CurrentScene->EnsurePlayerStartActor();
+		}
+	}
+
+	std::string CurrentPawnAsset = GameplaySettings.DefaultPawnMeshAsset.empty()
+		? "None"
+		: GameplaySettings.DefaultPawnMeshAsset;
+
+	ImGui::PushItemWidth(-1.0f);
+	if (ImGui::BeginCombo("Default Pawn Mesh", CurrentPawnAsset.c_str()))
+	{
+		for (TObjectIterator<UStaticMesh> It; It; ++It)
+		{
+			UStaticMesh* MeshAsset = It.Get();
+			if (!MeshAsset)
+			{
+				continue;
+			}
+
+			const FString AssetPathName = MeshAsset->GetAssetPathFileName();
+			if (AssetPathName.empty())
+			{
+				continue;
+			}
+
+			const bool bSelected = (GameplaySettings.DefaultPawnMeshAsset == AssetPathName);
+			if (ImGui::Selectable(AssetPathName.c_str(), bSelected))
+			{
+				GameplaySettings.DefaultPawnMeshAsset = AssetPathName;
+				CurrentScene->SetGameplaySettings(GameplaySettings);
+			}
+
+			if (bSelected)
+			{
+				ImGui::SetItemDefaultFocus();
+			}
+		}
+
+		ImGui::EndCombo();
+	}
+	ImGui::PopItemWidth();
+
+	float SpringArmLength = GameplaySettings.DefaultPawnSpringArmLength;
+	if (ImGui::DragFloat("Spring Arm Length", &SpringArmLength, 0.05f, 0.0f, 1000.0f, "%.2f"))
+	{
+		GameplaySettings.DefaultPawnSpringArmLength = std::max(0.0f, SpringArmLength);
+		CurrentScene->SetGameplaySettings(GameplaySettings);
+	}
+
+	float SpringArmSocketOffset[3] =
+	{
+		GameplaySettings.DefaultPawnSpringArmSocketOffset.X,
+		GameplaySettings.DefaultPawnSpringArmSocketOffset.Y,
+		GameplaySettings.DefaultPawnSpringArmSocketOffset.Z
+	};
+	if (ImGui::DragFloat3("Spring Arm Socket Offset", SpringArmSocketOffset, 0.05f))
+	{
+		GameplaySettings.DefaultPawnSpringArmSocketOffset =
+			FVector(SpringArmSocketOffset[0], SpringArmSocketOffset[1], SpringArmSocketOffset[2]);
+		CurrentScene->SetGameplaySettings(GameplaySettings);
+	}
+
+	ImGui::Text("PlayerStart Count: %d", CurrentScene->GetPlayerStartActorCount());
+	if (ImGui::Button("Repair Essential Actors"))
+	{
+		CurrentScene->EnsureEssentialActors();
+	}
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("Ensure Directional/Ambient/PlayerStart policy and fix duplicates.");
+	}
 }
 } // namespace
 
@@ -201,8 +299,8 @@ void FControlPanelWindow::Render(FEditorEngine *Engine)
             }
         }
 
-        ImGui::Dummy(ImVec2(0.0f, 5.0f));
-        ImGui::SeparatorText("Place Actor");
+		ImGui::Dummy(ImVec2(0.0f, 5.0f));
+		ImGui::SeparatorText("Place Actor");
         ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
         static int32 SpawnTypeIndex = 0;
@@ -211,7 +309,7 @@ void FControlPanelWindow::Render(FEditorEngine *Engine)
 									"Text",           "Billboard",       "StaticMesh",       "HeightFog",
 									"LocalHeightFog", "PlayerCamera",    "Decal",            "DirectionalLight",
 									"PointLight",     "SpotLight",       "AmbientLight",     "SpotLightFake",
-									"MeshDecal"};
+									"MeshDecal",      "PlayerStart"};
 
         ImGui::Combo("Type", &SpawnTypeIndex, SpawnTypes, IM_ARRAYSIZE(SpawnTypes));
         ImGui::InputInt("Count", &SpawnAmount);
@@ -340,6 +438,10 @@ void FControlPanelWindow::Render(FEditorEngine *Engine)
 				{
 					NewActor = Scene->SpawnActor<AMeshDecalActor>(Name);
 				}
+				else if (SpawnTypeIndex == 17)
+				{
+					NewActor = Scene->EnsurePlayerStartActor();
+				}
 
                 LastSpawnedActor = NewActor;
             }
@@ -371,5 +473,30 @@ void FControlPanelWindow::Render(FEditorEngine *Engine)
         }
     }
 
-    ImGui::End();
+	ImGui::End();
+}
+
+void FControlPanelWindow::RenderLevelGameplay(FEditorEngine* Engine, bool* bOpen)
+{
+	bool bWindowOpen = true;
+	if (bOpen)
+	{
+		bWindowOpen = *bOpen;
+	}
+
+	if (!bWindowOpen)
+	{
+		return;
+	}
+
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
+	const bool bVisible = ImGui::Begin("Level Gameplay", bOpen);
+	ImGui::PopStyleVar();
+
+	if (bVisible)
+	{
+		RenderLevelGameplaySettings(Engine);
+	}
+
+	ImGui::End();
 }

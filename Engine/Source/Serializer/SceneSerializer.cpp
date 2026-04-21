@@ -169,6 +169,68 @@ namespace
 		}
 	}
 
+	void SaveLevelSettingsToJson(const ULevel* Scene, json& RootJson)
+	{
+		if (!Scene)
+		{
+			return;
+		}
+
+		const FLevelGameplaySettings& Settings = Scene->GetGameplaySettings();
+		json LevelSettingsJson;
+		LevelSettingsJson["DefaultPawnMeshAsset"] = Settings.DefaultPawnMeshAsset;
+		LevelSettingsJson["AutoSpawnPlayerStart"] = Settings.bAutoSpawnPlayerStart;
+		LevelSettingsJson["DefaultPawnSpringArmLength"] = Settings.DefaultPawnSpringArmLength;
+		LevelSettingsJson["DefaultPawnSpringArmSocketOffset"] =
+		{
+			Settings.DefaultPawnSpringArmSocketOffset.X,
+			Settings.DefaultPawnSpringArmSocketOffset.Y,
+			Settings.DefaultPawnSpringArmSocketOffset.Z
+		};
+		RootJson["LevelSettings"] = LevelSettingsJson;
+	}
+
+	void LoadLevelSettingsFromJson(const json& RootJson, ULevel* Scene)
+	{
+		if (!Scene || !RootJson.contains("LevelSettings") || !RootJson["LevelSettings"].is_object())
+		{
+			return;
+		}
+
+		const json& LevelSettingsJson = RootJson["LevelSettings"];
+		FLevelGameplaySettings Settings = Scene->GetGameplaySettings();
+
+		if (LevelSettingsJson.contains("DefaultPawnMeshAsset") && LevelSettingsJson["DefaultPawnMeshAsset"].is_string())
+		{
+			Settings.DefaultPawnMeshAsset = LevelSettingsJson["DefaultPawnMeshAsset"].get<FString>();
+		}
+
+		if (LevelSettingsJson.contains("AutoSpawnPlayerStart") && LevelSettingsJson["AutoSpawnPlayerStart"].is_boolean())
+		{
+			Settings.bAutoSpawnPlayerStart = LevelSettingsJson["AutoSpawnPlayerStart"].get<bool>();
+		}
+
+		if (LevelSettingsJson.contains("DefaultPawnSpringArmLength"))
+		{
+			float SpringArmLength = Settings.DefaultPawnSpringArmLength;
+			if (TryReadFloat(LevelSettingsJson["DefaultPawnSpringArmLength"], SpringArmLength))
+			{
+				Settings.DefaultPawnSpringArmLength = std::max(0.0f, SpringArmLength);
+			}
+		}
+
+		if (LevelSettingsJson.contains("DefaultPawnSpringArmSocketOffset"))
+		{
+			FVector SocketOffset = Settings.DefaultPawnSpringArmSocketOffset;
+			if (TryReadVector3(LevelSettingsJson["DefaultPawnSpringArmSocketOffset"], SocketOffset))
+			{
+				Settings.DefaultPawnSpringArmSocketOffset = SocketOffset;
+			}
+		}
+
+		Scene->SetGameplaySettings(Settings);
+	}
+
 	bool IsLegacyStaticMeshPrimitiveJson(const json& PrimitiveJson)
 	{
 		if (!PrimitiveJson.is_object())
@@ -323,6 +385,7 @@ namespace
 void FSceneSerializer::Save(ULevel* Scene, const FString& FilePath, const FCameraSerializeData& CameraData)
 {
 	json Json;
+	SaveLevelSettingsToJson(Scene, Json);
 	if (CameraData.bValid)
 	{
 		Json["PerspectiveCamera"]["Location"]  = { CameraData.Location.X, CameraData.Location.Y, CameraData.Location.Z };
@@ -404,6 +467,8 @@ bool FSceneSerializer::Load(ULevel* Scene, const FString& FilePath, ID3D11Device
 	if (!Json.contains("Primitives") || !Json["Primitives"].is_object())
 		return false;
 
+	LoadLevelSettingsFromJson(Json, Scene);
+
 	if (OutCameraData)
 	{
 		LoadCameraDataFromJson(Json, OutCameraData);
@@ -432,6 +497,8 @@ bool FSceneSerializer::Load(ULevel* Scene, const FString& FilePath, ID3D11Device
 	}
 
 	FinalizeLoadedActors(LoadedActors);
+	Scene->EnsureEssentialActors();
+	Scene->EnsurePlayerStartActor();
 	Scene->MarkSpatialDirty();
 
 	if (Json.contains("NextUUID"))

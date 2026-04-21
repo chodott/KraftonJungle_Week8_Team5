@@ -294,6 +294,9 @@
     <ClCompile Include="Source\Component\SpotLightComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Component\SpringArmComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Component\StaticMeshComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
@@ -765,6 +768,9 @@
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\SpotLightComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Component\SpringArmComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\StaticMeshComponent.h">
