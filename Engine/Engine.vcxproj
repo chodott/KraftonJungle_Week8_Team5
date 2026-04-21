@@ -55,8 +55,8 @@
     <ClInclude Include="Source\Component\LightComponentBase.h" />
     <ClInclude Include="Source\Component\LineBatchComponent.h" />
     <ClInclude Include="Source\Component\LocalHeightFogComponent.h" />
-    <ClInclude Include="Source\Component\MeshDecalComponent.h" />
     <ClInclude Include="Source\Component\MeshComponent.h" />
+    <ClInclude Include="Source\Component\MeshDecalComponent.h" />
     <ClInclude Include="Source\Component\MoveComponent.h" />
     <ClInclude Include="Source\Component\MovementComponent.h" />
     <ClInclude Include="Source\Component\PointLightComponent.h" />
@@ -149,6 +149,7 @@
     <ClInclude Include="Source\Renderer\Features\Fog\FogStats.h" />
     <ClInclude Include="Source\Renderer\Features\Fog\FogTypes.h" />
     <ClInclude Include="Source\Renderer\Features\Lighting\LightRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Features\Lighting\LightStats.h" />
     <ClInclude Include="Source\Renderer\Features\Lighting\LightTypes.h" />
     <ClInclude Include="Source\Renderer\Features\Outline\OutlineRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Features\Outline\OutlineTypes.h" />
@@ -173,6 +174,8 @@
     <ClInclude Include="Source\Renderer\GraphicsCore\RenderDevice.h" />
     <ClInclude Include="Source\Renderer\GraphicsCore\RenderState.h" />
     <ClInclude Include="Source\Renderer\GraphicsCore\RenderStateManager.h" />
+    <ClInclude Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.h" />
+    <ClInclude Include="Source\Renderer\HotReload\ShaderHotReloadService.h" />
     <ClInclude Include="Source\Renderer\Mesh\MeshBatch.h" />
     <ClInclude Include="Source\Renderer\Mesh\MeshData.h" />
     <ClInclude Include="Source\Renderer\Mesh\RenderMesh.h" />
@@ -180,8 +183,6 @@
     <ClInclude Include="Source\Renderer\Mesh\Vertex.h" />
     <ClInclude Include="Source\Renderer\Resources\Material\Material.h" />
     <ClInclude Include="Source\Renderer\Resources\Material\MaterialManager.h" />
-    <ClInclude Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.h" />
-    <ClInclude Include="Source\Renderer\HotReload\ShaderHotReloadService.h" />
     <ClInclude Include="Source\Renderer\Resources\Shader\Shader.h" />
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderCompiler.h" />
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderHandles.h" />
@@ -365,8 +366,8 @@
     <ClCompile Include="Source\Component\LightComponentBase.cpp" />
     <ClCompile Include="Source\Component\LineBatchComponent.cpp" />
     <ClCompile Include="Source\Component\LocalHeightFogComponent.cpp" />
-    <ClCompile Include="Source\Component\MeshDecalComponent.cpp" />
     <ClCompile Include="Source\Component\MeshComponent.cpp" />
+    <ClCompile Include="Source\Component\MeshDecalComponent.cpp" />
     <ClCompile Include="Source\Component\MoveComponent.cpp" />
     <ClCompile Include="Source\Component\MovementComponent.cpp" />
     <ClCompile Include="Source\Component\PointLightComponent.cpp" />
@@ -419,8 +420,6 @@
     <ClCompile Include="Source\Primitive\PrimitiveGizmo.cpp" />
     <ClCompile Include="Source\Primitive\UnrealEditorStyledGizmo.cpp" />
     <ClCompile Include="Source\Renderer\Renderer.cpp" />
-    <ClCompile Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.cpp" />
-    <ClCompile Include="Source\Renderer\HotReload\ShaderHotReloadService.cpp" />
     <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderer.cpp" />
     <ClCompile Include="Source\Renderer\Features\Debug\DebugLineRenderFeature.cpp" />
@@ -447,6 +446,8 @@
     <ClCompile Include="Source\Renderer\Frame\Viewport\ViewportCompositor.cpp" />
     <ClCompile Include="Source\Renderer\GraphicsCore\RenderState.cpp" />
     <ClCompile Include="Source\Renderer\GraphicsCore\RenderStateManager.cpp" />
+    <ClCompile Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.cpp" />
+    <ClCompile Include="Source\Renderer\HotReload\ShaderHotReloadService.cpp" />
     <ClCompile Include="Source\Renderer\Mesh\MeshData.cpp" />
     <ClCompile Include="Source\Renderer\Mesh\RenderMesh.cpp" />
     <ClCompile Include="Source\Renderer\Resources\Material\Material.cpp" />
@@ -580,7 +581,7 @@
       <PreprocessorDefinitions>NOMINMAX;ENGINECORE_EXPORTS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalOptions>/utf-8 /FS %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)Source\;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -598,7 +599,7 @@
       <PreprocessorDefinitions>NOMINMAX;ENGINECORE_EXPORTS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalOptions>/utf-8 /FS %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)Source\;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -616,7 +617,7 @@
   </ImportGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
-      <ErrorText>???꾨줈?앺듃????而댄벂?곗뿉 ?녿뒗 NuGet ?⑦궎吏瑜?李몄“?⑸땲?? ?대떦 ?⑦궎吏瑜??ㅼ슫濡쒕뱶?섎젮硫?NuGet ?⑦궎吏 蹂듭썝???ъ슜?섏떗?쒖삤. ?먯꽭???댁슜? http://go.microsoft.com/fwlink/?LinkID=322105瑜?李몄“?섏떗?쒖삤. ?꾨씫???뚯씪? {0}?낅땲??</ErrorText>
+      <ErrorText>이 프로젝트는 이 컴퓨터에 없는 NuGet 패키지를 참조합니다. 해당 패키지를 다운로드하려면 NuGet 패키지 복원을 사용하십시오. 자세한 내용은 http://go.microsoft.com/fwlink/?LinkID=322105를 참조하십시오. 누락된 파일은 {0}입니다.</ErrorText>
     </PropertyGroup>
     <Error Condition="!Exists('..\packages\directxtk_desktop_win10.2025.10.28.2\build\native\directxtk_desktop_win10.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\directxtk_desktop_win10.2025.10.28.2\build\native\directxtk_desktop_win10.targets'))" />
   </Target>

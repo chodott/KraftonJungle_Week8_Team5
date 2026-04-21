@@ -1,4 +1,4 @@
-﻿#include "Renderer/Features/Text/TextMeshBuilder.h"
+#include "Renderer/Features/Text/TextMeshBuilder.h"
 #include "Renderer/Resources/Shader/Shader.h"
 #include "Renderer/Resources/Shader/ShaderResource.h"
 #include "Renderer/Resources/Shader/ShaderType.h"

@@ -1,4 +1,4 @@
-﻿#include "Dropdown.h"
+#include "Dropdown.h"
 #include "TextMetrics.h"
 #include <algorithm>
 #include <cmath>

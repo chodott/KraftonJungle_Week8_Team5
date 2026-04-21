@@ -1,4 +1,4 @@
-﻿#include "SlateApplication.h"
+#include "SlateApplication.h"
 #include "Viewport/Viewport.h"
 #include <algorithm>
 #include <utility>

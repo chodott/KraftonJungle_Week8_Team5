@@ -1,4 +1,4 @@
-﻿#include "Gizmo.h"
+#include "Gizmo.h"
 
 #include "Actor/Actor.h"
 #include "Camera/Camera.h"

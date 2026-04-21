@@ -1,4 +1,4 @@
-﻿#include "PreviewViewportClient.h"
+#include "PreviewViewportClient.h"
 #include "Core/ShowFlags.h"
 
 #include "Core/Engine.h"

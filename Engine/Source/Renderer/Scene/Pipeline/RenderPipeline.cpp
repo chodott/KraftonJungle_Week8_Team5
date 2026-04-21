@@ -1,4 +1,4 @@
-﻿#include "Renderer/Scene/Pipeline/RenderPipeline.h"
+#include "Renderer/Scene/Pipeline/RenderPipeline.h"
 
 #include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Renderer.h"

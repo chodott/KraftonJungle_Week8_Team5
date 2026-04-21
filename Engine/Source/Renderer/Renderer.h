@@ -55,6 +55,12 @@ class FBillboardRenderer;
 class FDebugDrawManager;
 struct FScreenUIPassInputs;
 
+enum class ETextureColorSpace : uint8
+{
+	ColorSRGB,
+	DataLinear,
+};
+
 class ENGINE_API FRenderer
 {
 public:
@@ -92,8 +98,16 @@ public:
 	bool RenderGameFrame(const FGameFrameRequest& Request);
 	bool RenderEditorFrame(const FEditorFrameRequest& Request);
 
-	bool CreateTextureFromSTB(ID3D11Device* Device, const char* FilePath, ID3D11ShaderResourceView** OutSRV);
-	bool CreateTextureFromSTB(ID3D11Device* Device, const std::filesystem::path& FilePath, ID3D11ShaderResourceView** OutSRV);
+	bool CreateTextureFromSTB(
+		ID3D11Device*              Device,
+		const char*                FilePath,
+		ID3D11ShaderResourceView** OutSRV,
+		ETextureColorSpace         ColorSpace);
+	bool CreateTextureFromSTB(
+		ID3D11Device*                Device,
+		const std::filesystem::path& FilePath,
+		ID3D11ShaderResourceView**   OutSRV,
+		ETextureColorSpace           ColorSpace);
 
 	void ConfigureMaterialPasses(FMaterial& Material, bool bTexturedMaterial);
 	void TickShaderHotReload(float DeltaTime);
@@ -203,7 +217,11 @@ public:
 	void UpdateObjectConstantBuffer(const FMeshBatch& Batch);
 	void ClearDepthBuffer(ID3D11DepthStencilView* DepthStencilView);
 	void PreparePassDomain(EPassDomain Domain, const FSceneRenderTargets& Targets);
-	bool ResolveSceneColorTargets(const FSceneRenderTargets& Targets);
+	bool ResolveSceneColorTargets(
+		FSceneRenderTargets& Targets,
+		const FFrameContext& Frame,
+		const FViewContext&  View,
+		bool                 bApplyFXAA);
 
 	ID3D11ShaderResourceView* GetFolderIconSRV() const
 	{
@@ -232,6 +250,7 @@ private:
 	friend class FEditorFrameRenderer;
 	bool CreateConstantBuffers();
 	bool CreateSamplers();
+	bool EnsureFinalImageResources();
 
 
 	std::unique_ptr<FRenderStateManager> RenderStateManager = nullptr;
@@ -265,5 +284,12 @@ private:
 	std::unique_ptr<FSceneTargetManager> SceneTargetManager;
 	std::unique_ptr<FDecalTextureCache>  DecalTextureCache;
 	ID3D11SamplerState*                  NormalSampler = nullptr;
+	std::shared_ptr<FVertexShaderHandle> FinalImageVertexShader = nullptr;
+	std::shared_ptr<FPixelShaderHandle>  FinalImageBlitPixelShader = nullptr;
+	std::shared_ptr<FPixelShaderHandle>  ToneMappingPixelShader = nullptr;
+	ID3D11Buffer*                        ToneMappingConstantBuffer = nullptr;
+	ID3D11RasterizerState*               FullscreenRasterizerState = nullptr;
+	ID3D11DepthStencilState*             FullscreenNoDepthState = nullptr;
+	ID3D11SamplerState*                  FullscreenPointSampler = nullptr;
 	FShaderHotReloadService              ShaderHotReloadService;
 };

@@ -1,4 +1,4 @@
-﻿#include "Renderer/Features/SubUV/SubUVRenderer.h"
+#include "Renderer/Features/SubUV/SubUVRenderer.h"
 #include "Renderer/Resources/Shader/Shader.h"
 #include "Renderer/Resources/Shader/ShaderResource.h"
 #include "Renderer/Resources/Shader/ShaderType.h"
@@ -35,8 +35,19 @@ bool FSubUVRenderer::Initialize(FRenderer* InRenderer, const std::wstring& Textu
 		return false;
 	}
 
-	// 텍스처 및 샘플러 생성
-	HRESULT Hr = DirectX::CreateWICTextureFromFile(Device, DeviceContext, TexturePath.c_str(), nullptr, &TextureSRV);
+	// Color-authored sprite sheet textures must sample through sRGB decode.
+	HRESULT Hr = DirectX::CreateWICTextureFromFileEx(
+		Device,
+		DeviceContext,
+		TexturePath.c_str(),
+		0,
+		D3D11_USAGE_DEFAULT,
+		D3D11_BIND_SHADER_RESOURCE,
+		0,
+		0,
+		DirectX::WIC_LOADER_FORCE_SRGB,
+		nullptr,
+		&TextureSRV);
 	if (FAILED(Hr)) return false;
 
 	D3D11_SAMPLER_DESC SamplerDesc = {};

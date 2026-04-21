@@ -45,6 +45,7 @@ private:
 	ID3D11DepthStencilState* StencilEqualState = nullptr;
 	ID3D11DepthStencilState* StencilNotEqualState = nullptr;
 	ID3D11BlendState* OutlineBlendState = nullptr;
+	ID3D11BlendState* OutlineOverlayBlendState = nullptr;
 	ID3D11RasterizerState* OutlineRasterizerState = nullptr;
 	ID3D11SamplerState* OutlineSampler = nullptr;
 	std::shared_ptr<FVertexShaderHandle> OutlinePostVS = nullptr;

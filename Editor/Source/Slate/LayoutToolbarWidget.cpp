@@ -1,4 +1,4 @@
-﻿#include "LayoutToolbarWidget.h"
+#include "LayoutToolbarWidget.h"
 #include "EditorEngine.h"
 #include "Viewport/EditorViewportRegistry.h"
 #include "Slate/SlateApplication.h"

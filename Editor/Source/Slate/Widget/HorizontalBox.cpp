@@ -1,4 +1,4 @@
-﻿#include "HorizontalBox.h"
+#include "HorizontalBox.h"
 #include <algorithm>
 
 FVector2 SHorizontalBox::ComputeDesiredSize() const

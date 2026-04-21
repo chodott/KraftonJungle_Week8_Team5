@@ -1,4 +1,4 @@
-﻿#include "DirectionalLightComponent.h"
+#include "DirectionalLightComponent.h"
 
 #include "Object/Class.h"
 

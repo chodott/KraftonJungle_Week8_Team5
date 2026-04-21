@@ -1,4 +1,4 @@
-﻿#include "EditorCameraPawn.h"
+#include "EditorCameraPawn.h"
 #include "Object/ObjectFactory.h"
 #include "Object/Class.h"
 #include "Component/CameraComponent.h"

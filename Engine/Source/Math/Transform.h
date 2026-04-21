@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "EngineAPI.h"
 #include "Math/Quat.h"

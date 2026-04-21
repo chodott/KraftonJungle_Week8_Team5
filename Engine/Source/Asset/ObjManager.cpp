@@ -935,7 +935,11 @@ namespace
 		}
 
 		ID3D11ShaderResourceView* NewSRV = nullptr;
-		if (!GEngine->GetRenderer()->CreateTextureFromSTB(GEngine->GetRenderer()->GetDevice(), TexturePath, &NewSRV))
+		if (!GEngine->GetRenderer()->CreateTextureFromSTB(
+			GEngine->GetRenderer()->GetDevice(),
+			TexturePath,
+			&NewSRV,
+			ETextureColorSpace::ColorSRGB))
 		{
 			return false;
 		}
@@ -983,7 +987,11 @@ namespace
 		}
 
 		ID3D11ShaderResourceView* NewSRV = nullptr;
-		if (!GEngine->GetRenderer()->CreateTextureFromSTB(GEngine->GetRenderer()->GetDevice(), TexturePath, &NewSRV))
+		if (!GEngine->GetRenderer()->CreateTextureFromSTB(
+			GEngine->GetRenderer()->GetDevice(),
+			TexturePath,
+			&NewSRV,
+			ETextureColorSpace::DataLinear))
 		{
 			return false;
 		}
@@ -1003,7 +1011,11 @@ namespace
 		}
 
 		ID3D11ShaderResourceView* NewSRV = nullptr;
-		if (!GEngine->GetRenderer()->CreateTextureFromSTB(GEngine->GetRenderer()->GetDevice(), TexturePath, &NewSRV))
+		if (!GEngine->GetRenderer()->CreateTextureFromSTB(
+			GEngine->GetRenderer()->GetDevice(),
+			TexturePath,
+			&NewSRV,
+			ETextureColorSpace::ColorSRGB))
 		{
 			return false;
 		}

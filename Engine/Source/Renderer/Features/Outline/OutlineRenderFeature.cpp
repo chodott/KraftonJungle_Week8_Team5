@@ -123,6 +123,23 @@ bool FOutlineRenderFeature::Initialize(FRenderer& Renderer)
 		}
 	}
 
+	if (!OutlineOverlayBlendState)
+	{
+		D3D11_BLEND_DESC BlendDesc = {};
+		BlendDesc.RenderTarget[0].BlendEnable = TRUE;
+		BlendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+		BlendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+		BlendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+		BlendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+		BlendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+		BlendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+		BlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+		if (FAILED(Device->CreateBlendState(&BlendDesc, &OutlineOverlayBlendState)))
+		{
+			return false;
+		}
+	}
+
 	if (!OutlineRasterizerState)
 	{
 		D3D11_RASTERIZER_DESC RasterDesc = {};
@@ -338,7 +355,8 @@ bool FOutlineRenderFeature::RenderCompositePass(
 	}
 
 	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
-	if (!DeviceContext || !Targets.SceneColorRTV || !Targets.SceneDepthDSV)
+	ID3D11RenderTargetView* CompositeRTV = Targets.OverlayColorRTV ? Targets.OverlayColorRTV : Targets.SceneColorRTV;
+	if (!DeviceContext || !CompositeRTV || !Targets.SceneDepthDSV)
 	{
 		return false;
 	}
@@ -346,7 +364,7 @@ bool FOutlineRenderFeature::RenderCompositePass(
 	constexpr float BlendFactor[4] = { 0.f, 0.f, 0.f, 0.f };
 
 	FFullscreenPassPipelineState CompositePipelineState;
-	CompositePipelineState.BlendState = OutlineBlendState;
+	CompositePipelineState.BlendState = Targets.OverlayColorRTV ? OutlineOverlayBlendState : OutlineBlendState;
 	CompositePipelineState.BlendFactor = BlendFactor;
 	CompositePipelineState.DepthStencilState = StencilNotEqualState;
 	CompositePipelineState.StencilRef = 1;
@@ -382,7 +400,7 @@ bool FOutlineRenderFeature::RenderCompositePass(
 		Renderer,
 		Frame,
 		View,
-		Targets.SceneColorRTV,
+		CompositeRTV,
 		Targets.SceneDepthDSV,
 		View.Viewport,
 		{ OutlinePostVS, OutlineSobelPS },
@@ -423,6 +441,11 @@ void FOutlineRenderFeature::Release()
 	{
 		OutlineBlendState->Release();
 		OutlineBlendState = nullptr;
+	}
+	if (OutlineOverlayBlendState)
+	{
+		OutlineOverlayBlendState->Release();
+		OutlineOverlayBlendState = nullptr;
 	}
 	if (OutlineRasterizerState)
 	{

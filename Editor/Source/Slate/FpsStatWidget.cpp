@@ -1,4 +1,4 @@
-﻿#include "FpsStatWidget.h"
+#include "FpsStatWidget.h"
 
 #include "EditorEngine.h"
 #include <algorithm>

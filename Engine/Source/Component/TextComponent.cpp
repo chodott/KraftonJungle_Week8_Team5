@@ -1,4 +1,4 @@
-﻿#include "TextComponent.h"
+#include "TextComponent.h"
 #include "Object/Class.h"
 #include <algorithm>
 

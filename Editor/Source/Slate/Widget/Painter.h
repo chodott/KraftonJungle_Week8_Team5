@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "Viewport/ViewportTypes.h"
 #include "Renderer/UI/Screen/UIDrawList.h"

@@ -1,4 +1,4 @@
-﻿#include "Renderer/GraphicsCore/RenderStateManager.h"
+#include "Renderer/GraphicsCore/RenderStateManager.h"
 
 #include <array>
 #include <vector>

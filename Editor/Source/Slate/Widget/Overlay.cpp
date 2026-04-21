@@ -1,4 +1,4 @@
-﻿#include "Overlay.h"
+#include "Overlay.h"
 #include <algorithm>
 
 FVector2 SOverlay::ComputeDesiredSize() const

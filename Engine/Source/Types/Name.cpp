@@ -1,4 +1,4 @@
-﻿#include "Types/Name.h"
+#include "Types/Name.h"
 static FString ToLower(const FString& InString)
 {
 	FString Result = InString;

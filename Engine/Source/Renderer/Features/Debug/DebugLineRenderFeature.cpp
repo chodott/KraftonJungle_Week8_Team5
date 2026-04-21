@@ -1,4 +1,4 @@
-﻿#include "Renderer/Features/Debug/DebugLineRenderFeature.h"
+#include "Renderer/Features/Debug/DebugLineRenderFeature.h"
 
 #include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Resources/Material/Material.h"

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Renderer/Common/SceneRenderTargets.h"
@@ -15,17 +15,26 @@ enum class EPassDomain : uint8
 
 struct ENGINE_API FPassContext
 {
-	FRenderer& Renderer;
+	FRenderer&           Renderer;
 	FSceneRenderTargets& Targets;
-	FSceneViewData& SceneViewData;
-	FVector4 ClearColor = FVector4(0.1f, 0.1f, 0.1f, 1.0f);
+	FSceneViewData&      SceneViewData;
+	FVector4             ClearColor = FVector4(0.01f, 0.01f, 0.01f, 1.0f);
 };
 
 class ENGINE_API IRenderPass
 {
 public:
 	virtual ~IRenderPass() = default;
-	virtual const char* GetName() const { return "UnnamedPass"; }
-	virtual EPassDomain GetDomain() const { return EPassDomain::Graphics; }
+
+	virtual const char* GetName() const
+	{
+		return "UnnamedPass";
+	}
+
+	virtual EPassDomain GetDomain() const
+	{
+		return EPassDomain::Graphics;
+	}
+
 	virtual bool Execute(FPassContext& Context) = 0;
 };

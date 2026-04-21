@@ -1,4 +1,4 @@
-﻿#include "Renderer/Features/Text/FontAtlas.h"
+#include "Renderer/Features/Text/FontAtlas.h"
 #include <WICTextureLoader.h>
 #include <fstream>
 #include <filesystem>
@@ -35,10 +35,16 @@ bool FFontAtlas::Initialize(
 		return false;
 	}
 
-	HRESULT Hr = DirectX::CreateWICTextureFromFile(
+	HRESULT Hr = DirectX::CreateWICTextureFromFileEx(
 		Device,
 		DeviceContext,
 		TexturePath.c_str(),
+		0,
+		D3D11_USAGE_DEFAULT,
+		D3D11_BIND_SHADER_RESOURCE,
+		0,
+		0,
+		DirectX::WIC_LOADER_IGNORE_SRGB,
 		nullptr,
 		&TextureSRV
 	);

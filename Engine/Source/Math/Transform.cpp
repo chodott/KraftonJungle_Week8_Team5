@@ -1,4 +1,4 @@
-﻿#include "Math/Transform.h"
+#include "Math/Transform.h"
 
 const FTransform FTransform::Identity(FQuat::Identity, FVector::ZeroVector, FVector::OneVector);
 

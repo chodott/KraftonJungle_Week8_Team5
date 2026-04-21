@@ -1,4 +1,4 @@
-﻿#include "Renderer/Scene/Builders/DebugSceneBuilder.h"
+#include "Renderer/Scene/Builders/DebugSceneBuilder.h"
 
 #include "Actor/Actor.h"
 #include "Component/PrimitiveComponent.h"

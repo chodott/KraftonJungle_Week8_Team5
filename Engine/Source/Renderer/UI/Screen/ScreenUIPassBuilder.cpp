@@ -1,4 +1,4 @@
-﻿#include "Renderer/UI/Screen/ScreenUIPassBuilder.h"
+#include "Renderer/UI/Screen/ScreenUIPassBuilder.h"
 
 #include "Renderer/Common/RenderFeatureInterfaces.h"
 #include "Renderer/Mesh/Vertex.h"

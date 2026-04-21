@@ -100,6 +100,9 @@
     <Filter Include="Source\Renderer\GraphicsCore">
       <UniqueIdentifier>{f9751046-12c1-7b17-2628-833efdac5af8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\Renderer\HotReload">
+      <UniqueIdentifier>{27562620-06c8-c3a6-4da6-6bf48e882720}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source\Renderer\Mesh">
       <UniqueIdentifier>{3f6706ba-bb95-d0d9-a0d2-be3af0cf86fc}</UniqueIdentifier>
     </Filter>
@@ -111,9 +114,6 @@
     </Filter>
     <Filter Include="Source\Renderer\Resources\Shader">
       <UniqueIdentifier>{8d9f7807-235f-abbb-61b2-95c9d662f671}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Renderer\HotReload">
-      <UniqueIdentifier>{f814c359-c79d-4e6b-971b-4f01e643f846}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\Renderer\Scene">
       <UniqueIdentifier>{a181ca3e-7787-a16c-dd16-0201349a0453}</UniqueIdentifier>
@@ -184,6 +184,9 @@
       <Filter>Source\Actor</Filter>
     </ClCompile>
     <ClCompile Include="Source\Actor\LocalHeightFogActor.cpp">
+      <Filter>Source\Actor</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Actor\MeshDecalActor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
     <ClCompile Include="Source\Actor\PlaneActor.cpp">
@@ -262,6 +265,9 @@
       <Filter>Source\Component</Filter>
     </ClCompile>
     <ClCompile Include="Source\Component\MeshComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Component\MeshDecalComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
     <ClCompile Include="Source\Component\MoveComponent.cpp">
@@ -420,12 +426,6 @@
     <ClCompile Include="Source\Renderer\Renderer.cpp">
       <Filter>Source\Renderer</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.cpp">
-      <Filter>Source\Renderer\HotReload</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Renderer\HotReload\ShaderHotReloadService.cpp">
-      <Filter>Source\Renderer\HotReload</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderFeature.cpp">
       <Filter>Source\Renderer\Features\Billboard</Filter>
     </ClCompile>
@@ -503,6 +503,12 @@
     </ClCompile>
     <ClCompile Include="Source\Renderer\GraphicsCore\RenderStateManager.cpp">
       <Filter>Source\Renderer\GraphicsCore</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.cpp">
+      <Filter>Source\Renderer\HotReload</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\HotReload\ShaderHotReloadService.cpp">
+      <Filter>Source\Renderer\HotReload</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Mesh\MeshData.cpp">
       <Filter>Source\Renderer\Mesh</Filter>
@@ -659,6 +665,9 @@
     <ClInclude Include="Source\Actor\LocalHeightFogActor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Actor\MeshDecalActor.h">
+      <Filter>Source\Actor</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Actor\PlaneActor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
@@ -735,6 +744,9 @@
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\MeshComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Component\MeshDecalComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\MoveComponent.h">
@@ -989,6 +1001,9 @@
     <ClInclude Include="Source\Renderer\Features\Decal\DecalTypes.h">
       <Filter>Source\Renderer\Features\Decal</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Decal\MeshDecalTypes.h">
+      <Filter>Source\Renderer\Features\Decal</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Decal\VolumeDecalRenderFeature.h">
       <Filter>Source\Renderer\Features\Decal</Filter>
     </ClInclude>
@@ -1008,6 +1023,9 @@
       <Filter>Source\Renderer\Features\Fog</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Lighting\LightRenderFeature.h">
+      <Filter>Source\Renderer\Features\Lighting</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Lighting\LightStats.h">
       <Filter>Source\Renderer\Features\Lighting</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Lighting\LightTypes.h">
@@ -1082,6 +1100,12 @@
     <ClInclude Include="Source\Renderer\GraphicsCore\RenderStateManager.h">
       <Filter>Source\Renderer\GraphicsCore</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.h">
+      <Filter>Source\Renderer\HotReload</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\HotReload\ShaderHotReloadService.h">
+      <Filter>Source\Renderer\HotReload</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Renderer\Mesh\MeshBatch.h">
       <Filter>Source\Renderer\Mesh</Filter>
     </ClInclude>
@@ -1102,12 +1126,6 @@
     </ClInclude>
     <ClInclude Include="Source\Renderer\Resources\Material\MaterialManager.h">
       <Filter>Source\Renderer\Resources\Material</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.h">
-      <Filter>Source\Renderer\HotReload</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Renderer\HotReload\ShaderHotReloadService.h">
-      <Filter>Source\Renderer\HotReload</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Resources\Shader\Shader.h">
       <Filter>Source\Renderer\Resources\Shader</Filter>

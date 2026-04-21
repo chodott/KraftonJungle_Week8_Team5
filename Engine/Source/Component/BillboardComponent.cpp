@@ -1,4 +1,4 @@
-﻿#include "Component/BillboardComponent.h"
+#include "Component/BillboardComponent.h"
 #include "Core/Paths.h"
 #include "Component/DecalComponent.h"
 #include "Math/Matrix.h"

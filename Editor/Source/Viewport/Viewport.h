@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "ViewportTypes.h"
 #include <d3d11.h>

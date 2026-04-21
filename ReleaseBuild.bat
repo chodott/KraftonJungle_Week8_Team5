@@ -36,10 +36,13 @@ copy /y "%~dp0Editor\Bin\Release\Editor.exe" "%OUTPUT%\" >nul
 
 :: Shaders
 mkdir "%OUTPUT%\Engine\Shaders"
-xcopy /y /q "%~dp0Engine\Shaders\*" "%OUTPUT%\Engine\Shaders\" >nul
+xcopy /y /q /s /i "%~dp0Engine\Shaders" "%OUTPUT%\Engine\Shaders" >nul
 
 :: Assets
 xcopy /y /q /s /i "%~dp0Assets" "%OUTPUT%\Assets" >nul
+
+:: Content
+xcopy /y /q /s /i "%~dp0Content" "%OUTPUT%\Content" >nul
 
 echo.
 echo ============================================

@@ -99,7 +99,7 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 		diffuseLighting += dirDiffuse;
 		totalLighting += CalculateDirectionalLight(Directional, Input.WorldPosition, N, V).rgb;
 	}
-
+	
 	ComputeClusteredLocalLightingContributions(
 		Input.Position,
 		Input.WorldPosition,

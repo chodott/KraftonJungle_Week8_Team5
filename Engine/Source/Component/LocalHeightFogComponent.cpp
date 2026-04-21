@@ -1,4 +1,4 @@
-﻿#include "Component/LocalHeightFogComponent.h"
+#include "Component/LocalHeightFogComponent.h"
 
 #include <algorithm>
 

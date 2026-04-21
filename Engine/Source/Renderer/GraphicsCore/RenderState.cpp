@@ -1,4 +1,4 @@
-﻿#include "Renderer/GraphicsCore/RenderState.h"
+#include "Renderer/GraphicsCore/RenderState.h"
 
 std::shared_ptr<FRasterizerState> FRasterizerState::Create(
 	ID3D11Device* InDevice,

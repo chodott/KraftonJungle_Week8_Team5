@@ -1,4 +1,4 @@
-﻿#include "Archive.h"
+#include "Archive.h"
 #include "ThirdParty/nlohmann/json.hpp"
 
 using json = nlohmann::json;

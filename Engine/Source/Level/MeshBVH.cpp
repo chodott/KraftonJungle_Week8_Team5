@@ -1,4 +1,4 @@
-﻿#include "Level/MeshBVH.h"
+#include "Level/MeshBVH.h"
 #include "Renderer/Mesh/RenderMesh.h"
 
 #include <algorithm>

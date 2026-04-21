@@ -1,4 +1,4 @@
-﻿#include "VerticalBox.h"
+#include "VerticalBox.h"
 #include <algorithm>
 
 FVector2 SVerticalBox::ComputeDesiredSize() const

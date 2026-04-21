@@ -1,4 +1,4 @@
-﻿#include "Actor/StaticMeshActor.h"
+#include "Actor/StaticMeshActor.h"
 
 #include "Actor/Actor.h"
 #include "Object/Class.h"

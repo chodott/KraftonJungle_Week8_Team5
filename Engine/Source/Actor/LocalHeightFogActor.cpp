@@ -1,4 +1,4 @@
-﻿#include "Actor/LocalHeightFogActor.h"
+#include "Actor/LocalHeightFogActor.h"
 
 #include "Component/BillboardComponent.h"
 #include "Core/Paths.h"

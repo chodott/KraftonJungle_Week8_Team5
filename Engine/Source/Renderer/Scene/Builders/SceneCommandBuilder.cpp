@@ -1,4 +1,4 @@
-﻿#include "Renderer/Scene/Builders/SceneCommandBuilder.h"
+#include "Renderer/Scene/Builders/SceneCommandBuilder.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -205,7 +205,11 @@ FMaterial* FSceneCommandResourceCache::GetOrCreateMeshDecalMaterial(
 			if (GEngine && GEngine->GetRenderer())
 			{
 				ID3D11ShaderResourceView* NewSRV = nullptr;
-				if (GEngine->GetRenderer()->CreateTextureFromSTB(GEngine->GetRenderer()->GetDevice(), std::filesystem::path(NormalizedPath), &NewSRV))
+				if (GEngine->GetRenderer()->CreateTextureFromSTB(
+					GEngine->GetRenderer()->GetDevice(),
+					std::filesystem::path(NormalizedPath),
+					&NewSRV,
+					ETextureColorSpace::ColorSRGB))
 				{
 					TextureBinding               = std::make_shared<FMaterialTexture>();
 					TextureBinding->TextureSRV   = NewSRV;

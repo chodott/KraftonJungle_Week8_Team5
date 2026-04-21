@@ -1,4 +1,4 @@
-﻿#include "SViewport.h"
+#include "SViewport.h"
 
 bool SViewport::HitTest(int32 X, int32 Y) const
 {

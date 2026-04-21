@@ -1,4 +1,4 @@
-﻿#include "Renderer/Features/Text/TextRenderFeature.h"
+#include "Renderer/Features/Text/TextRenderFeature.h"
 
 #include "Renderer/Renderer.h"
 

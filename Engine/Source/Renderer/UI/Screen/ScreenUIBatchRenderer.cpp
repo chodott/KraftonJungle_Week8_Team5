@@ -1,4 +1,4 @@
-﻿#include "Renderer/UI/Screen/ScreenUIBatchRenderer.h"
+#include "Renderer/UI/Screen/ScreenUIBatchRenderer.h"
 
 #include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/GraphicsCore/RenderStateManager.h"

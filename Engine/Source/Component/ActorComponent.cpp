@@ -1,4 +1,4 @@
-﻿#include "Component/ActorComponent.h"
+#include "Component/ActorComponent.h"
 #include "Object/Class.h"
 #include "Serializer/Archive.h"
 

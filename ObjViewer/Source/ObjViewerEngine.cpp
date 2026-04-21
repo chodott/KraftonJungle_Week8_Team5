@@ -1,4 +1,4 @@
-﻿#include "ObjViewerEngine.h"
+#include "ObjViewerEngine.h"
 
 #include <algorithm>
 #include <cctype>

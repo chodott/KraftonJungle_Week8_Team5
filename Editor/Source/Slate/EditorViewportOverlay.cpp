@@ -1,4 +1,4 @@
-﻿#include "EditorViewportOverlay.h"
+#include "EditorViewportOverlay.h"
 
 SEditorViewportOverlay::SEditorViewportOverlay(
 	FEditorEngine* InEngine,

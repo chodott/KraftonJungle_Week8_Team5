@@ -1,4 +1,4 @@
-﻿#include "Subsystem/EditorCameraSubsystem.h"
+#include "Subsystem/EditorCameraSubsystem.h"
 
 #include "Component/CameraComponent.h"
 #include "Input/EnhancedInputManager.h"

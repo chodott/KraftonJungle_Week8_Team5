@@ -1,4 +1,4 @@
-﻿#include "Renderer/UI/Screen/ScreenUIRendererUtils.h"
+#include "Renderer/UI/Screen/ScreenUIRendererUtils.h"
 
 #include "Renderer/Mesh/Vertex.h"
 

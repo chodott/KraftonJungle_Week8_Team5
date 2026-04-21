@@ -1,4 +1,4 @@
-﻿#include "Viewport/Services/EditorViewportRenderService.h"
+#include "Viewport/Services/EditorViewportRenderService.h"
 
 #include "EditorEngine.h"
 #include "Viewport/EditorViewportRegistry.h"

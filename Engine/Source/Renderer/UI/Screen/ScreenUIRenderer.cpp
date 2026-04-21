@@ -1,4 +1,4 @@
-﻿#include "Renderer/UI/Screen/ScreenUIRenderer.h"
+#include "Renderer/UI/Screen/ScreenUIRenderer.h"
 
 #include "Renderer/UI/Screen/ScreenUIBatchRenderer.h"
 #include "Renderer/UI/Screen/ScreenUIPassBuilder.h"

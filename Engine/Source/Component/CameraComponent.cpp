@@ -1,4 +1,4 @@
-﻿#include "CameraComponent.h"
+#include "CameraComponent.h"
 #include "Object/Class.h"
 #include "Camera/Camera.h"
 #include "Serializer/Archive.h"

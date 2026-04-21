@@ -1,4 +1,4 @@
-﻿#include "Actor/TextActor.h"
+#include "Actor/TextActor.h"
 #include "Asset/ObjManager.h"
 #include "Core/Paths.h"
 #include "Object/ObjectFactory.h"

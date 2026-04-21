@@ -395,8 +395,8 @@ bool FSceneTargetManager::EnsureSupplementalTargets(ID3D11Device* Device, uint32
 
 	ReleaseSupplementalTargets();
 
-	if (!CreateColorTexture(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, InternalSceneColorA, true)
-		|| !CreateColorTexture(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, InternalSceneColorB, true)
+	if (!CreateColorTexture(Device, Width, Height, DXGI_FORMAT_R16G16B16A16_FLOAT, InternalSceneColorA, true)
+		|| !CreateColorTexture(Device, Width, Height, DXGI_FORMAT_R16G16B16A16_FLOAT, InternalSceneColorB, true)
 		|| !CreateColorTexture(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, GBufferASurface, true)
 		|| !CreateColorTexture(Device, Width, Height, DXGI_FORMAT_R16G16B16A16_FLOAT, GBufferBSurface, true)
 		|| !CreateColorTexture(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, GBufferCSurface, true)

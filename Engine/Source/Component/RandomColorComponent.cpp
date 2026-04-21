@@ -1,4 +1,4 @@
-﻿#include "Component/RandomColorComponent.h"
+#include "Component/RandomColorComponent.h"
 #include "Component/MeshComponent.h"
 #include "Actor/Actor.h"
 #include "Object/Class.h"

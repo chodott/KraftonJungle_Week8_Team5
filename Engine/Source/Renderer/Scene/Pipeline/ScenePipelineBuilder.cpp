@@ -10,6 +10,11 @@ void BuildDefaultSceneRenderPipeline(FRenderPipeline& OutPipeline, const FMeshPa
 {
 	OutPipeline.Reset();
 
+	// -----------------------------------------------------------------------
+	// [16-bit HDR] R16G16B16A16_FLOAT — 선형 공간 (Linear)
+	// SceneColorRead/Write, GBufferA/B/C 모두 float16 포맷으로 동작
+	// -----------------------------------------------------------------------
+
 	// Scene Geometry
 	OutPipeline.AddPass(std::make_unique<FClearSceneTargetsPass>());
 	OutPipeline.AddPass(std::make_unique<FUploadMeshBuffersPass>(MeshPassProcessor));
@@ -33,10 +38,14 @@ void BuildDefaultSceneRenderPipeline(FRenderPipeline& OutPipeline, const FMeshPa
 	OutPipeline.AddPass(std::make_unique<FOutlineMaskPass>());
 	OutPipeline.AddPass(std::make_unique<FOutlineCompositePass>());
 
-	// Final Image Post Process
-	OutPipeline.AddPass(std::make_unique<FFXAAPass>());
-
 	// Editor Screen Overlay
 	OutPipeline.AddPass(std::make_unique<FEditorLinePass>());
 	OutPipeline.AddPass(std::make_unique<FEditorPrimitivePass>(MeshPassProcessor));
+
+	// -----------------------------------------------------------------------
+	// 이후 ResolveSceneColorTargets에서:
+	//   ACES 톤매핑 + LinearToSRGB → SceneColorWrite (R16G16B16A16_FLOAT)
+	//   FXAA (옵션, sRGB 공간에서 동작)
+	//   최종 Blit → [8-bit LDR] R8G8B8A8_UNORM 백버퍼
+	// -----------------------------------------------------------------------
 }

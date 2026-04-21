@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "Types/String.h"
 #include "Types/Map.h"
