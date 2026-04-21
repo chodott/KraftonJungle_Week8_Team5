@@ -155,6 +155,7 @@ public:
 	void SetBlendState(const std::shared_ptr<FBlendState> InState) { BlendState = InState; }
 	void SetMaterialTexture(const std::shared_ptr<FMaterialTexture> InTexture) { MaterialTexture = InTexture; }
 	void SetNormalTexture(const std::shared_ptr<FMaterialTexture> InTexture) { NormalTexture = InTexture; }
+	void SetEmissiveTexture(const std::shared_ptr<FMaterialTexture> InTexture) { EmissiveTexture = InTexture; }
 	void SetPixelTextureBinding(uint32 Slot, ID3D11ShaderResourceView* TextureSRV, ID3D11SamplerState* SamplerState);
 	void ClearPixelTextureBinding();
 
@@ -169,8 +170,10 @@ public:
 	std::shared_ptr<FBlendState> GetBlendState() const { return BlendState; }
 	std::shared_ptr<FMaterialTexture> GetMaterialTexture() const { return MaterialTexture; }
 	std::shared_ptr<FMaterialTexture> GetNormalTexture() const { return NormalTexture; }
+	std::shared_ptr<FMaterialTexture> GetEmissiveTexture() const { return EmissiveTexture; }
 	bool HasPixelTextureBinding() const;
 	bool HasNormalTexture() const { return NormalTexture && NormalTexture->TextureSRV != nullptr; }
+	bool HasEmissiveTexture() const { return EmissiveTexture && EmissiveTexture->TextureSRV != nullptr; }
 
 	// FDynamicMaterial에서 파라미터 설정 시 사용
 	bool SetParameterData(const FString& ParamName, const void* Data, uint32 DataSize);
@@ -195,6 +198,8 @@ public:
 	void Release();
 
 protected:
+	void EnsureLitMaterialParameters(ID3D11Device* Device);
+
 
 	// TODO: ShaderId가 실제 사용하는 쉐이더를 반영하도록 변경
 	// NOTE: GetSortId에서 비트 연산 쓰는 경우 ShaderId가 32bit를 전부 쓰면 안 됨
@@ -216,6 +221,7 @@ protected:
 	// Texture
 	std::shared_ptr<FMaterialTexture> MaterialTexture = nullptr;
 	std::shared_ptr<FMaterialTexture> NormalTexture = nullptr;
+	std::shared_ptr<FMaterialTexture> EmissiveTexture = nullptr;
 	FMaterialPixelTextureBinding PixelTextureBinding = {};
 	std::array<FMaterialPassShaders, static_cast<size_t>(EMaterialPassType::Count)> PassShaderMap = {};
 	std::array<bool, static_cast<size_t>(EMaterialPassType::Count)> bHasPassShaderMap = {};

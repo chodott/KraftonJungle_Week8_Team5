@@ -9,6 +9,7 @@ struct FModelMaterialInfo
 	FVector4 BaseColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
 	FString DiffuseTexturePath;
 	FString NormalTexturePath;
+	FString EmissiveTexturePath;
 };
 
 enum class EObjImportAxis : uint8
