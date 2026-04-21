@@ -59,6 +59,7 @@ class FFireBallRenderFeature;
 class FFXAARenderFeature;
 class FDebugLineRenderFeature;
 class FLightRenderFeature;
+class FBloomRenderFeature;
 class FBillboardRenderer;
 class FDebugDrawManager;
 struct FScreenUIPassInputs;
@@ -179,6 +180,7 @@ public:
 	FFireBallRenderFeature*    GetFireBallFeature() const;
 	FFXAARenderFeature*        GetFXAAFeature() const;
 	FLightRenderFeature*       GetLightFeature() const;
+	FBloomRenderFeature*	   GetBloomFeature() const;
 
 	FSceneRenderer& GetSceneRenderer()
 	{
@@ -284,6 +286,7 @@ private:
 	std::unique_ptr<FVolumeDecalRenderFeature> VolumeDecalFeature;
 	std::unique_ptr<FFireBallRenderFeature>    FireBallFeature;
 	std::unique_ptr<FLightRenderFeature>       LightFeature;
+	std::unique_ptr<FBloomRenderFeature>       BloomFeature;
 	std::unique_ptr<FFXAARenderFeature>        FXAAFeature;
 	EDecalProjectionMode                       DecalProjectionMode = EDecalProjectionMode::ClusteredLookup;
 

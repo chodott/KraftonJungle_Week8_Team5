@@ -4,6 +4,7 @@
 #include "Renderer/Features/Decal/VolumeDecalRenderFeature.h"
 #include "Renderer/Features/FireBall/FireBallRenderFeature.h"
 #include "Renderer/Features/Fog/FogRenderFeature.h"
+#include "Renderer/Features/Lighting/BloomRenderFeature.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/Scene/Passes/ScenePassExecutionUtils.h"
 
@@ -66,5 +67,18 @@ bool FFireBallPass::Execute(FPassContext& Context)
 		Context.SceneViewData.View,
 		Context.Targets,
 		Context.SceneViewData.PostProcessInputs.FireBallItems	
+	);
+}
+
+bool FBloomPass::Execute(FPassContext& Context)
+{
+	FBloomRenderFeature* Feature = Context.Renderer.GetBloomFeature();
+	if (!Feature)
+		return true;
+	return Feature->Render(
+		Context.Renderer,
+		Context.SceneViewData.Frame,
+		Context.SceneViewData.View,
+		Context.Targets
 	);
 }

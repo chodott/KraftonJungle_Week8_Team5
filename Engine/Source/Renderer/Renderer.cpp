@@ -17,6 +17,7 @@
 #include "Renderer/Features/SubUV/SubUVRenderFeature.h"
 #include "Renderer/Features/Text/TextRenderFeature.h"
 #include "Renderer/Features/Lighting/LightRenderFeature.h"
+#include "Renderer/Features/Lighting/BloomRenderFeature.h"
 #include "Renderer/Frame/EditorFrameRenderer.h"
 #include "Renderer/Frame/GameFrameRenderer.h"
 #include "Renderer/Frame/RendererResourceBootstrap.h"
@@ -491,6 +492,11 @@ FFXAARenderFeature* FRenderer::GetFXAAFeature() const
 FLightRenderFeature* FRenderer::GetLightFeature() const
 {
 	return LightFeature.get();
+}
+
+FBloomRenderFeature* FRenderer::GetBloomFeature() const
+{
+	return BloomFeature.get();
 }
 
 FBillboardRenderer& FRenderer::GetBillboardRenderer()
