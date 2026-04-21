@@ -1,5 +1,5 @@
 #include "Renderer/Resources/Material/Material.h"
-#include "Renderer/Resources/Shader/Shader.h"
+#include "Renderer/Resources/Shader/ShaderHandles.h"
 #include <cstdint>
 #include <cstring>
 
@@ -34,7 +34,7 @@ void FMaterialTexture::Bind(ID3D11DeviceContext* DeviceContext)
 	}
 }
 
-// ─── FMaterialConstantBuffer ───
+// ??? FMaterialConstantBuffer ???
 
 FMaterialConstantBuffer::~FMaterialConstantBuffer()
 {
@@ -45,7 +45,7 @@ bool FMaterialConstantBuffer::Create(ID3D11Device* Device, uint32 InSize)
 {
 	Release();
 
-	// D3D11 상수 버퍼는 ByteWidth가 16의 배수여야 함
+	// D3D11 ?곸닔 踰꾪띁??ByteWidth媛 16??諛곗닔?ъ빞 ??
 	Size = (InSize + 15) & ~15;
 	CPUData = new uint8[Size];
 	memset(CPUData, 0, Size);
@@ -63,7 +63,7 @@ bool FMaterialConstantBuffer::Create(ID3D11Device* Device, uint32 InSize)
 		return false;
 	}
 
-	bDirty = true; // 초기 데이터(0)도 업로드 필요
+	bDirty = true; // 珥덇린 ?곗씠??0)???낅줈???꾩슂
 	return true;
 }
 
@@ -107,7 +107,7 @@ void FMaterialConstantBuffer::Release()
 	bDirty = false;
 }
 
-// ─── FMaterial ───
+// ??? FMaterial ???
 
 FMaterial::~FMaterial()
 {
@@ -291,7 +291,7 @@ std::unique_ptr<FDynamicMaterial> FMaterial::CreateDynamicMaterial() const
 	return Dynamic;
 }
 
-// ─── FDynamicMaterial ───
+// ??? FDynamicMaterial ???
 
 bool FDynamicMaterial::SetScalarParameter(const FString& ParamName, float Value)
 {
@@ -313,8 +313,8 @@ bool FDynamicMaterial::SetVector3Parameter(const FString& ParamName, const FVect
 void FMaterial::Bind(ID3D11DeviceContext* DeviceContext, EMaterialPassType PassType)
 {
 	const FMaterialPassShaders* PassShaders = GetPassShaders(PassType);
-	const std::shared_ptr<FVertexShader>& BoundVS = PassShaders ? PassShaders->VS : VertexShader;
-	const std::shared_ptr<FPixelShader>& BoundPS = PassShaders ? PassShaders->PS : PixelShader;
+	const std::shared_ptr<FVertexShaderHandle>& BoundVS = PassShaders ? PassShaders->VS : VertexShader;
+	const std::shared_ptr<FPixelShaderHandle>& BoundPS = PassShaders ? PassShaders->PS : PixelShader;
 
 	if (BoundVS)
 	{

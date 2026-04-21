@@ -15,6 +15,7 @@
 #include "Renderer/Common/RenderMode.h"
 #include "Renderer/Common/RenderFrameContext.h"
 #include "Renderer/GraphicsCore/RenderStateManager.h"
+#include "Renderer/HotReload/ShaderHotReloadService.h"
 #include "Renderer/Common/SceneRenderTargets.h"
 #include "Renderer/UI/Screen/UIDrawList.h"
 #include "Renderer/Resources/Shader/ShaderManager.h"
@@ -23,6 +24,7 @@
 #include <d3d11.h>
 #include <filesystem>
 #include <memory>
+#include <string>
 
 struct FVertex;
 struct FRenderMesh;
@@ -94,6 +96,8 @@ public:
 	bool CreateTextureFromSTB(ID3D11Device* Device, const std::filesystem::path& FilePath, ID3D11ShaderResourceView** OutSRV);
 
 	void ConfigureMaterialPasses(FMaterial& Material, bool bTexturedMaterial);
+	void TickShaderHotReload(float DeltaTime);
+	bool ApplyShaderReload(const FShaderReloadTransaction& Transaction, std::string& OutError);
 
 	FMaterial* GetDefaultMaterial() const
 	{
@@ -261,4 +265,5 @@ private:
 	std::unique_ptr<FSceneTargetManager> SceneTargetManager;
 	std::unique_ptr<FDecalTextureCache>  DecalTextureCache;
 	ID3D11SamplerState*                  NormalSampler = nullptr;
+	FShaderHotReloadService              ShaderHotReloadService;
 };

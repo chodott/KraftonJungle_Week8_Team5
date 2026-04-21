@@ -1,9 +1,9 @@
-﻿#include "Renderer/Frame/Viewport/ViewportCompositor.h"
+#include "Renderer/Frame/Viewport/ViewportCompositor.h"
 
 #include "Core/Paths.h"
 #include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/Resources/Shader/ShaderResource.h"
+#include "Renderer/Resources/Shader/ShaderRegistry.h"
 
 FViewportCompositor::~FViewportCompositor()
 {
@@ -24,22 +24,47 @@ bool FViewportCompositor::Initialize(ID3D11Device* Device)
 
 	const std::wstring ShaderDir = FPaths::ShaderDir().wstring();
 
-	auto BlitVSResource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl").c_str(), "main", "vs_5_0");
-	if (!BlitVSResource || FAILED(Device->CreateVertexShader(BlitVSResource->GetBufferPointer(), BlitVSResource->GetBufferSize(), nullptr, &BlitVertexShader)))
+	{
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Vertex;
+		Recipe.SourcePath = ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "vs_5_0";
+		Recipe.LayoutType = EVertexLayoutType::FullscreenNone;
+		BlitVertexShader = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(Device, Recipe);
+	}
+
+	if (!BlitVertexShader)
 	{
 		Release();
 		return false;
 	}
 
-	auto BlitPSResource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/BlitPixelShader.hlsl").c_str(), "main", "ps_5_0");
-	if (!BlitPSResource || FAILED(Device->CreatePixelShader(BlitPSResource->GetBufferPointer(), BlitPSResource->GetBufferSize(), nullptr, &BlitPixelShader)))
+	{
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Pixel;
+		Recipe.SourcePath = ShaderDir + L"FinalImagePostProcess/BlitPixelShader.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "ps_5_0";
+		BlitPixelShader = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
+	}
+
+	if (!BlitPixelShader)
 	{
 		Release();
 		return false;
 	}
 
-	auto DepthPSResource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/DepthViewPixelShader.hlsl").c_str(), "main", "ps_5_0");
-	if (!DepthPSResource || FAILED(Device->CreatePixelShader(DepthPSResource->GetBufferPointer(), DepthPSResource->GetBufferSize(), nullptr, &DepthViewPixelShader)))
+	{
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Pixel;
+		Recipe.SourcePath = ShaderDir + L"FinalImagePostProcess/DepthViewPixelShader.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "ps_5_0";
+		DepthViewPixelShader = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
+	}
+
+	if (!DepthViewPixelShader)
 	{
 		Release();
 		return false;
@@ -113,16 +138,8 @@ bool FViewportCompositor::Initialize(ID3D11Device* Device)
 
 void FViewportCompositor::Release()
 {
-	if (BlitVertexShader)
-	{
-		BlitVertexShader->Release();
-		BlitVertexShader = nullptr;
-	}
-	if (BlitPixelShader)
-	{
-		BlitPixelShader->Release();
-		BlitPixelShader = nullptr;
-	}
+	BlitVertexShader.reset();
+	BlitPixelShader.reset();
 	if (PointSampler)
 	{
 		PointSampler->Release();
@@ -144,11 +161,7 @@ void FViewportCompositor::Release()
 		ScissorRasterizerState = nullptr;
 	}
 
-	if (DepthViewPixelShader)
-	{
-		DepthViewPixelShader->Release();
-		DepthViewPixelShader = nullptr;
-	}
+	DepthViewPixelShader.reset();
 
 	if (VisualizationConstantBuffer)
 	{
@@ -188,7 +201,7 @@ bool FViewportCompositor::Compose(
 		}
 
 		ID3D11ShaderResourceView* SourceSRV = ResolveSourceSRV(Item);
-		ID3D11PixelShader* PixelShader = ResolvePixelShader(Item);
+		const std::shared_ptr<FPixelShaderHandle> PixelShader = ResolvePixelShader(Item);
 
 		if (!SourceSRV || !PixelShader)
 		{
@@ -305,7 +318,7 @@ bool FViewportCompositor::Compose(
 }
 
 
-ID3D11PixelShader* FViewportCompositor::ResolvePixelShader(const FViewportCompositeItem& Item) const
+std::shared_ptr<FPixelShaderHandle> FViewportCompositor::ResolvePixelShader(const FViewportCompositeItem& Item) const
 {
 	switch (Item.Mode)
 	{

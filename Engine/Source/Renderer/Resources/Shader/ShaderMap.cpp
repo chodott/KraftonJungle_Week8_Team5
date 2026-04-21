@@ -1,8 +1,8 @@
-﻿#include "Renderer/Resources/Shader/ShaderMap.h"
-#include "Renderer/Resources/Shader/Shader.h"
-#include "Renderer/Resources/Shader/ShaderResource.h"
+#include "Renderer/Resources/Shader/ShaderMap.h"
 
-#include <cstring>
+#include "Renderer/Resources/Shader/ShaderPathUtils.h"
+#include "Renderer/Resources/Shader/ShaderRegistry.h"
+#include "Renderer/Resources/Shader/ShaderResource.h"
 
 FShaderMap& FShaderMap::Get()
 {
@@ -10,111 +10,57 @@ FShaderMap& FShaderMap::Get()
 	return Instance;
 }
 
-std::shared_ptr<FVertexShader> FShaderMap::GetOrCreateVertexShader(
+std::shared_ptr<FVertexShaderHandle> FShaderMap::GetOrCreateVertexShader(
 	ID3D11Device* Device,
 	const wchar_t* FilePath)
 {
 	return GetOrCreateVertexShader(Device, FilePath, EVertexLayoutType::MeshVertex);
 }
 
-std::shared_ptr<FVertexShader> FShaderMap::GetOrCreateVertexShader(
+std::shared_ptr<FVertexShaderHandle> FShaderMap::GetOrCreateVertexShader(
 	ID3D11Device* Device,
 	const wchar_t* FilePath,
 	EVertexLayoutType LayoutType)
 {
-	std::wstring Key(FilePath);
-	Key += L"#";
-	Key += std::to_wstring(static_cast<unsigned int>(LayoutType));
+	FShaderRecipe Recipe = {};
+	Recipe.Stage = EShaderStage::Vertex;
+	Recipe.SourcePath = ResolveShaderPath(FilePath);
+	Recipe.EntryPoint = "main";
+	Recipe.Target = "vs_5_0";
+	Recipe.LayoutType = LayoutType;
 
-	auto It = VertexShaders.find(Key);
-	if (It != VertexShaders.end())
-	{
-		return It->second;
-	}
-
-	auto Resource = FShaderResource::GetOrCompile(FilePath, "main", "vs_5_0");
-	if (!Resource)
-	{
-		return nullptr;
-	}
-
-	auto VS = FVertexShader::Create(Device, Resource, LayoutType);
-	if (!VS)
-	{
-		return nullptr;
-	}
-
-	VertexShaders[Key] = VS;
-	return VS;
+	return FShaderRegistry::Get().GetOrCreateVertexShaderHandle(Device, Recipe);
 }
 
-std::shared_ptr<FPixelShader> FShaderMap::GetOrCreatePixelShader(
+std::shared_ptr<FPixelShaderHandle> FShaderMap::GetOrCreatePixelShader(
 	ID3D11Device* Device,
 	const wchar_t* FilePath)
 {
-	std::wstring Key(FilePath);
+	FShaderRecipe Recipe = {};
+	Recipe.Stage = EShaderStage::Pixel;
+	Recipe.SourcePath = ResolveShaderPath(FilePath);
+	Recipe.EntryPoint = "main";
+	Recipe.Target = "ps_5_0";
 
-	auto It = PixelShaders.find(Key);
-	if (It != PixelShaders.end())
-	{
-		return It->second;
-	}
-
-	auto Resource = FShaderResource::GetOrCompile(FilePath, "main", "ps_5_0");
-	if (!Resource)
-	{
-		return nullptr;
-	}
-
-	auto PS = FPixelShader::Create(Device, Resource);
-	if (!PS)
-	{
-		return nullptr;
-	}
-
-	PixelShaders[Key] = PS;
-	return PS;
+	return FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
 }
 
-std::shared_ptr<FComputeShader> FShaderMap::GetOrCreateComputeShader(
+std::shared_ptr<FComputeShaderHandle> FShaderMap::GetOrCreateComputeShader(
 	ID3D11Device* Device,
 	const wchar_t* FilePath,
 	const char* EntryPoint)
 {
-	std::wstring Key(FilePath);
-	Key += L"#";
-	for (const char* It = EntryPoint; It && *It != '\0'; ++It)
-	{
-		Key.push_back(static_cast<wchar_t>(*It));
-	}
-	Key += L"#cs_5_0";
+	FShaderRecipe Recipe = {};
+	Recipe.Stage = EShaderStage::Compute;
+	Recipe.SourcePath = ResolveShaderPath(FilePath);
+	Recipe.EntryPoint = EntryPoint ? EntryPoint : "main";
+	Recipe.Target = "cs_5_0";
 
-	auto It = ComputeShaders.find(Key);
-	if (It != ComputeShaders.end())
-	{
-		return It->second;
-	}
-
-	auto Resource = FShaderResource::GetOrCompile(FilePath, EntryPoint, "cs_5_0");
-	if (!Resource)
-	{
-		return nullptr;
-	}
-
-	auto CS = FComputeShader::Create(Device, Resource);
-	if (!CS)
-	{
-		return nullptr;
-	}
-
-	ComputeShaders[Key] = CS;
-	return CS;
+	return FShaderRegistry::Get().GetOrCreateComputeShaderHandle(Device, Recipe);
 }
 
 void FShaderMap::Clear()
 {
-	VertexShaders.clear();
-	PixelShaders.clear();
-	ComputeShaders.clear();
+	FShaderRegistry::Get().Clear();
 	FShaderResource::ClearCache();
 }

@@ -180,9 +180,16 @@
     <ClInclude Include="Source\Renderer\Mesh\Vertex.h" />
     <ClInclude Include="Source\Renderer\Resources\Material\Material.h" />
     <ClInclude Include="Source\Renderer\Resources\Material\MaterialManager.h" />
+    <ClInclude Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.h" />
+    <ClInclude Include="Source\Renderer\HotReload\ShaderHotReloadService.h" />
     <ClInclude Include="Source\Renderer\Resources\Shader\Shader.h" />
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderCompiler.h" />
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderHandles.h" />
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderManager.h" />
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderMap.h" />
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderPathUtils.h" />
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderRecipe.h" />
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderRegistry.h" />
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderResource.h" />
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderType.h" />
     <ClInclude Include="Source\Renderer\Scene\MeshPassProcessor.h" />
@@ -412,6 +419,8 @@
     <ClCompile Include="Source\Primitive\PrimitiveGizmo.cpp" />
     <ClCompile Include="Source\Primitive\UnrealEditorStyledGizmo.cpp" />
     <ClCompile Include="Source\Renderer\Renderer.cpp" />
+    <ClCompile Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.cpp" />
+    <ClCompile Include="Source\Renderer\HotReload\ShaderHotReloadService.cpp" />
     <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderer.cpp" />
     <ClCompile Include="Source\Renderer\Features\Debug\DebugLineRenderFeature.cpp" />
@@ -443,8 +452,13 @@
     <ClCompile Include="Source\Renderer\Resources\Material\Material.cpp" />
     <ClCompile Include="Source\Renderer\Resources\Material\MaterialManager.cpp" />
     <ClCompile Include="Source\Renderer\Resources\Shader\Shader.cpp" />
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderCompiler.cpp" />
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderHandles.cpp" />
     <ClCompile Include="Source\Renderer\Resources\Shader\ShaderManager.cpp" />
     <ClCompile Include="Source\Renderer\Resources\Shader\ShaderMap.cpp" />
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderPathUtils.cpp" />
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderRecipe.cpp" />
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderRegistry.cpp" />
     <ClCompile Include="Source\Renderer\Resources\Shader\ShaderResource.cpp" />
     <ClCompile Include="Source\Renderer\Scene\MeshPassProcessor.cpp" />
     <ClCompile Include="Source\Renderer\Scene\SceneRenderer.cpp" />
@@ -602,7 +616,7 @@
   </ImportGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
-      <ErrorText>이 프로젝트는 이 컴퓨터에 없는 NuGet 패키지를 참조합니다. 해당 패키지를 다운로드하려면 NuGet 패키지 복원을 사용하십시오. 자세한 내용은 http://go.microsoft.com/fwlink/?LinkID=322105를 참조하십시오. 누락된 파일은 {0}입니다.</ErrorText>
+      <ErrorText>???꾨줈?앺듃????而댄벂?곗뿉 ?녿뒗 NuGet ?⑦궎吏瑜?李몄“?⑸땲?? ?대떦 ?⑦궎吏瑜??ㅼ슫濡쒕뱶?섎젮硫?NuGet ?⑦궎吏 蹂듭썝???ъ슜?섏떗?쒖삤. ?먯꽭???댁슜? http://go.microsoft.com/fwlink/?LinkID=322105瑜?李몄“?섏떗?쒖삤. ?꾨씫???뚯씪? {0}?낅땲??</ErrorText>
     </PropertyGroup>
     <Error Condition="!Exists('..\packages\directxtk_desktop_win10.2025.10.28.2\build\native\directxtk_desktop_win10.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\directxtk_desktop_win10.2025.10.28.2\build\native\directxtk_desktop_win10.targets'))" />
   </Target>

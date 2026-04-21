@@ -1,9 +1,10 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Renderer/Features/Outline/OutlineTypes.h"
 #include "Renderer/Common/RenderFrameContext.h"
 #include "Renderer/Common/SceneRenderTargets.h"
+#include "Renderer/Resources/Shader/ShaderHandles.h"
 
 #include <d3d11.h>
 
@@ -46,7 +47,7 @@ private:
 	ID3D11BlendState* OutlineBlendState = nullptr;
 	ID3D11RasterizerState* OutlineRasterizerState = nullptr;
 	ID3D11SamplerState* OutlineSampler = nullptr;
-	ID3D11VertexShader* OutlinePostVS = nullptr;
-	ID3D11PixelShader* OutlineMaskPS = nullptr;
-	ID3D11PixelShader* OutlineSobelPS = nullptr;
+	std::shared_ptr<FVertexShaderHandle> OutlinePostVS = nullptr;
+	std::shared_ptr<FPixelShaderHandle> OutlineMaskPS = nullptr;
+	std::shared_ptr<FPixelShaderHandle> OutlineSobelPS = nullptr;
 };

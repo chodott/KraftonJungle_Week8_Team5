@@ -1,4 +1,4 @@
-﻿#include "Engine.h"
+#include "Engine.h"
 
 #include "Platform/Windows/WindowsWindow.h"
 #include "Asset/ObjManager.h"
@@ -97,6 +97,11 @@ void FEngine::Tick()
 void FEngine::PrepareFrame(float DeltaTime)
 {
 	(void)DeltaTime;
+
+	if (Renderer)
+	{
+		Renderer->TickShaderHotReload(DeltaTime);
+	}
 }
 
 FRenderer* FEngine::GetRenderer() const
