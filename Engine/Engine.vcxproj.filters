@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source">
@@ -111,6 +111,9 @@
     </Filter>
     <Filter Include="Source\Renderer\Resources\Shader">
       <UniqueIdentifier>{8d9f7807-235f-abbb-61b2-95c9d662f671}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Renderer\HotReload">
+      <UniqueIdentifier>{f814c359-c79d-4e6b-971b-4f01e643f846}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\Renderer\Scene">
       <UniqueIdentifier>{a181ca3e-7787-a16c-dd16-0201349a0453}</UniqueIdentifier>
@@ -417,6 +420,12 @@
     <ClCompile Include="Source\Renderer\Renderer.cpp">
       <Filter>Source\Renderer</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.cpp">
+      <Filter>Source\Renderer\HotReload</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\HotReload\ShaderHotReloadService.cpp">
+      <Filter>Source\Renderer\HotReload</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderFeature.cpp">
       <Filter>Source\Renderer\Features\Billboard</Filter>
     </ClCompile>
@@ -510,10 +519,25 @@
     <ClCompile Include="Source\Renderer\Resources\Shader\Shader.cpp">
       <Filter>Source\Renderer\Resources\Shader</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderCompiler.cpp">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderHandles.cpp">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Renderer\Resources\Shader\ShaderManager.cpp">
       <Filter>Source\Renderer\Resources\Shader</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Resources\Shader\ShaderMap.cpp">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderPathUtils.cpp">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderRecipe.cpp">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderRegistry.cpp">
       <Filter>Source\Renderer\Resources\Shader</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Resources\Shader\ShaderResource.cpp">
@@ -1079,13 +1103,34 @@
     <ClInclude Include="Source\Renderer\Resources\Material\MaterialManager.h">
       <Filter>Source\Renderer\Resources\Material</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.h">
+      <Filter>Source\Renderer\HotReload</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\HotReload\ShaderHotReloadService.h">
+      <Filter>Source\Renderer\HotReload</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Renderer\Resources\Shader\Shader.h">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderCompiler.h">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderHandles.h">
       <Filter>Source\Renderer\Resources\Shader</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderManager.h">
       <Filter>Source\Renderer\Resources\Shader</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderMap.h">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderPathUtils.h">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderRecipe.h">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderRegistry.h">
       <Filter>Source\Renderer\Resources\Shader</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderResource.h">

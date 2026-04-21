@@ -190,9 +190,16 @@ void FMeshPassProcessor::ExecutePass(
 		if (bApplyLighting)
 		{
 			const bool bHasNormalMap = Batch->Material->HasNormalTexture();
-			DeviceContext->VSSetShader(Feature->GetCurrentVS(bHasNormalMap, SceneViewData.RenderMode), nullptr, 0);
-			DeviceContext->PSSetShader(Feature->GetCurrentPS(bHasNormalMap, SceneViewData.RenderMode), nullptr, 0);
-			DeviceContext->IASetInputLayout(Feature->GetInputLayout());
+			std::shared_ptr<FVertexShaderHandle> VSHandle = Feature->GetCurrentVSHandle(bHasNormalMap, SceneViewData.RenderMode);
+			std::shared_ptr<FPixelShaderHandle> PSHandle = Feature->GetCurrentPSHandle(bHasNormalMap, SceneViewData.RenderMode);
+			if (VSHandle)
+			{
+				VSHandle->Bind(DeviceContext);
+			}
+			if (PSHandle)
+			{
+				PSHandle->Bind(DeviceContext);
+			}
 		}
 
 		if (Batch->bDisableCulling)

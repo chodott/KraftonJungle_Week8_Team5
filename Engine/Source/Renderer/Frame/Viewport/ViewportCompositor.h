@@ -1,7 +1,8 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Renderer/Common/RenderFrameContext.h"
+#include "Renderer/Resources/Shader/ShaderHandles.h"
 #include <d3d11.h>
 
 class FRenderer;
@@ -84,12 +85,12 @@ public:
 		const FViewportCompositePassInputs& Inputs) const;
 
 private:
-	ID3D11PixelShader* ResolvePixelShader(const FViewportCompositeItem& Item) const;
+	std::shared_ptr<FPixelShaderHandle> ResolvePixelShader(const FViewportCompositeItem& Item) const;
 	ID3D11ShaderResourceView* ResolveSourceSRV(const FViewportCompositeItem& Item) const;
 private:
-	ID3D11VertexShader* BlitVertexShader = nullptr;
-	ID3D11PixelShader* BlitPixelShader = nullptr;
-	ID3D11PixelShader* DepthViewPixelShader = nullptr;
+	std::shared_ptr<FVertexShaderHandle> BlitVertexShader = nullptr;
+	std::shared_ptr<FPixelShaderHandle> BlitPixelShader = nullptr;
+	std::shared_ptr<FPixelShaderHandle> DepthViewPixelShader = nullptr;
 	ID3D11SamplerState* PointSampler = nullptr;
 	ID3D11BlendState* AlphaBlendState = nullptr;
 	ID3D11DepthStencilState* NoDepthState = nullptr;

@@ -8,8 +8,7 @@
 #include "Renderer/Resources/Material/MaterialManager.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/GraphicsCore/RenderStateManager.h"
-#include "Renderer/Resources/Shader/Shader.h"
-#include "Renderer/Resources/Shader/ShaderResource.h"
+#include "Renderer/Resources/Shader/ShaderMap.h"
 #include "imgui.h"
 #include "Viewport.h"
 
@@ -33,7 +32,7 @@ void FEditorViewportClient::Attach(FEngine* Engine, FRenderer* Renderer)
 		return;
 	}
 
-	// 에디터 UI와 뷰포트 렌더링에 필요한 공용 리소스를 이 시점에 준비한다.
+	// ?먮뵒??UI? 酉고룷???뚮뜑留곸뿉 ?꾩슂??怨듭슜 由ъ냼?ㅻ? ???쒖젏??以鍮꾪븳??
 	EditorUI.Initialize(EditorEngine);
 	EditorUI.InitializeRendererResources(Renderer);
 	WireFrameMaterial = FMaterialManager::Get().FindByName(WireframeMaterialName);
@@ -46,7 +45,7 @@ void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
 	ID3D11Device* Device = Renderer->GetDevice();
 	if (Device)
 	{
-		// 에디터 그리드는 월드 축과 분리된 전용 메시/머티리얼을 사용한다.
+		// ?먮뵒??洹몃━?쒕뒗 ?붾뱶 異뺢낵 遺꾨━???꾩슜 硫붿떆/癒명떚由ъ뼹???ъ슜?쒕떎.
 		constexpr int32 GridVertexCount = 6;
 
 		GridMesh = std::make_unique<FDynamicMesh>();
@@ -62,10 +61,8 @@ void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
 		std::wstring ShaderDirW = FPaths::ShaderDir();
 		std::wstring VSPath = ShaderDirW + L"EditorWorldOverlay/GridVertexShader.hlsl";
 		std::wstring PSPath = ShaderDirW + L"EditorWorldOverlay/GridPixelShader.hlsl";
-		auto VSResource = FShaderResource::GetOrCompile(VSPath.c_str(), "main", "vs_5_0");
-		auto PSResource = FShaderResource::GetOrCompile(PSPath.c_str(), "main", "ps_5_0");
-		auto VS = FVertexShader::Create(Device, VSResource, EVertexLayoutType::MeshVertex);
-		auto PS = FPixelShader::Create(Device, PSResource);
+		auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str(), EVertexLayoutType::MeshVertex);
+		auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, PSPath.c_str());
 
 		GridMaterial = std::make_shared<FMaterial>();
 		GridMaterial->SetOriginName("M_EditorGrid");
@@ -75,7 +72,7 @@ void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
 		FRasterizerStateOption RasterizerOption;
 		RasterizerOption.FillMode = D3D11_FILL_SOLID;
 		RasterizerOption.CullMode = D3D11_CULL_NONE;
-		RasterizerOption.DepthBias = -10; // 또는 -1 ~ -100 사이 튜닝
+		RasterizerOption.DepthBias = -10; // ?먮뒗 -1 ~ -100 ?ъ씠 ?쒕떇
 		auto RS = Renderer->GetRenderStateManager()->GetOrCreateRasterizerState(RasterizerOption);
 		GridMaterial->SetRasterizerOption(RasterizerOption);
 		GridMaterial->SetRasterizerState(RS);
@@ -121,7 +118,7 @@ void FEditorViewportClient::CreateGridResource(FRenderer* Renderer)
 			GridMaterial->SetParameterData("ViewForward", &DefaultViewForward, sizeof(FVector));
 			for (int32 i = 0; i < MAX_VIEWPORTS; ++i)
 			{
-				// 실제 그리드 방향과 뷰 방향은 뷰포트별로 달라질 수 있으므로 동적 머티리얼을 분리한다.
+				// ?ㅼ젣 洹몃━??諛⑺뼢怨?酉?諛⑺뼢? 酉고룷?몃퀎濡??щ씪吏????덉쑝誘濡??숈쟻 癒명떚由ъ뼹??遺꾨━?쒕떎.
 				GridMaterials[i] = GridMaterial->CreateDynamicMaterial();
 			}
 		}
@@ -133,7 +130,7 @@ void FEditorViewportClient::CreateWorldAxisResource(FRenderer* Renderer)
 	ID3D11Device* Device = Renderer->GetDevice();
 	if (Device)
 	{
-		// 월드 축은 그리드와 독립된 전용 메시/머티리얼로 렌더한다.
+		// ?붾뱶 異뺤? 洹몃━?쒖? ?낅┰???꾩슜 硫붿떆/癒명떚由ъ뼹濡??뚮뜑?쒕떎.
 		constexpr int32 AxisVertexCount = 36;
 
 		WorldAxisMesh = std::make_unique<FDynamicMesh>();
@@ -149,10 +146,8 @@ void FEditorViewportClient::CreateWorldAxisResource(FRenderer* Renderer)
 		std::wstring ShaderDirW = FPaths::ShaderDir();
 		std::wstring VSPath = ShaderDirW + L"EditorScreenOverlay/AxisVertexShader.hlsl";
 		std::wstring PSPath = ShaderDirW + L"EditorScreenOverlay/AxisPixelShader.hlsl";
-		auto VSResource = FShaderResource::GetOrCompile(VSPath.c_str(), "main", "vs_5_0");
-		auto PSResource = FShaderResource::GetOrCompile(PSPath.c_str(), "main", "ps_5_0");
-		auto VS = FVertexShader::Create(Device, VSResource, EVertexLayoutType::MeshVertex);
-		auto PS = FPixelShader::Create(Device, PSResource);
+		auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str(), EVertexLayoutType::MeshVertex);
+		auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, PSPath.c_str());
 
 		WorldAxisMaterial = std::make_shared<FMaterial>();
 		WorldAxisMaterial->SetOriginName("M_EditorWorldAxis");
@@ -215,7 +210,7 @@ void FEditorViewportClient::CreateWorldAxisResource(FRenderer* Renderer)
 
 void FEditorViewportClient::Detach(FEngine* Engine, FRenderer* Renderer)
 {
-	// 드래그 중인 기즈모와 에디터 전용 렌더 자원을 모두 해제한다.
+	// ?쒕옒洹?以묒씤 湲곗쫰紐⑥? ?먮뵒???꾩슜 ?뚮뜑 ?먯썝??紐⑤몢 ?댁젣?쒕떎.
 	Gizmo.EndDrag();
 	EditorUI.ShutdownRendererResources(Renderer);
 
@@ -234,14 +229,14 @@ void FEditorViewportClient::Tick(FEngine* Engine, float DeltaTime)
 {
 	IViewportClient::Tick(Engine, DeltaTime);
 	FEditorEngine* EditorEngine = static_cast<FEditorEngine*>(Engine);
-	// 카메라 내비게이션과 뷰포트 입력 상태는 전용 서비스가 담당한다.
+	// 移대찓???대퉬寃뚯씠?섍낵 酉고룷???낅젰 ?곹깭???꾩슜 ?쒕퉬?ㅺ? ?대떦?쒕떎.
 	InputService.TickCameraNavigation(Engine, EditorEngine, ViewportRegistry, Gizmo);
 }
 
 void FEditorViewportClient::HandleMessage(FEngine* Engine, HWND Hwnd, UINT Msg, WPARAM WParam, LPARAM LParam)
 {
 	FEditorEngine* EditorEngine = static_cast<FEditorEngine*>(Engine);
-	// 입력 서비스가 피킹, 기즈모, 선택 갱신까지 한 번에 처리한다.
+	// ?낅젰 ?쒕퉬?ㅺ? ?쇳궧, 湲곗쫰紐? ?좏깮 媛깆떊源뚯? ??踰덉뿉 泥섎━?쒕떎.
 	InputService.HandleMessage(
 		Engine,
 		EditorEngine,
@@ -285,7 +280,7 @@ void FEditorViewportClient::BuildSceneRenderPacket(
 	{
 		return;
 	}
-	// 실제 수집 로직은 공통 ViewportClient의 ScenePacketBuilder 경로를 재사용한다.
+	// ?ㅼ젣 ?섏쭛 濡쒖쭅? 怨듯넻 ViewportClient??ScenePacketBuilder 寃쎈줈瑜??ъ궗?⑺븳??
 	IViewportClient::BuildSceneRenderPacket(Engine, World, Frustum, Flags, OutPacket);
 }
 
@@ -296,7 +291,7 @@ void FEditorViewportClient::Render(FEngine* Engine, FRenderer* Renderer)
 		return;
 	}
 
-	// 렌더 전마다 Slate가 계산한 뷰포트 사각형을 레지스트리 엔트리에 반영한다.
+	// ?뚮뜑 ?꾨쭏??Slate媛 怨꾩궛??酉고룷???ш컖?뺤쓣 ?덉??ㅽ듃由??뷀듃由ъ뿉 諛섏쁺?쒕떎.
 	SyncViewportRectsFromDock();
 	FEditorEngine* EditorEngine = static_cast<FEditorEngine*>(Engine);
 	FMaterial* GridMaterialPtrs[MAX_VIEWPORTS] = {};
@@ -307,7 +302,7 @@ void FEditorViewportClient::Render(FEngine* Engine, FRenderer* Renderer)
 		WorldAxisMaterialPtrs[i] = WorldAxisMaterials[i].get();
 	}
 
-	// 에디터 프레임 조립과 실제 요청 생성은 RenderService가 담당한다.
+	// ?먮뵒???꾨젅??議곕┰怨??ㅼ젣 ?붿껌 ?앹꽦? RenderService媛 ?대떦?쒕떎.
 	RenderService.RenderAll(
 		Engine,
 		Renderer,
@@ -328,7 +323,7 @@ void FEditorViewportClient::Render(FEngine* Engine, FRenderer* Renderer)
 
 void FEditorViewportClient::SyncViewportRectsFromDock()
 {
-	// 중앙 dock rect가 있으면 그것을 쓰고, 없으면 ImGui 메인 뷰포트 작업 영역을 fallback으로 사용한다.
+	// 以묒븰 dock rect媛 ?덉쑝硫?洹멸쾬???곌퀬, ?놁쑝硫?ImGui 硫붿씤 酉고룷???묒뾽 ?곸뿭??fallback?쇰줈 ?ъ슜?쒕떎.
 	FRect Central;
 	if (!EditorUI.GetCentralDockRect(Central) || !Central.IsValid())
 	{
@@ -350,7 +345,7 @@ void FEditorViewportClient::SyncViewportRectsFromDock()
 	FSlateApplication* Slate = EditorEngine.GetSlateApplication();
 	if (Slate)
 	{
-		// Slate 레이아웃 결과를 바탕으로 활성 뷰포트와 각 뷰포트 영역을 갱신한다.
+		// Slate ?덉씠?꾩썐 寃곌낵瑜?諛뷀깢?쇰줈 ?쒖꽦 酉고룷?몄? 媛?酉고룷???곸뿭??媛깆떊?쒕떎.
 		Slate->SetViewportAreaRect(Central);
 
 		for (FViewportEntry& Entry : ViewportRegistry.GetEntries())

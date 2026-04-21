@@ -1,4 +1,4 @@
-﻿
+
 #pragma once
 
 #include "CoreMinimal.h"
@@ -6,6 +6,7 @@
 #include "Renderer/Common/SceneRenderTargets.h"
 #include "Renderer/Features/Fog/FogTypes.h"
 #include "Renderer/Features/Fog/FogStats.h"
+#include "Renderer/Resources/Shader/ShaderHandles.h"
 
 #include <d3d11.h>
 
@@ -44,8 +45,8 @@ private:
   ID3D11RasterizerState *FogRasterizerState = nullptr;
   ID3D11SamplerState *LinearSampler = nullptr;
   ID3D11SamplerState *DepthSampler = nullptr;
-  ID3D11VertexShader *FogPostVS = nullptr;
-  ID3D11PixelShader *FogPostPS = nullptr;
+  std::shared_ptr<FVertexShaderHandle> FogPostVS = nullptr;
+  std::shared_ptr<FPixelShaderHandle> FogPostPS = nullptr;
 
   ID3D11Buffer *LocalFogStructuredBuffer = nullptr;
   ID3D11ShaderResourceView *LocalFogStructuredBufferSRV = nullptr;

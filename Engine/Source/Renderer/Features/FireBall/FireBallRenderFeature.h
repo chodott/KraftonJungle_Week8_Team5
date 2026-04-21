@@ -1,9 +1,10 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Renderer/Features/FireBall/FireBallTypes.h"
 #include "Renderer/Common/RenderFrameContext.h"
 #include "Renderer/Common/SceneRenderTargets.h"
+#include "Renderer/Resources/Shader/ShaderHandles.h"
 
 #include <d3d11.h>
 
@@ -31,6 +32,6 @@ private:
 	ID3D11DepthStencilState* NoDepthState = nullptr;
 	ID3D11RasterizerState* FireBallRasterizerState = nullptr;
 	ID3D11SamplerState* DepthSampler = nullptr;
-	ID3D11VertexShader* FireBallPostVS = nullptr;
-	ID3D11PixelShader* FireBallPostPS = nullptr;
+	std::shared_ptr<FVertexShaderHandle> FireBallPostVS = nullptr;
+	std::shared_ptr<FPixelShaderHandle> FireBallPostPS = nullptr;
 };

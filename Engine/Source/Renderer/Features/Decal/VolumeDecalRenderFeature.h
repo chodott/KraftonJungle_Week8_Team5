@@ -1,16 +1,15 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Renderer/Features/Decal/DecalStats.h"
 #include "Renderer/Features/Decal/DecalTypes.h"
 #include "Renderer/Common/SceneRenderTargets.h"
+#include "Renderer/Resources/Shader/ShaderHandles.h"
 
 #include <d3d11.h>
 #include <memory>
 
 class FRenderer;
-class FVertexShader;
-class FPixelShader;
 
 class ENGINE_API FVolumeDecalRenderFeature
 {
@@ -67,8 +66,8 @@ private:
     double LastShadingPassTimeMs = 0.0;
     double LastTotalTimeMs = 0.0;
 
-    std::shared_ptr<FVertexShader> VolumeVS;
-    std::shared_ptr<FPixelShader> VolumePS;
+    std::shared_ptr<FVertexShaderHandle> VolumeVS;
+    std::shared_ptr<FPixelShaderHandle> VolumePS;
 
     ID3D11Buffer* VolumeVertexBuffer = nullptr;
     ID3D11Buffer* VolumeIndexBuffer = nullptr;
@@ -83,6 +82,6 @@ private:
     ID3D11DepthStencilState* VolumeDepthState = nullptr;
     ID3D11RasterizerState* VolumeRasterizerState = nullptr;
 	
-	std::shared_ptr<FPixelShader> DebugPS = nullptr;
+	std::shared_ptr<FPixelShaderHandle> DebugPS = nullptr;
 	ID3D11DepthStencilState* DebugDepthState = nullptr;
 };

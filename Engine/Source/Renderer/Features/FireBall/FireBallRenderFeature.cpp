@@ -1,9 +1,9 @@
-﻿#include "Renderer/Features/FireBall/FireBallRenderFeature.h"
+#include "Renderer/Features/FireBall/FireBallRenderFeature.h"
 
 #include "Renderer/Renderer.h"
 #include "Core/Paths.h"
 #include "Renderer/GraphicsCore/FullscreenPass.h"
-#include "Renderer/Resources/Shader/ShaderResource.h"
+#include "Renderer/Resources/Shader/ShaderRegistry.h"
 
 namespace
 {
@@ -104,23 +104,26 @@ bool FFireBallRenderFeature::Initialize(FRenderer& Renderer)
 	const std::wstring ShaderDir = FPaths::ShaderDir().wstring();
 	if (!FireBallPostVS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl").c_str(), "main", "vs_5_0");
-		if (!Resource || FAILED(Device->CreateVertexShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &FireBallPostVS)))
-		{
-			return false;
-		}
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Vertex;
+		Recipe.SourcePath = ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "vs_5_0";
+		Recipe.LayoutType = EVertexLayoutType::FullscreenNone;
+		FireBallPostVS = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(Device, Recipe);
 	}
 
 	if (!FireBallPostPS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"SceneEffects/FireBallPixelShader.hlsl").c_str(), "main", "ps_5_0");
-		if (!Resource || FAILED(Device->CreatePixelShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &FireBallPostPS)))
-		{
-			return false;
-		}
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Pixel;
+		Recipe.SourcePath = ShaderDir + L"SceneEffects/FireBallPixelShader.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "ps_5_0";
+		FireBallPostPS = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
 	}
 
-	return true;
+	return FireBallPostVS != nullptr && FireBallPostPS != nullptr;
 }
 
 
@@ -242,14 +245,6 @@ void FFireBallRenderFeature::Release()
 		DepthSampler->Release();
 		DepthSampler = nullptr;
 	}
-	if (FireBallPostVS)
-	{
-		FireBallPostVS->Release();
-		FireBallPostVS = nullptr;
-	}
-	if (FireBallPostPS)
-	{
-		FireBallPostPS->Release();
-		FireBallPostPS = nullptr;
-	}
+	FireBallPostVS.reset();
+	FireBallPostPS.reset();
 }

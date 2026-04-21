@@ -381,6 +381,8 @@ void FEditorEngine::RefreshLightGizmoSelectionVisibility()
 
 void FEditorEngine::PrepareFrame(float DeltaTime)
 {
+	FEngine::PrepareFrame(DeltaTime);
+
 	if (bIsPIEActive && PIEViewportId != INVALID_VIEWPORT_ID)
 	{
 		if (SlateApplication && !SlateApplication->IsViewportActive(PIEViewportId))

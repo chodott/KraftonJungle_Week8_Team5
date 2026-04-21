@@ -5,7 +5,7 @@
 #include "Math/Transform.h"
 #include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/Resources/Shader/ShaderResource.h"
+#include "Renderer/Resources/Shader/ShaderRegistry.h"
 
 #include <algorithm>
 #include <array>
@@ -313,23 +313,26 @@ bool FFogRenderFeature::Initialize(FRenderer& Renderer)
     const std::wstring ShaderDir = FPaths::ShaderDir().wstring();
     if (!FogPostVS)
     {
-        auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl").c_str(), "main", "vs_5_0");
-        if (!Resource || FAILED(Device->CreateVertexShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &FogPostVS)))
-        {
-            return false;
-        }
+        FShaderRecipe Recipe = {};
+        Recipe.Stage = EShaderStage::Vertex;
+        Recipe.SourcePath = ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl";
+        Recipe.EntryPoint = "main";
+        Recipe.Target = "vs_5_0";
+        Recipe.LayoutType = EVertexLayoutType::FullscreenNone;
+        FogPostVS = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(Device, Recipe);
     }
 
     if (!FogPostPS)
     {
-        auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"SceneEffects/FogCompositeClusteredPixelShader.hlsl").c_str(), "main", "ps_5_0");
-        if (!Resource || FAILED(Device->CreatePixelShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &FogPostPS)))
-        {
-            return false;
-        }
+        FShaderRecipe Recipe = {};
+        Recipe.Stage = EShaderStage::Pixel;
+        Recipe.SourcePath = ShaderDir + L"SceneEffects/FogCompositeClusteredPixelShader.hlsl";
+        Recipe.EntryPoint = "main";
+        Recipe.Target = "ps_5_0";
+        FogPostPS = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
     }
 
-    return true;
+    return FogPostVS != nullptr && FogPostPS != nullptr;
 }
 
 bool FFogRenderFeature::UpdateFogCompositeConstantBuffer(FRenderer& Renderer, const FViewContext& View, uint32 TotalFogCount, uint32 GlobalFogCount, uint32 LocalFogCount)
@@ -886,8 +889,8 @@ void FFogRenderFeature::Release()
     SafeRelease(reinterpret_cast<IUnknown*&>(FogRasterizerState));
     SafeRelease(reinterpret_cast<IUnknown*&>(LinearSampler));
     SafeRelease(reinterpret_cast<IUnknown*&>(DepthSampler));
-    SafeRelease(reinterpret_cast<IUnknown*&>(FogPostVS));
-    SafeRelease(reinterpret_cast<IUnknown*&>(FogPostPS));
+    FogPostVS.reset();
+    FogPostPS.reset();
     SafeRelease(reinterpret_cast<IUnknown*&>(LocalFogStructuredBuffer));
     SafeRelease(reinterpret_cast<IUnknown*&>(LocalFogStructuredBufferSRV));
     SafeRelease(reinterpret_cast<IUnknown*&>(GlobalFogStructuredBuffer));

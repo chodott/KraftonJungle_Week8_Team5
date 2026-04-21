@@ -1,11 +1,11 @@
-﻿#include "Renderer/Features/Outline/OutlineRenderFeature.h"
+#include "Renderer/Features/Outline/OutlineRenderFeature.h"
 
 #include "Core/Paths.h"
 #include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Mesh/RenderMesh.h"
 #include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/Resources/Shader/ShaderResource.h"
+#include "Renderer/Resources/Shader/ShaderRegistry.h"
 
 namespace
 {
@@ -154,32 +154,36 @@ bool FOutlineRenderFeature::Initialize(FRenderer& Renderer)
 	const std::wstring ShaderDir = FPaths::ShaderDir();
 	if (!OutlinePostVS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl").c_str(), "main", "vs_5_0");
-		if (!Resource || FAILED(Device->CreateVertexShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &OutlinePostVS)))
-		{
-			return false;
-		}
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Vertex;
+		Recipe.SourcePath = ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "vs_5_0";
+		Recipe.LayoutType = EVertexLayoutType::FullscreenNone;
+		OutlinePostVS = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(Device, Recipe);
 	}
 
 	if (!OutlineMaskPS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"SelectionHighlight/OutlineMaskPixelShader.hlsl").c_str(), "main", "ps_5_0");
-		if (!Resource || FAILED(Device->CreatePixelShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &OutlineMaskPS)))
-		{
-			return false;
-		}
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Pixel;
+		Recipe.SourcePath = ShaderDir + L"SelectionHighlight/OutlineMaskPixelShader.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "ps_5_0";
+		OutlineMaskPS = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
 	}
 
 	if (!OutlineSobelPS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"SelectionHighlight/OutlineSobelPixelShader.hlsl").c_str(), "main", "ps_5_0");
-		if (!Resource || FAILED(Device->CreatePixelShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &OutlineSobelPS)))
-		{
-			return false;
-		}
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Pixel;
+		Recipe.SourcePath = ShaderDir + L"SelectionHighlight/OutlineSobelPixelShader.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "ps_5_0";
+		OutlineSobelPS = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
 	}
 
-	return true;
+	return OutlinePostVS != nullptr && OutlineMaskPS != nullptr && OutlineSobelPS != nullptr;
 }
 
 void FOutlineRenderFeature::UpdateOutlinePostConstantBuffer(
@@ -430,19 +434,7 @@ void FOutlineRenderFeature::Release()
 		OutlineSampler->Release();
 		OutlineSampler = nullptr;
 	}
-	if (OutlinePostVS)
-	{
-		OutlinePostVS->Release();
-		OutlinePostVS = nullptr;
-	}
-	if (OutlineMaskPS)
-	{
-		OutlineMaskPS->Release();
-		OutlineMaskPS = nullptr;
-	}
-	if (OutlineSobelPS)
-	{
-		OutlineSobelPS->Release();
-		OutlineSobelPS = nullptr;
-	}
+	OutlinePostVS.reset();
+	OutlineMaskPS.reset();
+	OutlineSobelPS.reset();
 }

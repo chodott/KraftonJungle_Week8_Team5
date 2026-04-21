@@ -1,9 +1,9 @@
-﻿#include "Renderer/Features/PostProcess/FXAARenderFeature.h"
+#include "Renderer/Features/PostProcess/FXAARenderFeature.h"
 
 #include "Core/Paths.h"
 #include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/Resources/Shader/ShaderResource.h"
+#include "Renderer/Resources/Shader/ShaderRegistry.h"
 
 namespace
 {
@@ -86,23 +86,26 @@ bool FFXAARenderFeature::Initialize(FRenderer& Renderer)
 
 	if (!FullscreenVS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl").c_str(), "main", "vs_5_0");
-		if (!Resource || FAILED(Device->CreateVertexShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &FullscreenVS)))
-		{
-			return false;
-		}
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Vertex;
+		Recipe.SourcePath = ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "vs_5_0";
+		Recipe.LayoutType = EVertexLayoutType::FullscreenNone;
+		FullscreenVS = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(Device, Recipe);
 	}
 
 	if (!FXAAPS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/FXAAPixelShader.hlsl").c_str(), "main", "ps_5_0");
-		if (!Resource || FAILED(Device->CreatePixelShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &FXAAPS)))
-		{
-			return false;
-		}
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Pixel;
+		Recipe.SourcePath = ShaderDir + L"FinalImagePostProcess/FXAAPixelShader.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "ps_5_0";
+		FXAAPS = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
 	}
 
-	return true;
+	return FullscreenVS != nullptr && FXAAPS != nullptr;
 }
 
 void FFXAARenderFeature::UpdateConstantBuffer(FRenderer& Renderer, const FViewContext& View)
@@ -201,6 +204,6 @@ void FFXAARenderFeature::Release()
 	if (NoDepthState)        { NoDepthState->Release();        NoDepthState        = nullptr; }
 	if (RasterizerState)     { RasterizerState->Release();     RasterizerState     = nullptr; }
 	if (LinearSampler)       { LinearSampler->Release();       LinearSampler       = nullptr; }
-	if (FullscreenVS)        { FullscreenVS->Release();        FullscreenVS        = nullptr; }
-	if (FXAAPS)              { FXAAPS->Release();              FXAAPS              = nullptr; }
+	FullscreenVS.reset();
+	FXAAPS.reset();
 }

@@ -3,7 +3,7 @@
 #include "Core/Paths.h"
 #include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/Resources/Shader/ShaderResource.h"
+#include "Renderer/Resources/Shader/ShaderRegistry.h"
 #include <algorithm>
 
 #include "Renderer/Mesh/Vertex.h"
@@ -292,7 +292,7 @@ bool FDecalRenderFeature::Render(
 		return false;
 	}
 
-	// BaseColorTextureArraySRV는 매 프레임 갱신 (포인터가 바뀔 수 있음)
+	// BaseColorTextureArraySRV??留??꾨젅??媛깆떊 (?ъ씤?곌? 諛붾????덉쓬)
 	CachedPreparedData.BaseColorTextureArraySRV = Request.BaseColorTextureArraySRV;
 
 	if (!BuildFrameData(Request, CachedPreparedData, FrameStats))
@@ -650,20 +650,23 @@ bool FDecalRenderFeature::Initialize(FRenderer& Renderer)
 	const std::wstring ShaderDir = FPaths::ShaderDir();
 	if (!CompositeVS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl").c_str(), "main", "vs_5_0");
-		if (!Resource || FAILED(Device->CreateVertexShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &CompositeVS)))
-		{
-			return false;
-		}
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Vertex;
+		Recipe.SourcePath = ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "vs_5_0";
+		Recipe.LayoutType = EVertexLayoutType::FullscreenNone;
+		CompositeVS = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(Device, Recipe);
 	}
 
 	if (!CompositePS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"SceneEffects/DecalCompositePixelShader.hlsl").c_str(), "main", "ps_5_0");
-		if (!Resource || FAILED(Device->CreatePixelShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &CompositePS)))
-		{
-			return false;
-		}
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Pixel;
+		Recipe.SourcePath = ShaderDir + L"SceneEffects/DecalCompositePixelShader.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "ps_5_0";
+		CompositePS = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
 	}
 	
 	if (!DebugBoxPS || !DebugBoxVS)
@@ -751,8 +754,8 @@ bool FDecalRenderFeature::Initialize(FRenderer& Renderer)
   	    R.DepthClipEnable = TRUE;
   	    if (FAILED(Device->CreateRasterizerState(&R, &DebugBoxRasterizerState))) return false;
   	}	
-	bInitialized = true;
-	return true;
+	bInitialized = CompositeVS != nullptr && CompositePS != nullptr && DebugBoxVS != nullptr && DebugBoxPS != nullptr;
+	return bInitialized;
 }
 bool FDecalRenderFeature::BuildFrameData(
 	const FDecalRenderRequest& Request,
@@ -1060,7 +1063,7 @@ bool FDecalRenderFeature::BuildClusterLists(
 
 void FDecalRenderFeature::Release()
 {
-	// 슬롯에 남아 있을 수 있는 프레임 준비 상태 해제
+	// ?щ’???⑥븘 ?덉쓣 ???덈뒗 ?꾨젅??以鍮??곹깭 ?댁젣
 	bInitialized = false;
 	LastBuildStats = {};
 	LastFrameStats = {};
@@ -1147,17 +1150,8 @@ void FDecalRenderFeature::Release()
 		PointSampler = nullptr;
 	}
 
-	if (CompositeVS)
-	{
-		CompositeVS->Release();
-		CompositeVS = nullptr;
-	}
-
-	if (CompositePS)
-	{
-		CompositePS->Release();
-		CompositePS = nullptr;
-	}
+	CompositeVS.reset();
+	CompositePS.reset();
 	
 	DebugBoxVS.reset();
 	DebugBoxPS.reset();

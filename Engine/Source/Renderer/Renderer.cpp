@@ -1,4 +1,4 @@
-﻿#include "Renderer/Renderer.h"
+#include "Renderer/Renderer.h"
 #include "Actor/Actor.h"
 #include "Component/DecalComponent.h"
 #include "Component/StaticMeshComponent.h"
@@ -27,6 +27,7 @@
 #include "Renderer/Resources/Material/MaterialManager.h"
 #include "Renderer/Resources/Shader/Shader.h"
 #include "Renderer/Resources/Shader/ShaderMap.h"
+#include "Renderer/Resources/Shader/ShaderRegistry.h"
 #include "Renderer/Resources/Shader/ShaderResource.h"
 #include "Renderer/Resources/Shader/ShaderType.h"
 #include "Renderer/Scene/Builders/DebugSceneBuilder.h"
@@ -124,6 +125,11 @@ bool FRenderer::Initialize(HWND InHwnd, int32 Width, int32 Height)
 		return false;
 	}
 
+	if (!ShaderHotReloadService.Initialize(FPaths::ShaderDir().wstring()))
+	{
+		OutputDebugStringA("[ShaderHotReload] watcher init failed.\n");
+	}
+
 	return true;
 }
 
@@ -144,6 +150,8 @@ void FRenderer::EndFrame()
 
 void FRenderer::Release()
 {
+	ShaderHotReloadService.Shutdown();
+
 	if (SceneTargetManager)
 	{
 		SceneTargetManager->Release();
@@ -154,6 +162,11 @@ void FRenderer::Release()
 	}
 	FRendererResourceBootstrap::Release(*this);
 	RenderDevice.Release();
+}
+
+void FRenderer::TickShaderHotReload(float DeltaTime)
+{
+	ShaderHotReloadService.Tick(*this, DeltaTime);
 }
 
 bool FRenderer::IsOccluded()
@@ -326,6 +339,41 @@ void FRenderer::ConfigureMaterialPasses(FMaterial& Material, bool bTexturedMater
 	Material.SetPassShaders(EMaterialPassType::DepthOnly, DepthPass);
 	Material.SetPassShaders(EMaterialPassType::GBuffer, GBufferPass);
 	Material.SetPassShaders(EMaterialPassType::OutlineMask, OutlineMaskPass);
+}
+
+bool FRenderer::ApplyShaderReload(const FShaderReloadTransaction& Transaction, std::string& OutError)
+{
+	ID3D11Device* Device = GetDevice();
+	ID3D11DeviceContext* Context = GetDeviceContext();
+	if (!Device || !Context)
+	{
+		OutError = "Invalid D3D device/context.";
+		return false;
+	}
+
+	Context->ClearState();
+	Context->Flush();
+
+	if (!FShaderRegistry::Get().ApplyTransaction(Device, Transaction, OutError))
+	{
+		return false;
+	}
+
+	if (Transaction.bRequiresFullFallback)
+	{
+		if (DefaultMaterial)
+		{
+			ConfigureMaterialPasses(*DefaultMaterial, false);
+		}
+
+		if (DefaultTextureMaterial)
+		{
+			ConfigureMaterialPasses(*DefaultTextureMaterial, true);
+		}
+	}
+
+	SetConstantBuffers();
+	return true;
 }
 
 size_t FRenderer::GetPrevCommandCount() const

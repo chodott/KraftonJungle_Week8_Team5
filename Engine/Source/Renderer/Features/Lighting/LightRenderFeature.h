@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Renderer/Features/Lighting/LightStats.h"
 #include "Renderer/Features/Lighting/LightTypes.h"
+#include "Renderer/Resources/Shader/ShaderHandles.h"
 #include "Renderer/Common/SceneRenderTargets.h"
 #include "Renderer/Scene/SceneViewData.h"
 
@@ -15,6 +16,12 @@ enum class ELightingModel : uint8
 	Gouraud,
 	Lambert,
 	Phong
+};
+
+struct FLightShaderVariantHandles
+{
+	std::shared_ptr<FVertexShaderHandle> VertexHandle;
+	std::shared_ptr<FPixelShaderHandle> PixelHandle;
 };
 
 class ENGINE_API FLightRenderFeature
@@ -44,13 +51,8 @@ public:
 		return CurrentLightingModel;
 	}
 
-	ID3D11VertexShader* GetCurrentVS(bool bHasNormalMap, ERenderMode RenderMode) const;
-	ID3D11PixelShader*  GetCurrentPS(bool bHasNormalMap, ERenderMode RenderMode) const;
-
-	ID3D11InputLayout* GetInputLayout() const
-	{
-		return LightInputLayout;
-	}
+	std::shared_ptr<FVertexShaderHandle> GetCurrentVSHandle(bool bHasNormalMap, ERenderMode RenderMode) const;
+	std::shared_ptr<FPixelShaderHandle> GetCurrentPSHandle(bool bHasNormalMap, ERenderMode RenderMode) const;
 
 	FLightStats GetStats() const { return Stats; }
 
@@ -120,20 +122,14 @@ private:
 	ID3D11ShaderResourceView*  TileDepthBoundsSRV    = nullptr;
 	ID3D11UnorderedAccessView* TileDepthBoundsUAV    = nullptr;
 
-	ID3D11ComputeShader* TileDepthBoundsCS = nullptr;
-	ID3D11ComputeShader* LightCullingCS = nullptr;
-
-	ID3D11InputLayout*  LightInputLayout = nullptr;
+	std::shared_ptr<FComputeShaderHandle> TileDepthBoundsCS = nullptr;
+	std::shared_ptr<FComputeShaderHandle> LightCullingCS = nullptr;
 	ID3D11SamplerState* DepthSampler     = nullptr;
 
-	ID3D11VertexShader* GouraudVS[ShaderVariantCount] = {};
-	ID3D11PixelShader* GouraudPS[ShaderVariantCount] = {};
-	ID3D11VertexShader* LambertVS[ShaderVariantCount] = {};
-	ID3D11PixelShader* LambertPS[ShaderVariantCount] = {};
-	ID3D11VertexShader* PhongVS[ShaderVariantCount] = {};
-	ID3D11PixelShader* PhongPS[ShaderVariantCount] = {};
-	ID3D11VertexShader* WorldNormalVS[ShaderVariantCount] = {};
-	ID3D11PixelShader* WorldNormalPS[ShaderVariantCount] = {};
+	FLightShaderVariantHandles GouraudVariants[ShaderVariantCount] = {};
+	FLightShaderVariantHandles LambertVariants[ShaderVariantCount] = {};
+	FLightShaderVariantHandles PhongVariants[ShaderVariantCount] = {};
+	FLightShaderVariantHandles WorldNormalVariants[ShaderVariantCount] = {};
 
 	ELightingModel CurrentLightingModel = ELightingModel::Phong;
 
