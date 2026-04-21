@@ -325,8 +325,8 @@ bool FObjViewerEngine::LoadModelFromFile(const FString& FilePath, const FObjImpo
 	FObjImportSummary AppliedImportOptions    = ImportOptions;
 	AppliedImportOptions.bReplaceCurrentModel = true;
 	AppliedImportOptions.UniformScale         = bLoadAsBakedModel
-		? 1.0f
-		: (std::max)(AppliedImportOptions.UniformScale, 0.01f);
+		                                    ? 1.0f
+		                                    : (std::max)(AppliedImportOptions.UniformScale, 0.01f);
 
 	if (bLoadAsBakedModel)
 	{
@@ -337,8 +337,8 @@ bool FObjViewerEngine::LoadModelFromFile(const FString& FilePath, const FObjImpo
 		if (FObjManager::ReadModelImportOptions(FilePath, SavedLoadOptions))
 		{
 			AppliedImportOptions.SourcePreset = EObjImportPreset::Custom;
-			AppliedImportOptions.ForwardAxis = SavedLoadOptions.ForwardAxis;
-			AppliedImportOptions.UpAxis = SavedLoadOptions.UpAxis;
+			AppliedImportOptions.ForwardAxis  = SavedLoadOptions.ForwardAxis;
+			AppliedImportOptions.UpAxis       = SavedLoadOptions.UpAxis;
 		}
 	}
 
@@ -353,7 +353,7 @@ bool FObjViewerEngine::LoadModelFromFile(const FString& FilePath, const FObjImpo
 		LoadOptions.bUseLegacyObjConversion = false;
 		LoadOptions.ForwardAxis             = AppliedImportOptions.ForwardAxis;
 		LoadOptions.UpAxis                  = AppliedImportOptions.UpAxis;
-		LoadedMesh = FObjManager::LoadObjStaticMeshAsset(FilePath, LoadOptions);
+		LoadedMesh                          = FObjManager::LoadObjStaticMeshAsset(FilePath, LoadOptions);
 	}
 
 	if (!LoadedMesh)
@@ -458,7 +458,7 @@ bool FObjViewerEngine::ExportLoadedModelAsModel(const FString& FilePath) const
 	LoadOptions.bUseLegacyObjConversion = false;
 	LoadOptions.ForwardAxis             = ModelState.LastImportSummary.ForwardAxis;
 	LoadOptions.UpAxis                  = ModelState.LastImportSummary.UpAxis;
-	const bool bSaved = FObjManager::SaveModelStaticMeshAsset(FilePath, BakedMesh, MaterialInfos, GetFileWriteTimestamp(ModelState.SourceFilePath), &LoadOptions);
+	const bool bSaved                   = FObjManager::SaveModelStaticMeshAsset(FilePath, BakedMesh, MaterialInfos, GetFileWriteTimestamp(ModelState.SourceFilePath), &LoadOptions);
 	UE_LOG("[ObjViewer] %s .Model export: %s", bSaved ? "Succeeded" : "Failed", FilePath.c_str());
 	return bSaved;
 }
@@ -841,6 +841,7 @@ void FObjViewerEngine::RenderFrame()
 	FrameRequest.DebugInputs.DrawManager = &GetDebugDrawManager();
 	FrameRequest.DebugInputs.World       = ActiveWorld;
 	FrameRequest.DebugInputs.ShowFlags   = ViewerShowFlags;
+	FrameRequest.RenderMode              = ERenderMode::Unlit;
 
 	if (bWireframeEnabled && WireframeMaterial)
 	{
@@ -891,6 +892,7 @@ void FObjViewerEngine::RenderFrame()
 		else
 		{
 			FrameRequest.DebugInputs.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, NormalSettings.bVisible);
+			FrameRequest.RenderMode = ERenderMode::Unlit;
 			AppendNormalVisualizationDebugDraw();
 			Renderer->RenderGameFrame(FrameRequest);
 		}
@@ -931,7 +933,7 @@ void FObjViewerEngine::InitializeViewerCamera() const
 
 	if (FCamera* Camera = ActiveCamera->GetCamera())
 	{
-		Camera->SetPosition({8.0f, 0.0f, 0.0f});
+		Camera->SetPosition({ 8.0f, 0.0f, 0.0f });
 		Camera->SetRotation(180.0f, 0.0f);
 	}
 
