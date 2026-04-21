@@ -56,6 +56,20 @@ namespace
 		DeviceContext->Unmap(Buffer, 0);
 		return true;
 	}
+
+	bool NeedObejctLightIndexUpload(const FSceneViewData& SceneViewData)
+	{
+		switch (SceneViewData.RenderMode)
+		{
+		case ERenderMode::Lit_Gouraud:
+			return true;
+		case ERenderMode::Lit_Lambert:
+		case ERenderMode::Lit_Phong:
+		case ERenderMode::Unlit:
+		default:
+			return false;
+		}
+	}
 }
 
 FLightRenderFeature::~FLightRenderFeature()
@@ -724,6 +738,11 @@ void FLightRenderFeature::UploadLocalLightBuffers(
 	TArray<FLocalLightGPU>     LocalLightsGPU;
 	TArray<FLightCullProxyGPU> ProxiesGPU;
 	TArray<uint32>             ObjectLightIndicesGPU = SceneViewData.LightingInputs.ObjectLightIndices;
+
+	if (NeedObejctLightIndexUpload(SceneViewData))
+	{
+		ObjectLightIndicesGPU = SceneViewData.LightingInputs.ObjectLightIndices;
+	}
 
 	LocalLightsGPU.reserve(SceneViewData.LightingInputs.LocalLights.size());
 	ProxiesGPU.reserve(SceneViewData.LightingInputs.LocalLights.size());

@@ -27,6 +27,20 @@ namespace
 		return static_cast<uint8>(Clamped * 255.0f + 0.5f);
 	}
 
+	bool NeedPerObjectLightList(const FSceneViewData& SceneViewData)
+	{
+		switch (SceneViewData.RenderMode)
+		{
+		case ERenderMode::Lit_Gouraud:
+			return true;
+		case ERenderMode::Lit_Lambert:
+		case ERenderMode::Lit_Phong:
+		case ERenderMode::Unlit:
+		default:
+			return false;
+		}
+	}
+
 	bool IntersectBoundsWithCullSphere(
 		const FBoxSphereBounds& Bounds,
 		const FVector&          SphereCenter,
@@ -150,7 +164,7 @@ FMaterial* FSceneCommandResourceCache::GetOrCreateSubUVMaterial(
 
 FMaterial* FSceneCommandResourceCache::GetOrCreateMeshDecalMaterial(
 	const FSceneCommandBuildContext& BuildContext,
-	const UMeshDecalComponent* Component)
+	const UMeshDecalComponent*       Component)
 {
 	if (!Component || !BuildContext.DefaultTextureMaterial)
 	{
@@ -177,15 +191,15 @@ FMaterial* FSceneCommandResourceCache::GetOrCreateMeshDecalMaterial(
 	}
 
 	const FLinearColor& Tint = Component->GetBaseColorTint();
-	const FVector4 BaseColor(Tint.R, Tint.G, Tint.B, Tint.A);
+	const FVector4      BaseColor(Tint.R, Tint.G, Tint.B, Tint.A);
 	Material->SetVectorParameter("BaseColor", BaseColor);
 
 	std::shared_ptr<FMaterialTexture> TextureBinding;
-	const std::wstring& TexturePath = Component->GetTexturePath();
+	const std::wstring&               TexturePath = Component->GetTexturePath();
 	if (!TexturePath.empty())
 	{
 		const std::wstring NormalizedPath = std::filesystem::path(TexturePath).lexically_normal().wstring();
-		auto TextureIt = MeshDecalTextureByPath.find(NormalizedPath);
+		auto               TextureIt      = MeshDecalTextureByPath.find(NormalizedPath);
 		if (TextureIt == MeshDecalTextureByPath.end())
 		{
 			if (GEngine && GEngine->GetRenderer())
@@ -193,8 +207,8 @@ FMaterial* FSceneCommandResourceCache::GetOrCreateMeshDecalMaterial(
 				ID3D11ShaderResourceView* NewSRV = nullptr;
 				if (GEngine->GetRenderer()->CreateTextureFromSTB(GEngine->GetRenderer()->GetDevice(), std::filesystem::path(NormalizedPath), &NewSRV))
 				{
-					TextureBinding = std::make_shared<FMaterialTexture>();
-					TextureBinding->TextureSRV = NewSRV;
+					TextureBinding               = std::make_shared<FMaterialTexture>();
+					TextureBinding->TextureSRV   = NewSRV;
 					TextureBinding->SamplerState = GEngine->GetRenderer()->GetDefaultSampler();
 					if (TextureBinding->SamplerState)
 					{
@@ -295,7 +309,18 @@ void FSceneCommandBuilder::BuildSceneViewData(
 	PostProcessBuilder.BuildDecalInputs(Packet, OutSceneViewData);
 	PostProcessBuilder.BuildMeshDecalInputs(BuildContext, Packet, OutSceneViewData);
 
-	BuildObjectLightLists(OutSceneViewData);
+	if (NeedPerObjectLightList(OutSceneViewData))
+	{
+		BuildObjectLightLists(OutSceneViewData);
+	}
+	else
+	{
+		for (FMeshBatch& Batch : OutSceneViewData.MeshInputs.Batches)
+		{
+			Batch.LocalLightListOffset = 0u;
+			Batch.LocalLightListCount  = 0u;
+		}
+	}
 
 	OutSceneViewData.PostProcessInputs.bApplyFXAA = Packet.bApplyFXAA;
 }
