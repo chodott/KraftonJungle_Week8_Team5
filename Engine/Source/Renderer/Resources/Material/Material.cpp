@@ -245,13 +245,19 @@ bool FMaterial::HasPixelTextureBinding() const
 std::unique_ptr<FDynamicMaterial> FMaterial::CreateDynamicMaterial() const
 {
 	ID3D11Device* Device = nullptr;
+	bool bShouldReleaseDevice = false;
 	for (const auto& CB : ConstantBuffers)
 	{
 		if (CB.GPUBuffer)
 		{
 			CB.GPUBuffer->GetDevice(&Device);
+			bShouldReleaseDevice = true;
 			break;
 		}
+	}
+	if (!Device && GEngine && GEngine->GetRenderer())
+	{
+		Device = GEngine->GetRenderer()->GetDevice();
 	}
 	if (!Device)
 	{
@@ -290,7 +296,10 @@ std::unique_ptr<FDynamicMaterial> FMaterial::CreateDynamicMaterial() const
 		Dynamic->ConstantBuffers.push_back(std::move(NewCB));
 	}
 
-	Device->Release();
+	if (bShouldReleaseDevice)
+	{
+		Device->Release();
+	}
 	return Dynamic;
 }
 

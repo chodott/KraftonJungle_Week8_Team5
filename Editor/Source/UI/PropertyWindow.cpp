@@ -163,33 +163,77 @@ namespace
 
 	// Material의 현재 Normal Texture 슬롯에 대한 콤보 박스 UI.
 	// None 선택 시 해제, 파일 선택 시 디스크에서 로드. 반환값은 변경 여부 (현재는 사용하지 않음).
-	bool DrawNormalTextureCombo(const std::shared_ptr<FMaterial>& CurrentMaterial)
+	bool DrawNormalTextureCombo(UMeshComponent* MeshComponent, int32 MaterialIndex, const std::shared_ptr<FMaterial>& CurrentMaterial)
 	{
 		if (!CurrentMaterial)
 		{
 			return false;
 		}
 
+		std::filesystem::path CurrentPath;
+		if (MeshComponent)
+		{
+			const FString& OverridePath = MeshComponent->GetNormalTextureOverride(MaterialIndex);
+			if (!OverridePath.empty())
+			{
+				CurrentPath = std::filesystem::path(OverridePath).lexically_normal();
+			}
+		}
+
+		if (CurrentPath.empty())
+		{
+			if (std::shared_ptr<FMaterialTexture> NormalTexture = CurrentMaterial->GetNormalTexture())
+			{
+				if (!NormalTexture->SourcePath.empty())
+				{
+					CurrentPath = std::filesystem::path(NormalTexture->SourcePath).lexically_normal();
+				}
+			}
+		}
+
 		const bool bHasNormal = CurrentMaterial->HasNormalTexture();
-		const std::string CurrentLabel = bHasNormal ? "(Custom)" : "None";
+		const std::string CurrentLabel = !CurrentPath.empty()
+			? CurrentPath.filename().string()
+			: (bHasNormal ? "(Custom)" : "None");
 		bool bChanged = false;
 
 		if (ImGui::BeginCombo("Normal Texture", CurrentLabel.c_str()))
 		{
-			if (ImGui::Selectable("None", !bHasNormal))
+			const bool bNoneSelected = CurrentPath.empty() && !bHasNormal;
+			if (ImGui::Selectable("None", bNoneSelected))
 			{
-				ClearNormalTexture(CurrentMaterial);
+				if (MeshComponent)
+				{
+					MeshComponent->ClearNormalTextureOverride(MaterialIndex);
+				}
+				else
+				{
+					ClearNormalTexture(CurrentMaterial);
+				}
 				bChanged = true;
 			}
 
 			for (const std::filesystem::path& Path : GetAvailableTexturePaths())
 			{
 				const std::string Name = Path.filename().string();
+				const std::filesystem::path NormalizedPath = Path.lexically_normal();
+				const bool bSelected = (!CurrentPath.empty() && NormalizedPath == CurrentPath);
 				ImGui::PushID(Name.c_str());
-				if (ImGui::Selectable(Name.c_str(), false))
+				if (ImGui::Selectable(Name.c_str(), bSelected))
 				{
-					LoadNormalTextureFromFile(CurrentMaterial, Path);
+					if (MeshComponent)
+					{
+						MeshComponent->SetNormalTextureOverride(MaterialIndex, Path.string());
+					}
+					else
+					{
+						LoadNormalTextureFromFile(CurrentMaterial, Path);
+					}
 					bChanged = true;
+				}
+				if (bSelected)
+				{
+					ImGui::SetItemDefaultFocus();
 				}
 				ImGui::PopID();
 			}
@@ -662,7 +706,7 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 				CurrentMaterial->SetParameterData("Shininess", &ShininessArray, sizeof(ShininessArray));
 			}
 			
-			DrawNormalTextureCombo(CurrentMaterial);
+			DrawNormalTextureCombo(MeshComponent, static_cast<int32>(SectionIndex), CurrentMaterial);
 		}
 		ImGui::Spacing();
 		ImGui::PopID();
@@ -2216,7 +2260,7 @@ void FPropertyWindow::Render(FEditorEngine* Engine)
 								}
 								
 								ImGui::PushID(i + 3000);
-								DrawNormalTextureCombo(CurrentMat);
+								DrawNormalTextureCombo(MeshComp, static_cast<int32>(i), CurrentMat);
 								ImGui::PopID();
 							}
 							ImGui::PopID(); // PushID(i)에 대한 Pop

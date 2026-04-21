@@ -1,4 +1,4 @@
-﻿#include "Object/Class.h"
+#include "Object/Class.h"
 #include "Serializer/Archive.h"
 #include "Renderer/Resources/Material/Material.h"
 #include "Component/MeshComponent.h"
@@ -37,15 +37,15 @@ void UMeshComponent::SetMaterial(int32 Index, const std::shared_ptr<FMaterial>& 
 		{
 			Materials.resize(Index + 1, nullptr);
 		}
-		Materials[Index] = InMaterial;
+		Materials[Index] = DuplicateMaterialInstance(InMaterial);
 		
 		// 섹션에 Normal 오버라이드가 있으면 새로 바인딩된 Material에도 자동 재적용
-		if (InMaterial && Index < static_cast<int32>(NormalTextureOverrides.size()))
+		if (Materials[Index] && Index < static_cast<int32>(NormalTextureOverrides.size()))
 		{
 			const FString& OverridePath = NormalTextureOverrides[Index];
 			if (!OverridePath.empty())
 			{
-				LoadNormalTextureFromFile(InMaterial, std::filesystem::path(OverridePath));
+				LoadNormalTextureFromFile(Materials[Index], std::filesystem::path(OverridePath));
 			}
 		}
 	}
@@ -139,6 +139,8 @@ void UMeshComponent::Serialize(FArchive& Ar)
 
 			Ar.Serialize(FString(GMaterialBaseColorKeyPrefix) + std::to_string(MaterialIndex), BaseColor);
 		}
+
+		Ar.SerializeStringArray("NormalTextureOverrides", NormalTextureOverrides);
 	}
 	else
 	{
@@ -153,7 +155,7 @@ void UMeshComponent::Serialize(FArchive& Ar)
 				if (!MaterialName.empty())
 				{
 					std::shared_ptr<FMaterial> LoadedMaterial = FMaterialManager::Get().FindByName(MaterialName);
-					Materials.push_back(LoadedMaterial);
+					Materials.push_back(DuplicateMaterialInstance(LoadedMaterial));
 				}
 				else Materials.push_back(nullptr);
 			}
@@ -186,6 +188,23 @@ void UMeshComponent::Serialize(FArchive& Ar)
 			const float BaseColorArray[4] = { BaseColor.X, BaseColor.Y, BaseColor.Z, BaseColor.W };
 			MaterialInstance->SetParameterData("BaseColor", BaseColorArray, sizeof(BaseColorArray));
 			Materials[MaterialIndex] = MaterialInstance;
+		}
+
+		if (Ar.Contains("NormalTextureOverrides"))
+		{
+			Ar.SerializeStringArray("NormalTextureOverrides", NormalTextureOverrides);
+			for (int32 MaterialIndex = 0; MaterialIndex < static_cast<int32>(NormalTextureOverrides.size()); ++MaterialIndex)
+			{
+				const FString& OverridePath = NormalTextureOverrides[MaterialIndex];
+				if (!OverridePath.empty())
+				{
+					SetNormalTextureOverride(MaterialIndex, OverridePath);
+				}
+			}
+		}
+		else
+		{
+			NormalTextureOverrides.clear();
 		}
 	}
 }
