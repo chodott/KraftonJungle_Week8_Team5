@@ -13,6 +13,8 @@ public:
 	float GetAttenuationRadius() const { return AttenuationRadius; };
 	float GetLightFalloffExponent() const { return LightFalloffExponent; };
 
+	void DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
+
 protected:
 	void MarkTransformDirty() override;
 	float ComputePhotometricScale() const override;

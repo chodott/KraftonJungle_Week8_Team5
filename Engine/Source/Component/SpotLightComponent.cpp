@@ -7,6 +7,15 @@
 
 IMPLEMENT_RTTI(USpotLightComponent, UPointLightComponent)
 
+void USpotLightComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const
+{
+	UPointLightComponent::DuplicateShallow(DuplicatedObject, Context);
+
+	USpotLightComponent* DuplicatedSpotLightComponent = static_cast<USpotLightComponent*>(DuplicatedObject);
+	DuplicatedSpotLightComponent->InnerConeAngle = InnerConeAngle;
+	DuplicatedSpotLightComponent->OuterConeAngle = OuterConeAngle;
+}
+
 void USpotLightComponent::PostConstruct()
 {
 	UPointLightComponent::PostConstruct();
