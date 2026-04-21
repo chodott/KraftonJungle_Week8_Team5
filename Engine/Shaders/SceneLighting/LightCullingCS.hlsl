@@ -6,6 +6,12 @@ RWStructuredBuffer<FLightClusterHeader> OutClusterLightHeaders : register(u0);
 RWStructuredBuffer<uint>                OutClusterLightIndices : register(u1);
 
 static const float kEpsilon = 1e-5f;
+static const uint kLightCullingGroupSize = 64u;
+
+groupshared uint   gHeaderOffset;
+groupshared uint   gRawCount;
+groupshared uint   gClusterActive;
+groupshared float4 gClusterSphereWS;
 
 void ComputeClusterSliceDepthRange(uint clusterZ, out float zNear, out float zFar)
 {
@@ -178,12 +184,15 @@ bool IntersectsPrecomputedCluster(
     }
 }
 
-[numthreads(8, 8, 1)]
-void main(uint3 DispatchThreadID : SV_DispatchThreadID)
+[numthreads(64, 1, 1)]
+void main(
+    uint3 GroupID : SV_GroupID,
+    uint3 GroupThreadID : SV_GroupThreadID,
+    uint GroupIndex : SV_GroupIndex)
 {
-    uint clusterX = DispatchThreadID.x;
-    uint clusterY = DispatchThreadID.y;
-    uint clusterZ = DispatchThreadID.z;
+    uint clusterX = GroupID.x;
+    uint clusterY = GroupID.y;
+    uint clusterZ = GroupID.z;
 
     if (clusterX >= ClusterCountX || clusterY >= ClusterCountY || clusterZ >= ClusterCountZ)
         return;
@@ -192,59 +201,68 @@ void main(uint3 DispatchThreadID : SV_DispatchThreadID)
                       + clusterY * ClusterCountX
                       + clusterX;
 
-    FLightClusterHeader header;
-    header.Offset = clusterIndex * RuntimeMaxLightsPerCluster;
-    header.Count = 0u;
-    header.RawCount = 0u;
-    header.Pad1 = 0u;
-
-    OutClusterLightHeaders[clusterIndex] = header;
-
-    const uint tileIndex = clusterY * ClusterCountX + clusterX;
-    FTileDepthBoundsGPU tileDepthBounds = InputTileDepthBounds[tileIndex];
-
-    if (tileDepthBounds.HasGeometry == 0u)
+    if (GroupIndex == 0u)
     {
-        return;
-    }
+        gHeaderOffset  = clusterIndex * RuntimeMaxLightsPerCluster;
+        gRawCount      = 0u;
+        gClusterActive = 0u;
+        gClusterSphereWS = 0.0f.xxxx;
 
-    if (clusterZ < tileDepthBounds.TileMinSlice || clusterZ > tileDepthBounds.TileMaxSlice)
-    {
-        return;
-    }
+        const uint tileIndex = clusterY * ClusterCountX + clusterX;
+        FTileDepthBoundsGPU tileDepthBounds = InputTileDepthBounds[tileIndex];
 
-    float3 clusterCenterWS;
-    float clusterRadius;
-    if (!BuildClusterBoundingSphereWS(
-        uint3(clusterX, clusterY, clusterZ),
-        tileDepthBounds.MinViewZ,
-        tileDepthBounds.MaxViewZ,
-        clusterCenterWS,
-        clusterRadius))
-    {
-        return;
-    }
-
-    uint writeCount = 0u;
-    uint rawCount = 0u;
-
-    [loop]
-    for (uint lightIndex = 0; lightIndex < LocalLightCount && lightIndex < MAX_LOCAL_LIGHTS; ++lightIndex)
-    {
-        FLightCullProxyGPU proxy = InputLightCullProxies[lightIndex];
-
-        if (IntersectsPrecomputedCluster(clusterCenterWS, clusterRadius, proxy))
+        if (tileDepthBounds.HasGeometry != 0u
+            && clusterZ >= tileDepthBounds.TileMinSlice
+            && clusterZ <= tileDepthBounds.TileMaxSlice)
         {
-            if (writeCount < RuntimeMaxLightsPerCluster)
+            float3 clusterCenterWS;
+            float clusterRadius;
+            if (BuildClusterBoundingSphereWS(
+                uint3(clusterX, clusterY, clusterZ),
+                tileDepthBounds.MinViewZ,
+                tileDepthBounds.MaxViewZ,
+                clusterCenterWS,
+                clusterRadius))
             {
-                OutClusterLightIndices[header.Offset + writeCount] = lightIndex;
-                ++writeCount;
+                gClusterSphereWS = float4(clusterCenterWS, clusterRadius);
+                gClusterActive   = 1u;
             }
-            ++rawCount;
         }
     }
 
-    header.Count = min(writeCount, RuntimeMaxLightsPerCluster);
-    header.RawCount = rawCount;
-    OutClusterLightHeaders[clusterIndex] = header;
+    GroupMemoryBarrierWithGroupSync();
+
+    if (gClusterActive != 0u)
+    {
+        [loop]
+        for (uint lightIndex = GroupIndex;
+            lightIndex < LocalLightCount && lightIndex < MAX_LOCAL_LIGHTS;
+            lightIndex += kLightCullingGroupSize)
+        {
+            FLightCullProxyGPU proxy = InputLightCullProxies[lightIndex];
+
+            if (IntersectsPrecomputedCluster(gClusterSphereWS.xyz, gClusterSphereWS.w, proxy))
+            {
+                uint writeIndex;
+                InterlockedAdd(gRawCount, 1u, writeIndex);
+
+                if (writeIndex < RuntimeMaxLightsPerCluster)
+                {
+                    OutClusterLightIndices[gHeaderOffset + writeIndex] = lightIndex;
+                }
+            }
+        }
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    if (GroupIndex == 0u)
+    {
+        FLightClusterHeader header;
+        header.Offset = gHeaderOffset;
+        header.Count = min(gRawCount, RuntimeMaxLightsPerCluster);
+        header.RawCount = gRawCount;
+        header.Pad1 = 0u;
+        OutClusterLightHeaders[clusterIndex] = header;
+    }
 }

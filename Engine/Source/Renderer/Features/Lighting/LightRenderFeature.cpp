@@ -10,9 +10,6 @@
 
 namespace
 {
-	constexpr uint32 LightCullingThreadGroupSizeX = 8u;
-	constexpr uint32 LightCullingThreadGroupSizeY = 8u;
-
 	template <typename T>
 	void SafeRelease(T*& Ptr)
 	{
@@ -26,11 +23,6 @@ namespace
 	UINT Align16(UINT Value)
 	{
 		return (Value + 15u) & ~15u;
-	}
-
-	uint32 CeilDiv(uint32 Dividend, uint32 Divisor)
-	{
-		return (Dividend + Divisor - 1u) / Divisor;
 	}
 
 	double TicksToMilliseconds(uint64 StartTick, uint64 EndTick, uint64 Frequency)
@@ -86,7 +78,6 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 		ResolveTimingQueries(TimingContext);
 	}
 
-	// ??怨몄쓧 ?熬곣뫁??熬곣뫗踰????????꾩댉 ???녹맠 readback ??1?熬곣뫁??????얠쟽????롫맩異????????瑜곸뗄
 	if (bHasPendingReadback && ClusterHeaderStagingBuffer)
 	{
 		ID3D11DeviceContext*     DC     = Renderer.GetDeviceContext();
@@ -236,10 +227,7 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 	UINT                       UAVInitialCounts[2] = { 0u, 0u };
 	DeviceContext->CSSetUnorderedAccessViews(0, 2, CSUAVs, UAVInitialCounts);
 
-	DeviceContext->Dispatch(
-		CeilDiv(ClusterCountX, LightCullingThreadGroupSizeX),
-		CeilDiv(ClusterCountY, LightCullingThreadGroupSizeY),
-		ClusterCountZ);
+	DeviceContext->Dispatch(ClusterCountX, ClusterCountY, ClusterCountZ);
 
 	if (ActiveTimingQuerySet)
 	{
@@ -258,7 +246,6 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 	DeviceContext->CSSetConstantBuffers(LightClusterSlots::ClusterGlobalCB, 1, NullCB);
 	DeviceContext->CSSetShader(nullptr, nullptr, 0);
 
-	// ??????熬곣뫁??????????꾩댉 ???녹맠?????댟??怨몄톭 ?뺢퀗?????곌랜踰딀쾮??????깅쾳 ?熬곣뫁??熬곣뫖??readback
 	if (ClusterLightHeaderBuffer &&
 		EnsureStagingBuffer(Renderer, sizeof(FLightClusterHeaderGPU), (std::max)(1u, ClusterCount), ClusterHeaderStagingBuffer))
 	{
