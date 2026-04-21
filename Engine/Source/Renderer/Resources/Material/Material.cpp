@@ -269,6 +269,7 @@ std::unique_ptr<FDynamicMaterial> FMaterial::CreateDynamicMaterial() const
 	Dynamic->BlendState = BlendState;
 	Dynamic->SetMaterialTexture(MaterialTexture);
 	Dynamic->SetNormalTexture(NormalTexture);
+	Dynamic->SetEmissiveTexture(EmissiveTexture);
 	Dynamic->PixelTextureBinding = PixelTextureBinding;
 	Dynamic->PassShaderMap = PassShaderMap;
 	Dynamic->bHasPassShaderMap = bHasPassShaderMap;
@@ -312,6 +313,19 @@ bool FDynamicMaterial::SetVector3Parameter(const FString& ParamName, const FVect
 
 void FMaterial::Bind(ID3D11DeviceContext* DeviceContext, EMaterialPassType PassType)
 {
+	if (!DeviceContext)
+	{
+		return;
+	}
+
+	ID3D11Device* Device = nullptr;
+	DeviceContext->GetDevice(&Device);
+	if (Device)
+	{
+		EnsureLitMaterialParameters(Device);
+		Device->Release();
+	}
+
 	const FMaterialPassShaders* PassShaders = GetPassShaders(PassType);
 	const std::shared_ptr<FVertexShaderHandle>& BoundVS = PassShaders ? PassShaders->VS : VertexShader;
 	const std::shared_ptr<FPixelShaderHandle>& BoundPS = PassShaders ? PassShaders->PS : PixelShader;
@@ -340,6 +354,27 @@ void FMaterial::Bind(ID3D11DeviceContext* DeviceContext, EMaterialPassType PassT
 			DeviceContext->VSSetSamplers(0, 1, &NormalTexture->SamplerState);
 		}
 	}
+	else
+	{
+		ID3D11ShaderResourceView* NullSRV = nullptr;
+		DeviceContext->PSSetShaderResources(1, 1, &NullSRV);
+		DeviceContext->VSSetShaderResources(1, 1, &NullSRV);
+	}
+
+	if (EmissiveTexture && EmissiveTexture->TextureSRV)
+	{
+		DeviceContext->PSSetShaderResources(2, 1, &EmissiveTexture->TextureSRV);
+		if (EmissiveTexture->SamplerState)
+		{
+			DeviceContext->PSSetSamplers(2, 1, &EmissiveTexture->SamplerState);
+		}
+	}
+	else
+	{
+		ID3D11ShaderResourceView* NullSRV = nullptr;
+		DeviceContext->PSSetShaderResources(2, 1, &NullSRV);
+	}
+
 	if (PixelTextureBinding.IsValid())
 	{
 		DeviceContext->PSSetShaderResources(PixelTextureBinding.Slot, 1, &PixelTextureBinding.TextureSRV);
@@ -359,6 +394,71 @@ void FMaterial::Bind(ID3D11DeviceContext* DeviceContext, EMaterialPassType PassT
 	}
 }
 
+void FMaterial::EnsureLitMaterialParameters(ID3D11Device* Device)
+{
+	if (!Device)
+	{
+		return;
+	}
+
+	const bool bHasBaseColor = ParameterMap.find("BaseColor") != ParameterMap.end();
+	const bool bHasUVScrollSpeed = ParameterMap.find("UVScrollSpeed") != ParameterMap.end();
+	const bool bHasEmissiveColor = ParameterMap.find("EmissiveColor") != ParameterMap.end();
+	const bool bHasShininess = ParameterMap.find("Shininess") != ParameterMap.end();
+	if (bHasBaseColor && bHasUVScrollSpeed && bHasEmissiveColor && bHasShininess)
+	{
+		return;
+	}
+
+	float BaseColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	float UVScrollSpeed[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	float EmissiveColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	float Shininess[4] = { 32.0f, 0.0f, 0.0f, 0.0f };
+
+	if (bHasBaseColor)
+	{
+		const FVector4 ExistingBaseColor = GetVectorParameter("BaseColor");
+		BaseColor[0] = ExistingBaseColor.X;
+		BaseColor[1] = ExistingBaseColor.Y;
+		BaseColor[2] = ExistingBaseColor.Z;
+		BaseColor[3] = ExistingBaseColor.W;
+	}
+
+	if (bHasUVScrollSpeed)
+	{
+		GetParameterData("UVScrollSpeed", UVScrollSpeed, sizeof(UVScrollSpeed));
+	}
+
+	if (bHasEmissiveColor)
+	{
+		GetParameterData("EmissiveColor", EmissiveColor, sizeof(EmissiveColor));
+	}
+
+	if (bHasShininess)
+	{
+		GetParameterData("Shininess", Shininess, sizeof(Shininess));
+	}
+
+	const int32 SlotIndex = CreateConstantBuffer(Device, 64);
+	if (SlotIndex < 0)
+	{
+		return;
+	}
+
+	RegisterParameter("BaseColor", SlotIndex, 0, 16);
+	RegisterParameter("UVScrollSpeed", SlotIndex, 16, 16);
+	RegisterParameter("EmissiveColor", SlotIndex, 32, 16);
+	RegisterParameter("Shininess", SlotIndex, 48, 16);
+
+	if (FMaterialConstantBuffer* ConstantBuffer = GetConstantBuffer(SlotIndex))
+	{
+		ConstantBuffer->SetData(BaseColor, sizeof(BaseColor), 0);
+		ConstantBuffer->SetData(UVScrollSpeed, sizeof(UVScrollSpeed), 16);
+		ConstantBuffer->SetData(EmissiveColor, sizeof(EmissiveColor), 32);
+		ConstantBuffer->SetData(Shininess, sizeof(Shininess), 48);
+	}
+}
+
 void FMaterial::Release()
 {
 	VertexShader.reset();
@@ -369,6 +469,7 @@ void FMaterial::Release()
 	PixelTextureBinding = {};
 	MaterialTexture.reset();
 	NormalTexture.reset();
+	EmissiveTexture.reset();
 	for (size_t PassIndex = 0; PassIndex < PassShaderMap.size(); ++PassIndex)
 	{
 		PassShaderMap[PassIndex] = {};

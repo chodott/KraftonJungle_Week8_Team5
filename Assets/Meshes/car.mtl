@@ -1,0 +1,14 @@
+# Blender 5.1.0 MTL File: 'None'
+# www.blender.org
+
+newmtl Mat_Robot.006
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ni 1.500000
+illum 2
+map_Kd Mat_Robot_Base_Color_Mixed.png
+map_Ns Mat_Robot_Roughness.png
+map_refl Mat_Robot_Metallic.png
+map_Ke Mat_Robot_Emissive.png
+map_d Mat_Robot_Base_Color_Mixed.png
+map_Bump -bm 1.000000 Mat_Robot_Normal_OpenGL.png

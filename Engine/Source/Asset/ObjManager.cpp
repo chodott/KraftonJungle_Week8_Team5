@@ -34,7 +34,8 @@ namespace
 	constexpr uint32 GModelVersionEmbeddedMaterials = 2;
 	constexpr uint32 GModelVersionSourceTimestamp   = 3;
 	constexpr uint32 GModelVersionNormalTexture		= 4;
-	constexpr uint32 GModelVersion                  = GModelVersionNormalTexture;
+	constexpr uint32 GModelVersionEmissiveTexture   = 5;
+	constexpr uint32 GModelVersion                  = GModelVersionEmissiveTexture;
 
 	constexpr char   GLODMagic[4]                    = { 'L', 'O', 'D', 'F' };
 	constexpr uint32 GLODVersionLegacy               = 1;
@@ -994,6 +995,26 @@ namespace
 		return true;
 	}
 
+	bool TryLoadEmissiveTextureIntoMaterial(const std::shared_ptr<FMaterial>& Material, const std::filesystem::path& TexturePath, const char* LogPrefix)
+	{
+		if (!Material || TexturePath.empty())
+		{
+			return false;
+		}
+
+		ID3D11ShaderResourceView* NewSRV = nullptr;
+		if (!GEngine->GetRenderer()->CreateTextureFromSTB(GEngine->GetRenderer()->GetDevice(), TexturePath, &NewSRV))
+		{
+			return false;
+		}
+
+		auto EmissiveTexture = std::make_shared<FMaterialTexture>();
+		EmissiveTexture->TextureSRV = NewSRV;
+		Material->SetEmissiveTexture(EmissiveTexture);
+		UE_LOG("%s %s", LogPrefix, WideToUtf8(TexturePath.wstring()).c_str());
+		return true;
+	}
+
 	struct FQuantizedPositionKey
 	{
 		int32 X = 0;
@@ -1424,6 +1445,16 @@ namespace
 						MaterialInfo.Name.c_str());
 				}
 			}
+			if (!MaterialInfo.EmissiveTexturePath.empty())
+			{
+				const std::filesystem::path TexturePath = ResolveTextureReferencePath(ModelPath, MaterialInfo.EmissiveTexturePath);
+				if (!TryLoadEmissiveTextureIntoMaterial(Material, TexturePath, "[.Model Loader] Auto-loaded emissive map:"))
+				{
+					UE_LOG("[.Model Loader] Failed to resolve embedded emissive map '%s' for material '%s'.",
+						MaterialInfo.EmissiveTexturePath.c_str(),
+						MaterialInfo.Name.c_str());
+				}
+			}
 
 			if (!Material)
 			{
@@ -1838,10 +1869,31 @@ UStaticMesh* FObjManager::LoadModelStaticMeshAsset(const FString& PathFileName)
 			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.Z)
 			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.W)
 			|| !ReadUtf8String(File, MaterialInfo.DiffuseTexturePath)
-			|| (Version >= GModelVersionNormalTexture && !ReadUtf8String(File, MaterialInfo.NormalTexturePath)))
+			|| (Version >= GModelVersionNormalTexture && !ReadUtf8String(File, MaterialInfo.NormalTexturePath))
+			|| (Version >= GModelVersionEmissiveTexture && !ReadUtf8String(File, MaterialInfo.EmissiveTexturePath)))
 		{
 			UE_LOG("[FObjManager] Failed to read .Model material metadata: %s", AbsolutePath.c_str());
 			return nullptr;
+		}
+	}
+
+	if (Version < GModelVersionEmissiveTexture)
+	{
+		const FString ObjPath = GetObjFilePathFromModelPath(PathFileName);
+		const std::filesystem::path ObjFilePath = FPaths::ToPath(FPaths::ToAbsolutePath(ObjPath)).lexically_normal();
+		if (PathExists(ObjFilePath))
+		{
+			TArray<FModelMaterialInfo> RebuiltInfos;
+			if (BuildModelMaterialInfosFromObj(ObjPath, PathFileName, MaterialSlotNames, RebuiltInfos))
+			{
+				for (uint32 SlotIndex = 0; SlotIndex < MaterialInfos.size() && SlotIndex < RebuiltInfos.size(); ++SlotIndex)
+				{
+					if (MaterialInfos[SlotIndex].EmissiveTexturePath.empty())
+					{
+						MaterialInfos[SlotIndex].EmissiveTexturePath = RebuiltInfos[SlotIndex].EmissiveTexturePath;
+					}
+				}
+			}
 		}
 	}
 
@@ -2119,7 +2171,8 @@ bool FObjManager::SaveModelStaticMeshAsset(const FString& PathFileName, const FS
 			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.Z)
 			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.W)
 			|| !WriteUtf8String(File, MaterialInfo.DiffuseTexturePath)
-			|| !WriteUtf8String(File, MaterialInfo.NormalTexturePath))
+			|| !WriteUtf8String(File, MaterialInfo.NormalTexturePath)
+			|| !WriteUtf8String(File, MaterialInfo.EmissiveTexturePath))
 		{
 			return false;
 		}
@@ -2228,6 +2281,7 @@ bool FObjManager::BuildModelMaterialInfosFromObj(
 		FVector4 BaseColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
 		FString  DiffuseTexturePath;
 		FString  NormalTexturePath;
+		FString  EmissiveTexturePath;
 	};
 
 	TMap<FString, FParsedMaterialData> ParsedMaterials;
@@ -2337,6 +2391,28 @@ bool FObjManager::BuildModelMaterialInfosFromObj(
 						CurrentMaterialName.c_str());
 				}
 			}
+			else if (MtlType == "map_Ke" && !CurrentMaterialName.empty())
+			{
+				std::string TextureReferenceRaw;
+				std::getline(MtlSS, TextureReferenceRaw);
+				FString TextureReference = ExtractTextureReferenceFromMtlStatement(TextureReferenceRaw);
+				if (TextureReference.empty())
+				{
+					continue;
+				}
+
+				const std::filesystem::path TexturePath = ResolveTextureReferencePath(MtlPath, TextureReference);
+				if (PathExists(TexturePath))
+				{
+					ParsedMaterials[CurrentMaterialName].EmissiveTexturePath = MakeStoredTexturePath(ModelPath, TexturePath);
+				}
+				else
+				{
+					UE_LOG("[FObjManager] Failed to resolve MTL texture '%s' for material '%s'.",
+						TextureReference.c_str(),
+						CurrentMaterialName.c_str());
+				}
+			}
 		}
 	}
 
@@ -2348,6 +2424,7 @@ bool FObjManager::BuildModelMaterialInfosFromObj(
 			MaterialInfo.BaseColor          = It->second.BaseColor;
 			MaterialInfo.DiffuseTexturePath = It->second.DiffuseTexturePath;
 			MaterialInfo.NormalTexturePath = It->second.NormalTexturePath;
+			MaterialInfo.EmissiveTexturePath = It->second.EmissiveTexturePath;
 		}
 	}
 
@@ -2396,6 +2473,16 @@ bool FObjManager::ParseMtlFile(const FString& MtlFIlePath)
 
 			ApplyBaseColorToMaterial(CurrentMaterial, FVector4(R, G, B, 1.0f));
 		}
+		else if (Type == "Ke" && CurrentMaterial)
+		{
+			float R = 0.0f;
+			float G = 0.0f;
+			float B = 0.0f;
+			SS >> R >> G >> B;
+
+			const float EmissiveColor[4] = { R, G, B, 1.0f };
+			CurrentMaterial->SetParameterData("EmissiveColor", EmissiveColor, sizeof(EmissiveColor));
+		}
 		else if (Type == "map_Kd" && CurrentMaterial)
 		{
 			std::string TextureReferenceRaw;
@@ -2420,6 +2507,20 @@ bool FObjManager::ParseMtlFile(const FString& MtlFIlePath)
 			if (!TryLoadNormalTextureIntoMaterial(CurrentMaterial, TexturePath, "[MTL Parser] Auto-loaded normal map:"))
 			{
 				UE_LOG("[MTL Parser] Failed to resolve normal map '%s' referenced by '%s'.",
+					TextureReference.c_str(),
+					AbsolutePath.c_str());
+			}
+		}
+		else if (Type == "map_Ke" && CurrentMaterial)
+		{
+			std::string TextureReferenceRaw;
+			std::getline(SS, TextureReferenceRaw);
+			FString TextureReference = ExtractTextureReferenceFromMtlStatement(TextureReferenceRaw);
+
+			const std::filesystem::path TexturePath = ResolveTextureReferencePath(FilePath, TextureReference);
+			if (!TryLoadEmissiveTextureIntoMaterial(CurrentMaterial, TexturePath, "[MTL Parser] Auto-loaded emissive map:"))
+			{
+				UE_LOG("[MTL Parser] Failed to resolve emissive map '%s' referenced by '%s'.",
 					TextureReference.c_str(),
 					AbsolutePath.c_str());
 			}
