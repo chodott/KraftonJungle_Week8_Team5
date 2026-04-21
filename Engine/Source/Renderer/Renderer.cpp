@@ -808,7 +808,7 @@ bool FRenderer::ResolveSceneColorTargets(
 	{
 		{ 0, FullscreenPointSampler },
 	};
-	constexpr FFullscreenPassBindings ToneMappingBindings
+	const FFullscreenPassBindings ToneMappingBindings
 	{
 		ToneMappingBuffers,
 		(sizeof(ToneMappingBuffers) / sizeof(ToneMappingBuffers[0])),
@@ -862,7 +862,7 @@ bool FRenderer::ResolveSceneColorTargets(
 	{
 		{ 0, FullscreenPointSampler },
 	};
-	constexpr FFullscreenPassBindings BlitBindings
+	const FFullscreenPassBindings BlitBindings
 	{
 		nullptr,
 		0u,
