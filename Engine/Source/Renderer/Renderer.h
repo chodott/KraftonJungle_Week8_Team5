@@ -26,6 +26,14 @@
 #include <memory>
 #include <string>
 
+enum class EToneMappingMode : uint8
+{
+	ACES     = 0,
+	Hable    = 1,
+	Reinhard = 2,
+	Linear   = 3,
+};
+
 struct FVertex;
 struct FRenderMesh;
 struct FMeshPassFrameStats;
@@ -283,13 +291,14 @@ private:
 	ID3D11ShaderResourceView*            FileIconSRV   = nullptr;
 	std::unique_ptr<FSceneTargetManager> SceneTargetManager;
 	std::unique_ptr<FDecalTextureCache>  DecalTextureCache;
-	ID3D11SamplerState*                  NormalSampler = nullptr;
-	std::shared_ptr<FVertexShaderHandle> FinalImageVertexShader = nullptr;
-	std::shared_ptr<FPixelShaderHandle>  FinalImageBlitPixelShader = nullptr;
-	std::shared_ptr<FPixelShaderHandle>  ToneMappingPixelShader = nullptr;
-	ID3D11Buffer*                        ToneMappingConstantBuffer = nullptr;
-	ID3D11RasterizerState*               FullscreenRasterizerState = nullptr;
-	ID3D11DepthStencilState*             FullscreenNoDepthState = nullptr;
-	ID3D11SamplerState*                  FullscreenPointSampler = nullptr;
+	ID3D11SamplerState*                  NormalSampler              = nullptr;
+	std::shared_ptr<FVertexShaderHandle> FinalImageVertexShader     = nullptr;
+	std::shared_ptr<FPixelShaderHandle>  FinalImageBlitPixelShader  = nullptr;
+	std::shared_ptr<FPixelShaderHandle>  ToneMappingPixelShaders[4] = {}; // [ACES, Hable, Reinhard, Linear]
+	EToneMappingMode                     ToneMappingMode            = EToneMappingMode::Hable;
+	ID3D11Buffer*                        ToneMappingConstantBuffer  = nullptr;
+	ID3D11RasterizerState*               FullscreenRasterizerState  = nullptr;
+	ID3D11DepthStencilState*             FullscreenNoDepthState     = nullptr;
+	ID3D11SamplerState*                  FullscreenPointSampler     = nullptr;
 	FShaderHotReloadService              ShaderHotReloadService;
 };

@@ -4,6 +4,7 @@
 #include "Renderer/Resources/Shader/ShaderCompiler.h"
 #include "Renderer/Resources/Shader/ShaderRecipe.h"
 
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
@@ -15,7 +16,11 @@ public:
 
 	virtual const FShaderRecipe& GetRecipe() const = 0;
 	virtual FShaderRecipeKey GetKey() const = 0;
-	virtual bool RebuildFromArtifact(ID3D11Device* Device, const FShaderCompileArtifact& Artifact, std::string& OutError) = 0;
+	virtual bool PrepareRebuildFromArtifact(
+		ID3D11Device* Device,
+		const FShaderCompileArtifact& Artifact,
+		std::function<void()>& OutCommit,
+		std::string& OutError) = 0;
 };
 
 class ENGINE_API FVertexShaderHandle final : public IShaderHandle
@@ -29,7 +34,11 @@ public:
 	std::shared_ptr<FVertexShader> GetCurrent() const;
 	void Bind(ID3D11DeviceContext* DeviceContext) const;
 
-	bool RebuildFromArtifact(ID3D11Device* Device, const FShaderCompileArtifact& Artifact, std::string& OutError) override;
+	bool PrepareRebuildFromArtifact(
+		ID3D11Device* Device,
+		const FShaderCompileArtifact& Artifact,
+		std::function<void()>& OutCommit,
+		std::string& OutError) override;
 
 private:
 	FShaderRecipe Recipe;
@@ -49,7 +58,11 @@ public:
 	std::shared_ptr<FPixelShader> GetCurrent() const;
 	void Bind(ID3D11DeviceContext* DeviceContext) const;
 
-	bool RebuildFromArtifact(ID3D11Device* Device, const FShaderCompileArtifact& Artifact, std::string& OutError) override;
+	bool PrepareRebuildFromArtifact(
+		ID3D11Device* Device,
+		const FShaderCompileArtifact& Artifact,
+		std::function<void()>& OutCommit,
+		std::string& OutError) override;
 
 private:
 	FShaderRecipe Recipe;
@@ -69,7 +82,11 @@ public:
 	std::shared_ptr<FComputeShader> GetCurrent() const;
 	void Bind(ID3D11DeviceContext* DeviceContext) const;
 
-	bool RebuildFromArtifact(ID3D11Device* Device, const FShaderCompileArtifact& Artifact, std::string& OutError) override;
+	bool PrepareRebuildFromArtifact(
+		ID3D11Device* Device,
+		const FShaderCompileArtifact& Artifact,
+		std::function<void()>& OutCommit,
+		std::string& OutError) override;
 
 private:
 	FShaderRecipe Recipe;

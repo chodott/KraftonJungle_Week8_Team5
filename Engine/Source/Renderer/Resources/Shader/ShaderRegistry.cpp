@@ -5,7 +5,32 @@
 #include "Renderer/Resources/Shader/ShaderPathUtils.h"
 #include "Debug/EngineLog.h"
 
+#include <filesystem>
 #include <string>
+
+namespace
+{
+	std::string NarrowPathForLog(const std::wstring& Path)
+	{
+		return std::filesystem::path(Path).string();
+	}
+
+	std::string JoinPathsForLog(const std::vector<std::wstring>& Paths)
+	{
+		std::string Result;
+		for (size_t Index = 0; Index < Paths.size(); ++Index)
+		{
+			if (Index > 0)
+			{
+				Result += ", ";
+			}
+
+			Result += NarrowPathForLog(Paths[Index]);
+		}
+
+		return Result;
+	}
+}
 
 FShaderRegistry& FShaderRegistry::Get()
 {
@@ -41,17 +66,15 @@ bool FShaderRegistry::BuildTransactionForChangedFiles(
 	}
 
 	std::unordered_set<FShaderRecipeKey, FShaderRecipeKeyHasher> AffectedKeys;
-	GatherAffectedHandles(ChangedFiles, AffectedKeys, OutTransaction.bRequiresFullFallback);
+	std::vector<std::wstring> UnresolvedIncludeFiles;
+	GatherAffectedHandles(ChangedFiles, AffectedKeys, OutTransaction.bRequiresFullFallback, UnresolvedIncludeFiles);
 
-	if (AffectedKeys.empty() && !ChangedFiles.empty())
+	if (!UnresolvedIncludeFiles.empty())
 	{
-		std::shared_lock<std::shared_mutex> Lock(Mutex);
-		for (const auto& Pair : Handles)
-		{
-			AffectedKeys.insert(Pair.first);
-		}
+		GatherAllRegisteredHandleKeys(AffectedKeys);
 		OutTransaction.bRequiresFullFallback = true;
-		UE_LOG("[ShaderHotReload] no exact dependency match; rebuilding all registered shader handles.\n");
+		UE_LOG((std::string("[ShaderHotReload] unresolved include dependency fallback for: ")
+			+ JoinPathsForLog(UnresolvedIncludeFiles) + "\n").c_str());
 	}
 
 	if (AffectedKeys.empty())
@@ -97,12 +120,23 @@ bool FShaderRegistry::ApplyTransaction(
 	const FShaderReloadTransaction& Transaction,
 	std::string&                    OutError)
 {
+	std::vector<std::function<void()>> CommitSteps;
+	CommitSteps.reserve(Transaction.Entries.size());
+
 	for (const FShaderReloadArtifactEntry& Entry : Transaction.Entries)
 	{
-		if (!Entry.Handle->RebuildFromArtifact(Device, Entry.Artifact, OutError))
+		std::function<void()> CommitStep;
+		if (!Entry.Handle->PrepareRebuildFromArtifact(Device, Entry.Artifact, CommitStep, OutError))
 		{
 			return false;
 		}
+
+		CommitSteps.push_back(std::move(CommitStep));
+	}
+
+	for (std::function<void()>& CommitStep : CommitSteps)
+	{
+		CommitStep();
 	}
 
 	for (const FShaderReloadArtifactEntry& Entry : Transaction.Entries)
@@ -142,14 +176,22 @@ std::shared_ptr<THandle> FShaderRegistry::BuildHandleInternal(ID3D11Device* Devi
 	}
 
 	std::shared_ptr<THandle> Handle = std::make_shared<THandle>(Recipe);
+	std::function<void()>    CommitStep;
 	std::string              Error;
-	if (!Handle->RebuildFromArtifact(Device, Artifact, Error))
+	if (!Handle->PrepareRebuildFromArtifact(Device, Artifact, CommitStep, Error))
 	{
 		return nullptr;
 	}
 
 	{
 		std::unique_lock<std::shared_mutex> WriteLock(Mutex);
+		auto Existing = Handles.find(Key);
+		if (Existing != Handles.end())
+		{
+			return std::static_pointer_cast<THandle>(Existing->second);
+		}
+
+		CommitStep();
 		Handles[Key] = Handle;
 	}
 
@@ -194,36 +236,36 @@ void FShaderRegistry::UpdateDependencies(const std::shared_ptr<IShaderHandle>& H
 	}
 }
 
+void FShaderRegistry::GatherAllRegisteredHandleKeys(std::unordered_set<FShaderRecipeKey, FShaderRecipeKeyHasher>& OutKeys) const
+{
+	std::shared_lock<std::shared_mutex> Lock(Mutex);
+	for (const auto& Pair : Handles)
+	{
+		OutKeys.insert(Pair.first);
+	}
+}
+
 void FShaderRegistry::GatherAffectedHandles(
 	const std::unordered_set<std::wstring>&                       ChangedFiles,
 	std::unordered_set<FShaderRecipeKey, FShaderRecipeKeyHasher>& OutKeys,
-	bool&                                                         bRequiresFullFallback) const
+	bool&                                                         bRequiresFullFallback,
+	std::vector<std::wstring>&                                    OutUnresolvedIncludeFiles) const
 {
 	bRequiresFullFallback = false;
-
-	// TODO : Auto Add If end with .hlsli
-	static const std::unordered_set<std::wstring> FullFallbackFiles =
-	{
-		NormalizeShaderPath((FPaths::ShaderDir() / L"FrameCommon.hlsli").c_str()),
-		NormalizeShaderPath((FPaths::ShaderDir() / L"ObjectCommon.hlsli").c_str()),
-		NormalizeShaderPath((FPaths::ShaderDir() / L"LightCommon.hlsli").c_str()),
-		NormalizeShaderPath((FPaths::ShaderDir() / L"MeshVertexCommon.hlsli").c_str()),
-		NormalizeShaderPath((FPaths::ShaderDir() / L"ShaderCommon.hlsli").c_str()),
-		NormalizeShaderPath((FPaths::ShaderDir() / L"DecalCommon.hlsli").c_str()),
-	};
+	OutUnresolvedIncludeFiles.clear();
 
 	std::shared_lock<std::shared_mutex> Lock(Mutex);
 
 	for (const std::wstring& ChangedFile : ChangedFiles)
 	{
-		if (FullFallbackFiles.contains(ChangedFile))
-		{
-			bRequiresFullFallback = true;
-		}
-
 		auto Reverse = ReverseDependencies.find(ChangedFile);
 		if (Reverse == ReverseDependencies.end())
 		{
+			if (std::filesystem::path(ChangedFile).extension() == L".hlsli")
+			{
+				bRequiresFullFallback = true;
+				OutUnresolvedIncludeFiles.push_back(ChangedFile);
+			}
 			continue;
 		}
 

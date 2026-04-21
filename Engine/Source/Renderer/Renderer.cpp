@@ -57,10 +57,10 @@ namespace
 {
 	struct FToneMappingConstants
 	{
-		float Exposure = 1.0f;
+		float Exposure         = 0.22f;
 		float ShoulderStrength = 0.0f;
-		float LinearWhite = 11.2f;
-		float Pad0 = 0.0f;
+		float LinearWhite      = 0.65f;
+		float Pad0             = 0.0f;
 	};
 
 	ID3D11Texture2D* ResolveTextureFromRenderTarget(ID3D11RenderTargetView* RenderTargetView)
@@ -192,14 +192,12 @@ void FRenderer::Release()
 	}
 	FinalImageVertexShader.reset();
 	FinalImageBlitPixelShader.reset();
-	ToneMappingPixelShader.reset();
+	for (auto& Shader : ToneMappingPixelShaders)
+	{
+		Shader.reset();
+	}
 	FRendererResourceBootstrap::Release(*this);
 	RenderDevice.Release();
-}
-
-void FRenderer::TickShaderHotReload(float DeltaTime)
-{
-	ShaderHotReloadService.Tick(*this, DeltaTime);
 }
 
 bool FRenderer::IsOccluded()
@@ -309,11 +307,11 @@ bool FRenderer::CreateTextureFromSTB(
 	}
 
 	const DXGI_FORMAT TextureFormat = (ColorSpace == ETextureColorSpace::ColorSRGB)
-		? DXGI_FORMAT_R8G8B8A8_TYPELESS
-		: DXGI_FORMAT_R8G8B8A8_UNORM;
+		                                  ? DXGI_FORMAT_R8G8B8A8_TYPELESS
+		                                  : DXGI_FORMAT_R8G8B8A8_UNORM;
 	const DXGI_FORMAT SRVFormat = (ColorSpace == ETextureColorSpace::ColorSRGB)
-		? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
-		: DXGI_FORMAT_R8G8B8A8_UNORM;
+		                              ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
+		                              : DXGI_FORMAT_R8G8B8A8_UNORM;
 
 	D3D11_TEXTURE2D_DESC Desc = {};
 	Desc.Width                = W;
@@ -335,10 +333,10 @@ bool FRenderer::CreateTextureFromSTB(
 	}
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
-	SRVDesc.Format = SRVFormat;
-	SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	SRVDesc.Texture2D.MostDetailedMip = 0;
-	SRVDesc.Texture2D.MipLevels = 1;
+	SRVDesc.Format                          = SRVFormat;
+	SRVDesc.ViewDimension                   = D3D11_SRV_DIMENSION_TEXTURE2D;
+	SRVDesc.Texture2D.MostDetailedMip       = 0;
+	SRVDesc.Texture2D.MipLevels             = 1;
 
 	Hr = Device->CreateShaderResourceView(Tex, &SRVDesc, OutSRV);
 	Tex->Release();
@@ -395,9 +393,14 @@ void FRenderer::ConfigureMaterialPasses(FMaterial& Material, bool bTexturedMater
 	Material.SetPassShaders(EMaterialPassType::OutlineMask, OutlineMaskPass);
 }
 
+void FRenderer::TickShaderHotReload(float DeltaTime)
+{
+	ShaderHotReloadService.Tick(*this, DeltaTime);
+}
+
 bool FRenderer::ApplyShaderReload(const FShaderReloadTransaction& Transaction, std::string& OutError)
 {
-	ID3D11Device* Device = GetDevice();
+	ID3D11Device*        Device  = GetDevice();
 	ID3D11DeviceContext* Context = GetDeviceContext();
 	if (!Device || !Context)
 	{
@@ -554,7 +557,7 @@ FLightStats FRenderer::GetLightStats() const
 	{
 		return LightFeature->GetStats();
 	}
-	return FLightStats{};
+	return FLightStats {};
 }
 
 FGPUFrameStats FRenderer::GetGPUStats() const
@@ -666,7 +669,7 @@ void FRenderer::UpdateObjectConstantBuffer(const FMatrix& World)
 	}
 
 	FObjectConstantBuffer CBData;
-	CBData.World                = World.GetTransposed();
+	CBData.World = World.GetTransposed();
 	// HLSL cbuffer 기본 column-major 해석으로 인해 CPU에서 한 번 더 전치되어 들어가므로
 	// inverse-transpose를 의도할 때는 여기서 inverse만 채워야 셰이더에서 (inverse)^T가 된다.
 	CBData.WorldInvTranspose    = World.GetInverse();
@@ -692,7 +695,7 @@ void FRenderer::UpdateObjectConstantBuffer(const FMeshBatch& Batch)
 	}
 
 	FObjectConstantBuffer CBData;
-	CBData.World                = Batch.World.GetTransposed();
+	CBData.World = Batch.World.GetTransposed();
 	// HLSL cbuffer 기본 column-major 해석으로 인해 CPU에서 한 번 더 전치되어 들어가므로
 	// inverse-transpose를 의도할 때는 여기서 inverse만 채워야 셰이더에서 (inverse)^T가 된다.
 	CBData.WorldInvTranspose    = Batch.World.GetInverse();
@@ -754,114 +757,11 @@ void FRenderer::PreparePassDomain(EPassDomain Domain, const FSceneRenderTargets&
 	}
 }
 
-bool FRenderer::EnsureFinalImageResources()
-{
-	ID3D11Device* Device = GetDevice();
-	if (!Device)
-	{
-		return false;
-	}
-
-	const std::wstring ShaderDir = FPaths::ShaderDir().wstring();
-
-	if (!FinalImageVertexShader)
-	{
-		FShaderRecipe Recipe = {};
-		Recipe.Stage = EShaderStage::Vertex;
-		Recipe.SourcePath = ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl";
-		Recipe.EntryPoint = "main";
-		Recipe.Target = "vs_5_0";
-		Recipe.LayoutType = EVertexLayoutType::FullscreenNone;
-		FinalImageVertexShader = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(Device, Recipe);
-	}
-
-	if (!FinalImageBlitPixelShader)
-	{
-		FShaderRecipe Recipe = {};
-		Recipe.Stage = EShaderStage::Pixel;
-		Recipe.SourcePath = ShaderDir + L"FinalImagePostProcess/BlitPixelShader.hlsl";
-		Recipe.EntryPoint = "main";
-		Recipe.Target = "ps_5_0";
-		FinalImageBlitPixelShader = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
-	}
-
-	if (!ToneMappingPixelShader)
-	{
-		FShaderRecipe Recipe = {};
-		Recipe.Stage = EShaderStage::Pixel;
-		Recipe.SourcePath = ShaderDir + L"FinalImagePostProcess/ToneMappingPixelShader.hlsl";
-		Recipe.EntryPoint = "main";
-		Recipe.Target = "ps_5_0";
-		ToneMappingPixelShader = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
-	}
-
-	if (!ToneMappingConstantBuffer)
-	{
-		D3D11_BUFFER_DESC Desc = {};
-		Desc.ByteWidth = sizeof(FToneMappingConstants);
-		Desc.Usage = D3D11_USAGE_DYNAMIC;
-		Desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-		Desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		if (FAILED(Device->CreateBuffer(&Desc, nullptr, &ToneMappingConstantBuffer)))
-		{
-			return false;
-		}
-	}
-
-	if (!FullscreenRasterizerState)
-	{
-		D3D11_RASTERIZER_DESC Desc = {};
-		Desc.FillMode = D3D11_FILL_SOLID;
-		Desc.CullMode = D3D11_CULL_NONE;
-		Desc.DepthClipEnable = TRUE;
-		if (FAILED(Device->CreateRasterizerState(&Desc, &FullscreenRasterizerState)))
-		{
-			return false;
-		}
-	}
-
-	if (!FullscreenNoDepthState)
-	{
-		D3D11_DEPTH_STENCIL_DESC Desc = {};
-		Desc.DepthEnable = FALSE;
-		Desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-		Desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
-		if (FAILED(Device->CreateDepthStencilState(&Desc, &FullscreenNoDepthState)))
-		{
-			return false;
-		}
-	}
-
-	if (!FullscreenPointSampler)
-	{
-		D3D11_SAMPLER_DESC Desc = {};
-		Desc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
-		Desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-		Desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-		Desc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-		Desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-		Desc.MinLOD = 0.0f;
-		Desc.MaxLOD = D3D11_FLOAT32_MAX;
-		if (FAILED(Device->CreateSamplerState(&Desc, &FullscreenPointSampler)))
-		{
-			return false;
-		}
-	}
-
-	return FinalImageVertexShader != nullptr
-		&& FinalImageBlitPixelShader != nullptr
-		&& ToneMappingPixelShader != nullptr
-		&& ToneMappingConstantBuffer != nullptr
-		&& FullscreenRasterizerState != nullptr
-		&& FullscreenNoDepthState != nullptr
-		&& FullscreenPointSampler != nullptr;
-}
-
 bool FRenderer::ResolveSceneColorTargets(
 	FSceneRenderTargets& Targets,
 	const FFrameContext& Frame,
-	const FViewContext& View,
-	bool bApplyFXAA)
+	const FViewContext&  View,
+	bool                 bApplyFXAA)
 {
 	ID3D11DeviceContext* DeviceContext = GetDeviceContext();
 	if (!DeviceContext || !Targets.SceneColorRead || !Targets.SceneColorWrite || !EnsureFinalImageResources())
@@ -889,12 +789,12 @@ bool FRenderer::ResolveSceneColorTargets(
 		return false;
 	}
 
-	*reinterpret_cast<FToneMappingConstants*>(Mapped.pData) = FToneMappingConstants{};
+	*reinterpret_cast<FToneMappingConstants*>(Mapped.pData) = FToneMappingConstants {};
 	DeviceContext->Unmap(ToneMappingConstantBuffer, 0);
 
 	FFullscreenPassPipelineState PipelineState;
 	PipelineState.DepthStencilState = FullscreenNoDepthState;
-	PipelineState.RasterizerState = FullscreenRasterizerState;
+	PipelineState.RasterizerState   = FullscreenRasterizerState;
 
 	const FFullscreenPassConstantBufferBinding ToneMappingBuffers[] =
 	{
@@ -908,14 +808,14 @@ bool FRenderer::ResolveSceneColorTargets(
 	{
 		{ 0, FullscreenPointSampler },
 	};
-	const FFullscreenPassBindings ToneMappingBindings
+	constexpr FFullscreenPassBindings ToneMappingBindings
 	{
 		ToneMappingBuffers,
-		static_cast<uint32>(sizeof(ToneMappingBuffers) / sizeof(ToneMappingBuffers[0])),
+		(sizeof(ToneMappingBuffers) / sizeof(ToneMappingBuffers[0])),
 		ToneMappingResources,
-		static_cast<uint32>(sizeof(ToneMappingResources) / sizeof(ToneMappingResources[0])),
+		(sizeof(ToneMappingResources) / sizeof(ToneMappingResources[0])),
 		ToneMappingSamplers,
-		static_cast<uint32>(sizeof(ToneMappingSamplers) / sizeof(ToneMappingSamplers[0]))
+		(sizeof(ToneMappingSamplers) / sizeof(ToneMappingSamplers[0]))
 	};
 
 	if (!ExecuteFullscreenPass(
@@ -925,7 +825,7 @@ bool FRenderer::ResolveSceneColorTargets(
 		Targets.SceneColorWrite->RTV,
 		nullptr,
 		View.Viewport,
-		{ FinalImageVertexShader, ToneMappingPixelShader },
+		{ FinalImageVertexShader, ToneMappingPixelShaders[static_cast<int>(ToneMappingMode)] },
 		PipelineState,
 		ToneMappingBindings,
 		[](ID3D11DeviceContext& Context)
@@ -962,14 +862,14 @@ bool FRenderer::ResolveSceneColorTargets(
 	{
 		{ 0, FullscreenPointSampler },
 	};
-	const FFullscreenPassBindings BlitBindings
+	constexpr FFullscreenPassBindings BlitBindings
 	{
 		nullptr,
 		0u,
 		BlitResources,
-		static_cast<uint32>(sizeof(BlitResources) / sizeof(BlitResources[0])),
+		(sizeof(BlitResources) / sizeof(BlitResources[0])),
 		BlitSamplers,
-		static_cast<uint32>(sizeof(BlitSamplers) / sizeof(BlitSamplers[0]))
+		(sizeof(BlitSamplers) / sizeof(BlitSamplers[0]))
 	};
 
 	return ExecuteFullscreenPass(
@@ -1035,4 +935,123 @@ bool FRenderer::CreateSamplers()
 	}
 
 	return true;
+}
+
+bool FRenderer::EnsureFinalImageResources()
+{
+	ID3D11Device* Device = GetDevice();
+	if (!Device)
+	{
+		return false;
+	}
+
+	const std::wstring ShaderDir = FPaths::ShaderDir().wstring();
+
+	if (!FinalImageVertexShader)
+	{
+		FShaderRecipe Recipe   = {};
+		Recipe.Stage           = EShaderStage::Vertex;
+		Recipe.SourcePath      = ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl";
+		Recipe.EntryPoint      = "main";
+		Recipe.Target          = "vs_5_0";
+		Recipe.LayoutType      = EVertexLayoutType::FullscreenNone;
+		FinalImageVertexShader = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(Device, Recipe);
+	}
+
+	if (!FinalImageBlitPixelShader)
+	{
+		FShaderRecipe Recipe      = {};
+		Recipe.Stage              = EShaderStage::Pixel;
+		Recipe.SourcePath         = ShaderDir + L"FinalImagePostProcess/BlitPixelShader.hlsl";
+		Recipe.EntryPoint         = "main";
+		Recipe.Target             = "ps_5_0";
+		FinalImageBlitPixelShader = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
+	}
+
+	static constexpr const char* ToneMappingMacros[] = {
+		"TONEMAPPING_ACES",
+		"TONEMAPPING_HABLE",
+		"TONEMAPPING_REINHARD",
+		"TONEMAPPING_LINEAR",
+	};
+	for (int i = 0; i < 4; ++i)
+	{
+		if (!ToneMappingPixelShaders[i])
+		{
+			FShaderRecipe Recipe       = {};
+			Recipe.Stage               = EShaderStage::Pixel;
+			Recipe.SourcePath          = ShaderDir + L"FinalImagePostProcess/ToneMappingPixelShader.hlsl";
+			Recipe.EntryPoint          = "main";
+			Recipe.Target              = "ps_5_0";
+			Recipe.Macros              = { { ToneMappingMacros[i], "1" } };
+			ToneMappingPixelShaders[i] = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
+		}
+	}
+
+	if (!ToneMappingConstantBuffer)
+	{
+		D3D11_BUFFER_DESC Desc = {};
+		Desc.ByteWidth         = sizeof(FToneMappingConstants);
+		Desc.Usage             = D3D11_USAGE_DYNAMIC;
+		Desc.BindFlags         = D3D11_BIND_CONSTANT_BUFFER;
+		Desc.CPUAccessFlags    = D3D11_CPU_ACCESS_WRITE;
+		if (FAILED(Device->CreateBuffer(&Desc, nullptr, &ToneMappingConstantBuffer)))
+		{
+			return false;
+		}
+	}
+
+	if (!FullscreenRasterizerState)
+	{
+		D3D11_RASTERIZER_DESC Desc = {};
+		Desc.FillMode              = D3D11_FILL_SOLID;
+		Desc.CullMode              = D3D11_CULL_NONE;
+		Desc.DepthClipEnable       = TRUE;
+		if (FAILED(Device->CreateRasterizerState(&Desc, &FullscreenRasterizerState)))
+		{
+			return false;
+		}
+	}
+
+	if (!FullscreenNoDepthState)
+	{
+		D3D11_DEPTH_STENCIL_DESC Desc = {};
+		Desc.DepthEnable              = FALSE;
+		Desc.DepthWriteMask           = D3D11_DEPTH_WRITE_MASK_ZERO;
+		Desc.DepthFunc                = D3D11_COMPARISON_ALWAYS;
+		if (FAILED(Device->CreateDepthStencilState(&Desc, &FullscreenNoDepthState)))
+		{
+			return false;
+		}
+	}
+
+	if (!FullscreenPointSampler)
+	{
+		D3D11_SAMPLER_DESC Desc = {};
+		Desc.Filter             = D3D11_FILTER_MIN_MAG_MIP_POINT;
+		Desc.AddressU           = D3D11_TEXTURE_ADDRESS_CLAMP;
+		Desc.AddressV           = D3D11_TEXTURE_ADDRESS_CLAMP;
+		Desc.AddressW           = D3D11_TEXTURE_ADDRESS_CLAMP;
+		Desc.ComparisonFunc     = D3D11_COMPARISON_NEVER;
+		Desc.MinLOD             = 0.0f;
+		Desc.MaxLOD             = D3D11_FLOAT32_MAX;
+		if (FAILED(Device->CreateSamplerState(&Desc, &FullscreenPointSampler)))
+		{
+			return false;
+		}
+	}
+
+	for (int i = 0; i < 4; ++i)
+	{
+		if (!ToneMappingPixelShaders[i])
+		{
+			return false;
+		}
+	}
+	return FinalImageVertexShader != nullptr
+			&& FinalImageBlitPixelShader != nullptr
+			&& ToneMappingConstantBuffer != nullptr
+			&& FullscreenRasterizerState != nullptr
+			&& FullscreenNoDepthState != nullptr
+			&& FullscreenPointSampler != nullptr;
 }

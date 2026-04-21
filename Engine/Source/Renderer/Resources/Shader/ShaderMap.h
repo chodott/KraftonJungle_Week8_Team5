@@ -1,8 +1,11 @@
 #pragma once
 
 #include "EngineAPI.h"
+#include "Renderer/Resources/Shader/Shader.h"
 #include "Renderer/Resources/Shader/ShaderHandles.h"
-
+#include <d3d11.h>
+#include <string>
+#include <unordered_map>
 #include <memory>
 
 class ENGINE_API FShaderMap
@@ -29,4 +32,11 @@ public:
 	void Clear();
 
 	static FShaderMap& Get();
+
+private:
+	FShaderMap() = default;
+
+	std::unordered_map<std::wstring, std::shared_ptr<FVertexShader>>  VertexShaders;
+	std::unordered_map<std::wstring, std::shared_ptr<FPixelShader>>   PixelShaders;
+	std::unordered_map<std::wstring, std::shared_ptr<FComputeShader>> ComputeShaders;
 };

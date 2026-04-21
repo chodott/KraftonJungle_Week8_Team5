@@ -31,7 +31,11 @@ void FVertexShaderHandle::Bind(ID3D11DeviceContext* DeviceContext) const
 	}
 }
 
-bool FVertexShaderHandle::RebuildFromArtifact(ID3D11Device* Device, const FShaderCompileArtifact& Artifact, std::string& OutError)
+bool FVertexShaderHandle::PrepareRebuildFromArtifact(
+	ID3D11Device* Device,
+	const FShaderCompileArtifact& Artifact,
+	std::function<void()>& OutCommit,
+	std::string& OutError)
 {
 	const std::shared_ptr<FShaderResource> Resource = MakeResourceFromBytecode(Artifact.Bytecode);
 	if (!Resource)
@@ -47,11 +51,11 @@ bool FVertexShaderHandle::RebuildFromArtifact(ID3D11Device* Device, const FShade
 		return false;
 	}
 
+	OutCommit = [this, NewShader]()
 	{
 		std::unique_lock<std::shared_mutex> Lock(Mutex);
 		Current = NewShader;
-	}
-
+	};
 	return true;
 }
 
@@ -76,7 +80,11 @@ void FPixelShaderHandle::Bind(ID3D11DeviceContext* DeviceContext) const
 	}
 }
 
-bool FPixelShaderHandle::RebuildFromArtifact(ID3D11Device* Device, const FShaderCompileArtifact& Artifact, std::string& OutError)
+bool FPixelShaderHandle::PrepareRebuildFromArtifact(
+	ID3D11Device* Device,
+	const FShaderCompileArtifact& Artifact,
+	std::function<void()>& OutCommit,
+	std::string& OutError)
 {
 	const std::shared_ptr<FShaderResource> Resource = MakeResourceFromBytecode(Artifact.Bytecode);
 	if (!Resource)
@@ -92,11 +100,11 @@ bool FPixelShaderHandle::RebuildFromArtifact(ID3D11Device* Device, const FShader
 		return false;
 	}
 
+	OutCommit = [this, NewShader]()
 	{
 		std::unique_lock<std::shared_mutex> Lock(Mutex);
 		Current = NewShader;
-	}
-
+	};
 	return true;
 }
 
@@ -121,7 +129,11 @@ void FComputeShaderHandle::Bind(ID3D11DeviceContext* DeviceContext) const
 	}
 }
 
-bool FComputeShaderHandle::RebuildFromArtifact(ID3D11Device* Device, const FShaderCompileArtifact& Artifact, std::string& OutError)
+bool FComputeShaderHandle::PrepareRebuildFromArtifact(
+	ID3D11Device* Device,
+	const FShaderCompileArtifact& Artifact,
+	std::function<void()>& OutCommit,
+	std::string& OutError)
 {
 	const std::shared_ptr<FShaderResource> Resource = MakeResourceFromBytecode(Artifact.Bytecode);
 	if (!Resource)
@@ -137,10 +149,10 @@ bool FComputeShaderHandle::RebuildFromArtifact(ID3D11Device* Device, const FShad
 		return false;
 	}
 
+	OutCommit = [this, NewShader]()
 	{
 		std::unique_lock<std::shared_mutex> Lock(Mutex);
 		Current = NewShader;
-	}
-
+	};
 	return true;
 }

@@ -5,7 +5,9 @@
 
 #include <mutex>
 #include <optional>
+#include <filesystem>
 #include <thread>
+#include <unordered_map>
 #include <unordered_set>
 
 class FRenderer;
@@ -26,6 +28,15 @@ private:
 	void StartCompileIfNeeded();
 	void CompileWorkerMain(std::unordered_set<std::wstring> ChangedFiles);
 	void FullRescanShaderDirectory(std::unordered_set<std::wstring>& OutFiles) const;
+	void ResetObservedState(const std::unordered_set<std::wstring>& Files);
+	void RequeueChangedFiles(const std::unordered_set<std::wstring>& Files);
+	bool IsFileSettled(const std::wstring& File);
+
+	struct FPendingFileObservation
+	{
+		uintmax_t Size = 0;
+		std::filesystem::file_time_type WriteTime = {};
+	};
 
 private:
 	FShaderDirectoryWatcherWin Watcher;
@@ -33,6 +44,7 @@ private:
 	std::mutex StateMutex;
 	std::unordered_set<std::wstring> PendingChangedFiles;
 	std::optional<FShaderReloadTransaction> ReadyTransaction;
+	std::unordered_map<std::wstring, FPendingFileObservation> PendingFileObservations;
 
 	std::thread CompileWorker;
 	bool bCompileRunning = false;

@@ -52,6 +52,7 @@ void FShaderHotReloadService::Tick(FRenderer& Renderer, float DeltaTime)
 		for (const std::wstring& File : WatcherChanges)
 		{
 			PendingChangedFiles.insert(File);
+			PendingFileObservations.erase(File);
 		}
 
 		DebounceTimer = DebounceSeconds;
@@ -64,6 +65,7 @@ void FShaderHotReloadService::Tick(FRenderer& Renderer, float DeltaTime)
 
 		std::lock_guard<std::mutex> Lock(StateMutex);
 		PendingChangedFiles = std::move(RescannedFiles);
+		ResetObservedState(PendingChangedFiles);
 		DebounceTimer       = DebounceSeconds;
 	}
 
@@ -93,6 +95,9 @@ void FShaderHotReloadService::Tick(FRenderer& Renderer, float DeltaTime)
 		if (!Renderer.ApplyShaderReload(TransactionToApply.value(), Error))
 		{
 			UE_LOG((std::string("[ShaderHotReload] apply failed: ") + Error + "\n").c_str());
+			std::lock_guard<std::mutex> Lock(StateMutex);
+			RequeueChangedFiles(TransactionToApply->ChangedFiles);
+			DebounceTimer = DebounceSeconds;
 		}
 		else
 		{
@@ -109,6 +114,7 @@ void FShaderHotReloadService::MarkAllDirty()
 
 	std::lock_guard<std::mutex> Lock(StateMutex);
 	PendingChangedFiles = std::move(AllFiles);
+	ResetObservedState(PendingChangedFiles);
 	DebounceTimer       = DebounceSeconds;
 }
 
@@ -123,7 +129,23 @@ void FShaderHotReloadService::StartCompileIfNeeded()
 			return;
 		}
 
-		FilesToCompile.swap(PendingChangedFiles);
+		for (auto It = PendingChangedFiles.begin(); It != PendingChangedFiles.end();)
+		{
+			if (IsFileSettled(*It))
+			{
+				FilesToCompile.insert(*It);
+				It = PendingChangedFiles.erase(It);
+				continue;
+			}
+
+			++It;
+		}
+
+		if (FilesToCompile.empty())
+		{
+			return;
+		}
+
 		bCompileRunning = true;
 	}
 
@@ -150,6 +172,8 @@ void FShaderHotReloadService::CompileWorkerMain(std::unordered_set<std::wstring>
 	else if (!Transaction.ErrorText.empty())
 	{
 		UE_LOG((std::string("[ShaderHotReload] compile failed: ") + Transaction.ErrorText + "\n").c_str());
+		RequeueChangedFiles(ChangedFiles);
+		DebounceTimer = DebounceSeconds;
 	}
 	else
 	{
@@ -158,6 +182,62 @@ void FShaderHotReloadService::CompileWorkerMain(std::unordered_set<std::wstring>
 	}
 
 	bCompileRunning = false;
+}
+
+void FShaderHotReloadService::ResetObservedState(const std::unordered_set<std::wstring>& Files)
+{
+	for (const std::wstring& File : Files)
+	{
+		PendingFileObservations.erase(File);
+	}
+}
+
+void FShaderHotReloadService::RequeueChangedFiles(const std::unordered_set<std::wstring>& Files)
+{
+	for (const std::wstring& File : Files)
+	{
+		PendingChangedFiles.insert(File);
+		PendingFileObservations.erase(File);
+	}
+}
+
+bool FShaderHotReloadService::IsFileSettled(const std::wstring& File)
+{
+	namespace fs = std::filesystem;
+
+	std::error_code Error;
+	if (!fs::exists(File, Error) || Error)
+	{
+		PendingFileObservations.erase(File);
+		return false;
+	}
+
+	const uintmax_t FileSize = fs::file_size(File, Error);
+	if (Error)
+	{
+		PendingFileObservations.erase(File);
+		return false;
+	}
+
+	const fs::file_time_type WriteTime = fs::last_write_time(File, Error);
+	if (Error)
+	{
+		PendingFileObservations.erase(File);
+		return false;
+	}
+
+	const FPendingFileObservation NewObservation { FileSize, WriteTime };
+	auto Existing = PendingFileObservations.find(File);
+	if (Existing == PendingFileObservations.end())
+	{
+		PendingFileObservations.emplace(File, NewObservation);
+		return false;
+	}
+
+	const bool bSettled = Existing->second.Size == NewObservation.Size
+		&& Existing->second.WriteTime == NewObservation.WriteTime;
+	Existing->second = NewObservation;
+	return bSettled;
 }
 
 void FShaderHotReloadService::FullRescanShaderDirectory(std::unordered_set<std::wstring>& OutFiles) const

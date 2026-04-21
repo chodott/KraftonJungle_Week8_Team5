@@ -49,10 +49,12 @@ private:
 	std::shared_ptr<THandle> BuildHandleInternal(ID3D11Device* Device, const FShaderRecipe& Recipe);
 
 	void UpdateDependencies(const std::shared_ptr<IShaderHandle>& Handle, const FShaderCompileArtifact& Artifact);
+	void GatherAllRegisteredHandleKeys(std::unordered_set<FShaderRecipeKey, FShaderRecipeKeyHasher>& OutKeys) const;
 	void GatherAffectedHandles(
 		const std::unordered_set<std::wstring>& ChangedFiles,
 		std::unordered_set<FShaderRecipeKey, FShaderRecipeKeyHasher>& OutKeys,
-		bool& bRequiresFullFallback) const;
+		bool& bRequiresFullFallback,
+		std::vector<std::wstring>& OutUnresolvedIncludeFiles) const;
 
 private:
 	mutable std::shared_mutex Mutex;
