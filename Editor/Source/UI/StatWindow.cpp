@@ -7,6 +7,7 @@
 #include "Renderer/Renderer.h"
 #include "Renderer/Features/Decal/DecalRenderFeature.h"
 #include "Renderer/Features/Fog/FogStats.h"
+#include "Renderer/Features/Lighting/LightStats.h"
 #include "Renderer/GPUStats.h"
 
 #include "imgui.h"
@@ -245,6 +246,9 @@ void FStatWindow::Render(const FRect& AreaRect, EStatWindowMode Mode, FRenderer*
 		break;
 	case EStatWindowMode::GPU:
 		RenderGPUStats(Renderer);
+		break;
+	case EStatWindowMode::Light:
+		RenderLightStats(Renderer);
 		break;
 	default:
 		break;
@@ -532,4 +536,51 @@ void FStatWindow::RenderGPUStats(FRenderer* Renderer)
 	RenderStatTablePanel("GPUStatPanel", Lines);
 	ImGui::Spacing();
 	ImGui::TextDisabled("Geometry/overdraw are engine-side aggregates. D3D11 hardware counters are not sampled here.");
+}
+
+void FStatWindow::RenderLightStats(FRenderer* Renderer)
+{
+	if (!Renderer)
+	{
+		ImGui::TextDisabled("Renderer unavailable.");
+		return;
+	}
+
+	const FLightStats Stats = Renderer->GetLightStats();
+	std::vector<FStatLine> Lines;
+	char Buffer[64];
+
+	AddStatHeader(Lines, "[Light Culling Stat]", false);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.TotalSceneLights);
+	AddStatLine(Lines, "Scene Lights", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u / %u", Stats.TotalLocalLights, Stats.MaxLocalLights);
+	AddStatLine(Lines, "Uploaded (Used / Max)", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.BudgetCulledLights);
+	AddStatLine(Lines, "Budget Culled (over cap)", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.TotalLightClusterAssignments);
+	AddStatLine(Lines, "Light-Cluster Assignments", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.OverflowCulledSlots);
+	AddStatLine(Lines, "Overflow Culled (per-cluster cap)", Buffer);
+
+	AddStatHeader(Lines, "[Cluster Grid]");
+	std::snprintf(Buffer, sizeof(Buffer), "%u x %u x %u", Stats.ClusterCountX, Stats.ClusterCountY, Stats.ClusterCountZ);
+	AddStatLine(Lines, "Cluster Grid (X x Y x Z)", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.TotalClusters);
+	AddStatLine(Lines, "Total Clusters", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.MaxLightsPerCluster);
+	AddStatLine(Lines, "Max Lights Per Cluster", Buffer);
+
+	AddStatHeader(Lines, "[GPU Buffers]");
+	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.LocalLightBufferBytes / 1024.0);
+	AddStatLine(Lines, "Local Light Buffer", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.CullProxyBufferBytes / 1024.0);
+	AddStatLine(Lines, "Cull Proxy Buffer", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.ClusterHeaderBufferBytes / 1024.0);
+	AddStatLine(Lines, "Cluster Header Buffer", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.ClusterIndexBufferBytes / 1024.0);
+	AddStatLine(Lines, "Cluster Index Buffer", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.TotalBufferBytes / 1024.0);
+	AddStatLine(Lines, "Total Buffer", Buffer);
+
+	RenderStatTablePanel("LightStatPanel", Lines);
 }

@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
+#include "Renderer/Features/Lighting/LightStats.h"
 #include "Renderer/Features/Lighting/LightTypes.h"
 #include "Renderer/Common/SceneRenderTargets.h"
 #include "Renderer/Scene/SceneViewData.h"
@@ -51,6 +52,8 @@ public:
 		return LightInputLayout;
 	}
 
+	FLightStats GetStats() const { return Stats; }
+
 private:
 	bool Initialize(FRenderer& Renderer);
 	bool CompileShaderVariants(FRenderer& Renderer);
@@ -58,6 +61,8 @@ private:
 	void UpdateGlobalLightConstantBuffer(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 	void UpdateClusterGlobalConstantBuffer(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 	void UploadLocalLightBuffers(FRenderer& Renderer, const FSceneViewData& SceneViewData);
+
+	bool EnsureStagingBuffer(FRenderer& Renderer, uint32 ElementStride, uint32 ElementCount, ID3D11Buffer*& Buffer);
 
 	bool EnsureDynamicStructuredBufferSRV(
 		FRenderer&                 Renderer,
@@ -112,4 +117,10 @@ private:
 	ID3D11PixelShader* WorldNormalPS[ShaderVariantCount] = {};
 
 	ELightingModel CurrentLightingModel = ELightingModel::Phong;
+
+	ID3D11Buffer* ClusterHeaderStagingBuffer  = nullptr;
+	uint32        PendingReadbackClusterCount  = 0;
+	bool          bHasPendingReadback          = false;
+
+	FLightStats Stats;
 };

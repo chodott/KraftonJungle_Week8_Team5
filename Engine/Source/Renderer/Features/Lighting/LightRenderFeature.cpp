@@ -63,6 +63,32 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 		return false;
 	}
 
+	// 이전 프레임의 클러스터 헤더 readback — 1프레임 래그로 컬링 통계 수집
+	if (bHasPendingReadback && ClusterHeaderStagingBuffer)
+	{
+		ID3D11DeviceContext* DC = Renderer.GetDeviceContext();
+		D3D11_MAPPED_SUBRESOURCE Mapped = {};
+		if (DC && SUCCEEDED(DC->Map(ClusterHeaderStagingBuffer, 0, D3D11_MAP_READ, 0, &Mapped)))
+		{
+			const FLightClusterHeaderGPU* Headers = static_cast<const FLightClusterHeaderGPU*>(Mapped.pData);
+			uint32 TotalAssignments = 0;
+			uint32 OverflowDropped  = 0;
+			for (uint32 i = 0; i < PendingReadbackClusterCount; ++i)
+			{
+				TotalAssignments += Headers[i].Count;
+				const uint32 RawCount = Headers[i].Pad0;
+				if (RawCount > Headers[i].Count)
+				{
+					OverflowDropped += RawCount - Headers[i].Count;
+				}
+			}
+			Stats.TotalLightClusterAssignments = TotalAssignments;
+			Stats.OverflowCulledSlots          = OverflowDropped;
+			DC->Unmap(ClusterHeaderStagingBuffer, 0);
+		}
+		bHasPendingReadback = false;
+	}
+
 	UpdateClusterGlobalConstantBuffer(Renderer, SceneViewData);
 	UploadLocalLightBuffers(Renderer, SceneViewData);
 
@@ -83,6 +109,13 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 	constexpr uint32 ClusterCountZ  = LightCullingConfig::ClusterCountZ;
 	const uint32 ClusterCount       = ClusterCountX * ClusterCountY * ClusterCountZ;
 	const uint32 ClusterHeaderCount = ClusterCount;
+
+	Stats.ClusterCountX       = ClusterCountX;
+	Stats.ClusterCountY       = ClusterCountY;
+	Stats.ClusterCountZ       = ClusterCountZ;
+	Stats.TotalClusters       = ClusterCount;
+	Stats.MaxLightsPerCluster = LightListConfig::MaxLightsPerCluster;
+	Stats.MaxLocalLights      = LightListConfig::MaxLocalLights;
 	const uint32 ClusterIndexCount  = ClusterCount * LightListConfig::MaxLightsPerCluster;
 
 	if (!EnsureDefaultStructuredBufferSRVUAV(
@@ -137,6 +170,15 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 	DeviceContext->CSSetUnorderedAccessViews(0, 2, NullUAV, UAVInitialCounts);
 	DeviceContext->CSSetConstantBuffers(LightClusterSlots::ClusterGlobalCB, 1, NullCB);
 	DeviceContext->CSSetShader(nullptr, nullptr, 0);
+
+	// 이번 프레임 클러스터 헤더를 스테이징 버퍼에 복사 — 다음 프레임에 readback
+	if (ClusterLightHeaderBuffer &&
+		EnsureStagingBuffer(Renderer, sizeof(FLightClusterHeaderGPU), (std::max)(1u, ClusterCount), ClusterHeaderStagingBuffer))
+	{
+		DeviceContext->CopyResource(ClusterHeaderStagingBuffer, ClusterLightHeaderBuffer);
+		PendingReadbackClusterCount = ClusterCount;
+		bHasPendingReadback         = true;
+	}
 
 	return true;
 }
@@ -211,6 +253,8 @@ void FLightRenderFeature::Release()
 	SafeRelease(ClusterLightIndexUAV);
 	SafeRelease(ClusterLightIndexSRV);
 	SafeRelease(ClusterLightIndexBuffer);
+
+	SafeRelease(ClusterHeaderStagingBuffer);
 
 	SafeRelease(LightCullingCS);
 
@@ -658,6 +702,20 @@ void FLightRenderFeature::UploadLocalLightBuffers(
 		ObjectLightIndexBuffer,
 		ObjectLightIndicesGPU.data(),
 		sizeof(uint32) * ObjectLightIndicesGPU.size());
+
+	const uint32 SceneLightCount  = static_cast<uint32>(SceneViewData.LightingInputs.LocalLights.size());
+	const uint32 ActualLightCount = (std::min)(SceneLightCount, LightListConfig::MaxLocalLights);
+
+	Stats.TotalSceneLights         = SceneLightCount;
+	Stats.TotalLocalLights         = ActualLightCount;
+	Stats.BudgetCulledLights       = SceneLightCount > LightListConfig::MaxLocalLights
+	                                 ? SceneLightCount - LightListConfig::MaxLocalLights : 0u;
+	Stats.LocalLightBufferBytes     = sizeof(FLocalLightGPU)     * LocalLightsGPU.size();
+	Stats.CullProxyBufferBytes      = sizeof(FLightCullProxyGPU) * ProxiesGPU.size();
+	Stats.ClusterHeaderBufferBytes  = sizeof(FLightClusterHeaderGPU) * (std::max)(1u, Stats.TotalClusters);
+	Stats.ClusterIndexBufferBytes   = sizeof(uint32) * (std::max)(1u, Stats.TotalClusters) * LightListConfig::MaxLightsPerCluster;
+	Stats.TotalBufferBytes          = Stats.LocalLightBufferBytes + Stats.CullProxyBufferBytes
+	                                + Stats.ClusterHeaderBufferBytes + Stats.ClusterIndexBufferBytes;
 }
 
 bool FLightRenderFeature::EnsureDynamicStructuredBufferSRV(
@@ -725,6 +783,42 @@ bool FLightRenderFeature::EnsureDynamicStructuredBufferSRV(
 	}
 
 	return true;
+}
+
+bool FLightRenderFeature::EnsureStagingBuffer(
+	FRenderer&     Renderer,
+	uint32         ElementStride,
+	uint32         ElementCount,
+	ID3D11Buffer*& Buffer)
+{
+	ID3D11Device* Device = Renderer.GetDevice();
+	if (!Device)
+	{
+		return false;
+	}
+
+	const uint32 ByteWidth = ElementStride * (std::max)(1u, ElementCount);
+
+	if (Buffer)
+	{
+		D3D11_BUFFER_DESC Desc = {};
+		Buffer->GetDesc(&Desc);
+		if (Desc.ByteWidth >= ByteWidth)
+		{
+			return true;
+		}
+		SafeRelease(Buffer);
+	}
+
+	D3D11_BUFFER_DESC Desc   = {};
+	Desc.ByteWidth           = ByteWidth;
+	Desc.Usage               = D3D11_USAGE_STAGING;
+	Desc.BindFlags           = 0;
+	Desc.CPUAccessFlags      = D3D11_CPU_ACCESS_READ;
+	Desc.MiscFlags           = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+	Desc.StructureByteStride = ElementStride;
+
+	return SUCCEEDED(Device->CreateBuffer(&Desc, nullptr, &Buffer));
 }
 
 bool FLightRenderFeature::EnsureDefaultStructuredBufferSRVUAV(

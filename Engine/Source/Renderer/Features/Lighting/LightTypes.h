@@ -11,8 +11,8 @@ namespace LightCullingConfig
 
 namespace LightListConfig
 {
-	static constexpr uint32 MaxLocalLights          = 256;
-	static constexpr uint32 MaxLightsPerCluster     = 64;
+	static constexpr uint32 MaxLocalLights          = 1024;
+	static constexpr uint32 MaxLightsPerCluster     = 256;
 	static constexpr uint32 HeatmapVisualizationMax = 16;
 }
 

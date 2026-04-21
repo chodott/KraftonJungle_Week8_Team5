@@ -9,6 +9,7 @@ enum class EStatDisplayMode : uint8_t
 	Decal,
 	Fog,
 	GPU,
+	Light,
 };
 
 struct FDebugState
