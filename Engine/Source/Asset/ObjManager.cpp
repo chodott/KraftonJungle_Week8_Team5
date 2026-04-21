@@ -888,7 +888,7 @@ namespace
 		Material->SetBlendOption(DefaultTexMat->GetBlendOption());
 		Material->SetBlendState(DefaultTexMat->GetBlendState());
 
-		int32 SlotIndex = Material->CreateConstantBuffer(GEngine->GetRenderer()->GetDevice(), 32);
+		int32 SlotIndex = Material->CreateConstantBuffer(GEngine->GetRenderer()->GetDevice(), 64);
 		if (SlotIndex >= 0)
 		{
 			Material->RegisterParameter("BaseColor", SlotIndex, 0, 16);
@@ -898,6 +898,14 @@ namespace
 			Material->RegisterParameter("UVScrollSpeed", SlotIndex, 16, 16);
 			constexpr float DefaultScroll[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 			Material->GetConstantBuffer(SlotIndex)->SetData(DefaultScroll, sizeof(DefaultScroll), 16);
+
+			Material->RegisterParameter("EmissiveColor", SlotIndex, 32, 16);
+			constexpr float DefaultEmissive[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+			Material->GetConstantBuffer(SlotIndex)->SetData(DefaultEmissive, sizeof(DefaultEmissive), 32);
+
+			Material->RegisterParameter("Shininess", SlotIndex, 48, 16);
+			constexpr float DefaultShininess[4] = { 32.0f, 0.0f, 0.0f, 0.0f };
+			Material->GetConstantBuffer(SlotIndex)->SetData(DefaultShininess, sizeof(DefaultShininess), 48);
 		}
 
 		GEngine->GetRenderer()->ConfigureMaterialPasses(*Material, false);

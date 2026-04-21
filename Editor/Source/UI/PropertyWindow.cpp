@@ -585,6 +585,20 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 			{
 				CurrentMaterial->SetParameterData("UVScrollSpeed", ScrollArray, sizeof(ScrollArray));
 			}
+
+			FVector4 EmissiveColor = CurrentMaterial->GetVectorParameter("EmissiveColor");
+			float EmissiveColorArray[4] = { EmissiveColor.X, EmissiveColor.Y, EmissiveColor.Z, EmissiveColor.W };
+			if (ImGui::ColorEdit4("Emissive Color", EmissiveColorArray))
+			{
+				CurrentMaterial->SetParameterData("EmissiveColor", EmissiveColorArray, sizeof(EmissiveColorArray));
+			}
+
+			float ShininessArray[4] = { 32.0f, 0.0f, 0.0f, 0.0f };
+			CurrentMaterial->GetParameterData("Shininess", &ShininessArray, sizeof(ShininessArray));
+			if (ImGui::DragFloat("Shininess", ShininessArray, 0.1f, 0.0f, 128.0f, "%.2f"))
+			{
+				CurrentMaterial->SetParameterData("Shininess", &ShininessArray, sizeof(ShininessArray));
+			}
 		}
 		ImGui::Spacing();
 		ImGui::PopID();

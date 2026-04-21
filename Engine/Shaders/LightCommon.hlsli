@@ -29,6 +29,16 @@ struct FDirectionalLightInfo
 	float4 DirectionEtc;
 };
 
+cbuffer MaterialData : register(b2)
+{
+	float4 ColorTint;
+	float2 UVScrollSpeed;
+	float2 Padding0;
+	float4 EmissiveColor;
+	float Shininess;
+	float3 Padding1;
+};
+
 cbuffer Lighting : register(b4)
 {
 	FAmbientLightInfo Ambient;
@@ -176,7 +186,6 @@ float4 CalculateDirectionalLight(FDirectionalLightInfo info,
 	float3 H = normalize(L + V);
 
 	float diff = max(0.0f, dot(N, L));
-	float Shininess = 32.0f;
 	float spec = pow(max(0.0f, dot(N, H)), Shininess);
 
     float3 diffuse = info.ColorIntensity.xyz * info.ColorIntensity.w * diff;
@@ -198,7 +207,6 @@ float4 CalculatePointLight(FLocalLightGPU info,
 	float3 H = normalize(L + V);
 
 	float diff = max(0.0f, dot(N, L));
-	float Shininess = 32.0f;
 	float spec = pow(max(0.0f, dot(N, H)), Shininess);
 	float attenuation = CalculateAttenuation(distance, info.PositionRange.w);
 
@@ -229,7 +237,6 @@ float4 CalculateSpotLight(FLocalLightGPU info,
 		return float4(0, 0, 0, 0);
 
 	float diff = max(0.0f, dot(N, L));
-	float Shininess = 32.0f;
 	float spec = pow(max(0.0f, dot(N, H)), Shininess);
 	float attenuation = CalculateAttenuation(distance, info.PositionRange.w);
 

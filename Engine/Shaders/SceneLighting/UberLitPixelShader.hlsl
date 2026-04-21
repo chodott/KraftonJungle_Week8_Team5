@@ -21,14 +21,7 @@ Texture2D NormalMap : register(t1);
 };
 */
 
-cbuffer MaterialData : register(b2)
-{
-	float4 ColorTint;
-	float2 UVScrollSpeed;
-	float2 Padding;
-};
-
-// Diffuse ?띿뒪泥??됱긽
+// Diffuse 텍스처 색상
 #define TextureColor (Texture.Sample(Sampler, Input.UV) * ColorTint)
 
 float4 main(VS_OUTPUT Input) : SV_TARGET
@@ -40,7 +33,7 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 
 	float4 finalPixel = TextureColor;
 
-	    // ?? 踰뺤꽑 寃곗젙 ??
+	    // ── 법선 결정 ──
 #if HAS_NORMAL_MAP
     float3 N = GetNormalFromMap(NormalMap, Sampler, Input.Normal, Input.Tangent, Input.Bitangent, Input.UV);
 #else
@@ -58,6 +51,7 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 #if LIGHTING_MODEL_GOURAUD
 
 	float3 finalColor = baseColor.rgb * Input.VertexLighting.rgb + Input.VertexSpecular;
+	finalColor += EmissiveColor.rgb;
 	return float4(finalColor, baseColor.a);
 	
 #elif LIGHTING_MODEL_LAMBERT
@@ -79,6 +73,7 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 	lighting += ComputeClusteredLocalLightingLambert(Input.Position, Input.WorldPosition, N).rgb;
 
 	baseColor.rgb *= lighting;
+	baseColor.rgb += EmissiveColor.rgb;
 	return float4(baseColor.rgb, baseColor.a);
 	
 #elif LIGHTING_MODEL_PHONG
@@ -117,6 +112,7 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 
 	float3 specularLighting = max(totalLighting - diffuseLighting, 0.0f.xxx);
 	float3 finalColor = baseColor.rgb * diffuseLighting + specularLighting;
+	finalColor += EmissiveColor.rgb;
 	return float4(finalColor, baseColor.a);
 	
 #endif
