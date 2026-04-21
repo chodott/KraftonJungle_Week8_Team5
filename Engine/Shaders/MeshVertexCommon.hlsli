@@ -20,6 +20,7 @@ struct VS_OUTPUT
 	float3 Tangent : TEXCOORD2;
 	float3 Bitangent : TEXCOORD3;
 	float4 VertexLighting : TEXCOORD4;
+	float3 VertexSpecular : TEXCOORD5;
 };
 
 #endif

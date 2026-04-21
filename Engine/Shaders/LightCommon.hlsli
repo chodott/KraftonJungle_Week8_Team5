@@ -276,6 +276,47 @@ float4 ComputeObjectLocalLighting(uint localLightListOffset, uint localLightList
     return lighting;
 }
 
+float4 ComputeObjectLocalLightingLambert(uint localLightListOffset, uint localLightListCount, float3 worldPos, float3 N)
+{
+	float4 lighting = 0.0f.xxxx;
+
+	[loop]
+	for (uint i = 0; i < localLightListCount; ++i)
+	{
+		uint lightIndex = ObjectLightIndices[localLightListOffset + i];
+		if (lightIndex < LocalLightCount)
+		{
+			FLocalLightGPU light = LocalLights[lightIndex];
+
+			float3 toLight = light.PositionRange.xyz - worldPos;
+			float distance = length(toLight);
+
+			if (distance < light.PositionRange.w)
+			{
+				float3 L = toLight / max(distance, 1.0e-5f);
+				float diff = max(dot(N, L), 0.0f);
+				float atten = CalculateAttenuation(distance, light.PositionRange.w);
+				uint lightClass = (uint)light.DirectionType.w;
+
+				if (lightClass == LIGHT_CLASS_POINT)
+				{
+					lighting += float4(light.ColorIntensity.xyz * light.ColorIntensity.w * diff * atten, 1.0f);
+				}
+				else if (lightClass == LIGHT_CLASS_SPOT)
+				{
+					float theta = dot(L, normalize(-light.DirectionType.xyz));
+					float innerCutoff = light.AngleParams.x;
+					float outerCutoff = light.AngleParams.y;
+					float cone = saturate((theta - outerCutoff) / max(innerCutoff - outerCutoff, 1.0e-5f));
+					lighting += float4(light.ColorIntensity.xyz * light.ColorIntensity.w * diff * atten * cone, 1.0f);
+				}
+			}
+		}
+	}
+
+	return lighting;
+}
+
 FLightClusterHeader GetClusterLightHeader(float4 svPosition, float3 worldPos)
 {
 	uint clusterIndex = ComputeClusterIndex(svPosition, worldPos);
