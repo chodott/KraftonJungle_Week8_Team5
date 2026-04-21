@@ -1792,7 +1792,7 @@ UStaticMesh* FObjManager::LoadModelStaticMeshAsset(const FString& PathFileName)
 		return nullptr;
 	}
 
-	if (Version != GModelVersionLegacy && Version != GModelVersionEmbeddedMaterials && Version != GModelVersionSourceTimestamp && Version != GModelVersionNormalTexture)
+	if (Version < GModelVersionLegacy || Version > GModelVersion)
 	{
 		UE_LOG("[FObjManager] Unsupported .Model version %u: %s", Version, AbsolutePath.c_str());
 		return nullptr;

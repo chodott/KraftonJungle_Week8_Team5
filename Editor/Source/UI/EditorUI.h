@@ -61,6 +61,7 @@ private:
 	bool bLayoutInitialized = false;
 	bool bImGuiInitialized = false;
 	bool bRequestViewportFocusOnNextRender = false;
+	bool bShowLevelGameplayWindow = true;
 	FRect CentralDockRect;
 	bool bHasCentralDockRect = false;
 	FDebugState DebugState;

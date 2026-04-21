@@ -424,6 +424,12 @@ void AActor::PostDuplicate(UObject* DuplicatedObject, const FDuplicateContext& C
 			DuplicatedComponent->OnRegister();
 		}
 
+		if (DuplicatedComponent->IsA(UPrimitiveComponent::StaticClass()))
+		{
+			UPrimitiveComponent* PrimitiveComponent = static_cast<UPrimitiveComponent*>(DuplicatedComponent);
+			PrimitiveComponent->UpdateBounds();
+		}
+
 		Component->PostDuplicate(DuplicatedComponent, Context);
 	}
 }
