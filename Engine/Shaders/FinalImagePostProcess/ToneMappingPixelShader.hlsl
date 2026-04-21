@@ -48,9 +48,9 @@ float4 main(PSInput Input) : SV_Target
 
 	hdrColor *= Exposure;
 
-	// float3 ldrLinear = ACESFilm(hdrColor);
+	float3 ldrLinear = ACESFilm(hdrColor);
 
-	float3 ldrLinear = ReinhardExtended(hdrColor, LinearWhite);
+	// float3 ldrLinear = ReinhardExtended(hdrColor, LinearWhite);
 
 	float3 ldrSRGB = LinearToSRGB(ldrLinear);
 	return float4(ldrSRGB, 1.0f);
