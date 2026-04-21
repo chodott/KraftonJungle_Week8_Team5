@@ -7,6 +7,17 @@
 
 IMPLEMENT_RTTI(ULightComponent, ULightComponentBase)
 
+void ULightComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const
+{
+	ULightComponentBase::DuplicateShallow(DuplicatedObject, Context);
+
+	ULightComponent* DuplicatedLightComponent = static_cast<ULightComponent*>(DuplicatedObject);
+	DuplicatedLightComponent->LightColor = LightColor;
+	DuplicatedLightComponent->Intensity = Intensity;
+	DuplicatedLightComponent->IntensityUnits = IntensityUnits;
+	DuplicatedLightComponent->bVisible = bVisible;
+}
+
 void ULightComponent::SetIntensity(float NewIntensity)
 {
 	const float ClampedIntensity = (std::max)(0.0f, NewIntensity);

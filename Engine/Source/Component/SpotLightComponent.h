@@ -14,6 +14,8 @@ public:
 	float GetInnerConeAngle() const { return InnerConeAngle; }
 	float GetOuterConeAngle() const { return OuterConeAngle; }
 
+	void DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
+
 protected:
 	void MarkTransformDirty() override;
 	float ComputePhotometricScale() const override;

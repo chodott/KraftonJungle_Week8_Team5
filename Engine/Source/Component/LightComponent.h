@@ -26,6 +26,7 @@ public:
 	FLinearColor GetColor() const { return LightColor; }
 	bool GetVisible() const { return bVisible; }
 
+	void DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
 	virtual bool SupportsIntensityUnit(ELightUnits UnitType) const;
 
 protected:
