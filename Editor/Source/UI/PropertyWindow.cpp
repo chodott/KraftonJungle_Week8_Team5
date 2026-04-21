@@ -1,6 +1,7 @@
 #include "PropertyWindow.h"
 #include "EditorEngine.h"
 #include "Actor/Actor.h"
+#include "Camera/Camera.h"
 #include "Actor/SpotLightFakeActor.h"
 #include "Component/ActorComponent.h"
 #include "Component/CameraComponent.h"
@@ -26,16 +27,27 @@
 #include "Component/MovementComponent.h"
 #include "Component/RotatingMovementComponent.h"
 #include "Component/ProjectileMovementComponent.h"
+#include "Asset/ObjManager.h"
 #include "Level/Level.h"
 #include "Object/Class.h"
 #include "Object/ObjectFactory.h"
 #include "Object/ObjectIterator.h"
 #include "Renderer/Mesh/MeshData.h"
 #include "Renderer/Mesh/RenderMesh.h"
+#include "Renderer/Renderer.h"
 #include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Resources/Material/MaterialManager.h"
 #include "Core/Paths.h"
+#include "Core/ShowFlags.h"
+#include "Level/ScenePacketBuilder.h"
 #include "Math/MathUtility.h"
+#include "Renderer/Frame/RenderFrameUtils.h"
+#include "Renderer/Frame/SceneTargetManager.h"
+#include "Renderer/Mesh/MeshBatch.h"
+#include "Renderer/Scene/SceneRenderer.h"
+#include "Renderer/Scene/SceneViewData.h"
+#include "Viewport/Viewport.h"
+#include "World/World.h"
 
 #include <algorithm>
 
@@ -71,6 +83,10 @@ namespace
 		{ "Spot Light Component", "SpotLightComponent", &USpotLightComponent::StaticClass },
 		{ "Ambient Light Component", "AmbientLightComponent", &UAmbientLightComponent::StaticClass },
 	};
+
+	constexpr const char* GMaterialPreviewContextName = "MaterialInspectorPreview";
+	constexpr const char* GMaterialPreviewAmbientActorName = "MaterialPreviewAmbient";
+	constexpr const char* GMaterialPreviewDirectionalActorName = "MaterialPreviewDirectional";
 
 	bool IsHiddenEditorOnlyComponent(const UActorComponent* Component)
 	{
@@ -243,6 +259,46 @@ namespace
 		return bChanged;
 	}
 
+	FShowFlags BuildMaterialPreviewShowFlags()
+	{
+		FShowFlags ShowFlags;
+		ShowFlags.SetFlag(EEngineShowFlags::SF_UUID, false);
+		ShowFlags.SetFlag(EEngineShowFlags::SF_Billboard, false);
+		ShowFlags.SetFlag(EEngineShowFlags::SF_Text, false);
+		ShowFlags.SetFlag(EEngineShowFlags::SF_Fog, false);
+		ShowFlags.SetFlag(EEngineShowFlags::SF_Decal, false);
+		ShowFlags.SetFlag(EEngineShowFlags::SF_DecalArrow, false);
+		ShowFlags.SetFlag(EEngineShowFlags::SF_ProjectileArrow, false);
+		ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, false);
+		ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, false);
+		ShowFlags.SetFlag(EEngineShowFlags::SF_FXAA, true);
+		return ShowFlags;
+	}
+
+	void EnsureActorComponentRegistered(AActor* OwnerActor, UActorComponent* Component)
+	{
+		if (!OwnerActor || !Component)
+		{
+			return;
+		}
+
+		OwnerActor->AddOwnedComponent(Component);
+		if (Component->IsA(USceneComponent::StaticClass()) && OwnerActor->GetRootComponent() == nullptr)
+		{
+			OwnerActor->SetRootComponent(static_cast<USceneComponent*>(Component));
+		}
+
+		if (!Component->IsRegistered())
+		{
+			Component->OnRegister();
+		}
+
+		if (Component->IsA(UPrimitiveComponent::StaticClass()))
+		{
+			static_cast<UPrimitiveComponent*>(Component)->UpdateBounds();
+		}
+	}
+
 	USceneComponent* GetComponentTreeParentSceneComponent(UActorComponent* Component)
 	{
 		if (!Component)
@@ -375,7 +431,20 @@ namespace
 			return ObjectName;
 		}
 
-		return "UnnamedMesh";
+	return "UnnamedMesh";
+	}
+}
+
+FPropertyWindow::~FPropertyWindow()
+{
+	if (MaterialPreviewTargetManager)
+	{
+		MaterialPreviewTargetManager->Release();
+	}
+
+	if (MaterialPreviewViewport)
+	{
+		MaterialPreviewViewport->Release();
 	}
 }
 
@@ -503,7 +572,7 @@ void FPropertyWindow::DrawSceneComponentDetails(USceneComponent* SceneComponent)
 	}
 }
 
-void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshComponent)
+void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshComponent, FEditorEngine* Engine)
 {
 	if (!MeshComponent)
 	{
@@ -664,7 +733,7 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 					if (std::shared_ptr<FMaterial> Material = FMaterialManager::Get().FindByName(MaterialName))
 					{
 						MeshComponent->SetMaterial(SectionIndex, Material);
-						CurrentMaterial = Material;
+						CurrentMaterial = MeshComponent->GetMaterial(SectionIndex);
 					}
 				}
 				if (bSelected)
@@ -711,6 +780,331 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 		ImGui::Spacing();
 		ImGui::PopID();
 	}
+
+	DrawMaterialPreviewSection(MeshComponent, Engine);
+}
+
+bool FPropertyWindow::EnsureMaterialPreviewScene(FEditorEngine* Engine)
+{
+	if (!Engine)
+	{
+		return false;
+	}
+
+	FWorldContext* PreviewContext = Engine->CreatePreviewWorldContext(GMaterialPreviewContextName, 512, 512);
+	if (!PreviewContext || !PreviewContext->World)
+	{
+		return false;
+	}
+
+	UWorld* PreviewWorld = PreviewContext->World;
+	if (PreviewWorld->GetActors().empty())
+	{
+		AActor* AmbientActor = PreviewWorld->SpawnActor<AActor>(GMaterialPreviewAmbientActorName);
+		if (AmbientActor)
+		{
+			UAmbientLightComponent* AmbientComponent =
+				FObjectFactory::ConstructObject<UAmbientLightComponent>(AmbientActor, "MaterialPreviewAmbientComponent");
+			EnsureActorComponentRegistered(AmbientActor, AmbientComponent);
+			if (AmbientComponent)
+			{
+				AmbientComponent->SetIntensity(0.35f);
+			}
+		}
+
+		AActor* DirectionalActor = PreviewWorld->SpawnActor<AActor>(GMaterialPreviewDirectionalActorName);
+		if (DirectionalActor)
+		{
+			UDirectionalLightComponent* DirectionalComponent =
+				FObjectFactory::ConstructObject<UDirectionalLightComponent>(DirectionalActor, "MaterialPreviewDirectionalComponent");
+			EnsureActorComponentRegistered(DirectionalActor, DirectionalComponent);
+			if (DirectionalComponent)
+			{
+				DirectionalComponent->SetIntensity(2.5f);
+			}
+
+			if (USceneComponent* RootComponent = DirectionalActor->GetRootComponent())
+			{
+				RootComponent->SetRelativeTransform(FTransform(FRotator(-35.0f, 45.0f, 0.0f), FVector::ZeroVector));
+			}
+		}
+	}
+
+	return PreviewWorld->GetActiveCameraComponent() != nullptr;
+}
+
+bool FPropertyWindow::RenderMaterialPreview(
+	UStaticMeshComponent* MeshComponent,
+	FMaterial* PreviewMaterial,
+	FEditorEngine* Engine,
+	const ImVec2& PreviewSize)
+{
+	if (!MeshComponent || !PreviewMaterial || !Engine)
+	{
+		return false;
+	}
+
+	FRenderer* Renderer = Engine->GetRenderer();
+	if (!Renderer)
+	{
+		return false;
+	}
+
+	struct FRestoreMainRenderTargetScope
+	{
+		FRenderer* Renderer = nullptr;
+
+		~FRestoreMainRenderTargetScope()
+		{
+			if (Renderer)
+			{
+				Renderer->GetRenderDevice().BindSwapChainRTV();
+			}
+		}
+	} RestoreScope { Renderer };
+
+	if (!EnsureMaterialPreviewScene(Engine))
+	{
+		return false;
+	}
+
+	if (!PreviewSphereMesh)
+	{
+		PreviewSphereMesh = FObjManager::LoadModelStaticMeshAsset(FPaths::FromPath(FPaths::MeshDir() / "PrimitiveSphere.Model"));
+	}
+
+	if (!PreviewSphereMesh || !PreviewSphereMesh->GetRenderData())
+	{
+		return false;
+	}
+
+	if (!MaterialPreviewViewport)
+	{
+		MaterialPreviewViewport = std::make_unique<FViewport>();
+	}
+
+	if (!MaterialPreviewTargetManager)
+	{
+		MaterialPreviewTargetManager = std::make_unique<FSceneTargetManager>();
+	}
+
+	const int32 PreviewWidth = (std::max)(static_cast<int32>(PreviewSize.x), 1);
+	const int32 PreviewHeight = (std::max)(static_cast<int32>(PreviewSize.y), 1);
+	MaterialPreviewViewport->SetRect({ 0, 0, PreviewWidth, PreviewHeight });
+	MaterialPreviewViewport->EnsureResources(Renderer->GetDevice());
+	if (!MaterialPreviewViewport->GetRTV() || !MaterialPreviewViewport->GetDSV())
+	{
+		return false;
+	}
+
+	FWorldContext* PreviewContext = Engine->CreatePreviewWorldContext(GMaterialPreviewContextName, PreviewWidth, PreviewHeight);
+	if (!PreviewContext || !PreviewContext->World)
+	{
+		return false;
+	}
+
+	UWorld* PreviewWorld = PreviewContext->World;
+	UCameraComponent* PreviewCamera = PreviewWorld->GetActiveCameraComponent();
+	FCamera* PreviewCameraData = PreviewCamera ? PreviewCamera->GetCamera() : nullptr;
+	if (!PreviewCamera || !PreviewCameraData)
+	{
+		return false;
+	}
+
+	const float AspectRatio = static_cast<float>(PreviewWidth) / static_cast<float>(PreviewHeight);
+	PreviewCameraData->SetAspectRatio(AspectRatio);
+	PreviewCamera->SetFov(40.0f);
+	PreviewCameraData->SetRotation(PreviewOrbitYaw, PreviewOrbitPitch);
+	PreviewCameraData->SetPosition(FVector::ZeroVector - PreviewCameraData->GetForward() * PreviewOrbitDistance);
+
+	D3D11_VIEWPORT Viewport = {};
+	Viewport.TopLeftX = 0.0f;
+	Viewport.TopLeftY = 0.0f;
+	Viewport.Width = static_cast<float>(PreviewWidth);
+	Viewport.Height = static_cast<float>(PreviewHeight);
+	Viewport.MinDepth = 0.0f;
+	Viewport.MaxDepth = 1.0f;
+
+	FSceneViewRenderRequest SceneView;
+	SceneView.ViewMatrix = PreviewCamera->GetViewMatrix();
+	SceneView.ProjectionMatrix = PreviewCamera->GetProjectionMatrix();
+	SceneView.CameraPosition = PreviewCameraData->GetPosition();
+	SceneView.NearZ = PreviewCamera->GetNearPlane();
+	SceneView.FarZ = PreviewCamera->GetFarPlane();
+	SceneView.TotalTimeSeconds = static_cast<float>(Engine->GetTimer().GetTotalTime());
+
+	FFrustum Frustum;
+	Frustum.ExtractFromVP(SceneView.ViewMatrix * SceneView.ProjectionMatrix);
+
+	FSceneRenderPacket ScenePacket;
+	if (ULevel* PreviewLevel = PreviewWorld->GetPersistentLevel())
+	{
+		TArray<UPrimitiveComponent*> VisiblePrimitives;
+		PreviewLevel->QueryPrimitivesByFrustum(Frustum, VisiblePrimitives);
+
+		FScenePacketBuilder ScenePacketBuilder;
+		const FShowFlags PreviewShowFlags = BuildMaterialPreviewShowFlags();
+		ScenePacketBuilder.BuildScenePacket(VisiblePrimitives, PreviewShowFlags, ScenePacket);
+		ScenePacket.bApplyFXAA = PreviewShowFlags.HasFlag(EEngineShowFlags::SF_FXAA);
+	}
+
+	FMeshBatch PreviewBatch;
+	PreviewBatch.Mesh = PreviewSphereMesh->GetRenderData();
+	PreviewBatch.Material = PreviewMaterial;
+	PreviewBatch.World = FMatrix::Identity;
+	PreviewBatch.WorldBounds = PreviewSphereMesh->LocalBounds;
+	PreviewBatch.Domain = EMaterialDomain::Opaque;
+	PreviewBatch.PassMask =
+		static_cast<uint32>(EMeshPassMask::DepthPrepass) |
+		static_cast<uint32>(EMeshPassMask::GBuffer) |
+		static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+
+	if (PreviewBatch.Mesh->GetNumSection() > 0)
+	{
+		const FMeshSection& Section = PreviewBatch.Mesh->Sections[0];
+		PreviewBatch.SectionIndex = 0;
+		PreviewBatch.IndexStart = Section.StartIndex;
+		PreviewBatch.IndexCount = Section.IndexCount;
+	}
+
+	TArray<FMeshBatch> AdditionalMeshBatches;
+	AdditionalMeshBatches.push_back(PreviewBatch);
+
+	FSceneRenderTargets Targets;
+	if (!MaterialPreviewTargetManager->WrapExternalSceneTargets(
+		Renderer->GetDevice(),
+		MaterialPreviewViewport->GetRTV(),
+		MaterialPreviewViewport->GetSRV(),
+		MaterialPreviewViewport->GetDSV(),
+		MaterialPreviewViewport->GetDepthSRV(),
+		Viewport,
+		Targets))
+	{
+		return false;
+	}
+
+	const FFrameContext Frame = BuildRenderFrameContext(SceneView.TotalTimeSeconds);
+	const FViewContext View = BuildRenderViewContext(SceneView, Viewport);
+
+	FSceneViewData SceneViewData;
+	SceneViewData.RenderMode = ERenderMode::Lit_Phong;
+	Renderer->GetSceneRenderer().BuildSceneViewData(
+		*Renderer,
+		ScenePacket,
+		Frame,
+		View,
+		PreviewWorld,
+		AdditionalMeshBatches,
+		SceneViewData);
+	SceneViewData.ShowFlags = BuildMaterialPreviewShowFlags();
+	SceneViewData.DebugInputs.World = PreviewWorld;
+
+	const float ClearColor[4] = { 0.09f, 0.09f, 0.10f, 1.0f };
+	return Renderer->GetSceneRenderer().RenderSceneView(*Renderer, Targets, SceneViewData, ClearColor, false, nullptr);
+}
+
+void FPropertyWindow::DrawMaterialPreviewSection(UStaticMeshComponent* MeshComponent, FEditorEngine* Engine)
+{
+	if (!MeshComponent || !Engine)
+	{
+		return;
+	}
+
+	UStaticMesh* CurrentMesh = MeshComponent->GetStaticMesh();
+	if (!CurrentMesh)
+	{
+		return;
+	}
+
+	const int32 NumSections = static_cast<int32>(CurrentMesh->GetNumSections());
+	if (NumSections <= 0)
+	{
+		return;
+	}
+
+	if (PreviewedMeshComponent != MeshComponent)
+	{
+		PreviewedMeshComponent = MeshComponent;
+		PreviewMaterialSectionIndex = 0;
+	}
+
+	PreviewMaterialSectionIndex = FMath::Clamp(PreviewMaterialSectionIndex, 0, NumSections - 1);
+
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Spacing();
+	ImGui::TextDisabled("Material Preview");
+
+	if (NumSections > 1)
+	{
+		const std::shared_ptr<FMaterial> CurrentPreviewMaterial = MeshComponent->GetMaterial(PreviewMaterialSectionIndex);
+		const std::string CurrentSectionLabel =
+			"Section " + std::to_string(PreviewMaterialSectionIndex) + " - "
+			+ (CurrentPreviewMaterial ? CurrentPreviewMaterial->GetOriginName() : std::string("None"));
+
+		ImGui::PushItemWidth(-1.0f);
+		if (ImGui::BeginCombo("Preview Section", CurrentSectionLabel.c_str()))
+		{
+			for (int32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
+			{
+				const std::shared_ptr<FMaterial> SectionMaterial = MeshComponent->GetMaterial(SectionIndex);
+				const std::string Label =
+					"Section " + std::to_string(SectionIndex) + " - "
+					+ (SectionMaterial ? SectionMaterial->GetOriginName() : std::string("None"));
+				const bool bSelected = (PreviewMaterialSectionIndex == SectionIndex);
+				if (ImGui::Selectable(Label.c_str(), bSelected))
+				{
+					PreviewMaterialSectionIndex = SectionIndex;
+				}
+				if (bSelected)
+				{
+					ImGui::SetItemDefaultFocus();
+				}
+			}
+			ImGui::EndCombo();
+		}
+		ImGui::PopItemWidth();
+	}
+
+	std::shared_ptr<FMaterial> PreviewMaterial = MeshComponent->GetMaterial(PreviewMaterialSectionIndex);
+	if (!PreviewMaterial)
+	{
+		ImGui::TextDisabled("No material assigned to this section.");
+		return;
+	}
+
+	const float PreviewWidth = (std::max)(ImGui::GetContentRegionAvail().x, 160.0f);
+	const float PreviewHeight = FMath::Clamp(PreviewWidth * 0.72f, 160.0f, 260.0f);
+	const ImVec2 PreviewSize(PreviewWidth, PreviewHeight);
+
+	if (RenderMaterialPreview(MeshComponent, PreviewMaterial.get(), Engine, PreviewSize)
+		&& MaterialPreviewViewport && MaterialPreviewViewport->GetSRV())
+	{
+		ImGui::Image(reinterpret_cast<ImTextureID>(MaterialPreviewViewport->GetSRV()), PreviewSize);
+
+		if (ImGui::IsItemHovered())
+		{
+			const ImGuiIO& IO = ImGui::GetIO();
+			if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+			{
+				PreviewOrbitYaw += IO.MouseDelta.x * 0.35f;
+				PreviewOrbitPitch = FMath::Clamp(PreviewOrbitPitch - IO.MouseDelta.y * 0.35f, -80.0f, 80.0f);
+			}
+
+			if (IO.MouseWheel != 0.0f)
+			{
+				PreviewOrbitDistance = FMath::Clamp(PreviewOrbitDistance - IO.MouseWheel * 0.25f, 1.5f, 8.0f);
+			}
+		}
+	}
+	else
+	{
+		ImGui::BeginChild("##MaterialPreviewFallback", PreviewSize, true);
+		ImGui::TextDisabled("Material preview unavailable.");
+		ImGui::EndChild();
+	}
+
+	ImGui::TextDisabled("Drag to orbit, mouse wheel to zoom.");
 }
 
 void FPropertyWindow::DrawMovementComponentDetails(UMovementComponent* MovementComponent)
@@ -1584,7 +1978,7 @@ void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngi
 
 	if (Component->IsA(UStaticMeshComponent::StaticClass()))
 	{
-		DrawStaticMeshComponentDetails(static_cast<UStaticMeshComponent*>(Component));
+		DrawStaticMeshComponentDetails(static_cast<UStaticMeshComponent*>(Component), Engine);
 	}
 
 	if (Component->IsA(UTextRenderComponent::StaticClass()) && !Component->IsA(UUUIDBillboardComponent::StaticClass()))
