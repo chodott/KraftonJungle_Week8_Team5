@@ -1,4 +1,7 @@
 #include "Renderer/Resources/Material/Material.h"
+#include "Renderer/Renderer.h"
+#include "Core/Engine.h"
+#include "Debug/EngineLog.h"
 #include "Renderer/Resources/Shader/ShaderHandles.h"
 #include <cstdint>
 #include <cstring>
@@ -34,7 +37,7 @@ void FMaterialTexture::Bind(ID3D11DeviceContext* DeviceContext)
 	}
 }
 
-// ??? FMaterialConstantBuffer ???
+//  ─── FMaterialConstantBuffer ───
 
 FMaterialConstantBuffer::~FMaterialConstantBuffer()
 {
@@ -45,7 +48,7 @@ bool FMaterialConstantBuffer::Create(ID3D11Device* Device, uint32 InSize)
 {
 	Release();
 
-	// D3D11 ?곸닔 踰꾪띁??ByteWidth媛 16??諛곗닔?ъ빞 ??
+	// D3D11 상수 버퍼는 ByteWidth가 16의 배수여야 함
 	Size = (InSize + 15) & ~15;
 	CPUData = new uint8[Size];
 	memset(CPUData, 0, Size);
@@ -63,7 +66,7 @@ bool FMaterialConstantBuffer::Create(ID3D11Device* Device, uint32 InSize)
 		return false;
 	}
 
-	bDirty = true; // 珥덇린 ?곗씠??0)???낅줈???꾩슂
+	bDirty = true; // 초기 데이터(0)도 업로드 필요
 	return true;
 }
 
@@ -107,7 +110,7 @@ void FMaterialConstantBuffer::Release()
 	bDirty = false;
 }
 
-// ??? FMaterial ???
+// ─── FMaterial ───
 
 FMaterial::~FMaterial()
 {
@@ -219,8 +222,8 @@ FVector4 FMaterial::GetVectorParameter(const FString& ParamName) const
 
 bool FMaterial::SetLinearColorParameter(const FString& ParamName, const FLinearColor& Value)
 {
-	const FVector4 LinearColor = Value.ToVector4();
-	return SetParameterData(ParamName, &LinearColor, sizeof(LinearColor));
+	const float Data[4] = { Value.R, Value.G, Value.B, Value.A };
+	return SetParameterData(ParamName, Data, sizeof(Data));
 }
 
 bool FMaterial::SetSRGBColorParameter(const FString& ParamName, const FVector4& Value)
@@ -253,13 +256,19 @@ bool FMaterial::HasPixelTextureBinding() const
 std::unique_ptr<FDynamicMaterial> FMaterial::CreateDynamicMaterial() const
 {
 	ID3D11Device* Device = nullptr;
+	bool bShouldReleaseDevice = false;
 	for (const auto& CB : ConstantBuffers)
 	{
 		if (CB.GPUBuffer)
 		{
 			CB.GPUBuffer->GetDevice(&Device);
+			bShouldReleaseDevice = true;
 			break;
 		}
+	}
+	if (!Device && GEngine && GEngine->GetRenderer())
+	{
+		Device = GEngine->GetRenderer()->GetDevice();
 	}
 	if (!Device)
 	{
@@ -299,11 +308,14 @@ std::unique_ptr<FDynamicMaterial> FMaterial::CreateDynamicMaterial() const
 		Dynamic->ConstantBuffers.push_back(std::move(NewCB));
 	}
 
-	Device->Release();
+	if (bShouldReleaseDevice)
+	{
+		Device->Release();
+	}
 	return Dynamic;
 }
 
-// ??? FDynamicMaterial ???
+// ─── FDynamicMaterial ───
 
 bool FDynamicMaterial::SetScalarParameter(const FString& ParamName, float Value)
 {
@@ -324,19 +336,6 @@ bool FDynamicMaterial::SetVector3Parameter(const FString& ParamName, const FVect
 
 void FMaterial::Bind(ID3D11DeviceContext* DeviceContext, EMaterialPassType PassType)
 {
-	if (!DeviceContext)
-	{
-		return;
-	}
-
-	ID3D11Device* Device = nullptr;
-	DeviceContext->GetDevice(&Device);
-	if (Device)
-	{
-		EnsureLitMaterialParameters(Device);
-		Device->Release();
-	}
-
 	const FMaterialPassShaders* PassShaders = GetPassShaders(PassType);
 	const std::shared_ptr<FVertexShaderHandle>& BoundVS = PassShaders ? PassShaders->VS : VertexShader;
 	const std::shared_ptr<FPixelShaderHandle>& BoundPS = PassShaders ? PassShaders->PS : PixelShader;
@@ -365,27 +364,6 @@ void FMaterial::Bind(ID3D11DeviceContext* DeviceContext, EMaterialPassType PassT
 			DeviceContext->VSSetSamplers(0, 1, &NormalTexture->SamplerState);
 		}
 	}
-	else
-	{
-		ID3D11ShaderResourceView* NullSRV = nullptr;
-		DeviceContext->PSSetShaderResources(1, 1, &NullSRV);
-		DeviceContext->VSSetShaderResources(1, 1, &NullSRV);
-	}
-
-	if (EmissiveTexture && EmissiveTexture->TextureSRV)
-	{
-		DeviceContext->PSSetShaderResources(2, 1, &EmissiveTexture->TextureSRV);
-		if (EmissiveTexture->SamplerState)
-		{
-			DeviceContext->PSSetSamplers(2, 1, &EmissiveTexture->SamplerState);
-		}
-	}
-	else
-	{
-		ID3D11ShaderResourceView* NullSRV = nullptr;
-		DeviceContext->PSSetShaderResources(2, 1, &NullSRV);
-	}
-
 	if (PixelTextureBinding.IsValid())
 	{
 		DeviceContext->PSSetShaderResources(PixelTextureBinding.Slot, 1, &PixelTextureBinding.TextureSRV);
@@ -402,71 +380,6 @@ void FMaterial::Bind(ID3D11DeviceContext* DeviceContext, EMaterialPassType PassT
 		ID3D11Buffer* Buf = ConstantBuffers[i].GPUBuffer;
 		DeviceContext->VSSetConstantBuffers(Slot, 1, &Buf);
 		DeviceContext->PSSetConstantBuffers(Slot, 1, &Buf);
-	}
-}
-
-void FMaterial::EnsureLitMaterialParameters(ID3D11Device* Device)
-{
-	if (!Device)
-	{
-		return;
-	}
-
-	const bool bHasBaseColor = ParameterMap.find("BaseColor") != ParameterMap.end();
-	const bool bHasUVScrollSpeed = ParameterMap.find("UVScrollSpeed") != ParameterMap.end();
-	const bool bHasEmissiveColor = ParameterMap.find("EmissiveColor") != ParameterMap.end();
-	const bool bHasShininess = ParameterMap.find("Shininess") != ParameterMap.end();
-	if (bHasBaseColor && bHasUVScrollSpeed && bHasEmissiveColor && bHasShininess)
-	{
-		return;
-	}
-
-	float BaseColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	float UVScrollSpeed[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	float EmissiveColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	float Shininess[4] = { 32.0f, 0.0f, 0.0f, 0.0f };
-
-	if (bHasBaseColor)
-	{
-		const FVector4 ExistingBaseColor = GetVectorParameter("BaseColor");
-		BaseColor[0] = ExistingBaseColor.X;
-		BaseColor[1] = ExistingBaseColor.Y;
-		BaseColor[2] = ExistingBaseColor.Z;
-		BaseColor[3] = ExistingBaseColor.W;
-	}
-
-	if (bHasUVScrollSpeed)
-	{
-		GetParameterData("UVScrollSpeed", UVScrollSpeed, sizeof(UVScrollSpeed));
-	}
-
-	if (bHasEmissiveColor)
-	{
-		GetParameterData("EmissiveColor", EmissiveColor, sizeof(EmissiveColor));
-	}
-
-	if (bHasShininess)
-	{
-		GetParameterData("Shininess", Shininess, sizeof(Shininess));
-	}
-
-	const int32 SlotIndex = CreateConstantBuffer(Device, 64);
-	if (SlotIndex < 0)
-	{
-		return;
-	}
-
-	RegisterParameter("BaseColor", SlotIndex, 0, 16);
-	RegisterParameter("UVScrollSpeed", SlotIndex, 16, 16);
-	RegisterParameter("EmissiveColor", SlotIndex, 32, 16);
-	RegisterParameter("Shininess", SlotIndex, 48, 16);
-
-	if (FMaterialConstantBuffer* ConstantBuffer = GetConstantBuffer(SlotIndex))
-	{
-		ConstantBuffer->SetData(BaseColor, sizeof(BaseColor), 0);
-		ConstantBuffer->SetData(UVScrollSpeed, sizeof(UVScrollSpeed), 16);
-		ConstantBuffer->SetData(EmissiveColor, sizeof(EmissiveColor), 32);
-		ConstantBuffer->SetData(Shininess, sizeof(Shininess), 48);
 	}
 }
 
@@ -491,4 +404,39 @@ void FMaterial::Release()
 		CB.Release();
 	}
 	ConstantBuffers.clear();
+}
+
+bool LoadNormalTextureFromFile(const std::shared_ptr<FMaterial>& Material, const std::filesystem::path& TexturePath)
+{
+	if (!Material || TexturePath.empty() || !GEngine || !GEngine->GetRenderer())
+	{
+		return false;
+	}
+
+	ID3D11ShaderResourceView* NewSRV = nullptr;
+	if (!GEngine->GetRenderer()->CreateTextureFromSTB(
+		GEngine->GetRenderer()->GetDevice(),
+		TexturePath,
+		&NewSRV,
+		ETextureColorSpace::DataLinear))
+	{
+		return false;
+	}
+
+	auto NormalTexture = std::make_shared<FMaterialTexture>();
+	NormalTexture->TextureSRV = NewSRV;
+	NormalTexture->SourcePath = TexturePath.string();
+	Material->SetNormalTexture(NormalTexture);
+	UE_LOG("[Material] Loaded normal map: %s", TexturePath.string().c_str());
+	return true;
+}
+
+void ClearNormalTexture(const std::shared_ptr<FMaterial>& Material)
+{
+	if (!Material)
+	{
+		return;
+	}
+
+	Material->SetNormalTexture(nullptr);
 }

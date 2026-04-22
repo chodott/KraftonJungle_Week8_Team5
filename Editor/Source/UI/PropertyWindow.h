@@ -1,18 +1,25 @@
 #pragma once
 #include "Math/Vector.h"
+#include "Renderer/Frame/SceneTargetManager.h"
+#include "Viewport/Viewport.h"
 #include "imgui.h"
 #include <functional>
+#include <memory>
 class FEditorEngine;
 class AActor;
 class UActorComponent;
 class USceneComponent;
 class UBillboardComponent;
 class UMeshDecalComponent;
+class UStaticMeshComponent;
+class UStaticMesh;
+class FMaterial;
 using FPropertyChangedCallback = std::function<void(const FVector&, const FVector&, const FVector&)>;
 
 class FPropertyWindow
 {
 public:
+	~FPropertyWindow();
 	void Render(FEditorEngine* Engine);
 	void SetTarget(const FVector& Location, const FVector& Rotation, const FVector& Scale,
 		const char* ActorName = nullptr);
@@ -34,7 +41,7 @@ private:
 	void DrawDetailsSection(UActorComponent* Component, FEditorEngine* Engine);
 	void DrawSceneComponentDetails(USceneComponent* SceneComponent);
 	void DrawMovementComponentDetails(class UMovementComponent* MovementComponent);
-	void DrawStaticMeshComponentDetails(class UStaticMeshComponent* MeshComponent);
+	void DrawStaticMeshComponentDetails(class UStaticMeshComponent* MeshComponent, FEditorEngine* Engine);
 	void DrawRotatingMovementComponentDetails(class URotatingMovementComponent* RotatingMovementComponent);
 	void DrawProjectileMovementComponentDetails(class UProjectileMovementComponent* ProjectileMovementComponent, FEditorEngine* Engine);
 	void DrawSpringArmComponentDetails(class USpringArmComponent* SpringArmComponent);
@@ -49,6 +56,13 @@ private:
 	void DrawLightComponentDetails(class ULightComponent* LightComponent);
 	void DrawPointLightComponentDetails(class UPointLightComponent* PointLightComponent, bool bShowHeader = true);
 	void DrawSpotLightComponentDetails(class USpotLightComponent* SpotLightComponent);
+	void DrawMaterialPreviewSection(class UStaticMeshComponent* MeshComponent, FEditorEngine* Engine);
+	bool RenderMaterialPreview(
+		class UStaticMeshComponent* MeshComponent,
+		class FMaterial* PreviewMaterial,
+		FEditorEngine* Engine,
+		const ImVec2& PreviewSize);
+	bool EnsureMaterialPreviewScene(FEditorEngine* Engine);
 	bool DrawVector3Control(const char* Label, const FVector& Value, FVector& OutValue, float Speed, const char* Format);
 	bool DrawAddComponentButton(AActor* SelectedActor);
 	bool AddComponentToActor(AActor* SelectedActor, class UClass* ComponentClass, const char* BaseName);
@@ -61,4 +75,12 @@ private:
 	char    ActorNameBuf[128] = "None";
 	bool    bModified = false;
 	UActorComponent* SelectedComponent = nullptr;
+	UStaticMeshComponent* PreviewedMeshComponent = nullptr;
+	class UStaticMesh* PreviewSphereMesh = nullptr;
+	int32 PreviewMaterialSectionIndex = 0;
+	float PreviewOrbitYaw = 45.0f;
+	float PreviewOrbitPitch = -20.0f;
+	float PreviewOrbitDistance = 3.5f;
+	std::unique_ptr<FViewport> MaterialPreviewViewport;
+	std::unique_ptr<FSceneTargetManager> MaterialPreviewTargetManager;
 };

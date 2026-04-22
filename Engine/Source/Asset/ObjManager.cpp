@@ -977,7 +977,7 @@ namespace
 
 	bool TryLoadNormalTextureIntoMaterial(const std::shared_ptr<FMaterial>& Material, const std::filesystem::path& TexturePath, const char* LogPrefix)
 	{
-		if (!Material || TexturePath.empty())
+		if (!LoadNormalTextureFromFile(Material, TexturePath))
 		{
 			return false;
 		}
@@ -2514,20 +2514,6 @@ bool FObjManager::ParseMtlFile(const FString& MtlFIlePath)
 			if (!TryLoadNormalTextureIntoMaterial(CurrentMaterial, TexturePath, "[MTL Parser] Auto-loaded normal map:"))
 			{
 				UE_LOG("[MTL Parser] Failed to resolve normal map '%s' referenced by '%s'.",
-					TextureReference.c_str(),
-					AbsolutePath.c_str());
-			}
-		}
-		else if (Type == "map_Ke" && CurrentMaterial)
-		{
-			std::string TextureReferenceRaw;
-			std::getline(SS, TextureReferenceRaw);
-			FString TextureReference = ExtractTextureReferenceFromMtlStatement(TextureReferenceRaw);
-
-			const std::filesystem::path TexturePath = ResolveTextureReferencePath(FilePath, TextureReference);
-			if (!TryLoadEmissiveTextureIntoMaterial(CurrentMaterial, TexturePath, "[MTL Parser] Auto-loaded emissive map:"))
-			{
-				UE_LOG("[MTL Parser] Failed to resolve emissive map '%s' referenced by '%s'.",
 					TextureReference.c_str(),
 					AbsolutePath.c_str());
 			}
