@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include <d3d11.h>
+#include <dxgi1_5.h>
 
 class ENGINE_API FRenderDevice
 {
@@ -60,7 +61,13 @@ public:
 		}
 
 		const UINT SyncInterval = bVSyncEnabled ? 1u : 0u;
-		const HRESULT Hr = SwapChain->Present(SyncInterval, 0);
+		UINT PresentFlags = 0u;
+		if (SyncInterval == 0u && bAllowTearingSupported)
+		{
+			PresentFlags = DXGI_PRESENT_ALLOW_TEARING;
+		}
+
+		const HRESULT Hr = SwapChain->Present(SyncInterval, PresentFlags);
 		if (Hr == DXGI_STATUS_OCCLUDED)
 		{
 			bSwapChainOccluded = true;
@@ -123,7 +130,8 @@ public:
 			DepthStencilTexture = nullptr;
 		}
 
-		SwapChain->ResizeBuffers(0, Width, Height, DXGI_FORMAT_UNKNOWN, 0);
+		const UINT ResizeFlags = bAllowTearingSupported ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0u;
+		SwapChain->ResizeBuffers(0, Width, Height, DXGI_FORMAT_UNKNOWN, ResizeFlags);
 		if (CreateRenderTargetAndDepthStencil(Width, Height))
 		{
 			Viewport.Width = static_cast<float>(Width);
@@ -173,6 +181,7 @@ public:
 
 	// Present 시 VSync 사용 여부를 설정한다.
 	void SetVSync(bool bEnable) { bVSyncEnabled = bEnable; }
+	bool IsTearingSupported() const { return bAllowTearingSupported; }
 	// 현재 VSync 설정 상태를 반환한다.
 	bool IsVSyncEnabled() const { return bVSyncEnabled; }
 
@@ -197,6 +206,23 @@ private:
 	// D3D11 디바이스, 컨텍스트, 스왑체인을 생성한다.
 	bool CreateDeviceAndSwapChain(HWND InHwnd, int32 Width, int32 Height)
 	{
+		bAllowTearingSupported = false;
+		{
+			IDXGIFactory5* Factory5 = nullptr;
+			if (SUCCEEDED(CreateDXGIFactory1(__uuidof(IDXGIFactory5), reinterpret_cast<void**>(&Factory5))) && Factory5)
+			{
+				BOOL AllowTearing = FALSE;
+				if (SUCCEEDED(Factory5->CheckFeatureSupport(
+					DXGI_FEATURE_PRESENT_ALLOW_TEARING,
+					&AllowTearing,
+					sizeof(AllowTearing))))
+				{
+					bAllowTearingSupported = (AllowTearing == TRUE);
+				}
+				Factory5->Release();
+			}
+		}
+
 		DXGI_SWAP_CHAIN_DESC SwapChainDesc = {};
 		SwapChainDesc.BufferDesc.Width = static_cast<UINT>(Width);
 		SwapChainDesc.BufferDesc.Height = static_cast<UINT>(Height);
@@ -207,6 +233,7 @@ private:
 		SwapChainDesc.OutputWindow = InHwnd;
 		SwapChainDesc.Windowed = TRUE;
 		SwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+		SwapChainDesc.Flags = bAllowTearingSupported ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0u;
 
 		UINT CreateDeviceFlags = 0;
 #ifdef _DEBUG
@@ -304,5 +331,6 @@ private:
 	D3D11_VIEWPORT Viewport = {};
 	bool bSwapChainOccluded = false;
 	bool bVSyncEnabled = false;
+	bool bAllowTearingSupported = false;
 };
 

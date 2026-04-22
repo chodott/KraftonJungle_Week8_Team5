@@ -115,6 +115,11 @@ public:
 		return RenderDevice.IsVSyncEnabled();
 	}
 
+	bool IsTearingSupported() const
+	{
+		return RenderDevice.IsTearingSupported();
+	}
+
 	bool RenderScreenUIPass(
 		const FScreenUIPassInputs& PassInputs,
 		const FFrameContext&       Frame,

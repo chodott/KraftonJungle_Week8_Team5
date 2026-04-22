@@ -16,6 +16,7 @@
 #include "Renderer/Renderer.h"
 #include "Level/Level.h"
 #include "Core/ViewportClient.h"
+#include "Debug/EngineLog.h"
 #include "World/World.h"
 #include "Object/ObjectFactory.h"
 #include "Primitive/PrimitiveGizmo.h"
@@ -524,6 +525,10 @@ void FEngine::RegisterConsoleVariables()
 	if (Renderer)
 	{
 		Renderer->SetVSync(VSyncVar->GetInt() != 0);
+		UE_LOG(
+			"[Render] VSync=%d, TearingSupport=%d",
+			Renderer->IsVSyncEnabled() ? 1 : 0,
+			Renderer->IsTearingSupported() ? 1 : 0);
 	}
 
 	FConsoleVariable* GCIntervalVar = CVM.Find("gc.Interval");
