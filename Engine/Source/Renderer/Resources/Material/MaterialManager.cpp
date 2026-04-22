@@ -16,6 +16,45 @@
 namespace
 {
 	// 타입 문자열을 바이트 크기로 변환한다.
+	bool IsSupportedTextureFile(const std::filesystem::path& Path)
+	{
+		std::wstring Extension = Path.extension().wstring();
+		std::transform(Extension.begin(), Extension.end(), Extension.begin(), towlower);
+		return Extension == L".png" || Extension == L".dds" || Extension == L".jpg" ||
+			Extension == L".jpeg" || Extension == L".tga" || Extension == L".bmp";
+	}
+
+	FString NormalizeProjectRelativePath(const std::filesystem::path& Path)
+	{
+		std::error_code ErrorCode;
+		const std::filesystem::path RelativePath = std::filesystem::relative(Path, FPaths::ProjectRoot(), ErrorCode);
+		FString NormalizedPath = FPaths::FromPath(ErrorCode ? Path.lexically_normal() : RelativePath.lexically_normal());
+		std::replace(NormalizedPath.begin(), NormalizedPath.end(), '\\', '/');
+		return NormalizedPath;
+	}
+
+	std::filesystem::path ResolveTexturePath(const FString& InTexturePath)
+	{
+		const std::filesystem::path RequestedPath = FPaths::ToPath(InTexturePath).lexically_normal();
+		if (RequestedPath.empty())
+		{
+			return {};
+		}
+
+		if (RequestedPath.is_absolute())
+		{
+			return RequestedPath;
+		}
+
+		std::error_code ErrorCode;
+		const std::filesystem::path ProjectRelativePath = (FPaths::ProjectRoot() / RequestedPath).lexically_normal();
+		if (std::filesystem::exists(ProjectRelativePath, ErrorCode))
+		{
+			return ProjectRelativePath;
+		}
+
+		return (FPaths::TextureDir() / RequestedPath).lexically_normal();
+	}
 	uint32 GetTypeSize(const FString& Type)
 	{
 		if (Type == "float")    return 4;
@@ -371,6 +410,72 @@ std::shared_ptr<FMaterial> FMaterialManager::LoadFromFile(
 	}
 
 	return Mat;
+}
+
+std::shared_ptr<FMaterial> FMaterialManager::LoadFromTexturePath(const FString& InTexturePath)
+{
+	if (InTexturePath.empty())
+	{
+		return nullptr;
+	}
+
+	const std::filesystem::path TexturePath = ResolveTexturePath(InTexturePath);
+	std::error_code ErrorCode;
+	if (TexturePath.empty() || !std::filesystem::exists(TexturePath, ErrorCode) || !std::filesystem::is_regular_file(TexturePath, ErrorCode))
+	{
+		return nullptr;
+	}
+
+	if (!IsSupportedTextureFile(TexturePath))
+	{
+		return nullptr;
+	}
+
+	const FString MaterialName = NormalizeProjectRelativePath(TexturePath);
+	auto Found = NameCache.find(MaterialName);
+	if (Found != NameCache.end())
+	{
+		return Found->second;
+	}
+
+	if (!GEngine || !GEngine->GetRenderer())
+	{
+		return nullptr;
+	}
+
+	FRenderer* Renderer = GEngine->GetRenderer();
+	FMaterial* BaseMaterial = Renderer->GetDefaultTextureMaterial();
+	if (!BaseMaterial)
+	{
+		return nullptr;
+	}
+
+	std::unique_ptr<FDynamicMaterial> DynamicMaterial = BaseMaterial->CreateDynamicMaterial();
+	if (!DynamicMaterial)
+	{
+		return nullptr;
+	}
+
+	ID3D11ShaderResourceView* TextureSRV = nullptr;
+	if (!Renderer->CreateTextureFromSTB(
+		Renderer->GetDevice(),
+		TexturePath,
+		&TextureSRV,
+		ETextureColorSpace::ColorSRGB))
+	{
+		return nullptr;
+	}
+
+	auto MaterialTexture = std::make_shared<FMaterialTexture>();
+	MaterialTexture->TextureSRV = TextureSRV;
+	MaterialTexture->SourcePath = MaterialName;
+
+	DynamicMaterial->SetOriginName(MaterialName);
+	DynamicMaterial->SetMaterialTexture(MaterialTexture);
+
+	std::shared_ptr<FMaterial> RegisteredMaterial(DynamicMaterial.release());
+	Register(MaterialName, RegisteredMaterial);
+	return RegisteredMaterial;
 }
 
 std::shared_ptr<FMaterial> FMaterialManager::FindByName(const FString& Name) const
