@@ -101,8 +101,14 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 			auto   Headers          = static_cast<const FLightClusterHeaderGPU*>(Mapped.pData);
 			uint32 TotalAssignments = 0;
 			uint32 OverflowDropped  = 0;
+			uint32 ActiveClusters   = 0;
 			for (uint32 i = 0; i < PendingReadbackClusterCount; ++i)
 			{
+				if (Headers[i].Count > 0u)
+				{
+					++ActiveClusters;
+				}
+
 				TotalAssignments      += Headers[i].Count;
 				const uint32 RawCount = Headers[i].Pad0;
 				if (RawCount > Headers[i].Count)
@@ -112,6 +118,10 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 			}
 			Stats.TotalLightClusterAssignments = TotalAssignments;
 			Stats.OverflowCulledSlots          = OverflowDropped;
+			Stats.ActiveClusters               = ActiveClusters;
+			Stats.AvgLightsPerActiveCluster    = ActiveClusters > 0u
+				? static_cast<double>(TotalAssignments) / static_cast<double>(ActiveClusters)
+				: 0.0;
 			DC->Unmap(ClusterHeaderStagingBuffer, 0);
 		}
 		bHasPendingReadback = false;
@@ -631,7 +641,7 @@ void FLightRenderFeature::UpdateClusterGlobalConstantBuffer(
 	CB.ClusterCountZ   = LightCullingConfig::ClusterCountZ;
 	CB.LocalLightCount = (std::min)(static_cast<uint32>(SceneViewData.LightingInputs.LocalLights.size()), LightListConfig::MaxLocalLights);
 
-	CB.DirectionalLightCount = static_cast<uint32>(SceneViewData.LightingInputs.DirectionalLights.size());
+	CB.bOrthographic         = SceneViewData.View.bOrthographic ? 1u : 0u;
 	CB.MaxLightsPerCluster   = LightListConfig::MaxLightsPerCluster;
 	CB.LightingEnabled       = SceneViewData.RenderMode != ERenderMode::Unlit ? 1u : 0u;
 	CB.VisualizationMode     = SceneViewData.RenderMode == ERenderMode::LightCullingHeatmap ? 1u : 0u;

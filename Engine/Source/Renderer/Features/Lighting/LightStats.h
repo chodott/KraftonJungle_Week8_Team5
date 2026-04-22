@@ -13,10 +13,13 @@ struct ENGINE_API FLightStats
     uint32 ClusterCountY         = 0;
     uint32 ClusterCountZ         = 0;
     uint32 TotalClusters         = 0;
+    uint32 ActiveClusters        = 0;
 
     uint32 MaxLightsPerCluster          = 0;
     uint32 TotalLightClusterAssignments = 0;  // ?熬곣뫕????源녿턄?筌띯돦??源??????꾩룄?????(??怨몄쓧 ?熬곣뫁???
     uint32 OverflowCulledSlots          = 0;  // ???????꾩댉 ?????貫???앹뿉???濡〓탿 ??(??怨몄쓧 ?熬곣뫁???
+
+    double AvgLightsPerActiveCluster    = 0.0;
 
     uint64 LocalLightBufferBytes     = 0;
     uint64 CullProxyBufferBytes      = 0;

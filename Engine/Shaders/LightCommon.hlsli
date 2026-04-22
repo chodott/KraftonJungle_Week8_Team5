@@ -119,7 +119,7 @@ cbuffer LightClusterGlobals : register(b8)
 	uint ClusterCountZ;
 	uint LocalLightCount;
 
-	uint DirectionalLightCount2;
+	uint OrthographicView;
 	uint RuntimeMaxLightsPerCluster;
 	uint LightingEnabled;
 	uint VisualizationMode;
@@ -129,6 +129,35 @@ cbuffer LightClusterGlobals : register(b8)
 	float LogZScale;
 	float LogZBias;
 };
+
+bool IsOrthographicClusterView()
+{
+	return OrthographicView != 0u;
+}
+
+float LinearizeDeviceDepth(float deviceDepth)
+{
+	deviceDepth = saturate(deviceDepth);
+
+	if (IsOrthographicClusterView())
+	{
+		return lerp(NearZ, FarZ, deviceDepth);
+	}
+
+	return (NearZ * FarZ) / max(FarZ - deviceDepth * (FarZ - NearZ), 1.0e-6f);
+}
+
+float ViewDepthToDeviceDepth(float viewDepth)
+{
+	float clampedViewDepth = clamp(viewDepth, NearZ, FarZ);
+
+	if (IsOrthographicClusterView())
+	{
+		return saturate((clampedViewDepth - NearZ) / max(FarZ - NearZ, 1.0e-6f));
+	}
+
+	return saturate((FarZ - (NearZ * FarZ) / max(clampedViewDepth, NearZ)) / max(FarZ - NearZ, 1.0e-6f));
+}
 
 StructuredBuffer<FLightClusterHeader> ClusterLightHeaders : register(t10);
 StructuredBuffer<uint>                ClusterLightIndices : register(t11);
