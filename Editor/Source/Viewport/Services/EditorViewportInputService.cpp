@@ -1053,7 +1053,7 @@ void FEditorViewportInputService::HandleMessage(
 			return;
 		}
 
-		AActor* PickedActor = Picker.PickActor(Scene, Entry, ScreenMouseX, ScreenMouseY);
+		AActor* PickedActor = Picker.PickActor(Scene, Entry, ScreenMouseX, ScreenMouseY, EditorEngine);
 		if (bShiftDown)
 		{
 			if (PickedActor)

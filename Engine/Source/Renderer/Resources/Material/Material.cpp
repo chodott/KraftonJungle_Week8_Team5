@@ -364,6 +364,23 @@ void FMaterial::Bind(ID3D11DeviceContext* DeviceContext, EMaterialPassType PassT
 			DeviceContext->VSSetSamplers(0, 1, &NormalTexture->SamplerState);
 		}
 	}
+	else
+	{
+		ID3D11ShaderResourceView* NullSRV = nullptr;
+		DeviceContext->PSSetShaderResources(1, 1, &NullSRV);
+		DeviceContext->VSSetShaderResources(1, 1, &NullSRV);
+	}
+
+	if (EmissiveTexture && EmissiveTexture->TextureSRV)
+	{
+		DeviceContext->PSSetShaderResources(2, 1, &EmissiveTexture->TextureSRV);
+	}
+	else
+	{
+		ID3D11ShaderResourceView* NullSRV = nullptr;
+		DeviceContext->PSSetShaderResources(2, 1, &NullSRV);
+	}
+
 	if (PixelTextureBinding.IsValid())
 	{
 		DeviceContext->PSSetShaderResources(PixelTextureBinding.Slot, 1, &PixelTextureBinding.TextureSRV);

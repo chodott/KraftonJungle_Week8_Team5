@@ -10,6 +10,7 @@
 #include "Renderer/Mesh/MeshData.h"
 #include "Math/Matrix.h"
 #include "Math/Quat.h"
+#include "Types/ObjectPtr.h"
 #include <cmath>
 
 IMPLEMENT_RTTI(UProjectileMovementComponent, UMovementComponent)
@@ -18,10 +19,19 @@ namespace
 {
 	UStaticMesh* GetVelocityArrowMesh()
 	{
-		static TObjectPtr<UStaticMesh> ArrowMesh;
-		if (ArrowMesh)
+		static uint32 ArrowMeshUUID = 0u;
+		if (ArrowMeshUUID != 0u)
 		{
-			return ArrowMesh;
+			auto It = GUUIDToObjectMap.find(ArrowMeshUUID);
+			if (It != GUUIDToObjectMap.end()
+				&& It->second
+				&& !It->second->IsPendingKill()
+				&& It->second->IsA(UStaticMesh::StaticClass()))
+			{
+				return static_cast<UStaticMesh*>(It->second);
+			}
+
+			ArrowMeshUUID = 0u;
 		}
 
 		std::shared_ptr<FDynamicMesh> SourceMesh =
@@ -38,7 +48,7 @@ namespace
 		StaticRenderMesh->Sections.push_back({ 0, 0, static_cast<uint32>(StaticRenderMesh->Indices.size()) });
 		StaticRenderMesh->UpdateLocalBound();
 
-		ArrowMesh = FObjectFactory::ConstructObject<UStaticMesh>(nullptr, "VelocityArrowMesh");
+		UStaticMesh* ArrowMesh = FObjectFactory::ConstructObject<UStaticMesh>(nullptr, "VelocityArrowMesh");
 		if (!ArrowMesh)
 		{
 			return nullptr;
@@ -54,6 +64,7 @@ namespace
 		{
 			ArrowMesh->AddDefaultMaterial(GizmoMaterial);
 		}
+		ArrowMeshUUID = ArrowMesh->UUID;
 
 		return ArrowMesh;
 	}
@@ -86,10 +97,9 @@ void UProjectileMovementComponent::BeginPlay()
 void UProjectileMovementComponent::OnPostLoad()
 {
 	UMovementComponent::OnPostLoad();
-	SetAutoStartSimulation(bAutoStartSimulation);
+	// Loading path: defer visualization updates until component registration is stable.
+	SetTickInEditor(false);
 	bSimulationEnabled = false;
-	EnsureVelocityArrowComponent();
-	UpdateVelocityArrow();
 }
 
 void UProjectileMovementComponent::SetVelocity(const FVector& InVelocity)
@@ -121,7 +131,10 @@ void UProjectileMovementComponent::SetAutoStartSimulation(bool bInAutoStartSimul
 	// Projectile movement should not auto-simulate in Editor world.
 	SetTickInEditor(false);
 
-	UpdateVelocityArrow();
+	if (IsRegistered())
+	{
+		UpdateVelocityArrow();
+	}
 }
 
 void UProjectileMovementComponent::Tick(float DeltaTime)
@@ -209,6 +222,11 @@ void UProjectileMovementComponent::EnsureVelocityArrowComponent()
 		return;
 	}
 
+	if (VelocityArrowComponent && (VelocityArrowComponent->IsPendingKill() || VelocityArrowComponent->GetOwner() != OwnerActor))
+	{
+		VelocityArrowComponent = nullptr;
+	}
+
 	if (VelocityArrowComponent == nullptr)
 	{
 		VelocityArrowComponent = FObjectFactory::ConstructObject<UStaticMeshComponent>(OwnerActor, "VelocityArrowComponent");
@@ -246,6 +264,11 @@ void UProjectileMovementComponent::EnsureVelocityArrowComponent()
 
 void UProjectileMovementComponent::UpdateVelocityArrow()
 {
+	if (!IsRegistered())
+	{
+		return;
+	}
+
 	EnsureVelocityArrowComponent();
 	if (VelocityArrowComponent == nullptr)
 	{

@@ -22,5 +22,10 @@ struct FObjectConstantBuffer
 	uint32 LocalLightListOffset = 0;
 	uint32 LocalLightListCount  = 0;
 	uint32 ObjectFlags          = 0;
+	uint32 ObjectUUID           = 0;
+
 	uint32 Pad0                 = 0;
+	uint32 Pad1                 = 0;
+	uint32 Pad2                 = 0;
+	uint32 Pad3                 = 0;
 };

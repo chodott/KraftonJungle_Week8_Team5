@@ -371,6 +371,7 @@ void FRenderer::ConfigureMaterialPasses(FMaterial& Material, bool bTexturedMater
 	FMaterialPassShaders DepthPass;
 	FMaterialPassShaders GBufferPass;
 	FMaterialPassShaders OutlineMaskPass;
+	FMaterialPassShaders PickingPass;
 	if (bTexturedMaterial)
 	{
 		DepthPass.VS = FShaderMap::Get().GetOrCreateVertexShader(
@@ -387,6 +388,10 @@ void FRenderer::ConfigureMaterialPasses(FMaterial& Material, bool bTexturedMater
 		OutlineMaskPass.PS = FShaderMap::Get().GetOrCreatePixelShader(
 			Device,
 			(ShaderDir + L"SelectionHighlight/OutlineMaskTexturePixelShader.hlsl").c_str());
+		PickingPass.VS = GBufferPass.VS;
+		PickingPass.PS = FShaderMap::Get().GetOrCreatePixelShader(
+			Device,
+			(ShaderDir + L"SelectionHighlight/PickingTexturePixelShader.hlsl").c_str());
 	}
 	else
 	{
@@ -402,11 +407,15 @@ void FRenderer::ConfigureMaterialPasses(FMaterial& Material, bool bTexturedMater
 		OutlineMaskPass.VS = GBufferPass.VS;
 		OutlineMaskPass.PS =
 				FShaderMap::Get().GetOrCreatePixelShader(Device, (ShaderDir + L"SelectionHighlight/OutlineMaskPixelShader.hlsl").c_str());
+		PickingPass.VS = GBufferPass.VS;
+		PickingPass.PS =
+			FShaderMap::Get().GetOrCreatePixelShader(Device, (ShaderDir + L"SelectionHighlight/PickingPixelShader.hlsl").c_str());
 	}
 
 	Material.SetPassShaders(EMaterialPassType::DepthOnly, DepthPass);
 	Material.SetPassShaders(EMaterialPassType::GBuffer, GBufferPass);
 	Material.SetPassShaders(EMaterialPassType::OutlineMask, OutlineMaskPass);
+	Material.SetPassShaders(EMaterialPassType::Picking, PickingPass);
 }
 
 void FRenderer::TickShaderHotReload(float DeltaTime)
@@ -697,7 +706,11 @@ void FRenderer::UpdateObjectConstantBuffer(const FMatrix& World)
 	CBData.LocalLightListOffset = 0;
 	CBData.LocalLightListCount  = 0;
 	CBData.ObjectFlags          = 0;
+	CBData.ObjectUUID           = 0;
 	CBData.Pad0                 = 0;
+	CBData.Pad1                 = 0;
+	CBData.Pad2                 = 0;
+	CBData.Pad3                 = 0;
 
 	D3D11_MAPPED_SUBRESOURCE Mapped;
 	if (SUCCEEDED(DeviceContext->Map(ObjectConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
@@ -723,7 +736,13 @@ void FRenderer::UpdateObjectConstantBuffer(const FMeshBatch& Batch)
 	CBData.LocalLightListOffset = Batch.LocalLightListOffset;
 	CBData.LocalLightListCount  = Batch.LocalLightListCount;
 	CBData.ObjectFlags          = 0;
+	CBData.ObjectUUID = (Batch.SourceComponent && Batch.SourceComponent->GetOwner())
+		? Batch.SourceComponent->GetOwner()->UUID
+		: 0u;
 	CBData.Pad0                 = 0;
+	CBData.Pad1                 = 0;
+	CBData.Pad2                 = 0;
+	CBData.Pad3                 = 0;
 
 	D3D11_MAPPED_SUBRESOURCE Mapped;
 	if (SUCCEEDED(DeviceContext->Map(ObjectConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))

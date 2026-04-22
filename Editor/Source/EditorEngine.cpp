@@ -19,6 +19,7 @@
 #include "Camera/Camera.h"
 #include "Component/CameraComponent.h"
 #include "Component/BillboardComponent.h"
+#include "Component/LineBatchComponent.h"
 #include "Component/SpringArmComponent.h"
 #include "Component/StaticMeshComponent.h"
 #include "Component/UUIDBillboardComponent.h"
@@ -107,6 +108,54 @@ namespace
 			else if (Actor->IsA(ASpotLightActor::StaticClass()))
 			{
 				static_cast<ASpotLightActor*>(Actor)->SetEditorGizmoVisible(bSelected);
+			}
+		}
+	}
+
+	bool IsLightComponentDebugGizmoName(const FString& Name)
+	{
+		constexpr const char* PointSuffix = "_PointRadiusGizmo";
+		constexpr const char* SpotSuffix = "_SpotConeGizmo";
+
+		auto HasSuffix = [](const FString& Value, const char* Suffix)
+		{
+			const size_t SuffixLength = std::strlen(Suffix);
+			return Value.size() >= SuffixLength &&
+				Value.compare(Value.size() - SuffixLength, SuffixLength, Suffix) == 0;
+		};
+
+		return HasSuffix(Name, PointSuffix) || HasSuffix(Name, SpotSuffix);
+	}
+
+	void RefreshAttachedLightComponentGizmosForLevel(FEditorEngine* Engine, ULevel* Level)
+	{
+		if (!Engine || !Level)
+		{
+			return;
+		}
+
+		for (AActor* Actor : Level->GetActors())
+		{
+			if (!Actor || Actor->IsPendingDestroy())
+			{
+				continue;
+			}
+
+			const bool bSelected = Engine->IsActorSelected(Actor);
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				if (!Component || !Component->IsA(ULineBatchComponent::StaticClass()))
+				{
+					continue;
+				}
+
+				ULineBatchComponent* LineBatchComponent = static_cast<ULineBatchComponent*>(Component);
+				if (!IsLightComponentDebugGizmoName(LineBatchComponent->GetName()))
+				{
+					continue;
+				}
+
+				LineBatchComponent->SetEditorVisualization(bSelected);
 			}
 		}
 	}
@@ -373,6 +422,235 @@ void FEditorEngine::HandleResize(int32 Width, int32 Height)
 	}
 
 	UpdateEditorWorldAspectRatio(static_cast<float>(Width) / static_cast<float>(Height));
+}
+
+void FEditorEngine::PreInitialize()
+{
+	ImGui_ImplWin32_EnableDpiAwareness();
+
+	FEngineLog::Get().SetCallback([this](const char* Msg)
+	{
+		EditorUI.GetConsole().AddLog("%s", Msg);
+	});
+}
+
+void FEditorEngine::BindHost(FWindowsWindow* InMainWindow)
+{
+	MainWindow = InMainWindow;
+	EditorUI.SetupWindow(InMainWindow);
+}
+
+bool FEditorEngine::InitializeWorlds()
+{
+	return InitEditorWorlds();
+}
+
+bool FEditorEngine::InitializeMode()
+{
+	if (!InitEditorPreview())
+	{
+		return false;
+	}
+
+	InitEditorConsole();
+
+	if (!InitEditorCamera())
+	{
+		return false;
+	}
+
+	InitEditorViewportRouting();
+	return true;
+}
+
+void FEditorEngine::FinalizeInitialize()
+{
+	UE_LOG("EditorEngine initialized");
+	const int32 W = MainWindow ? MainWindow->GetWidth() : 800;
+	const int32 H = MainWindow ? MainWindow->GetHeight() : 600;
+
+	TArray<FViewport>& Viewports = ViewportRegistry.GetViewports();
+	FViewport* VPs[MAX_VIEWPORTS] = {
+		&Viewports[0], &Viewports[1], &Viewports[2], &Viewports[3]
+	};
+
+	SlateApplication = std::make_unique<FSlateApplication>();
+	SlateApplication->Initialize(FRect(0, 0, W, H), VPs, MAX_VIEWPORTS);
+	EditorUI.OnSlateReady();
+	CreateInitUI();
+
+	FConsoleVariableManager& CVM = FConsoleVariableManager::Get();
+	FConsoleVariable* PreloadAllModelsVar = CVM.Find("editor.PreloadAllModels");
+	if (!PreloadAllModelsVar)
+	{
+		PreloadAllModelsVar = CVM.Register("editor.PreloadAllModels", 0, "Preload all .Model files at editor startup (0 = off, 1 = on)");
+	}
+	if (PreloadAllModelsVar->GetInt() != 0)
+	{
+		FObjManager::PreloadAllModelFiles(FPaths::FromPath(FPaths::MeshDir()).c_str());
+	}
+
+	RefreshLightGizmoSelectionVisibility();
+}
+
+void FEditorEngine::RefreshLightGizmoSelectionVisibility()
+{
+	RefreshLightActorGizmosForLevel(this, GetEditorScene());
+	RefreshAttachedLightComponentGizmosForLevel(this, GetEditorScene());
+
+	for (FWorldContext* PreviewContext : PreviewWorldContexts)
+	{
+		if (!PreviewContext || !PreviewContext->World)
+		{
+			continue;
+		}
+
+		RefreshLightActorGizmosForLevel(this, PreviewContext->World->GetScene());
+		RefreshAttachedLightComponentGizmosForLevel(this, PreviewContext->World->GetScene());
+	}
+
+	RefreshSelectedBillboardTint();
+}
+
+void FEditorEngine::RefreshSelectedBillboardTint()
+{
+	const FLinearColor HighlightTint = FLinearColor(1.0f, 0.62f, 0.22f, 1.0f);
+	const TArray<AActor*> SelectedActors = GetSelectedActors();
+	TSet<UBillboardComponent*> SelectedBillboards;
+
+	for (AActor* SelectedActor : SelectedActors)
+	{
+		if (!SelectedActor || SelectedActor->IsPendingDestroy())
+		{
+			continue;
+		}
+
+		for (UActorComponent* Component : SelectedActor->GetComponents())
+		{
+			if (!Component || !Component->IsA(UBillboardComponent::StaticClass()))
+			{
+				continue;
+			}
+
+			UBillboardComponent* BillboardComponent = static_cast<UBillboardComponent*>(Component);
+			if (BillboardComponent->IsPendingKill() || BillboardComponent->IsA(UUUIDBillboardComponent::StaticClass()))
+			{
+				continue;
+			}
+
+			SelectedBillboards.insert(BillboardComponent);
+		}
+	}
+
+	for (auto It = BillboardSelectionTintOriginalColors.begin(); It != BillboardSelectionTintOriginalColors.end();)
+	{
+		UBillboardComponent* BillboardComponent = It->first;
+		if (!BillboardComponent || BillboardComponent->IsPendingKill())
+		{
+			It = BillboardSelectionTintOriginalColors.erase(It);
+			continue;
+		}
+
+		if (SelectedBillboards.find(BillboardComponent) == SelectedBillboards.end())
+		{
+			BillboardComponent->SetBaseColorLinear(It->second);
+			It = BillboardSelectionTintOriginalColors.erase(It);
+			continue;
+		}
+
+		++It;
+	}
+
+	for (UBillboardComponent* BillboardComponent : SelectedBillboards)
+	{
+		if (!BillboardComponent || BillboardComponent->IsPendingKill())
+		{
+			continue;
+		}
+
+		if (BillboardSelectionTintOriginalColors.find(BillboardComponent) == BillboardSelectionTintOriginalColors.end())
+		{
+			BillboardSelectionTintOriginalColors[BillboardComponent] = BillboardComponent->GetBaseColor();
+		}
+		BillboardComponent->SetBaseColorLinear(HighlightTint);
+	}
+}
+void FEditorEngine::PrepareFrame(float DeltaTime)
+{
+	FEngine::PrepareFrame(DeltaTime);
+
+	if (bIsPIEActive && PIEViewportId != INVALID_VIEWPORT_ID)
+	{
+		if (SlateApplication && !SlateApplication->IsViewportActive(PIEViewportId))
+		{
+			EndPIE();
+		}
+	}
+
+	SyncViewportClient();
+	SyncFocusedViewportLocalState();
+	RefreshSelectedBillboardTint();
+	CameraSubsystem.PrepareFrame(GetActiveWorld(), GetScene(), DeltaTime);
+}
+
+void FEditorEngine::TickWorlds(float DeltaTime)
+{
+	if (bIsPIEActive)
+	{
+		if (bIsPIEPaused)
+		{
+			return;
+		}
+
+		if (PIEWorldContext && PIEWorldContext->World)
+		{
+			PIEWorldContext->World->Tick(DeltaTime);
+		}
+		return;
+	}
+
+	if (UWorld* ActiveWorld = GetActiveWorld())
+	{
+		ActiveWorld->Tick(DeltaTime);
+	}
+}
+
+std::unique_ptr<IViewportClient> FEditorEngine::CreateViewportClient()
+{
+	auto Client = std::make_unique<FEditorViewportClient>(*this, EditorUI, ViewportRegistry, MainWindow);
+	EditorViewportClientRaw = Client.get();
+	return Client;
+}
+
+void FEditorEngine::RenderFrame()
+{
+	FRenderer* Renderer = GetRenderer();
+	if (!Renderer || Renderer->IsOccluded())
+	{
+		return;
+	}
+
+	Renderer->BeginFrame();
+	EditorUI.BeginFrame();
+
+	if (EditorViewportClientRaw)
+	{
+		EditorViewportClientRaw->Render(this, Renderer);
+	}
+
+	EditorUI.EndFrame();
+	Renderer->EndFrame();
+}
+
+void FEditorEngine::SyncPlatformState()
+{
+	SyncPlatformCursor();
+	SyncPIECursorState();
+}
+
+FEditorViewportController* FEditorEngine::GetViewportController()
+{
+	return CameraSubsystem.GetViewportController();
 }
 
 void FEditorEngine::ClearDebugDrawForFrame()
@@ -664,6 +942,7 @@ bool FEditorEngine::CyclePIEPlayerCamera(int32 Direction)
 	return ApplyPIEPlayerCameraByIndex(NextCameraIndex);
 }
 
+#if 0 // merge duplicate block
 void FEditorEngine::PreInitialize()
 {
 	ImGui_ImplWin32_EnableDpiAwareness();
@@ -801,6 +1080,7 @@ FEditorViewportController* FEditorEngine::GetViewportController()
 	return CameraSubsystem.GetViewportController();
 }
 
+#endif
 FViewport* FEditorEngine::FindViewport(FViewportId Id)
 {
 	for (FViewportEntry& Entry : ViewportRegistry.GetEntries())
@@ -830,6 +1110,11 @@ void FEditorEngine::InitEditorConsole()
 			"r.DecalProjectionMode",
 			static_cast<int32>(EDecalProjectionMode::ClusteredLookup),
 			"Decal projection mode (0 = Clustered Lookup, 1 = Volume Draw)");
+	}
+
+	if (!CVM.Find("editor.PreloadAllModels"))
+	{
+		CVM.Register("editor.PreloadAllModels", 0, "Preload all .Model files at editor startup (0 = off, 1 = on)");
 	}
 
 	CVM.GetAllNames([this](const FString& Name)
@@ -1571,6 +1856,7 @@ void FEditorEngine::SyncViewportClient()
 	}
 }
 
+#if 0 // merge duplicate block
 void FEditorEngine::RefreshLightGizmoSelectionVisibility()
 {
 	RefreshLightActorGizmosForLevel(this, GetEditorScene());
@@ -1651,3 +1937,4 @@ void FEditorEngine::RefreshSelectedBillboardTint()
 		BillboardComponent->SetBaseColorLinear(HighlightTint);
 	}
 }
+#endif

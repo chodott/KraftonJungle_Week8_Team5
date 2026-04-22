@@ -16,6 +16,7 @@ enum class EMaterialPassType : uint8
 	DepthOnly = 0,
 	GBuffer,
 	OutlineMask,
+	Picking,
 	ForwardOpaque,
 	ForwardTransparent,
 	EditorGrid,

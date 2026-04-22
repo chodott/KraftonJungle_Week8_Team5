@@ -66,6 +66,7 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			Batch.Mesh              = TargetMesh;
 			Batch.World             = WorldTransform;
 			Batch.WorldBounds       = WorldBounds;
+			Batch.SourceComponent   = PrimitiveComponent;
 			Batch.DistanceSqToCamera = (WorldBounds.Center - OutSceneViewData.View.CameraPosition).SizeSquared();
 			if (MeshComponent)
 			{
@@ -91,11 +92,16 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			{
 				Batch.Domain             = EMaterialDomain::EditorPrimitive;
 				Batch.PassMask           = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
+				if (PrimitiveComponent->IsPickable())
+				{
+					Batch.PassMask |= static_cast<uint32>(EMeshPassMask::EditorPicking);
+				}
 				Batch.bDisableDepthWrite = true;
 				Batch.bDisableDepthTest  = PrimitiveComponent->IsA(ULineBatchComponent::StaticClass());
 			}
 			else
 			{
+				const bool bCanPick = PrimitiveComponent->IsPickable();
 				FVector4 BaseColor = Batch.Material
 					? Batch.Material->GetVectorParameter("BaseColor")
 					: FVector4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -104,7 +110,11 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 				if (bIsTransparent)
 				{
 					Batch.Domain             = EMaterialDomain::Transparent;
-					Batch.PassMask           = static_cast<uint32>(EMeshPassMask::ForwardTransparent);
+					Batch.PassMask = static_cast<uint32>(EMeshPassMask::ForwardTransparent);
+					if (bCanPick)
+					{
+						Batch.PassMask |= static_cast<uint32>(EMeshPassMask::EditorPicking);
+					}
 					Batch.bDisableDepthWrite = true;
 				}
 				else
@@ -114,6 +124,10 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 							static_cast<uint32>(EMeshPassMask::DepthPrepass) |
 							static_cast<uint32>(EMeshPassMask::GBuffer) |
 							static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+					if (bCanPick)
+					{
+						Batch.PassMask |= static_cast<uint32>(EMeshPassMask::EditorPicking);
+					}
 				}
 			}
 			SceneCommandBuilderUtils::AddBatch(BuildContext, OutSceneViewData, std::move(Batch));
@@ -128,6 +142,7 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			Batch.Mesh               = TargetMesh;
 			Batch.World              = WorldTransform;
 			Batch.WorldBounds        = WorldBounds;
+			Batch.SourceComponent    = PrimitiveComponent;
 			Batch.DistanceSqToCamera = (WorldBounds.Center - OutSceneViewData.View.CameraPosition).SizeSquared();
 			Batch.SectionIndex       = static_cast<uint32>(SectionIndex);
 			Batch.IndexStart         = Section.StartIndex;
@@ -157,11 +172,16 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			{
 				Batch.Domain             = EMaterialDomain::EditorPrimitive;
 				Batch.PassMask           = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
+				if (PrimitiveComponent->IsPickable())
+				{
+					Batch.PassMask |= static_cast<uint32>(EMeshPassMask::EditorPicking);
+				}
 				Batch.bDisableDepthWrite = true;
 				Batch.bDisableDepthTest  = PrimitiveComponent->IsA(ULineBatchComponent::StaticClass());
 			}
 			else
 			{
+				const bool bCanPick = PrimitiveComponent->IsPickable();
 				FVector4 BaseColor = Batch.Material
 					? Batch.Material->GetVectorParameter("BaseColor")
 					: FVector4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -170,7 +190,11 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 				if (bIsTransparent)
 				{
 					Batch.Domain             = EMaterialDomain::Transparent;
-					Batch.PassMask           = static_cast<uint32>(EMeshPassMask::ForwardTransparent);
+					Batch.PassMask = static_cast<uint32>(EMeshPassMask::ForwardTransparent);
+					if (bCanPick)
+					{
+						Batch.PassMask |= static_cast<uint32>(EMeshPassMask::EditorPicking);
+					}
 					Batch.bDisableDepthWrite = true;
 				}
 				else
@@ -180,6 +204,10 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 							static_cast<uint32>(EMeshPassMask::DepthPrepass) |
 							static_cast<uint32>(EMeshPassMask::GBuffer) |
 							static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+					if (bCanPick)
+					{
+						Batch.PassMask |= static_cast<uint32>(EMeshPassMask::EditorPicking);
+					}
 				}
 			}
 			SceneCommandBuilderUtils::AddBatch(BuildContext, OutSceneViewData, std::move(Batch));
