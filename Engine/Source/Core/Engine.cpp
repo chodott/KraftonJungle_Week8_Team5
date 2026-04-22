@@ -552,6 +552,11 @@ void FEngine::RegisterConsoleVariables()
 		CVM.Register("r.Picking.GPUId", 1, "GPU object-id based picking (0 = off, 1 = on)");
 	}
 
+	if (!CVM.Find("r.Picking.GPUId.Debug"))
+	{
+		CVM.Register("r.Picking.GPUId.Debug", 0, "GPU ID picking debug log (0 = off, 1 = on)");
+	}
+
 	CVM.RegisterCommand("ForceGC", [this](FString& OutResult)
 	{
 		if (ObjManager)

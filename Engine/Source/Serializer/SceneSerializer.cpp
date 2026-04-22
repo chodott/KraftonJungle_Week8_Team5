@@ -440,6 +440,19 @@ namespace
 			return false;
 		}
 	}
+
+	void ReportSceneLoadProgress(
+		const FSceneSerializer::FSceneLoadProgressCallback& ProgressCallback,
+		float Progress01,
+		const FString& Message)
+	{
+		if (!ProgressCallback)
+		{
+			return;
+		}
+
+		ProgressCallback(std::clamp(Progress01, 0.0f, 1.0f), Message);
+	}
 }
 
 void FSceneSerializer::Save(ULevel* Scene, const FString& FilePath, const FCameraSerializeData& CameraData)
@@ -504,16 +517,23 @@ void FSceneSerializer::Save(ULevel* Scene, const FString& FilePath, const FCamer
 	}
 }
 
-bool FSceneSerializer::Load(ULevel* Scene, const FString& FilePath, ID3D11Device* Device,
-                            FCameraSerializeData* OutCameraData)
+bool FSceneSerializer::Load(
+	ULevel* Scene,
+	const FString& FilePath,
+	ID3D11Device* Device,
+	FCameraSerializeData* OutCameraData,
+	const FSceneLoadProgressCallback& ProgressCallback)
 {
+	ReportSceneLoadProgress(ProgressCallback, 0.02f, "Opening scene file...");
 	std::ifstream File(FPaths::ToPath(FilePath));
 	if (!File.is_open())
 	{
+		ReportSceneLoadProgress(ProgressCallback, 1.0f, "Failed to open scene file.");
 		return false;
 	}
 
 	json Json;
+	ReportSceneLoadProgress(ProgressCallback, 0.08f, "Parsing scene JSON...");
 
 	try
 	{
@@ -521,11 +541,15 @@ bool FSceneSerializer::Load(ULevel* Scene, const FString& FilePath, ID3D11Device
 	}
 	catch (const std::exception&)
 	{
+		ReportSceneLoadProgress(ProgressCallback, 1.0f, "Scene JSON parse failed.");
 		return false;
 	}
 
 	if (!Json.contains("Primitives") || !Json["Primitives"].is_object())
+	{
+		ReportSceneLoadProgress(ProgressCallback, 1.0f, "Invalid scene format.");
 		return false;
+	}
 
 	LoadLevelSettingsFromJson(Json, Scene);
 
@@ -534,13 +558,16 @@ bool FSceneSerializer::Load(ULevel* Scene, const FString& FilePath, ID3D11Device
 		LoadCameraDataFromJson(Json, OutCameraData);
 	}
 
+	ReportSceneLoadProgress(ProgressCallback, 0.18f, "Loading materials...");
 	PreloadMaterialsFromJson(Json, Device);
+	ReportSceneLoadProgress(ProgressCallback, 0.30f, "Loading static meshes...");
 	PreloadStaticMeshesFromJson(Json);
 
 	bool bAllActorsLoaded = true;
 	int32 ActorIndex = 0;
 	TArray<FLoadedActorEntry> LoadedActors;
 	LoadedActors.reserve(Json["Primitives"].size());
+	const size_t TotalActorCount = Json["Primitives"].size();
 	for (auto& [Key, Value] : Json["Primitives"].items())
 	{
 		const json* ActorJson = &Value;
@@ -555,8 +582,16 @@ bool FSceneSerializer::Load(ULevel* Scene, const FString& FilePath, ID3D11Device
 		bAllActorsLoaded &= DeserializeActorFromJson(Scene, *ActorJson, ActorIndex, &LoadedEntry);
 
 		++ActorIndex;
+		const float ActorRatio = (TotalActorCount > 0)
+			? static_cast<float>(ActorIndex) / static_cast<float>(TotalActorCount)
+			: 1.0f;
+		ReportSceneLoadProgress(
+			ProgressCallback,
+			0.30f + ActorRatio * 0.60f,
+			"Restoring actors...");
 	}
 
+	ReportSceneLoadProgress(ProgressCallback, 0.92f, "Finalizing scene...");
 	FinalizeLoadedActors(LoadedActors);
 	Scene->EnsureEssentialActors();
 	Scene->EnsurePlayerStartActor();
@@ -571,5 +606,6 @@ bool FSceneSerializer::Load(ULevel* Scene, const FString& FilePath, ID3D11Device
 		}
 	}
 
+	ReportSceneLoadProgress(ProgressCallback, 1.0f, bAllActorsLoaded ? "Scene load complete." : "Scene load complete with warnings.");
 	return bAllActorsLoaded;
 }

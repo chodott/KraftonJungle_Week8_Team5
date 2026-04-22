@@ -19,7 +19,10 @@
 
 #include <algorithm>
 #include <commdlg.h>
+#include <commctrl.h>
 #include <windows.h>
+
+#pragma comment(lib, "Comctl32.lib")
 
 #include "Camera/Camera.h"
 #include "Component/CameraComponent.h"
@@ -130,6 +133,180 @@ namespace
 		::CloseHandle(ProcessInfo.hProcess);
 		return true;
 	}
+
+	class FScopedSceneLoadOverlay
+	{
+	public:
+		explicit FScopedSceneLoadOverlay(HWND InOwnerWindow)
+			: OwnerWindow(InOwnerWindow)
+		{
+			InitializeCommonControls();
+			RegisterWindowClass();
+			CreateWindowResources();
+		}
+
+		~FScopedSceneLoadOverlay()
+		{
+			if (WindowHandle)
+			{
+				::DestroyWindow(WindowHandle);
+				WindowHandle = nullptr;
+				LabelHandle = nullptr;
+				ProgressHandle = nullptr;
+			}
+		}
+
+		void Update(float Progress01, const FString& Message)
+		{
+			if (!WindowHandle)
+			{
+				return;
+			}
+
+			const int32 ProgressPercent = static_cast<int32>(std::clamp(Progress01, 0.0f, 1.0f) * 100.0f + 0.5f);
+			const std::wstring LabelText = FPaths::ToWide(Message.empty() ? "Loading scene..." : Message);
+
+			::SetWindowTextW(LabelHandle, LabelText.c_str());
+			::SendMessageW(ProgressHandle, PBM_SETPOS, static_cast<WPARAM>(ProgressPercent), 0);
+			::UpdateWindow(WindowHandle);
+			PumpMessages();
+		}
+
+		bool IsValid() const
+		{
+			return WindowHandle != nullptr;
+		}
+
+	private:
+		static constexpr const wchar_t* OverlayClassName = L"Week7SceneLoadOverlayWindow";
+
+		static void InitializeCommonControls()
+		{
+			static bool bInitialized = false;
+			if (bInitialized)
+			{
+				return;
+			}
+
+			INITCOMMONCONTROLSEX ICC = {};
+			ICC.dwSize = sizeof(INITCOMMONCONTROLSEX);
+			ICC.dwICC = ICC_PROGRESS_CLASS;
+			::InitCommonControlsEx(&ICC);
+			bInitialized = true;
+		}
+
+		static void RegisterWindowClass()
+		{
+			static bool bRegistered = false;
+			if (bRegistered)
+			{
+				return;
+			}
+
+			WNDCLASSW WindowClass = {};
+			WindowClass.lpfnWndProc = DefWindowProcW;
+			WindowClass.hInstance = GetModuleHandleW(nullptr);
+			WindowClass.hCursor = ::LoadCursorW(nullptr, IDC_WAIT);
+			WindowClass.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+			WindowClass.lpszClassName = OverlayClassName;
+			::RegisterClassW(&WindowClass);
+			bRegistered = true;
+		}
+
+		void CreateWindowResources()
+		{
+			const int32 Width = 420;
+			const int32 Height = 130;
+
+			RECT OwnerRect = {};
+			if (OwnerWindow && ::GetWindowRect(OwnerWindow, &OwnerRect))
+			{
+				WindowHandle = ::CreateWindowExW(
+					WS_EX_TOPMOST,
+					OverlayClassName,
+					L"Loading Scene",
+					WS_POPUP | WS_BORDER,
+					OwnerRect.left + ((OwnerRect.right - OwnerRect.left) - Width) / 2,
+					OwnerRect.top + ((OwnerRect.bottom - OwnerRect.top) - Height) / 2,
+					Width,
+					Height,
+					OwnerWindow,
+					nullptr,
+					GetModuleHandleW(nullptr),
+					nullptr);
+			}
+			else
+			{
+				WindowHandle = ::CreateWindowExW(
+					WS_EX_TOPMOST,
+					OverlayClassName,
+					L"Loading Scene",
+					WS_POPUP | WS_BORDER,
+					CW_USEDEFAULT,
+					CW_USEDEFAULT,
+					Width,
+					Height,
+					OwnerWindow,
+					nullptr,
+					GetModuleHandleW(nullptr),
+					nullptr);
+			}
+
+			if (!WindowHandle)
+			{
+				return;
+			}
+
+			LabelHandle = ::CreateWindowExW(
+				0,
+				L"STATIC",
+				L"Loading scene...",
+				WS_CHILD | WS_VISIBLE,
+				16,
+				16,
+				Width - 32,
+				24,
+				WindowHandle,
+				nullptr,
+				GetModuleHandleW(nullptr),
+				nullptr);
+
+			ProgressHandle = ::CreateWindowExW(
+				0,
+				PROGRESS_CLASSW,
+				nullptr,
+				WS_CHILD | WS_VISIBLE,
+				16,
+				52,
+				Width - 32,
+				22,
+				WindowHandle,
+				nullptr,
+				GetModuleHandleW(nullptr),
+				nullptr);
+
+			::SendMessageW(ProgressHandle, PBM_SETRANGE, 0, MAKELPARAM(0, 100));
+			::SendMessageW(ProgressHandle, PBM_SETPOS, 0, 0);
+			::ShowWindow(WindowHandle, SW_SHOWNORMAL);
+			::UpdateWindow(WindowHandle);
+			PumpMessages();
+		}
+
+		void PumpMessages() const
+		{
+			MSG Message = {};
+			while (::PeekMessageW(&Message, nullptr, 0, 0, PM_REMOVE))
+			{
+				::TranslateMessage(&Message);
+				::DispatchMessageW(&Message);
+			}
+		}
+
+		HWND OwnerWindow = nullptr;
+		HWND WindowHandle = nullptr;
+		HWND LabelHandle = nullptr;
+		HWND ProgressHandle = nullptr;
+	};
 }
 
 std::string GetFilePathUsingDialog(EFileDialogType Type)
@@ -975,8 +1152,21 @@ void FEditorUI::Render()
                         Engine->CollectGarbage();
 
                         FCameraSerializeData CameraData;
-                        bool bLoaded = FSceneSerializer::Load(Engine->GetEditorScene(), Path,
-                                                              Engine->GetRenderer()->GetDevice(), &CameraData);
+                        FScopedSceneLoadOverlay LoadingOverlay(MainWindow ? MainWindow->GetHwnd() : nullptr);
+                        if (LoadingOverlay.IsValid())
+                        {
+                            LoadingOverlay.Update(0.0f, "Preparing scene load...");
+                        }
+
+                        bool bLoaded = FSceneSerializer::Load(
+							Engine->GetEditorScene(),
+							Path,
+							Engine->GetRenderer()->GetDevice(),
+							&CameraData,
+							[&LoadingOverlay](float Progress01, const FString& Message)
+							{
+								LoadingOverlay.Update(Progress01, Message);
+							});
                         if (bLoaded)
                         {
                             if (CameraData.bValid)

@@ -18,6 +18,7 @@
 #include "Level/Level.h"
 #include "Viewport/Viewport.h"
 #include "Core/ConsoleVariableManager.h"
+#include "Debug/EngineLog.h"
 #include "Math/Frustum.h"
 #include "Types/ObjectPtr.h"
 #include "World/WorldContext.h"
@@ -173,6 +174,20 @@ namespace
 		return GPUPickingVar->GetInt() != 0;
 	}
 
+	bool IsGPUIdPickingDebugEnabled()
+	{
+		FConsoleVariableManager& CVM = FConsoleVariableManager::Get();
+		FConsoleVariable* DebugVar = CVM.Find("r.Picking.GPUId.Debug");
+		if (!DebugVar)
+		{
+			DebugVar = CVM.Register(
+				"r.Picking.GPUId.Debug",
+				0,
+				"GPU ID picking debug log (0 = off, 1 = on)");
+		}
+		return DebugVar->GetInt() != 0;
+	}
+
 	FVector TransformPointRowVector(const FVector& P, const FMatrix& M)
 	{
 		return {
@@ -264,8 +279,15 @@ namespace
 	bool TryPickActorByGPUId(ULevel* Scene, const FViewportEntry* Entry, int32 ScreenX, int32 ScreenY, FEditorEngine* Engine, AActor*& OutActor)
 	{
 		OutActor = nullptr;
+		const bool bDebugLog = IsGPUIdPickingDebugEnabled();
 		if (!Scene || !Entry || !Entry->Viewport || !Entry->WorldContext || !Entry->WorldContext->World || !Engine)
 		{
+			if (bDebugLog)
+			{
+				UE_LOG("[IDPick] GPU path aborted: invalid inputs (scene=%p entry=%p viewport=%p worldCtx=%p world=%p engine=%p)",
+					Scene, Entry, Entry ? Entry->Viewport : nullptr, Entry ? Entry->WorldContext : nullptr,
+					(Entry && Entry->WorldContext) ? Entry->WorldContext->World : nullptr, Engine);
+			}
 			return false;
 		}
 
@@ -287,6 +309,11 @@ namespace
 			|| ScreenX < 0 || ScreenY < 0
 			|| ScreenX >= Rect.Width || ScreenY >= Rect.Height)
 		{
+			if (bDebugLog)
+			{
+				UE_LOG("[IDPick] GPU path aborted: out-of-range click local=(%d,%d) rect=(%d,%d)",
+					ScreenX, ScreenY, Rect.Width, Rect.Height);
+			}
 			return false;
 		}
 
@@ -345,6 +372,26 @@ namespace
 			SceneViewData);
 		SceneViewData.RenderMode = ERenderMode::Unlit;
 		SceneViewData.ShowFlags = Entry->LocalState.ShowFlags;
+		if (bDebugLog)
+		{
+			const uint32 PickingMaskBit = static_cast<uint32>(EMeshPassMask::EditorPicking);
+			int32 PickingBatchCount = 0;
+			for (const FMeshBatch& Batch : SceneViewData.MeshInputs.Batches)
+			{
+				if ((Batch.PassMask & PickingMaskBit) != 0u)
+				{
+					++PickingBatchCount;
+				}
+			}
+
+			UE_LOG("[IDPick] Packet mesh=%d billboard=%d text=%d subuv=%d | builtBatches=%d pickingBatches=%d",
+				static_cast<int32>(ScenePacket.MeshPrimitives.size()),
+				static_cast<int32>(ScenePacket.BillboardPrimitives.size()),
+				static_cast<int32>(ScenePacket.TextPrimitives.size()),
+				static_cast<int32>(ScenePacket.SubUVPrimitives.size()),
+				static_cast<int32>(SceneViewData.MeshInputs.Batches.size()),
+				PickingBatchCount);
+		}
 
 		ID3D11RenderTargetView* PrevRTV = nullptr;
 		ID3D11DepthStencilView* PrevDSV = nullptr;
@@ -398,6 +445,15 @@ namespace
 			PickedUUID = *reinterpret_cast<const uint32*>(Mapped.pData);
 			DeviceContext->Unmap(GGPUIdPickerResources.IdReadbackTexture, 0);
 		}
+		else if (bDebugLog)
+		{
+			UE_LOG("[IDPick] GPU readback map failed");
+		}
+
+		if (bDebugLog)
+		{
+			UE_LOG("[IDPick] GPU readback local=(%d,%d) uuid=%u", ScreenX, ScreenY, PickedUUID);
+		}
 
 		DeviceContext->OMSetRenderTargets(1, &PrevRTV, PrevDSV);
 		if (PrevViewportCount > 0)
@@ -416,20 +472,30 @@ namespace
 
 		if (PickedUUID == 0u)
 		{
+			// GPU pass executed successfully and reported "no object hit".
+			// Do not fallback to CPU picking in this case.
+			if (bDebugLog)
+			{
+				UE_LOG("[IDPick] GPU miss (uuid=0), skip CPU fallback");
+			}
 			return true;
 		}
 
 		auto It = GUUIDToObjectMap.find(PickedUUID);
 		if (It == GUUIDToObjectMap.end() || !It->second || It->second->IsPendingKill())
 		{
-			return true;
+			if (bDebugLog)
+			{
+				UE_LOG("[IDPick] UUID map miss/stale uuid=%u", PickedUUID);
+			}
+			return false;
 		}
 
 		UObject* PickedObject = It->second;
 		if (PickedObject->IsA(AActor::StaticClass()))
 		{
 			OutActor = static_cast<AActor*>(PickedObject);
-			return true;
+			return OutActor != nullptr;
 		}
 
 		if (PickedObject->IsA(UActorComponent::StaticClass()))
@@ -441,7 +507,7 @@ namespace
 			}
 		}
 
-		return true;
+		return OutActor != nullptr;
 	}
 }
 
@@ -564,7 +630,14 @@ AActor* FPicker::PickActor(ULevel* Scene, const FViewportEntry* Entry, int32 Scr
 	if (IsGPUIdPickingEnabled())
 	{
 		AActor* GPUPickedActor = nullptr;
-		if (TryPickActorByGPUId(Scene, Entry, ScreenX, ScreenY, Engine, GPUPickedActor))
+		const bool bGPUHandled = TryPickActorByGPUId(Scene, Entry, ScreenX, ScreenY, Engine, GPUPickedActor);
+		if (IsGPUIdPickingDebugEnabled())
+		{
+			UE_LOG("[IDPick] GPU handled=%d actor=%s",
+				bGPUHandled ? 1 : 0,
+				GPUPickedActor ? GPUPickedActor->GetName().c_str() : "None");
+		}
+		if (bGPUHandled)
 		{
 			return GPUPickedActor;
 		}

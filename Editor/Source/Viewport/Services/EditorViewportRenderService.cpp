@@ -209,6 +209,14 @@ void FEditorViewportRenderService::RenderAll(
 		AdditionalMeshBatches.reserve(Renderer->GetPrevCommandCount());
 		FMatrix ViewMatrix = Entry.LocalState.BuildViewMatrix();
 		FMatrix ProjectionMatrix = Entry.LocalState.BuildProjMatrix(AspectRatio);
+		float EffectiveNearPlane = Entry.LocalState.NearPlane;
+		float EffectiveFarPlane = Entry.LocalState.FarPlane;
+		ERenderMode EffectiveRenderMode = Entry.LocalState.ViewMode;
+		const bool bIsPIEPossessedView =
+			EntryWorldContext &&
+			EntryWorldContext->WorldType == EWorldType::PIE &&
+			EditorEngine->IsPIEActive() &&
+			EditorEngine->IsPIEInputCaptured();
 		if (EntryWorldContext &&
 			EntryWorldContext->WorldType == EWorldType::PIE &&
 			EditorEngine->IsPIEActive() &&
@@ -222,7 +230,15 @@ void FEditorViewportRenderService::RenderAll(
 				}
 				ViewMatrix = ActiveCameraComponent->GetViewMatrix();
 				ProjectionMatrix = ActiveCameraComponent->GetProjectionMatrix();
+				EffectiveNearPlane = ActiveCameraComponent->GetNearPlane();
+				EffectiveFarPlane = ActiveCameraComponent->GetFarPlane();
 			}
+		}
+		if (bIsPIEPossessedView && EffectiveRenderMode == ERenderMode::LightCullingHeatmap)
+		{
+			// PIE 소유 시점에서는 LightCulling Heatmap 디버그 뷰를 강제 비활성화한다.
+			// (게임 화면에 디버그 시각화가 섞여 보이는 것을 방지)
+			EffectiveRenderMode = ERenderMode::Lit_Phong;
 		}
 		FFrustum Frustum;
 		Frustum.ExtractFromVP(ViewMatrix * ProjectionMatrix);
@@ -292,12 +308,12 @@ void FEditorViewportRenderService::RenderAll(
 		ScenePass.SceneView.ViewMatrix = ViewMatrix;
 		ScenePass.SceneView.ProjectionMatrix = ProjectionMatrix;
 		ScenePass.SceneView.CameraPosition = CameraPosition;
-		ScenePass.SceneView.NearZ = Entry.LocalState.NearPlane;
-		ScenePass.SceneView.FarZ = Entry.LocalState.FarPlane;
+		ScenePass.SceneView.NearZ = EffectiveNearPlane;
+		ScenePass.SceneView.FarZ = EffectiveFarPlane;
 		ScenePass.SceneView.TotalTimeSeconds = Engine ? static_cast<float>(Engine->GetTimer().GetTotalTime()) : 0.0f;
 		ScenePass.AdditionalMeshBatches = std::move(AdditionalMeshBatches);
-		ScenePass.RenderMode = Entry.LocalState.ViewMode;
-		ScenePass.bForceWireframe = (Entry.LocalState.ViewMode == ERenderMode::Wireframe && WireFrameMaterial != nullptr);
+		ScenePass.RenderMode = EffectiveRenderMode;
+		ScenePass.bForceWireframe = (EffectiveRenderMode == ERenderMode::Wireframe && WireFrameMaterial != nullptr);
 		ScenePass.WireframeMaterial = WireFrameMaterial.get();
 		ScenePass.OutlineRequest.bEnabled =
 			bCanShowEditorSelection &&
@@ -336,8 +352,26 @@ void FEditorViewportRenderService::RenderAll(
 		Item.Mode = ResolveViewportCompositeMode(Entry.LocalState.ViewMode);
 		Item.SceneColorSRV = Entry.Viewport->GetSRV();
 		Item.SceneDepthSRV = Entry.Viewport->GetDepthSRV();
-		Item.VisualizationParams.NearZ = Entry.LocalState.NearPlane;
-		Item.VisualizationParams.FarZ = Entry.LocalState.FarPlane;
+		float VisualizationNearPlane = Entry.LocalState.NearPlane;
+		float VisualizationFarPlane = Entry.LocalState.FarPlane;
+		const bool bIsPIEPossessedView =
+			Entry.WorldContext &&
+			Entry.WorldContext->WorldType == EWorldType::PIE &&
+			EditorEngine->IsPIEActive() &&
+			EditorEngine->IsPIEInputCaptured();
+		if (bIsPIEPossessedView)
+		{
+			if (UWorld* EntryWorld = Entry.WorldContext->World)
+			{
+				if (UCameraComponent* ActiveCameraComponent = EntryWorld->GetActiveCameraComponent())
+				{
+					VisualizationNearPlane = ActiveCameraComponent->GetNearPlane();
+					VisualizationFarPlane = ActiveCameraComponent->GetFarPlane();
+				}
+			}
+		}
+		Item.VisualizationParams.NearZ = VisualizationNearPlane;
+		Item.VisualizationParams.FarZ = VisualizationFarPlane;
 		Item.VisualizationParams.bOrthographic = (Entry.LocalState.ProjectionType == EViewportType::Perspective) ? 0u : 1u;
 		Item.Rect.X = Rect.X;
 		Item.Rect.Y = Rect.Y;

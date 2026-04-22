@@ -3,6 +3,7 @@
 #include "Types/String.h"
 #include "EngineAPI.h"
 #include <d3d11.h>
+#include <functional>
 
 class ULevel;
 
@@ -19,8 +20,11 @@ struct ENGINE_API FCameraSerializeData
 class ENGINE_API FSceneSerializer
 {
 public:
+	using FSceneLoadProgressCallback = std::function<void(float, const FString&)>;
+
 	static void Save(ULevel* Scene, const FString& FilePath,
 	                 const FCameraSerializeData& CameraData = {});
 	static bool Load(ULevel* Scene, const FString& FilePath, ID3D11Device* Device,
-	                 FCameraSerializeData* OutCameraData = nullptr);
+	                 FCameraSerializeData* OutCameraData = nullptr,
+	                 const FSceneLoadProgressCallback& ProgressCallback = {});
 };

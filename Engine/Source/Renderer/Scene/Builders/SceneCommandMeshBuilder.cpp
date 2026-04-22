@@ -92,6 +92,10 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			{
 				Batch.Domain             = EMaterialDomain::EditorPrimitive;
 				Batch.PassMask           = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
+				if (PrimitiveComponent->IsPickable())
+				{
+					Batch.PassMask |= static_cast<uint32>(EMeshPassMask::EditorPicking);
+				}
 				Batch.bDisableDepthWrite = true;
 				Batch.bDisableDepthTest  = PrimitiveComponent->IsA(ULineBatchComponent::StaticClass());
 			}
@@ -168,6 +172,10 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			{
 				Batch.Domain             = EMaterialDomain::EditorPrimitive;
 				Batch.PassMask           = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
+				if (PrimitiveComponent->IsPickable())
+				{
+					Batch.PassMask |= static_cast<uint32>(EMeshPassMask::EditorPicking);
+				}
 				Batch.bDisableDepthWrite = true;
 				Batch.bDisableDepthTest  = PrimitiveComponent->IsA(ULineBatchComponent::StaticClass());
 			}

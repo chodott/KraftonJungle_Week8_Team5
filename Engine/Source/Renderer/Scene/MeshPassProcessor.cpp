@@ -235,6 +235,11 @@ void FMeshPassProcessor::ExecutePass(
 			}
 
 			DepthOpt.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+			if (PassType == EMeshPassType::EditorPicking)
+			{
+				// ID picking pass is rendered standalone (without depth prepass), so it must write depth.
+				DepthOpt.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+			}
 			if (DepthOpt.DepthFunc == D3D11_COMPARISON_LESS)
 			{
 				DepthOpt.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
@@ -263,6 +268,14 @@ void FMeshPassProcessor::ExecutePass(
 		else
 		{
 			Renderer.GetRenderStateManager()->BindState(Batch->Material->GetDepthStencilState());
+		}
+
+		if (PassType == EMeshPassType::EditorPicking)
+		{
+			// ID buffer is R32_UINT; force opaque blend state for deterministic integer writes.
+			FBlendStateOption BlendOpt = Batch->Material->GetBlendOption();
+			BlendOpt.BlendEnable = false;
+			Renderer.GetRenderStateManager()->BindState(Renderer.GetRenderStateManager()->GetOrCreateBlendState(BlendOpt));
 		}
 
 		if (Batch->Mesh != CurrentMesh)

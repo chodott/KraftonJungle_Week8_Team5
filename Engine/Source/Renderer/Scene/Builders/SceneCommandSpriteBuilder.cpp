@@ -97,6 +97,7 @@ void FSceneCommandSpriteBuilder::BuildSubUVInputs(
 		FMeshBatch Batch;
 		Batch.Mesh = SubUVMesh;
 		Batch.Material = SubUVMaterial;
+		Batch.SourceComponent = SubUVComponent;
 		Batch.Domain = EMaterialDomain::Transparent;
 		Batch.PassMask = static_cast<uint32>(EMeshPassMask::ForwardTransparent);
 		Batch.bDisableDepthWrite = true;
@@ -169,10 +170,15 @@ void FSceneCommandSpriteBuilder::BuildBillboardInputs(
 		FMeshBatch Batch;
 		Batch.Mesh = BillboardMesh;
 		Batch.Material = BillboardMaterial;
+		Batch.SourceComponent = BillboardComponent;
 		Batch.Domain = BillboardComponent->IsEditorVisualization() ? EMaterialDomain::EditorPrimitive : EMaterialDomain::Transparent;
 		Batch.PassMask = BillboardComponent->IsEditorVisualization()
 			? static_cast<uint32>(EMeshPassMask::EditorPrimitive)
 			: static_cast<uint32>(EMeshPassMask::ForwardTransparent);
+		if (BillboardComponent->IsPickable())
+		{
+			Batch.PassMask |= static_cast<uint32>(EMeshPassMask::EditorPicking);
+		}
 		Batch.bDisableDepthWrite = true;
 
 		const FVector WorldPosition = BillboardComponent->GetWorldTransform().GetTranslation();

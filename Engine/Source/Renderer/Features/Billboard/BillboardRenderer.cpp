@@ -47,14 +47,20 @@ bool FBillboardRenderer::Initialize(FRenderer& InRenderer)
 	const std::wstring ShaderDir = FPaths::ShaderDir();
 	const std::wstring VSPath = ShaderDir + L"EditorScreenOverlay/SubUVVertexShader.hlsl";
 	const std::wstring PSPath = ShaderDir + L"EditorScreenOverlay/SubUVPixelShader.hlsl";
+	const std::wstring PickingPSPath = ShaderDir + L"SelectionHighlight/PickingTexturePixelShader.hlsl";
 
 	auto VS = FShaderMap::Get().GetOrCreateVertexShader(Device, VSPath.c_str());
 	auto PS = FShaderMap::Get().GetOrCreatePixelShader(Device, PSPath.c_str());
+	auto PickingPS = FShaderMap::Get().GetOrCreatePixelShader(Device, PickingPSPath.c_str());
 
 	BillboardMaterial = std::make_shared<FMaterial>();
 	BillboardMaterial->SetOriginName("M_Billboard");
 	BillboardMaterial->SetVertexShader(VS);
 	BillboardMaterial->SetPixelShader(PS);
+	FMaterialPassShaders PickingPass;
+	PickingPass.VS = VS;
+	PickingPass.PS = PickingPS;
+	BillboardMaterial->SetPassShaders(EMaterialPassType::Picking, PickingPass);
 
 	FRasterizerStateOption RasterizerOption;
 	RasterizerOption.FillMode = D3D11_FILL_SOLID;
