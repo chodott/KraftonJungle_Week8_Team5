@@ -30,6 +30,7 @@ void BuildDefaultSceneRenderPipeline(FRenderPipeline& OutPipeline, const FMeshPa
 	OutPipeline.AddPass(std::make_unique<FFogPostPass>());
 	OutPipeline.AddPass(std::make_unique<FFireBallPass>());
 	OutPipeline.AddPass(std::make_unique<FForwardTransparentPass>(MeshPassProcessor));
+	OutPipeline.AddPass(std::make_unique<FBloomPass>());
 
 	// Editor World Overlay
 	OutPipeline.AddPass(std::make_unique<FEditorGridPass>(MeshPassProcessor));

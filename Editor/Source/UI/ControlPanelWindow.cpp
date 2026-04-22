@@ -43,6 +43,7 @@
 #include "Math/MathUtility.h"
 #include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Resources/Material/MaterialManager.h"
+#include "Renderer/Features/Lighting/BloomRenderFeature.h"
 
 namespace
 {
@@ -471,6 +472,47 @@ void FControlPanelWindow::Render(FEditorEngine *Engine)
         {
             ImGui::TextDisabled("Renderer unavailable.");
         }
+
+		ImGui::Dummy(ImVec2(0.0f, 5.0f));
+		ImGui::SeparatorText("Post Processing");
+		ImGui::Dummy(ImVec2(0.0f, 5.0f));
+		ImGui::Text("Bloom");
+
+		if (FRenderer* Renderer = Engine->GetRenderer())
+		{
+			FBloomRenderFeature* Bloom = Renderer->GetBloomFeature();
+			bool bApplyBloom = Bloom ? Bloom->IsBloomApplied() : false;
+			if (ImGui::Checkbox("Apply", &bApplyBloom))
+			{
+				if (Bloom) Bloom->SetApplyBloom(bApplyBloom);
+			}
+
+			float Threshold = Bloom ? Bloom->GetThreshold() : 0.0f;
+			float BloomIntensity = Bloom ? Bloom->GetBloomIntensity() : 0.0f;
+			float Exposure = Bloom ? Bloom->GetExposure() : 0.0f;
+			int Range = Bloom ? Bloom->GetBlurIterations() * 4 : 1 * 4;
+
+			if (ImGui::DragInt("Range (px)", &Range, 4.0f, 0, 50 * 4))
+			{
+				if (Bloom) Bloom->SetBlurIterations(Range / 4);
+			}
+			if (ImGui::DragFloat("Threshold", &Threshold, 0.01f, 0.0f, 1.0f))
+			{
+				if (Bloom) Bloom->SetThreshold(Threshold);
+			}
+			if (ImGui::DragFloat("Bloom Intensity", &BloomIntensity, 0.05f, 0.0f, 30.0f))
+			{
+				if (Bloom) Bloom->SetBloomIntensity(BloomIntensity);
+			}
+			if (ImGui::DragFloat("Exposure", &Exposure, 0.05f, 0.0f, 10.0f))
+			{
+				if (Bloom) Bloom->SetExposure(Exposure);
+			}
+		}
+		else
+		{
+			ImGui::TextDisabled("Renderer unavailable.");
+		}
     }
 
 	ImGui::End();

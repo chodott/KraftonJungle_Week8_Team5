@@ -636,6 +636,7 @@
     <ClCompile Include="Source\World\World.cpp">
       <Filter>Source\World</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Renderer\Features\Lighting\BloomRenderFeature.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\CoreMinimal.h">
@@ -1574,6 +1575,7 @@
     <ClInclude Include="ThirdParty\nlohmann\json.hpp">
       <Filter>ThirdParty\nlohmann</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Lighting\BloomRenderFeature.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
