@@ -22,6 +22,16 @@ public:
 		FSceneRenderTargets& Targets);
 	void Release();
 
+	void SetApplyBloom(bool bInApplyBloom) { bApplyBloom = bInApplyBloom; }
+	void SetThreshold(float InThreshold) { Threshold = InThreshold; }
+	void SetBloomIntensity(float InBloomIntensity) { BloomIntensity = InBloomIntensity; }
+	void SetExposure(float InExposure) { Exposure = InExposure; }
+
+	bool IsBloomApplied() const { return bApplyBloom; }
+	float GetThreshold() const { return Threshold; }
+	float GetBloomIntensity() const { return BloomIntensity; }
+	float GetExposure() const { return Exposure; }
+
 private:
 	ID3D11Texture2D* BloomBrightnessTexture = nullptr;
 	ID3D11RenderTargetView* BloomBrightnessRTV = nullptr;
@@ -47,5 +57,10 @@ private:
 	void UpdateThresholdConstantBuffer(FRenderer& Renderer);
 	void UpdateBlurConstantBuffer(FRenderer& Renderer, UINT Width, UINT Height);
 	void UpdateCompositeConstantBuffer(FRenderer& Renderer);
+
+	bool bApplyBloom = false;
+	float Threshold = 0.3f;
+	float BloomIntensity = 3.0f;
+	float Exposure = 1.0f;
 };
 

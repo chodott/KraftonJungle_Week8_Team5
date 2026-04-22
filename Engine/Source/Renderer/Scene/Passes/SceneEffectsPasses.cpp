@@ -75,6 +75,8 @@ bool FBloomPass::Execute(FPassContext& Context)
 	FBloomRenderFeature* Feature = Context.Renderer.GetBloomFeature();
 	if (!Feature)
 		return true;
+	if (Context.SceneViewData.RenderMode == ERenderMode::Unlit || Context.SceneViewData.RenderMode == ERenderMode::Wireframe)
+		return true;
 	return Feature->Render(
 		Context.Renderer,
 		Context.SceneViewData.Frame,

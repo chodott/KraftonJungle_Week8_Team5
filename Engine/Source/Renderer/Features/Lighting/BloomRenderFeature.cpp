@@ -10,7 +10,7 @@ namespace
 {
 	struct FBloomThresholdParams
 	{
-		float Threshold = 0.1f;
+		float Threshold = 0.3f;
 		float Knee = 0.1f;
 		float Pad[2] = {};
 	};
@@ -23,8 +23,8 @@ namespace
 
 	struct FBloomCompositeParams
 	{
-		float BloomIntensity = 30.0f;
-		float Exposure = 3.0f;
+		float BloomIntensity = 3.0f;
+		float Exposure = 1.0f;
 		float Pad[2] = {};
 	};
 }
@@ -40,6 +40,9 @@ bool FBloomRenderFeature::Render(
 	const FViewContext& View,
 	FSceneRenderTargets& Targets)
 {
+	if(!bApplyBloom)
+		return true;
+
 	if (!Targets.SceneColorRTV || !Targets.SceneColorSRV)
 		return true;
 
@@ -84,36 +87,28 @@ bool FBloomRenderFeature::Render(
 	{
 		UpdateBlurConstantBuffer(Renderer, Width, Height);
 
-		for (int32 i = 0; i < 5; ++i)
-		{
-			bool bPingPong = (i % 2 == 0);
+		ID3D11ShaderResourceView* srvs[] = { BloomBrightnessSRV };
+		ID3D11UnorderedAccessView* uavs[] = { BloomScratchUAV };
+		ID3D11Buffer* cbs[] = { BlurConstantBuffer };
 
-			ID3D11ShaderResourceView* srvs[] = { bPingPong ? BloomBrightnessSRV : BloomScratchSRV };
-			ID3D11UnorderedAccessView* uavs[] = { bPingPong ? BloomScratchUAV : BloomBrightnessUAV };
-			ID3D11Buffer* cbs[] = { BlurConstantBuffer };
+		BlurCS->Bind(DeviceContext);
+		DeviceContext->CSSetConstantBuffers(0, 1, cbs);
+		DeviceContext->CSSetShaderResources(0, 1, srvs);
+		DeviceContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
 
-			BlurCS->Bind(DeviceContext);
-			DeviceContext->CSSetConstantBuffers(0, 1, cbs);
-			DeviceContext->CSSetShaderResources(0, 1, srvs);
-			DeviceContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
+		DeviceContext->Dispatch((Width + 15) / 16, (Height + 15) / 16, 1);
 
-			DeviceContext->Dispatch((Width + 15) / 16, (Height + 15) / 16, 1);
-
-			ID3D11UnorderedAccessView* nullUAV[] = { nullptr };
-			ID3D11ShaderResourceView* nullSRV[] = { nullptr };
-			DeviceContext->CSSetUnorderedAccessViews(0, 1, nullUAV, nullptr);
-			DeviceContext->CSSetShaderResources(0, 1, nullSRV);
-		}
-
+		ID3D11UnorderedAccessView* nullUAV[] = { nullptr };
+		ID3D11ShaderResourceView* nullSRV[] = { nullptr };
+		DeviceContext->CSSetUnorderedAccessViews(0, 1, nullUAV, nullptr);
+		DeviceContext->CSSetShaderResources(0, 1, nullSRV);
 	}
-	ID3D11ShaderResourceView* finalBloomSRV =
-		(5 % 2 == 1) ? BloomScratchSRV : BloomBrightnessSRV;
 
 	// ── Pass 3: Composite → SceneColorWrite ────────────────
 	{
 		UpdateCompositeConstantBuffer(Renderer);
 
-		ID3D11ShaderResourceView* srvs[] = { Targets.SceneColorSRV, finalBloomSRV };
+		ID3D11ShaderResourceView* srvs[] = { Targets.SceneColorSRV, BloomScratchSRV };
 		ID3D11UnorderedAccessView* uavs[] = { Targets.GetSceneColorWriteUAV() };
 		ID3D11Buffer* cbs[] = { CompositeConstantBuffer };
 
@@ -281,7 +276,7 @@ void FBloomRenderFeature::UpdateThresholdConstantBuffer(FRenderer& Renderer)
 	if (SUCCEEDED(DC->Map(ThresholdConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
 	{
 		FBloomThresholdParams Params;
-		Params.Threshold = 1.0f;
+		Params.Threshold = Threshold;
 		Params.Knee = 0.1f;
 		memcpy(Mapped.pData, &Params, sizeof(Params));
 		DC->Unmap(ThresholdConstantBuffer, 0);
@@ -309,8 +304,8 @@ void FBloomRenderFeature::UpdateCompositeConstantBuffer(FRenderer& Renderer)
 	if (SUCCEEDED(DC->Map(CompositeConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
 	{
 		FBloomCompositeParams Params;
-		Params.BloomIntensity = 0.3f;
-		Params.Exposure = 1.0f;
+		Params.BloomIntensity = BloomIntensity;
+		Params.Exposure = Exposure;
 		memcpy(Mapped.pData, &Params, sizeof(Params));
 		DC->Unmap(CompositeConstantBuffer, 0);
 	}
