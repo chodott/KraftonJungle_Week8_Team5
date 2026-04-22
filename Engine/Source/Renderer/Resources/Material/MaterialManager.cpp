@@ -496,6 +496,25 @@ void FMaterialManager::Register(const FString& Name, const std::shared_ptr<FMate
 	}
 }
 
+void FMaterialManager::RegisterFromSource(const FString& SourceAssetName, const FString& Name, const std::shared_ptr<FMaterial>& InMaterial)
+{
+	Register(Name, InMaterial);
+
+	if (SourceAssetName.empty() || Name.empty())
+	{
+		return;
+	}
+
+	TArray<FString>& MaterialNames = SourceToMaterialNames[SourceAssetName];
+	const bool bAlreadyExists = std::find(MaterialNames.begin(), MaterialNames.end(), Name) != MaterialNames.end();
+	if (!bAlreadyExists)
+	{
+		MaterialNames.push_back(Name);
+	}
+
+	MaterialNameToSource[Name] = SourceAssetName;
+}
+
 TArray<FString> FMaterialManager::GetLoadedPaths() const
 {
 	TArray<FString> Result;
@@ -516,8 +535,42 @@ TArray<FString> FMaterialManager::GetAllMaterialNames() const
 	return Names;
 }
 
+TArray<FString> FMaterialManager::GetMaterialSourceAssets() const
+{
+	TArray<FString> Sources;
+	for (const auto& Pair : SourceToMaterialNames)
+	{
+		Sources.push_back(Pair.first);
+	}
+	return Sources;
+}
+
+TArray<FString> FMaterialManager::GetMaterialNamesBySource(const FString& SourceAssetName) const
+{
+	auto It = SourceToMaterialNames.find(SourceAssetName);
+	if (It == SourceToMaterialNames.end())
+	{
+		return {};
+	}
+
+	return It->second;
+}
+
+FString FMaterialManager::GetMaterialSourceByName(const FString& MaterialName) const
+{
+	auto It = MaterialNameToSource.find(MaterialName);
+	if (It == MaterialNameToSource.end())
+	{
+		return {};
+	}
+
+	return It->second;
+}
+
 void FMaterialManager::Clear()
 {
 	PathCache.clear();
 	NameCache.clear();
+	SourceToMaterialNames.clear();
+	MaterialNameToSource.clear();
 }

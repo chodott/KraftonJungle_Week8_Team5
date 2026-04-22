@@ -55,7 +55,9 @@ public:
 
 	void BuildMeshBatches(AActor* SelectedActor, const FViewportEntry* Entry, TArray<FMeshBatch>& OutBatches) const;
 	bool BeginDrag(AActor* SelectedActor, const FViewportEntry* Entry, const FPicker& Picker, int32 ScreenX, int32 ScreenY);
+	bool BeginDrag(AActor* SelectedActor, const TArray<AActor*>& SelectedActors, const FViewportEntry* Entry, const FPicker& Picker, int32 ScreenX, int32 ScreenY);
 	bool UpdateDrag(AActor* SelectedActor, const FViewportEntry* Entry, const FPicker& Picker, int32 ScreenX, int32 ScreenY);
+	bool UpdateDrag(AActor* SelectedActor, const TArray<AActor*>& SelectedActors, const FViewportEntry* Entry, const FPicker& Picker, int32 ScreenX, int32 ScreenY);
 	void UpdateHover(AActor* SelectedActor, const FViewportEntry* Entry, const FPicker& Picker, int32 ScreenX, int32 ScreenY);
 	void ClearHover();
 	void EndDrag();
@@ -93,6 +95,14 @@ private:
 	float GetRenderGizmoScale(float BaseGizmoScale) const;
 
 private:
+	struct FDragSelectionTransform
+	{
+		TObjectPtr<AActor> Actor;
+		FVector StartWorldLocation = FVector::ZeroVector;
+		FQuat StartWorldRotation = FQuat::Identity;
+		FVector StartRelativeScale = FVector::OneVector;
+	};
+
 	EGizmoMode Mode = EGizmoMode::Location;
 	EGizmoCoordinateSpace CoordinateSpace = EGizmoCoordinateSpace::World;
 	EGizmoAxis ActiveAxis = EGizmoAxis::None;
@@ -108,6 +118,10 @@ private:
 	FQuat DragStartActorRotation = FQuat::Identity;
 	int32 DragStartScreenX = 0;
 	int32 DragStartScreenY = 0;
+	FVector DragPivotStartWorldLocation = FVector::ZeroVector;
+	FQuat DragPivotStartWorldRotation = FQuat::Identity;
+	FVector DragPivotStartRelativeScale = FVector::OneVector;
+	TArray<FDragSelectionTransform> DragSelectionTransforms;
 
 	std::shared_ptr<FMaterial> Material;
 

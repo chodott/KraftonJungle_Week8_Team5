@@ -2443,6 +2443,7 @@ bool FObjManager::ParseMtlFile(const FString& MtlFIlePath)
 {
 	const FString               AbsolutePath = FPaths::ToAbsolutePath(MtlFIlePath);
 	const std::filesystem::path FilePath     = FPaths::ToPath(AbsolutePath).lexically_normal();
+	const FString               SourceAssetName = FPaths::FromPath(FilePath.filename());
 
 	std::ifstream File(FilePath);
 	if (!File.is_open())
@@ -2470,7 +2471,7 @@ bool FObjManager::ParseMtlFile(const FString& MtlFIlePath)
 			SS >> MaterialName;
 
 			CurrentMaterial = CreateImportedMaterialTemplate(MaterialName.c_str());
-			FMaterialManager::Get().Register(MaterialName.c_str(), CurrentMaterial);
+			FMaterialManager::Get().RegisterFromSource(SourceAssetName, MaterialName.c_str(), CurrentMaterial);
 		}
 		else if (Type == "Kd" && CurrentMaterial)
 		{
@@ -2567,6 +2568,7 @@ void FObjManager::PreloadAllModelFiles(const FString& DirectoryPath)
 			UStaticMesh* LoadedMesh = LoadStaticMeshAsset(FullFilePath.c_str());
 		}
 	}
+	PreloadAllMtlFiles(FPaths::FromPath(FPaths::MeshDir()).c_str());
 	PreloadAllMtlFiles(FPaths::FromPath(FPaths::MaterialDir()).c_str());
 }
 

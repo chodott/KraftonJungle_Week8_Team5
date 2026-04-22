@@ -4,6 +4,9 @@
 #include "Viewport/Viewport.h"
 #include "imgui.h"
 #include <functional>
+
+#include "Types/Map.h"
+#include "Types/String.h"
 #include <memory>
 class FEditorEngine;
 class AActor;
@@ -11,6 +14,7 @@ class UActorComponent;
 class USceneComponent;
 class UBillboardComponent;
 class UMeshDecalComponent;
+class UStaticMeshComponent;
 class UStaticMeshComponent;
 class UStaticMesh;
 class FMaterial;
@@ -83,4 +87,7 @@ private:
 	float PreviewOrbitDistance = 3.5f;
 	std::unique_ptr<FViewport> MaterialPreviewViewport;
 	std::unique_ptr<FSceneTargetManager> MaterialPreviewTargetManager;
+	TMap<UStaticMeshComponent*, FString> MaterialSourceSelectionCache;
+	AActor* LastSelectedActor = nullptr;
+	UActorComponent* LastSelectedComponent = nullptr;
 };

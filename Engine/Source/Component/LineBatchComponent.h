@@ -5,7 +5,7 @@
 #include "Math/Vector4.h"
 #include "Renderer/Mesh/MeshData.h"
 
-class ULineBatchComponent : public UPrimitiveComponent
+class ENGINE_API ULineBatchComponent : public UPrimitiveComponent
 {
 	DECLARE_RTTI(ULineBatchComponent, UPrimitiveComponent)
 

@@ -18,8 +18,10 @@
 #include "Renderer/GPUStats.h"
 #include "Camera/Camera.h"
 #include "Component/CameraComponent.h"
+#include "Component/BillboardComponent.h"
 #include "Component/SpringArmComponent.h"
 #include "Component/StaticMeshComponent.h"
+#include "Component/UUIDBillboardComponent.h"
 #include "Core/ConsoleVariableManager.h"
 #include "Core/Engine.h"
 #include "Debug/EngineLog.h"
@@ -169,6 +171,14 @@ void FEditorEngine::Shutdown()
 {
 	FEngineLog::Get().SetCallback({});
 	if (IsPIEActive() || IsPIEPaused()) EndPIE();
+	for (auto& Pair : BillboardSelectionTintOriginalColors)
+	{
+		if (Pair.first && !Pair.first->IsPendingKill())
+		{
+			Pair.first->SetBaseColorLinear(Pair.second);
+		}
+	}
+	BillboardSelectionTintOriginalColors.clear();
 	EditorUI.SaveEditorSettings();
 
 	if (GetViewportClient() == PreviewViewportClient.get())
@@ -434,6 +444,72 @@ void FEditorEngine::RefreshLightGizmoSelectionVisibility()
 
 		RefreshLightActorGizmosForLevel(this, PreviewContext->World->GetScene());
 	}
+
+	RefreshSelectedBillboardTint();
+}
+
+void FEditorEngine::RefreshSelectedBillboardTint()
+{
+	const FLinearColor HighlightTint = FLinearColor(1.0f, 0.62f, 0.22f, 1.0f);
+	const TArray<AActor*> SelectedActors = GetSelectedActors();
+	TSet<UBillboardComponent*> SelectedBillboards;
+
+	for (AActor* SelectedActor : SelectedActors)
+	{
+		if (!SelectedActor || SelectedActor->IsPendingDestroy())
+		{
+			continue;
+		}
+
+		for (UActorComponent* Component : SelectedActor->GetComponents())
+		{
+			if (!Component || !Component->IsA(UBillboardComponent::StaticClass()))
+			{
+				continue;
+			}
+
+			UBillboardComponent* BillboardComponent = static_cast<UBillboardComponent*>(Component);
+			if (BillboardComponent->IsPendingKill() || BillboardComponent->IsA(UUUIDBillboardComponent::StaticClass()))
+			{
+				continue;
+			}
+
+			SelectedBillboards.insert(BillboardComponent);
+		}
+	}
+
+	for (auto It = BillboardSelectionTintOriginalColors.begin(); It != BillboardSelectionTintOriginalColors.end();)
+	{
+		UBillboardComponent* BillboardComponent = It->first;
+		if (!BillboardComponent || BillboardComponent->IsPendingKill())
+		{
+			It = BillboardSelectionTintOriginalColors.erase(It);
+			continue;
+		}
+
+		if (SelectedBillboards.find(BillboardComponent) == SelectedBillboards.end())
+		{
+			BillboardComponent->SetBaseColorLinear(It->second);
+			It = BillboardSelectionTintOriginalColors.erase(It);
+			continue;
+		}
+
+		++It;
+	}
+
+	for (UBillboardComponent* BillboardComponent : SelectedBillboards)
+	{
+		if (!BillboardComponent || BillboardComponent->IsPendingKill())
+		{
+			continue;
+		}
+
+		if (BillboardSelectionTintOriginalColors.find(BillboardComponent) == BillboardSelectionTintOriginalColors.end())
+		{
+			BillboardSelectionTintOriginalColors[BillboardComponent] = BillboardComponent->GetBaseColor();
+		}
+		BillboardComponent->SetBaseColorLinear(HighlightTint);
+	}
 }
 
 void FEditorEngine::PrepareFrame(float DeltaTime)
@@ -450,6 +526,7 @@ void FEditorEngine::PrepareFrame(float DeltaTime)
 
 	SyncViewportClient();
 	SyncFocusedViewportLocalState();
+	RefreshSelectedBillboardTint();
 	CameraSubsystem.PrepareFrame(GetActiveWorld(), GetScene(), DeltaTime);
 }
 

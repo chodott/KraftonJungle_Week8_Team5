@@ -28,11 +28,15 @@ public:
 
 	// 프로그래밍 방식으로 생성한 Material 등록
 	void Register(const FString& Name, const std::shared_ptr<FMaterial>& InMaterial);
+	void RegisterFromSource(const FString& SourceAssetName, const FString& Name, const std::shared_ptr<FMaterial>& InMaterial);
 
 	// 로드된 Material 파일 경로 목록 반환
 	TArray<FString> GetLoadedPaths() const;
 
 	TArray<FString> GetAllMaterialNames() const;
+	TArray<FString> GetMaterialSourceAssets() const;
+	TArray<FString> GetMaterialNamesBySource(const FString& SourceAssetName) const;
+	FString GetMaterialSourceByName(const FString& MaterialName) const;
 
 	void Clear();
 
@@ -43,4 +47,6 @@ private:
 	TMap<FString, std::shared_ptr<FMaterial>> PathCache;
 	// 이름 기반 캐시 (JSON의 "Name" 필드)
 	TMap<FString, std::shared_ptr<FMaterial>> NameCache;
+	TMap<FString, TArray<FString>> SourceToMaterialNames;
+	TMap<FString, FString> MaterialNameToSource;
 };

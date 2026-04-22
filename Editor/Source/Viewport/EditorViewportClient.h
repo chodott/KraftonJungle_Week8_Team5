@@ -52,6 +52,7 @@ public:
 	ERenderMode GetRenderMode() const { return RenderMode; }
 	// 현재 렌더 모드를 변경한다.
 	void SetRenderMode(ERenderMode InRenderMode) { RenderMode = InRenderMode; }
+	bool GetMarqueeSelectionRect(FRect& OutRect) const { return InputService.GetMarqueeSelectionRect(OutRect); }
 
 	// 파일 더블클릭을 에셋 상호작용 서비스로 전달한다.
 	void HandleFileDoubleClick(const FString& FilePath) override;

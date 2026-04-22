@@ -42,76 +42,84 @@ namespace
 		OutGridAxisV = ViewInverse.GetUpVector().GetSafeNormal();
 	}
 
-	TArray<FOutlineRenderItem> BuildSelectionOutlineItems(AActor* Selected, const FShowFlags& ShowFlags)
+	TArray<FOutlineRenderItem> BuildSelectionOutlineItems(const TArray<AActor*>& SelectedActors, const FShowFlags& ShowFlags)
 	{
 		TArray<FOutlineRenderItem> OutlineItems;
-		if (!Selected || Selected->IsPendingDestroy() || !Selected->IsVisible())
+		if (SelectedActors.empty())
 		{
 			return OutlineItems;
 		}
 
-		if (Selected->GetComponentByClass<USkyComponent>() != nullptr)
+		for (AActor* Selected : SelectedActors)
 		{
-			return OutlineItems;
-		}
-
-		for (UActorComponent* Component : Selected->GetComponents())
-		{
-			if (!Component || !Component->IsA(UPrimitiveComponent::StaticClass()))
+			if (!Selected || Selected->IsPendingDestroy() || !Selected->IsVisible())
 			{
 				continue;
 			}
 
-			if (Component->IsA(UTextRenderComponent::StaticClass()) ||
-				Component->IsA(USubUVComponent::StaticClass()) ||
-				Component->IsA(UBillboardComponent::StaticClass()))
+			if (Selected->GetComponentByClass<USkyComponent>() != nullptr)
 			{
 				continue;
 			}
 
-			UPrimitiveComponent* PrimitiveComponent = static_cast<UPrimitiveComponent*>(Component);
-			if (PrimitiveComponent->IsEditorVisualization())
+			for (UActorComponent* Component : Selected->GetComponents())
 			{
-				continue;
-			}
-
-			if (IsArrowVisualizationPrimitive(PrimitiveComponent)
-				|| IsHiddenByArrowVisualizationShowFlags(PrimitiveComponent, ShowFlags))
-			{
-				continue;
-			}
-
-			FRenderMesh* RenderMesh = PrimitiveComponent->GetRenderMesh();
-			if (!RenderMesh)
-			{
-				continue;
-			}
-
-			UMeshComponent* MeshComponent =
-				Component->IsA(UMeshComponent::StaticClass())
-				? static_cast<UMeshComponent*>(Component)
-				: nullptr;
-			const int32 SectionCount = RenderMesh->GetNumSection();
-
-			if (SectionCount > 0)
-			{
-				for (int32 SectionIndex = 0; SectionIndex < SectionCount; ++SectionIndex)
+				if (!Component || !Component->IsA(UPrimitiveComponent::StaticClass()))
 				{
-					const FMeshSection& Section = RenderMesh->Sections[SectionIndex];
-					FOutlineRenderItem& Item = OutlineItems.emplace_back();
-					Item.Mesh = RenderMesh;
-					Item.Material = MeshComponent ? MeshComponent->GetMaterial(Section.MaterialIndex).get() : nullptr;
-					Item.WorldMatrix = PrimitiveComponent->GetRenderWorldTransform();
-					Item.IndexStart = Section.StartIndex;
-					Item.IndexCount = Section.IndexCount;
+					continue;
 				}
-				continue;
-			}
 
-			FOutlineRenderItem& Item = OutlineItems.emplace_back();
-			Item.Mesh = RenderMesh;
-			Item.Material = MeshComponent ? MeshComponent->GetMaterial(0).get() : nullptr;
-			Item.WorldMatrix = PrimitiveComponent->GetRenderWorldTransform();
+				if (Component->IsA(UTextRenderComponent::StaticClass()) ||
+					Component->IsA(USubUVComponent::StaticClass()) ||
+					Component->IsA(UBillboardComponent::StaticClass()))
+				{
+					continue;
+				}
+
+				UPrimitiveComponent* PrimitiveComponent = static_cast<UPrimitiveComponent*>(Component);
+				if (PrimitiveComponent->IsEditorVisualization())
+				{
+					continue;
+				}
+
+				if (IsArrowVisualizationPrimitive(PrimitiveComponent)
+					|| IsHiddenByArrowVisualizationShowFlags(PrimitiveComponent, ShowFlags))
+				{
+					continue;
+				}
+
+				FRenderMesh* RenderMesh = PrimitiveComponent->GetRenderMesh();
+				if (!RenderMesh)
+				{
+					continue;
+				}
+
+				UMeshComponent* MeshComponent =
+					Component->IsA(UMeshComponent::StaticClass())
+					? static_cast<UMeshComponent*>(Component)
+					: nullptr;
+				const int32 SectionCount = RenderMesh->GetNumSection();
+
+				if (SectionCount > 0)
+				{
+					for (int32 SectionIndex = 0; SectionIndex < SectionCount; ++SectionIndex)
+					{
+						const FMeshSection& Section = RenderMesh->Sections[SectionIndex];
+						FOutlineRenderItem& Item = OutlineItems.emplace_back();
+						Item.Mesh = RenderMesh;
+						Item.Material = MeshComponent ? MeshComponent->GetMaterial(Section.MaterialIndex).get() : nullptr;
+						Item.WorldMatrix = PrimitiveComponent->GetRenderWorldTransform();
+						Item.IndexStart = Section.StartIndex;
+						Item.IndexCount = Section.IndexCount;
+					}
+					continue;
+				}
+
+				FOutlineRenderItem& Item = OutlineItems.emplace_back();
+				Item.Mesh = RenderMesh;
+				Item.Material = MeshComponent ? MeshComponent->GetMaterial(0).get() : nullptr;
+				Item.WorldMatrix = PrimitiveComponent->GetRenderWorldTransform();
+			}
 		}
 
 		return OutlineItems;
@@ -156,6 +164,7 @@ void FEditorViewportRenderService::RenderAll(
 	FEditorFrameRequest FrameRequest;
 	const TArray<FViewportEntry>& Entries = ViewportRegistry.GetEntries();
 	AActor* SelectedActor = EditorEngine->GetSelectedActor();
+	const TArray<AActor*> SelectedActors = EditorEngine->GetSelectedActors();
 
 	int32 EntryIndex = 0;
 	for (const FViewportEntry& Entry : Entries)
@@ -192,7 +201,7 @@ void FEditorViewportRenderService::RenderAll(
 			continue;
 		}
 		const bool bIsEditorWorld = EntryWorldContext && EntryWorldContext->WorldType == EWorldType::Editor;
-		const bool bCanShowEditorSelection = bIsEditorWorld && SelectedActor && SelectedActor->GetWorld() == EntryWorld;
+		const bool bCanShowEditorSelection = bIsEditorWorld && !SelectedActors.empty();
 
 		FSceneRenderPacket ScenePacket;
 		// 씬 패킷과 별도로, 그리드/기즈모 같은 추가 씬 커맨드는 별도 큐로 유지한다.
@@ -220,7 +229,8 @@ void FEditorViewportRenderService::RenderAll(
 		const FVector CameraPosition = ViewMatrix.GetInverse().GetTranslation();
 		BuildSceneRenderPacket(Engine, EntryWorld, Frustum, Entry.LocalState.ShowFlags, ScenePacket);
 
-		if (bCanShowEditorSelection && SelectedActor->GetComponentByClass<USkyComponent>() == nullptr)
+		if (bCanShowEditorSelection && SelectedActor && SelectedActor->GetWorld() == EntryWorld &&
+			SelectedActor->GetComponentByClass<USkyComponent>() == nullptr)
 		{
 			Gizmo.BuildMeshBatches(SelectedActor, &Entry, AdditionalMeshBatches);
 		}
@@ -294,7 +304,16 @@ void FEditorViewportRenderService::RenderAll(
 			Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_Primitives);
 		if (ScenePass.OutlineRequest.bEnabled)
 		{
-			ScenePass.OutlineRequest.Items = BuildSelectionOutlineItems(SelectedActor, Entry.LocalState.ShowFlags);
+			TArray<AActor*> SelectedInWorld;
+			SelectedInWorld.reserve(SelectedActors.size());
+			for (AActor* Actor : SelectedActors)
+			{
+				if (Actor && Actor->GetWorld() == EntryWorld)
+				{
+					SelectedInWorld.push_back(Actor);
+				}
+			}
+			ScenePass.OutlineRequest.Items = BuildSelectionOutlineItems(SelectedInWorld, Entry.LocalState.ShowFlags);
 		}
 		ScenePass.DebugInputs.DrawManager = &Engine->GetDebugDrawManager();
 		ScenePass.DebugInputs.World = EntryWorld;

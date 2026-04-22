@@ -1545,6 +1545,24 @@ void FEditorUI::Render()
     SceneManager.Render(Engine);
     ContentBrowser.Render();
 
+	if (Engine)
+	{
+		if (FEditorViewportClient* ViewportClient = static_cast<FEditorViewportClient*>(Engine->GetViewportClient()))
+		{
+			FRect MarqueeRect;
+			if (ViewportClient->GetMarqueeSelectionRect(MarqueeRect))
+			{
+				ImDrawList* ForegroundDrawList = ImGui::GetForegroundDrawList();
+				const ImVec2 MinPoint(static_cast<float>(MarqueeRect.X), static_cast<float>(MarqueeRect.Y));
+				const ImVec2 MaxPoint(
+					static_cast<float>(MarqueeRect.X + MarqueeRect.Width),
+					static_cast<float>(MarqueeRect.Y + MarqueeRect.Height));
+				ForegroundDrawList->AddRectFilled(MinPoint, MaxPoint, IM_COL32(80, 160, 255, 40), 0.0f);
+				ForegroundDrawList->AddRect(MinPoint, MaxPoint, IM_COL32(80, 160, 255, 220), 0.0f, 0, 1.5f);
+			}
+		}
+	}
+
     if (bRequestViewportFocusOnNextRender)
     {
         if (ImGui::GetCurrentContext())

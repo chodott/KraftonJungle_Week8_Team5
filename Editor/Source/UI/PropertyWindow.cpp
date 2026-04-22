@@ -9,6 +9,7 @@
 #include "Component/RandomColorComponent.h"
 #include "Component/SceneComponent.h"
 #include "Component/StaticMeshComponent.h"
+#include "Component/LineBatchComponent.h"
 #include "Component/SubUVComponent.h"
 #include "Component/TextComponent.h"
 #include "Component/UUIDBillboardComponent.h"
@@ -53,6 +54,7 @@
 #include <algorithm>
 #include <chrono>
 
+#include "imgui_internal.h"
 #include "Renderer/Features/Billboard/BillboardRenderer.h"
 
 namespace
@@ -529,6 +531,285 @@ namespace
 
 	return "UnnamedMesh";
 	}
+
+	template <typename TComponent>
+	TComponent* FindOwnedComponentByExactName(AActor* OwnerActor, const FString& ComponentName)
+	{
+		if (!OwnerActor || ComponentName.empty())
+		{
+			return nullptr;
+		}
+
+		for (UActorComponent* Component : OwnerActor->GetComponents())
+		{
+			if (!Component || !Component->IsA(TComponent::StaticClass()) || Component->GetName() != ComponentName)
+			{
+				continue;
+			}
+
+			return static_cast<TComponent*>(Component);
+		}
+
+		return nullptr;
+	}
+
+	FString GetLightDebugBillboardName(const ULightComponent* LightComponent)
+	{
+		return LightComponent ? (LightComponent->GetName() + "_DebugBillboard") : FString();
+	}
+
+	FString GetPointLightDebugGizmoName(const UPointLightComponent* PointLightComponent)
+	{
+		return PointLightComponent ? (PointLightComponent->GetName() + "_PointRadiusGizmo") : FString();
+	}
+
+	FString GetSpotLightDebugGizmoName(const USpotLightComponent* SpotLightComponent)
+	{
+		return SpotLightComponent ? (SpotLightComponent->GetName() + "_SpotConeGizmo") : FString();
+	}
+
+	void RefreshAttachedLightBillboard(ULightComponent* LightComponent)
+	{
+		if (!LightComponent)
+		{
+			return;
+		}
+
+		AActor* OwnerActor = LightComponent->GetOwner();
+		if (!OwnerActor)
+		{
+			return;
+		}
+
+		UBillboardComponent* BillboardComponent =
+			FindOwnedComponentByExactName<UBillboardComponent>(OwnerActor, GetLightDebugBillboardName(LightComponent));
+		if (!BillboardComponent)
+		{
+			return;
+		}
+
+		FLinearColor Tint = LightComponent->GetColor();
+		Tint.A = 1.0f;
+		BillboardComponent->SetBaseColorLinear(Tint);
+	}
+
+	void RefreshAttachedPointLightGizmo(UPointLightComponent* PointLightComponent)
+	{
+		if (!PointLightComponent)
+		{
+			return;
+		}
+
+		AActor* OwnerActor = PointLightComponent->GetOwner();
+		if (!OwnerActor)
+		{
+			return;
+		}
+
+		ULineBatchComponent* RadiusGizmoComponent =
+			FindOwnedComponentByExactName<ULineBatchComponent>(OwnerActor, GetPointLightDebugGizmoName(PointLightComponent));
+		if (!RadiusGizmoComponent)
+		{
+			return;
+		}
+
+		RadiusGizmoComponent->Clear();
+		const float Radius = (std::max)(PointLightComponent->GetAttenuationRadius(), 0.0f);
+		if (Radius <= FMath::SmallNumber)
+		{
+			return;
+		}
+
+		const FVector4 GizmoColor(0.10f, 0.45f, 1.00f, 1.00f);
+		RadiusGizmoComponent->DrawWireSphere(FVector::ZeroVector, Radius, GizmoColor);
+	}
+
+	void RefreshAttachedSpotLightGizmo(USpotLightComponent* SpotLightComponent)
+	{
+		if (!SpotLightComponent)
+		{
+			return;
+		}
+
+		AActor* OwnerActor = SpotLightComponent->GetOwner();
+		if (!OwnerActor)
+		{
+			return;
+		}
+
+		ULineBatchComponent* ConeGizmoComponent =
+			FindOwnedComponentByExactName<ULineBatchComponent>(OwnerActor, GetSpotLightDebugGizmoName(SpotLightComponent));
+		if (!ConeGizmoComponent)
+		{
+			return;
+		}
+
+		ConeGizmoComponent->Clear();
+
+		const float Length = (std::max)(SpotLightComponent->GetAttenuationRadius(), 0.0f);
+		if (Length <= FMath::SmallNumber)
+		{
+			return;
+		}
+
+		const float OuterConeAngle = FMath::Clamp(SpotLightComponent->GetOuterConeAngle(), 0.0f, 80.0f);
+		const float InnerConeAngle = FMath::Clamp(SpotLightComponent->GetInnerConeAngle(), 0.0f, OuterConeAngle);
+
+		const FVector4 OuterColor(0.20f, 0.75f, 1.00f, 1.00f);
+		const FVector4 InnerColor(0.05f, 0.35f, 0.85f, 1.00f);
+
+		ConeGizmoComponent->DrawWireCone(
+			FVector::ZeroVector,
+			FVector::ForwardVector,
+			Length,
+			OuterConeAngle,
+			OuterColor,
+			16,
+			24,
+			true);
+
+		if (InnerConeAngle > FMath::KindaSmallNumber)
+		{
+			ConeGizmoComponent->DrawWireCone(
+				FVector::ZeroVector,
+				FVector::ForwardVector,
+				Length,
+				InnerConeAngle,
+				InnerColor,
+				16,
+				16,
+				true);
+		}
+	}
+
+	void EnsureLightDebugAttachments(UActorComponent* NewComponent)
+	{
+		if (!NewComponent || !NewComponent->IsA(ULightComponent::StaticClass()))
+		{
+			return;
+		}
+
+		ULightComponent* LightComponent = static_cast<ULightComponent*>(NewComponent);
+		AActor* OwnerActor = LightComponent->GetOwner();
+		if (!OwnerActor)
+		{
+			return;
+		}
+
+		UBillboardComponent* BillboardComponent =
+			FindOwnedComponentByExactName<UBillboardComponent>(OwnerActor, GetLightDebugBillboardName(LightComponent));
+		if (!BillboardComponent)
+		{
+			BillboardComponent = FObjectFactory::ConstructObject<UBillboardComponent>(
+				OwnerActor,
+				GetLightDebugBillboardName(LightComponent));
+			if (BillboardComponent)
+			{
+				BillboardComponent->SetInstanceComponent(true);
+				OwnerActor->AddOwnedComponent(BillboardComponent);
+				if (!BillboardComponent->IsRegistered())
+				{
+					BillboardComponent->OnRegister();
+				}
+			}
+		}
+
+		if (BillboardComponent)
+		{
+			BillboardComponent->AttachTo(LightComponent);
+			BillboardComponent->SetIgnoreParentScaleInRender(true);
+			BillboardComponent->SetEditorVisualization(true);
+			BillboardComponent->SetHiddenInGame(true);
+
+			if (LightComponent->IsA(USpotLightComponent::StaticClass()))
+			{
+				BillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_LightSpot.png").wstring());
+				BillboardComponent->SetSize(FVector2(0.5f, 0.5f));
+			}
+			else if (LightComponent->IsA(UPointLightComponent::StaticClass()))
+			{
+				BillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_LightPoint.png").wstring());
+				BillboardComponent->SetSize(FVector2(0.5f, 0.5f));
+			}
+			else if (LightComponent->IsA(UDirectionalLightComponent::StaticClass()))
+			{
+				BillboardComponent->SetTexturePath((FPaths::IconDir() / L"S_LightDirectional.png").wstring());
+				BillboardComponent->SetSize(FVector2(0.7f, 0.7f));
+			}
+			else if (LightComponent->IsA(UAmbientLightComponent::StaticClass()))
+			{
+				BillboardComponent->SetTexturePath((FPaths::IconDir() / L"SkyLight.png").wstring());
+				BillboardComponent->SetSize(FVector2(0.7f, 0.7f));
+			}
+		}
+
+		RefreshAttachedLightBillboard(LightComponent);
+
+		if (LightComponent->IsA(USpotLightComponent::StaticClass()))
+		{
+			USpotLightComponent* SpotLightComponent = static_cast<USpotLightComponent*>(LightComponent);
+			ULineBatchComponent* ConeGizmoComponent =
+				FindOwnedComponentByExactName<ULineBatchComponent>(OwnerActor, GetSpotLightDebugGizmoName(SpotLightComponent));
+			if (!ConeGizmoComponent)
+			{
+				ConeGizmoComponent = FObjectFactory::ConstructObject<ULineBatchComponent>(
+					OwnerActor,
+					GetSpotLightDebugGizmoName(SpotLightComponent));
+				if (ConeGizmoComponent)
+				{
+					ConeGizmoComponent->SetInstanceComponent(true);
+					OwnerActor->AddOwnedComponent(ConeGizmoComponent);
+					if (!ConeGizmoComponent->IsRegistered())
+					{
+						ConeGizmoComponent->OnRegister();
+					}
+				}
+			}
+
+			if (ConeGizmoComponent)
+			{
+				ConeGizmoComponent->AttachTo(SpotLightComponent);
+				ConeGizmoComponent->SetIgnoreParentScaleInRender(true);
+				ConeGizmoComponent->SetEditorVisualization(true);
+				ConeGizmoComponent->SetHiddenInGame(true);
+				ConeGizmoComponent->SetDrawDebugBounds(false);
+			}
+
+			RefreshAttachedSpotLightGizmo(SpotLightComponent);
+		}
+		else if (LightComponent->IsA(UPointLightComponent::StaticClass()))
+		{
+			UPointLightComponent* PointLightComponent = static_cast<UPointLightComponent*>(LightComponent);
+			ULineBatchComponent* RadiusGizmoComponent =
+				FindOwnedComponentByExactName<ULineBatchComponent>(OwnerActor, GetPointLightDebugGizmoName(PointLightComponent));
+			if (!RadiusGizmoComponent)
+			{
+				RadiusGizmoComponent = FObjectFactory::ConstructObject<ULineBatchComponent>(
+					OwnerActor,
+					GetPointLightDebugGizmoName(PointLightComponent));
+				if (RadiusGizmoComponent)
+				{
+					RadiusGizmoComponent->SetInstanceComponent(true);
+					OwnerActor->AddOwnedComponent(RadiusGizmoComponent);
+					if (!RadiusGizmoComponent->IsRegistered())
+					{
+						RadiusGizmoComponent->OnRegister();
+					}
+				}
+			}
+
+			if (RadiusGizmoComponent)
+			{
+				RadiusGizmoComponent->AttachTo(PointLightComponent);
+				RadiusGizmoComponent->SetIgnoreParentScaleInRender(true);
+				RadiusGizmoComponent->SetEditorVisualization(true);
+				RadiusGizmoComponent->SetHiddenInGame(true);
+				RadiusGizmoComponent->SetDrawDebugBounds(false);
+			}
+
+			RefreshAttachedPointLightGizmo(PointLightComponent);
+		}
+	}
 }
 
 FPropertyWindow::~FPropertyWindow()
@@ -771,16 +1052,78 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 	ImGui::TextDisabled("Materials");
 
 	const TArray<std::filesystem::path> TexturePaths = GetAvailableTexturePaths();
-	const TArray<FString> MaterialNames = BuildMaterialPickerNames(FMaterialManager::Get().GetAllMaterialNames(), TexturePaths);
+	FMaterialManager& MaterialManager = FMaterialManager::Get();
 	const uint32 NumSections = CurrentMesh->GetNumSections();
+	TArray<FString> MaterialSources = MaterialManager.GetMaterialSourceAssets();
+	TArray<FString> AllMaterialNames = BuildMaterialPickerNames(MaterialManager.GetAllMaterialNames(), TexturePaths);
 
+	std::sort(MaterialSources.begin(), MaterialSources.end());
+	std::sort(AllMaterialNames.begin(), AllMaterialNames.end());
+
+	FString& SelectedMaterialSource = MaterialSourceSelectionCache[MeshComponent];
+	if (SelectedMaterialSource.empty() && NumSections > 0)
+	{
+		if (std::shared_ptr<FMaterial> FirstSectionMaterial = MeshComponent->GetMaterial(0))
+		{
+			const FString FirstMaterialName = FirstSectionMaterial->GetOriginName();
+			SelectedMaterialSource = MaterialManager.GetMaterialSourceByName(FirstMaterialName);
+		}
+	}
+
+	if (!SelectedMaterialSource.empty() &&
+		std::find(MaterialSources.begin(), MaterialSources.end(), SelectedMaterialSource) == MaterialSources.end())
+	{
+		SelectedMaterialSource.clear();
+	}
+
+	const char* SourcePreview = SelectedMaterialSource.empty() ? "All Materials" : SelectedMaterialSource.c_str();
+	if (ImGui::BeginCombo("Material Set (MTL)", SourcePreview))
+	{
+		const bool bAllSelected = SelectedMaterialSource.empty();
+		if (ImGui::Selectable("All Materials", bAllSelected))
+		{
+			SelectedMaterialSource.clear();
+		}
+		if (bAllSelected)
+		{
+			ImGui::SetItemDefaultFocus();
+		}
+
+		for (const FString& SourceAsset : MaterialSources)
+		{
+			const bool bSelected = (SelectedMaterialSource == SourceAsset);
+			if (ImGui::Selectable(SourceAsset.c_str(), bSelected))
+			{
+				SelectedMaterialSource = SourceAsset;
+			}
+			if (bSelected)
+			{
+				ImGui::SetItemDefaultFocus();
+			}
+		}
+		ImGui::EndCombo();
+	}
+
+	const bool bShowTextureMaterials = SelectedMaterialSource.empty();
+	TArray<FString> MaterialNames = bShowTextureMaterials
+		? AllMaterialNames
+		: BuildMaterialPickerNames(MaterialManager.GetMaterialNamesBySource(SelectedMaterialSource), TexturePaths);
+	std::sort(MaterialNames.begin(), MaterialNames.end());
+
+	if (MaterialNames.empty() && !bShowTextureMaterials)
+	{
+		ImGui::TextDisabled("No materials available for selected set.");
+	}
+
+	const bool bHasSelectableMaterials = !MaterialNames.empty() || (bShowTextureMaterials && !TexturePaths.empty());
+	ImGui::BeginDisabled(!bHasSelectableMaterials);
 	if (ImGui::BeginCombo("Apply To All", "Select Material..."))
 	{
 		for (const FString& MaterialName : MaterialNames)
 		{
 			if (ImGui::Selectable(MaterialName.c_str(), false))
 			{
-				if (std::shared_ptr<FMaterial> Material = FMaterialManager::Get().FindByName(MaterialName))
+				if (std::shared_ptr<FMaterial> Material = MaterialManager.FindByName(MaterialName))
 				{
 					for (uint32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
 					{
@@ -789,7 +1132,7 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 				}
 			}
 		}
-		if (!TexturePaths.empty())
+		if (bShowTextureMaterials && !TexturePaths.empty())
 		{
 			ImGui::SeparatorText("Textures");
 			for (const std::filesystem::path& TexturePath : TexturePaths)
@@ -811,6 +1154,7 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 		}
 		ImGui::EndCombo();
 	}
+	ImGui::EndDisabled();
 
 	float MasterScroll[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	if (NumSections > 0)
@@ -835,11 +1179,12 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 	for (uint32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
 	{
 		std::shared_ptr<FMaterial> CurrentMaterial = MeshComponent->GetMaterial(SectionIndex);
-		const std::string CurrentMaterialName = CurrentMaterial ? CurrentMaterial->GetOriginName() : "None";
+		std::string CurrentMaterialName = CurrentMaterial ? CurrentMaterial->GetOriginName() : "None";
 		const std::string ComboLabel = "Section " + std::to_string(SectionIndex);
 
 		ImGui::PushID(static_cast<int>(SectionIndex));
 		ImGui::PushItemWidth(-1.0f);
+		ImGui::BeginDisabled(!bHasSelectableMaterials);
 		if (ImGui::BeginCombo(ComboLabel.c_str(), CurrentMaterialName.c_str()))
 		{
 			for (const FString& MaterialName : MaterialNames)
@@ -847,10 +1192,11 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 				const bool bSelected = (CurrentMaterialName == MaterialName);
 				if (ImGui::Selectable(MaterialName.c_str(), bSelected))
 				{
-					if (std::shared_ptr<FMaterial> Material = FMaterialManager::Get().FindByName(MaterialName))
+					if (std::shared_ptr<FMaterial> Material = MaterialManager.FindByName(MaterialName))
 					{
 						MeshComponent->SetMaterial(SectionIndex, Material);
-						CurrentMaterial = MeshComponent->GetMaterial(SectionIndex);
+						CurrentMaterial = Material;
+						CurrentMaterialName = CurrentMaterial ? CurrentMaterial->GetOriginName() : "None";
 					}
 				}
 				if (bSelected)
@@ -858,7 +1204,8 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 					ImGui::SetItemDefaultFocus();
 				}
 			}
-			if (!TexturePaths.empty())
+
+			if (bShowTextureMaterials && !TexturePaths.empty())
 			{
 				ImGui::SeparatorText("Textures");
 				for (const std::filesystem::path& TexturePath : TexturePaths)
@@ -872,6 +1219,7 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 						{
 							MeshComponent->SetMaterial(SectionIndex, Material);
 							CurrentMaterial = MeshComponent->GetMaterial(SectionIndex);
+							CurrentMaterialName = CurrentMaterial ? CurrentMaterial->GetOriginName() : "None";
 						}
 					}
 					if (bSelected)
@@ -881,8 +1229,10 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 					ImGui::PopID();
 				}
 			}
+
 			ImGui::EndCombo();
 		}
+		ImGui::EndDisabled();
 		ImGui::PopItemWidth();
 
 		if (CurrentMaterial)
@@ -1693,6 +2043,8 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent)
 		return;
 	}
 
+	RefreshAttachedLightBillboard(LightComponent);
+
 	ImGui::Spacing();
 	ImGui::TextDisabled("Light");
 
@@ -1778,6 +2130,8 @@ void FPropertyWindow::DrawPointLightComponentDetails(UPointLightComponent* Point
 	{
 		PointLightComponent->SetLightFalloffExponent(FalloffExponent);
 	}
+
+	RefreshAttachedPointLightGizmo(PointLightComponent);
 }
 
 void FPropertyWindow::DrawSpotLightComponentDetails(USpotLightComponent* SpotLightComponent)
@@ -1818,6 +2172,8 @@ void FPropertyWindow::DrawSpotLightComponentDetails(USpotLightComponent* SpotLig
 		SpotLightComponent->SetOuterConeAngle(OuterCone);
 		SpotLightComponent->SetInnerConeAngle(InnerCone);
 	}
+
+	RefreshAttachedSpotLightGizmo(SpotLightComponent);
 }
 
 void FPropertyWindow::DrawBillboardComponentDetials(UBillboardComponent* BillboardComponent, FEditorEngine* Engine)
@@ -2047,6 +2403,7 @@ void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngi
 
 	const FString ClassName = Component->GetClass() ? Component->GetClass()->GetName() : "UActorComponent";
 	const FString ComponentName = Component->GetName().empty() ? ClassName : Component->GetName();
+	ImGui::PushID(Component);
 
 	ImGui::Text("Name: %s", ComponentName.c_str());
 	ImGui::Text("Class: %s", ClassName.c_str());
@@ -2083,10 +2440,11 @@ void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngi
 					}
 				}
 
-				ImGui::EndDisabled();
-				return;
+					ImGui::EndDisabled();
+					ImGui::PopID();
+					return;
+				}
 			}
-		}
 		ImGui::EndDisabled();
 	}
 
@@ -2179,6 +2537,8 @@ void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngi
 	{
 		DrawPointLightComponentDetails(static_cast<UPointLightComponent*>(Component), true);
 	}
+
+	ImGui::PopID();
 }
 
 bool FPropertyWindow::AddComponentToActor(AActor* SelectedActor, UClass* ComponentClass, const char* BaseName)
@@ -2254,6 +2614,8 @@ bool FPropertyWindow::AddComponentToActor(AActor* SelectedActor, UClass* Compone
 		UMeshDecalComponent* MeshDecalComponent = static_cast<UMeshDecalComponent*>(NewComponent);
 		MeshDecalComponent->UpdateBounds();
 	}
+
+	EnsureLightDebugAttachments(NewComponent);
 
 	if (ULevel* Level = SelectedActor->GetLevel())
 	{
@@ -2502,6 +2864,11 @@ void FPropertyWindow::Render(FEditorEngine* Engine)
 	ImGui::TextColored(ImVec4(0.9f, 0.9f, 0.4f, 1.0f), "%s", ActorNameBuf);
 
 	AActor* SelectedActor = Engine ? Engine->GetSelectedActor() : nullptr;
+	if (SelectedActor != LastSelectedActor)
+	{
+		ImGui::ClearActiveID();
+	}
+
 	if (!IsComponentOwnedByActor(SelectedActor, SelectedComponent))
 	{
 		SelectedComponent = nullptr;
@@ -2525,6 +2892,11 @@ void FPropertyWindow::Render(FEditorEngine* Engine)
 		}
 	}
 
+	if (SelectedComponent != LastSelectedComponent)
+	{
+		ImGui::ClearActiveID();
+	}
+
 	ImGui::Separator();
 
 	ImGui::TextDisabled("Components");
@@ -2545,6 +2917,9 @@ void FPropertyWindow::Render(FEditorEngine* Engine)
 		DrawDetailsSection(SelectedComponent, Engine);
 	}
 	ImGui::EndChild();
+
+	LastSelectedActor = SelectedActor;
+	LastSelectedComponent = SelectedComponent;
 
 	ImGui::End();
 	return;

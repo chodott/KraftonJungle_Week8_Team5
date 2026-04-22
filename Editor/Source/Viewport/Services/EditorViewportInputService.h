@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Viewport/ViewportTypes.h"
 #include <functional>
 #include <Windows.h>
 
@@ -33,8 +34,16 @@ public:
 
 	int32 GetScreenMouseX() const { return ScreenMouseX; }
 	int32 GetScreenMouseY() const { return ScreenMouseY; }
+	bool GetMarqueeSelectionRect(FRect& OutRect) const;
 
 private:
+	bool bIsMarqueeSelecting = false;
+	FViewportId MarqueeViewportId = INVALID_VIEWPORT_ID;
+	int32 MarqueeStartWindowX = 0;
+	int32 MarqueeStartWindowY = 0;
+	int32 MarqueeCurrentWindowX = 0;
+	int32 MarqueeCurrentWindowY = 0;
+
 	int32 ScreenWidth = 0;
 	int32 ScreenHeight = 0;
 	int32 ScreenMouseX = 0;
