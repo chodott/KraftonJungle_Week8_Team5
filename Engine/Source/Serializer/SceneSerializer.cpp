@@ -7,6 +7,7 @@
 #include "Camera/Camera.h"
 #include "Core/Paths.h"
 #include "Core/Engine.h"
+#include "Asset/ObjManager.h"
 #include "Actor/Actor.h"
 #include "Component/PrimitiveComponent.h"
 #include "Level/Level.h"
@@ -21,6 +22,9 @@
 namespace
 {
 	using json = nlohmann::json;
+
+	bool IsLegacyStaticMeshPrimitiveJson(const json& PrimitiveJson);
+	json BuildModernActorJsonFromLegacyPrimitive(const json& LegacyPrimitiveJson);
 
 	bool TryReadFloat(const json& Value, float& OutValue)
 	{
@@ -166,6 +170,62 @@ namespace
 
 			const FString AbsolutePath = FPaths::ToAbsolutePath(RelativePath);
 			FMaterialManager::Get().LoadFromFile(Device, Renderer->GetRenderStateManager().get(), AbsolutePath);
+		}
+	}
+
+	void CollectStaticMeshAssetPathsRecursive(const json& Node, TSet<FString>& OutAssetPaths)
+	{
+		if (!Node.is_object())
+		{
+			return;
+		}
+
+		const auto MeshAssetIt = Node.find("ObjStaticMeshAsset");
+		if (MeshAssetIt != Node.end() && MeshAssetIt->is_string())
+		{
+			const FString AssetPath = MeshAssetIt->get<FString>();
+			if (!AssetPath.empty())
+			{
+				OutAssetPaths.insert(AssetPath);
+			}
+		}
+
+		const auto ComponentsIt = Node.find("Components");
+		if (ComponentsIt != Node.end() && ComponentsIt->is_array())
+		{
+			for (const auto& ComponentJson : *ComponentsIt)
+			{
+				CollectStaticMeshAssetPathsRecursive(ComponentJson, OutAssetPaths);
+			}
+		}
+	}
+
+	void PreloadStaticMeshesFromJson(const json& RootJson)
+	{
+		const auto PrimitivesIt = RootJson.find("Primitives");
+		if (PrimitivesIt == RootJson.end() || !PrimitivesIt->is_object())
+		{
+			return;
+		}
+
+		TSet<FString> ReferencedMeshAssets;
+		for (const auto& [Key, PrimitiveValue] : PrimitivesIt->items())
+		{
+			(void)Key;
+			const json* ActorJson = &PrimitiveValue;
+			json LegacyActorJson;
+			if (IsLegacyStaticMeshPrimitiveJson(PrimitiveValue))
+			{
+				LegacyActorJson = BuildModernActorJsonFromLegacyPrimitive(PrimitiveValue);
+				ActorJson = &LegacyActorJson;
+			}
+
+			CollectStaticMeshAssetPathsRecursive(*ActorJson, ReferencedMeshAssets);
+		}
+
+		for (const FString& MeshAssetPath : ReferencedMeshAssets)
+		{
+			(void)FObjManager::LoadStaticMeshAsset(MeshAssetPath);
 		}
 	}
 
@@ -475,6 +535,7 @@ bool FSceneSerializer::Load(ULevel* Scene, const FString& FilePath, ID3D11Device
 	}
 
 	PreloadMaterialsFromJson(Json, Device);
+	PreloadStaticMeshesFromJson(Json);
 
 	bool bAllActorsLoaded = true;
 	int32 ActorIndex = 0;

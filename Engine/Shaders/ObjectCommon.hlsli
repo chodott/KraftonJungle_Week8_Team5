@@ -9,7 +9,12 @@ cbuffer ObjectData : register(b1)
 	uint LocalLightListOffset;
 	uint LocalLightListCount;
 	uint ObjectFlags;
+	uint ObjectUUID;
+
 	uint ObjectPadding0;
+	uint ObjectPadding1;
+	uint ObjectPadding2;
+	uint ObjectPadding3;
 };
 
 #endif

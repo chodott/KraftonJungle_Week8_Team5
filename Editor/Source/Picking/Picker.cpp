@@ -1,12 +1,26 @@
 #include "Picker.h"
 
 #include "Actor/Actor.h"
+#include "Component/ActorComponent.h"
 #include "Camera/Camera.h"
 #include "Component/PrimitiveComponent.h"
 #include "Level/PrimitiveVisibilityUtils.h"
+#include "Level/ScenePacketBuilder.h"
 #include "Renderer/Mesh/MeshData.h"
+#include "Renderer/Mesh/MeshBatch.h"
+#include "Renderer/Renderer.h"
+#include "Renderer/Scene/MeshPassProcessor.h"
+#include "Renderer/Scene/SceneViewData.h"
+#include "Renderer/Scene/Builders/SceneCommandBuilder.h"
+#include "Renderer/Scene/Builders/SceneViewAssembler.h"
+#include "Renderer/Frame/RenderFrameUtils.h"
+#include "Renderer/Frame/FrameRequests.h"
 #include "Level/Level.h"
 #include "Viewport/Viewport.h"
+#include "Core/ConsoleVariableManager.h"
+#include "Math/Frustum.h"
+#include "Types/ObjectPtr.h"
+#include "World/WorldContext.h"
 
 #include <algorithm>
 #include "EditorEngine.h"
@@ -15,6 +29,150 @@
 
 namespace
 {
+	struct FGPUIdPickerResources
+	{
+		uint32 Width = 0;
+		uint32 Height = 0;
+		ID3D11Texture2D* IdTexture = nullptr;
+		ID3D11RenderTargetView* IdRTV = nullptr;
+		ID3D11Texture2D* IdReadbackTexture = nullptr;
+		ID3D11Texture2D* DepthTexture = nullptr;
+		ID3D11DepthStencilView* DepthDSV = nullptr;
+	};
+
+	FGPUIdPickerResources GGPUIdPickerResources;
+
+	void ReleaseCOM(IUnknown*& Resource)
+	{
+		if (!Resource)
+		{
+			return;
+		}
+
+		Resource->Release();
+		Resource = nullptr;
+	}
+
+	void ReleaseGPUIdPickerResources()
+	{
+		ReleaseCOM(reinterpret_cast<IUnknown*&>(GGPUIdPickerResources.DepthDSV));
+		ReleaseCOM(reinterpret_cast<IUnknown*&>(GGPUIdPickerResources.DepthTexture));
+		ReleaseCOM(reinterpret_cast<IUnknown*&>(GGPUIdPickerResources.IdReadbackTexture));
+		ReleaseCOM(reinterpret_cast<IUnknown*&>(GGPUIdPickerResources.IdRTV));
+		ReleaseCOM(reinterpret_cast<IUnknown*&>(GGPUIdPickerResources.IdTexture));
+		GGPUIdPickerResources.Width = 0;
+		GGPUIdPickerResources.Height = 0;
+	}
+
+	bool EnsureGPUIdPickerResources(ID3D11Device* Device, uint32 Width, uint32 Height)
+	{
+		if (!Device || Width == 0 || Height == 0)
+		{
+			return false;
+		}
+
+		if (GGPUIdPickerResources.IdRTV
+			&& GGPUIdPickerResources.IdReadbackTexture
+			&& GGPUIdPickerResources.DepthDSV
+			&& GGPUIdPickerResources.Width == Width
+			&& GGPUIdPickerResources.Height == Height)
+		{
+			return true;
+		}
+
+		ReleaseGPUIdPickerResources();
+
+		D3D11_TEXTURE2D_DESC IdDesc = {};
+		IdDesc.Width = Width;
+		IdDesc.Height = Height;
+		IdDesc.MipLevels = 1;
+		IdDesc.ArraySize = 1;
+		IdDesc.Format = DXGI_FORMAT_R32_UINT;
+		IdDesc.SampleDesc.Count = 1;
+		IdDesc.Usage = D3D11_USAGE_DEFAULT;
+		IdDesc.BindFlags = D3D11_BIND_RENDER_TARGET;
+		if (FAILED(Device->CreateTexture2D(&IdDesc, nullptr, &GGPUIdPickerResources.IdTexture)))
+		{
+			ReleaseGPUIdPickerResources();
+			return false;
+		}
+
+		D3D11_RENDER_TARGET_VIEW_DESC IdRTVDesc = {};
+		IdRTVDesc.Format = DXGI_FORMAT_R32_UINT;
+		IdRTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+		if (FAILED(Device->CreateRenderTargetView(GGPUIdPickerResources.IdTexture, &IdRTVDesc, &GGPUIdPickerResources.IdRTV)))
+		{
+			ReleaseGPUIdPickerResources();
+			return false;
+		}
+
+		D3D11_TEXTURE2D_DESC StagingDesc = IdDesc;
+		StagingDesc.Usage = D3D11_USAGE_STAGING;
+		StagingDesc.BindFlags = 0;
+		StagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+		if (FAILED(Device->CreateTexture2D(&StagingDesc, nullptr, &GGPUIdPickerResources.IdReadbackTexture)))
+		{
+			ReleaseGPUIdPickerResources();
+			return false;
+		}
+
+		D3D11_TEXTURE2D_DESC DepthDesc = {};
+		DepthDesc.Width = Width;
+		DepthDesc.Height = Height;
+		DepthDesc.MipLevels = 1;
+		DepthDesc.ArraySize = 1;
+		DepthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		DepthDesc.SampleDesc.Count = 1;
+		DepthDesc.Usage = D3D11_USAGE_DEFAULT;
+		DepthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+		if (FAILED(Device->CreateTexture2D(&DepthDesc, nullptr, &GGPUIdPickerResources.DepthTexture)))
+		{
+			ReleaseGPUIdPickerResources();
+			return false;
+		}
+
+		D3D11_DEPTH_STENCIL_VIEW_DESC DepthDSVDesc = {};
+		DepthDSVDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		DepthDSVDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+		if (FAILED(Device->CreateDepthStencilView(GGPUIdPickerResources.DepthTexture, &DepthDSVDesc, &GGPUIdPickerResources.DepthDSV)))
+		{
+			ReleaseGPUIdPickerResources();
+			return false;
+		}
+
+		GGPUIdPickerResources.Width = Width;
+		GGPUIdPickerResources.Height = Height;
+		return true;
+	}
+
+	bool IsAccurateMeshPickingEnabled()
+	{
+		FConsoleVariableManager& CVM = FConsoleVariableManager::Get();
+		FConsoleVariable* AccuratePickingVar = CVM.Find("r.Picking.AccurateMeshRay");
+		if (!AccuratePickingVar)
+		{
+			AccuratePickingVar = CVM.Register(
+				"r.Picking.AccurateMeshRay",
+				0,
+				"Accurate mesh ray picking in editor (0 = bounds only, 1 = triangle ray)");
+		}
+		return AccuratePickingVar->GetInt() != 0;
+	}
+
+	bool IsGPUIdPickingEnabled()
+	{
+		FConsoleVariableManager& CVM = FConsoleVariableManager::Get();
+		FConsoleVariable* GPUPickingVar = CVM.Find("r.Picking.GPUId");
+		if (!GPUPickingVar)
+		{
+			GPUPickingVar = CVM.Register(
+				"r.Picking.GPUId",
+				1,
+				"GPU object-id based picking (0 = off, 1 = on)");
+		}
+		return GPUPickingVar->GetInt() != 0;
+	}
+
 	FVector TransformPointRowVector(const FVector& P, const FMatrix& M)
 	{
 		return {
@@ -100,6 +258,189 @@ namespace
 
 		OutTNear = TNear;
 		OutTFar = TFar;
+		return true;
+	}
+
+	bool TryPickActorByGPUId(ULevel* Scene, const FViewportEntry* Entry, int32 ScreenX, int32 ScreenY, FEditorEngine* Engine, AActor*& OutActor)
+	{
+		OutActor = nullptr;
+		if (!Scene || !Entry || !Entry->Viewport || !Entry->WorldContext || !Entry->WorldContext->World || !Engine)
+		{
+			return false;
+		}
+
+		FRenderer* Renderer = Engine->GetRenderer();
+		if (!Renderer)
+		{
+			return false;
+		}
+
+		ID3D11Device* Device = Renderer->GetDevice();
+		ID3D11DeviceContext* DeviceContext = Renderer->GetDeviceContext();
+		if (!Device || !DeviceContext)
+		{
+			return false;
+		}
+
+		const FRect& Rect = Entry->Viewport->GetRect();
+		if (Rect.Width <= 0 || Rect.Height <= 0
+			|| ScreenX < 0 || ScreenY < 0
+			|| ScreenX >= Rect.Width || ScreenY >= Rect.Height)
+		{
+			return false;
+		}
+
+		if (!EnsureGPUIdPickerResources(Device, static_cast<uint32>(Rect.Width), static_cast<uint32>(Rect.Height)))
+		{
+			return false;
+		}
+
+		D3D11_VIEWPORT Viewport = {};
+		Viewport.TopLeftX = 0.0f;
+		Viewport.TopLeftY = 0.0f;
+		Viewport.Width = static_cast<float>(Rect.Width);
+		Viewport.Height = static_cast<float>(Rect.Height);
+		Viewport.MinDepth = 0.0f;
+		Viewport.MaxDepth = 1.0f;
+
+		const float AspectRatio = static_cast<float>(Rect.Width) / static_cast<float>(Rect.Height);
+		const FMatrix ViewMatrix = Entry->LocalState.BuildViewMatrix();
+		const FMatrix ProjectionMatrix = Entry->LocalState.BuildProjMatrix(AspectRatio);
+		const FVector CameraPosition = ViewMatrix.GetInverse().GetTranslation();
+
+		FSceneViewRenderRequest SceneViewRequest;
+		SceneViewRequest.ViewMatrix = ViewMatrix;
+		SceneViewRequest.ProjectionMatrix = ProjectionMatrix;
+		SceneViewRequest.CameraPosition = CameraPosition;
+		SceneViewRequest.NearZ = Entry->LocalState.NearPlane;
+		SceneViewRequest.FarZ = Entry->LocalState.FarPlane;
+		SceneViewRequest.TotalTimeSeconds = static_cast<float>(Engine->GetTimer().GetTotalTime());
+
+		const FFrameContext Frame = BuildRenderFrameContext(SceneViewRequest.TotalTimeSeconds);
+		const FViewContext View = BuildRenderViewContext(SceneViewRequest, Viewport);
+
+		FFrustum Frustum;
+		Frustum.ExtractFromVP(ViewMatrix * ProjectionMatrix);
+
+		TArray<UPrimitiveComponent*> VisiblePrimitives;
+		Scene->QueryPrimitivesByFrustum(Frustum, VisiblePrimitives);
+
+		FScenePacketBuilder ScenePacketBuilder;
+		FSceneRenderPacket ScenePacket;
+		ScenePacketBuilder.BuildScenePacket(VisiblePrimitives, Entry->LocalState.ShowFlags, ScenePacket);
+
+		FSceneCommandBuilder CommandBuilder;
+		FSceneCommandResourceCache ResourceCache;
+		FSceneViewData SceneViewData;
+		TArray<FMeshBatch> AdditionalMeshBatches;
+		BuildSceneViewDataFromPacket(
+			*Renderer,
+			CommandBuilder,
+			ResourceCache,
+			ScenePacket,
+			Frame,
+			View,
+			Entry->WorldContext->World,
+			AdditionalMeshBatches,
+			SceneViewData);
+		SceneViewData.RenderMode = ERenderMode::Unlit;
+		SceneViewData.ShowFlags = Entry->LocalState.ShowFlags;
+
+		ID3D11RenderTargetView* PrevRTV = nullptr;
+		ID3D11DepthStencilView* PrevDSV = nullptr;
+		DeviceContext->OMGetRenderTargets(1, &PrevRTV, &PrevDSV);
+
+		D3D11_VIEWPORT PrevViewport = {};
+		UINT PrevViewportCount = 1;
+		DeviceContext->RSGetViewports(&PrevViewportCount, &PrevViewport);
+
+		const float ClearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+		DeviceContext->OMSetRenderTargets(1, &GGPUIdPickerResources.IdRTV, GGPUIdPickerResources.DepthDSV);
+		DeviceContext->RSSetViewports(1, &Viewport);
+		DeviceContext->ClearRenderTargetView(GGPUIdPickerResources.IdRTV, ClearColor);
+		DeviceContext->ClearDepthStencilView(GGPUIdPickerResources.DepthDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+		Renderer->SetConstantBuffers();
+		Renderer->UpdateFrameConstantBuffer(Frame, View);
+
+		FMeshPassProcessor MeshPassProcessor;
+		MeshPassProcessor.BeginFrame();
+		MeshPassProcessor.UploadMeshBuffers(*Renderer, SceneViewData);
+
+		FSceneRenderTargets DummyTargets = {};
+		DummyTargets.Width = static_cast<uint32>(Rect.Width);
+		DummyTargets.Height = static_cast<uint32>(Rect.Height);
+		MeshPassProcessor.ExecutePass(*Renderer, DummyTargets, SceneViewData, EMeshPassType::EditorPicking);
+
+		const UINT SrcX = static_cast<UINT>(ScreenX);
+		const UINT SrcY = static_cast<UINT>(ScreenY);
+		D3D11_BOX SrcBox = {};
+		SrcBox.left = SrcX;
+		SrcBox.top = SrcY;
+		SrcBox.front = 0;
+		SrcBox.right = SrcX + 1;
+		SrcBox.bottom = SrcY + 1;
+		SrcBox.back = 1;
+		DeviceContext->CopySubresourceRegion(
+			GGPUIdPickerResources.IdReadbackTexture,
+			0,
+			0,
+			0,
+			0,
+			GGPUIdPickerResources.IdTexture,
+			0,
+			&SrcBox);
+
+		uint32 PickedUUID = 0u;
+		D3D11_MAPPED_SUBRESOURCE Mapped = {};
+		if (SUCCEEDED(DeviceContext->Map(GGPUIdPickerResources.IdReadbackTexture, 0, D3D11_MAP_READ, 0, &Mapped)))
+		{
+			PickedUUID = *reinterpret_cast<const uint32*>(Mapped.pData);
+			DeviceContext->Unmap(GGPUIdPickerResources.IdReadbackTexture, 0);
+		}
+
+		DeviceContext->OMSetRenderTargets(1, &PrevRTV, PrevDSV);
+		if (PrevViewportCount > 0)
+		{
+			DeviceContext->RSSetViewports(1, &PrevViewport);
+		}
+
+		if (PrevDSV)
+		{
+			PrevDSV->Release();
+		}
+		if (PrevRTV)
+		{
+			PrevRTV->Release();
+		}
+
+		if (PickedUUID == 0u)
+		{
+			return true;
+		}
+
+		auto It = GUUIDToObjectMap.find(PickedUUID);
+		if (It == GUUIDToObjectMap.end() || !It->second || It->second->IsPendingKill())
+		{
+			return true;
+		}
+
+		UObject* PickedObject = It->second;
+		if (PickedObject->IsA(AActor::StaticClass()))
+		{
+			OutActor = static_cast<AActor*>(PickedObject);
+			return true;
+		}
+
+		if (PickedObject->IsA(UActorComponent::StaticClass()))
+		{
+			UActorComponent* Component = static_cast<UActorComponent*>(PickedObject);
+			if (Component->GetOwner() && !Component->GetOwner()->IsPendingDestroy())
+			{
+				OutActor = Component->GetOwner();
+			}
+		}
+
 		return true;
 	}
 }
@@ -220,7 +561,17 @@ AActor* FPicker::PickActor(ULevel* Scene, const FViewportEntry* Entry, int32 Scr
 		return nullptr;
 	}
 
+	if (IsGPUIdPickingEnabled())
+	{
+		AActor* GPUPickedActor = nullptr;
+		if (TryPickActorByGPUId(Scene, Entry, ScreenX, ScreenY, Engine, GPUPickedActor))
+		{
+			return GPUPickedActor;
+		}
+	}
+
 	const FRay WorldRay = ScreenToRay(*Entry, ScreenX, ScreenY);
+	const bool bUseAccurateMeshRay = IsAccurateMeshPickingEnabled();
 
 	AActor* ClosestActor = nullptr;
 	float ClosestDistance = (std::numeric_limits<float>::max)();
@@ -270,7 +621,7 @@ AActor* FPicker::PickActor(ULevel* Scene, const FViewportEntry* Entry, int32 Scr
 				return;
 			}
 
-			if (PrimComp->HasMeshIntersection())
+			if (PrimComp->HasMeshIntersection() && bUseAccurateMeshRay)
 			{
 				const FMatrix World = PrimComp->GetBoundsWorldTransform();
 				const FMatrix InvWorld = World.GetInverse();

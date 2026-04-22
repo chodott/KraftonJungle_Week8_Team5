@@ -24,6 +24,7 @@ enum class EMeshPassType : uint32
 	ForwardOpaque,
 	ForwardMeshDecal,
 	ForwardTransparent,
+	EditorPicking,
 	EditorGrid,
 	EditorPrimitive,
 	Count,
@@ -37,8 +38,9 @@ enum class EMeshPassMask : uint32
 	ForwardOpaque      = 1u << 2,
 	ForwardMeshDecal   = 1u << 3,
 	ForwardTransparent = 1u << 4,
-	EditorGrid         = 1u << 5,
-	EditorPrimitive    = 1u << 6,
+	EditorPicking      = 1u << 5,
+	EditorGrid         = 1u << 6,
+	EditorPrimitive    = 1u << 7,
 };
 
 inline uint32 operator|(EMeshPassMask A, EMeshPassMask B)
@@ -59,6 +61,7 @@ struct ENGINE_API FMeshBatch
 	FMaterial*       Material = nullptr;
 	FMatrix          World    = FMatrix::Identity;
 	FBoxSphereBounds WorldBounds;
+	UPrimitiveComponent* SourceComponent = nullptr;
 
 	uint32 SectionIndex = 0;
 	uint32 IndexStart   = 0;

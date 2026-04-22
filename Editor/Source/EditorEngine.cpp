@@ -476,7 +476,18 @@ void FEditorEngine::FinalizeInitialize()
 	SlateApplication->Initialize(FRect(0, 0, W, H), VPs, MAX_VIEWPORTS);
 	EditorUI.OnSlateReady();
 	CreateInitUI();
-	FObjManager::PreloadAllModelFiles(FPaths::FromPath(FPaths::MeshDir()).c_str());
+
+	FConsoleVariableManager& CVM = FConsoleVariableManager::Get();
+	FConsoleVariable* PreloadAllModelsVar = CVM.Find("editor.PreloadAllModels");
+	if (!PreloadAllModelsVar)
+	{
+		PreloadAllModelsVar = CVM.Register("editor.PreloadAllModels", 0, "Preload all .Model files at editor startup (0 = off, 1 = on)");
+	}
+	if (PreloadAllModelsVar->GetInt() != 0)
+	{
+		FObjManager::PreloadAllModelFiles(FPaths::FromPath(FPaths::MeshDir()).c_str());
+	}
+
 	RefreshLightGizmoSelectionVisibility();
 }
 
@@ -946,6 +957,11 @@ void FEditorEngine::InitEditorConsole()
 			"r.DecalProjectionMode",
 			static_cast<int32>(EDecalProjectionMode::ClusteredLookup),
 			"Decal projection mode (0 = Clustered Lookup, 1 = Volume Draw)");
+	}
+
+	if (!CVM.Find("editor.PreloadAllModels"))
+	{
+		CVM.Register("editor.PreloadAllModels", 0, "Preload all .Model files at editor startup (0 = off, 1 = on)");
 	}
 
 	CVM.GetAllNames([this](const FString& Name)

@@ -1,10 +1,162 @@
 #include "Renderer/Mesh/MeshData.h"
 
 #include "Object/Class.h"
+#include "Core/ConsoleVariableManager.h"
 #include "Renderer/Mesh/Vertex.h"
 #include "Level/MeshBVH.h"
 #include <cstring>
+#include <cmath>
+#include <limits>
 
+namespace
+{
+	bool IsMeshTriangleBVHEnabled()
+	{
+		FConsoleVariableManager& CVM = FConsoleVariableManager::Get();
+		FConsoleVariable* MeshTriangleBVHVar = CVM.Find("r.MeshTriangleBVH");
+		if (!MeshTriangleBVHVar)
+		{
+			MeshTriangleBVHVar = CVM.Register("r.MeshTriangleBVH", 0, "Enable per-mesh triangle BVH (0 = off, 1 = on)");
+		}
+
+		return MeshTriangleBVHVar->GetInt() != 0;
+	}
+
+	template <typename FTriangleCallback>
+	void ForEachTriangleInStaticMesh(const FStaticMesh& InMesh, FTriangleCallback&& Callback)
+	{
+		const bool bHasIndexBuffer = !InMesh.Indices.empty();
+		int32 LinearTriangleIndex = 0;
+
+		auto EmitTriangle = [&](const FVector& V0, const FVector& V1, const FVector& V2) -> bool
+		{
+			const bool bContinue = Callback(LinearTriangleIndex, V0, V1, V2);
+			++LinearTriangleIndex;
+			return bContinue;
+		};
+
+		if (!bHasIndexBuffer)
+		{
+			const size_t TriangleCount = InMesh.Vertices.size() / 3;
+			for (size_t TriangleIdx = 0; TriangleIdx < TriangleCount; ++TriangleIdx)
+			{
+				const size_t BaseVertex = TriangleIdx * 3;
+				if (!EmitTriangle(
+					InMesh.Vertices[BaseVertex + 0].Position,
+					InMesh.Vertices[BaseVertex + 1].Position,
+					InMesh.Vertices[BaseVertex + 2].Position))
+				{
+					return;
+				}
+			}
+			return;
+		}
+
+		auto EmitIndexedRange = [&](size_t StartIndex, size_t IndexCount) -> bool
+		{
+			const size_t EndIndex = (std::min)(StartIndex + IndexCount, InMesh.Indices.size());
+			for (size_t Index = StartIndex; Index + 2 < EndIndex; Index += 3)
+			{
+				const uint32 I0 = InMesh.Indices[Index + 0];
+				const uint32 I1 = InMesh.Indices[Index + 1];
+				const uint32 I2 = InMesh.Indices[Index + 2];
+
+				if (I0 >= InMesh.Vertices.size() || I1 >= InMesh.Vertices.size() || I2 >= InMesh.Vertices.size())
+				{
+					continue;
+				}
+
+				if (!EmitTriangle(
+					InMesh.Vertices[I0].Position,
+					InMesh.Vertices[I1].Position,
+					InMesh.Vertices[I2].Position))
+				{
+					return false;
+				}
+			}
+			return true;
+		};
+
+		if (!InMesh.Sections.empty())
+		{
+			for (const FMeshSection& Section : InMesh.Sections)
+			{
+				if (!EmitIndexedRange(static_cast<size_t>(Section.StartIndex), static_cast<size_t>(Section.IndexCount)))
+				{
+					return;
+				}
+			}
+			return;
+		}
+
+		(void)EmitIndexedRange(0, InMesh.Indices.size());
+	}
+
+	bool ComputeTriangleDataByLinearIndex(const FStaticMesh& InMesh, int32 TriangleIndex, FMeshBVH::FTriangleData& OutTriangleData)
+	{
+		if (TriangleIndex < 0)
+		{
+			return false;
+		}
+
+		bool bFound = false;
+		ForEachTriangleInStaticMesh(InMesh, [&](int32 LinearIndex, const FVector& V0, const FVector& V1, const FVector& V2)
+		{
+			if (LinearIndex != TriangleIndex)
+			{
+				return true;
+			}
+
+			OutTriangleData.V0 = V0;
+			OutTriangleData.V1 = V1;
+			OutTriangleData.V2 = V2;
+			OutTriangleData.Bounds = FAABB(V0, V0);
+			OutTriangleData.Bounds.Expand(V1);
+			OutTriangleData.Bounds.Expand(V2);
+			bFound = true;
+			return false;
+		});
+		return bFound;
+	}
+
+	bool IntersectTriangleRay(const FVector& RayOrigin, const FVector& RayDirection, const FVector& V0, const FVector& V1, const FVector& V2, float& OutDistance)
+	{
+		constexpr float Epsilon = 1.0e-6f;
+
+		const FVector Edge1 = V1 - V0;
+		const FVector Edge2 = V2 - V0;
+		const FVector P = FVector::CrossProduct(RayDirection, Edge2);
+		const float Determinant = FVector::DotProduct(Edge1, P);
+		if (std::fabs(Determinant) <= Epsilon)
+		{
+			return false;
+		}
+
+		const float InvDeterminant = 1.0f / Determinant;
+		const FVector T = RayOrigin - V0;
+		const float U = FVector::DotProduct(T, P) * InvDeterminant;
+		if (U < 0.0f || U > 1.0f)
+		{
+			return false;
+		}
+
+		const FVector Q = FVector::CrossProduct(T, Edge1);
+		const float V = FVector::DotProduct(RayDirection, Q) * InvDeterminant;
+		if (V < 0.0f || (U + V) > 1.0f)
+		{
+			return false;
+		}
+
+		const float Distance = FVector::DotProduct(Edge2, Q) * InvDeterminant;
+		if (Distance <= Epsilon)
+		{
+			return false;
+		}
+
+		OutDistance = Distance;
+		return true;
+	}
+}
 
 bool FStaticMesh::UpdateVertexAndIndexBuffer(ID3D11Device* Device, ID3D11DeviceContext* Context)
 {
@@ -192,6 +344,12 @@ void UStaticMesh::SetStaticMeshAsset(FStaticMesh* InStaticMesh)
 
 void UStaticMesh::BuildAccelerationStructureIfNeeded() const
 {
+	if (!IsMeshTriangleBVHEnabled())
+	{
+		TriangleBVH.reset();
+		return;
+	}
+
 	if (TriangleBVH || !StaticMeshAsset)
 	{
 		return;
@@ -217,13 +375,41 @@ void UStaticMesh::QueryMeshBVHTriangles(const FAABB& Bounds, TArray<int32>& OutT
 	if (TriangleBVH && TriangleBVH->IsValid())
 	{
 		TriangleBVH->QueryTriangles(Bounds, OutTriangleIndices);
+		return;
 	}
+
+	if (!StaticMeshAsset)
+	{
+		return;
+	}
+
+	ForEachTriangleInStaticMesh(*StaticMeshAsset, [&](int32 TriangleIndex, const FVector& V0, const FVector& V1, const FVector& V2)
+	{
+		FAABB TriangleBounds(V0, V0);
+		TriangleBounds.Expand(V1);
+		TriangleBounds.Expand(V2);
+		if (TriangleBounds.Overlaps(Bounds))
+		{
+			OutTriangleIndices.push_back(TriangleIndex);
+		}
+		return true;
+	});
 }
 
 bool UStaticMesh::GetMeshBVHTriangleData(int32 TriangleIndex, FMeshBVH::FTriangleData& OutTriangleData) const
 {
 	BuildAccelerationStructureIfNeeded();
-	return TriangleBVH && TriangleBVH->IsValid() && TriangleBVH->GetTriangleData(TriangleIndex, OutTriangleData);
+	if (TriangleBVH && TriangleBVH->IsValid())
+	{
+		return TriangleBVH->GetTriangleData(TriangleIndex, OutTriangleData);
+	}
+
+	if (!StaticMeshAsset)
+	{
+		return false;
+	}
+
+	return ComputeTriangleDataByLinearIndex(*StaticMeshAsset, TriangleIndex, OutTriangleData);
 }
 
 
@@ -356,10 +542,32 @@ float UStaticMesh::GetLodDistance(int32 LODIndex) const
 bool UStaticMesh::IntersectLocalRay(const FVector& RayOrigin, const FVector& RayDirection, float& OutDistance) const
 {
 	BuildAccelerationStructureIfNeeded();
-	if (!TriangleBVH || !TriangleBVH->IsValid())
+	if (TriangleBVH && TriangleBVH->IsValid())
+	{
+		return TriangleBVH->IntersectRay(RayOrigin, RayDirection, OutDistance);
+	}
+
+	if (!StaticMeshAsset)
 	{
 		return false;
 	}
 
-	return TriangleBVH->IntersectRay(RayOrigin, RayDirection, OutDistance);
+	bool bHit = false;
+	float ClosestDistance = (std::numeric_limits<float>::max)();
+	ForEachTriangleInStaticMesh(*StaticMeshAsset, [&](int32 /*TriangleIndex*/, const FVector& V0, const FVector& V1, const FVector& V2)
+	{
+		float HitDistance = 0.0f;
+		if (IntersectTriangleRay(RayOrigin, RayDirection, V0, V1, V2, HitDistance) && HitDistance < ClosestDistance)
+		{
+			ClosestDistance = HitDistance;
+			bHit = true;
+		}
+		return true;
+	});
+
+	if (bHit)
+	{
+		OutDistance = ClosestDistance;
+	}
+	return bHit;
 }

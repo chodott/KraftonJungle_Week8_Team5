@@ -537,6 +537,21 @@ void FEngine::RegisterConsoleVariables()
 	});
 	GCInterval = static_cast<double>(GCIntervalVar->GetFloat());
 
+	if (!CVM.Find("r.MeshTriangleBVH"))
+	{
+		CVM.Register("r.MeshTriangleBVH", 0, "Enable per-mesh triangle BVH (0 = off, 1 = on)");
+	}
+
+	if (!CVM.Find("r.Picking.AccurateMeshRay"))
+	{
+		CVM.Register("r.Picking.AccurateMeshRay", 0, "Accurate mesh ray picking in editor (0 = bounds only, 1 = triangle ray)");
+	}
+
+	if (!CVM.Find("r.Picking.GPUId"))
+	{
+		CVM.Register("r.Picking.GPUId", 1, "GPU object-id based picking (0 = off, 1 = on)");
+	}
+
 	CVM.RegisterCommand("ForceGC", [this](FString& OutResult)
 	{
 		if (ObjManager)

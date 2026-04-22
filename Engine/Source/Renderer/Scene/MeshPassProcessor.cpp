@@ -82,6 +82,10 @@ void FMeshPassProcessor::ExecutePass(
 		{
 			continue;
 		}
+		if (PassType == EMeshPassType::EditorPicking && Batch.Material->GetPassShaders(EMaterialPassType::Picking) == nullptr)
+		{
+			continue;
+		}
 
 		Batches.push_back(&Batch);
 	}
@@ -122,6 +126,7 @@ void FMeshPassProcessor::ExecutePass(
 	case EMeshPassType::GBuffer:
 	case EMeshPassType::ForwardOpaque:
 	case EMeshPassType::ForwardMeshDecal:
+	case EMeshPassType::EditorPicking:
 	default:
 		std::sort(
 			Batches.begin(),
@@ -219,7 +224,10 @@ void FMeshPassProcessor::ExecutePass(
 			DepthOpt.DepthEnable    = !Batch->bDisableDepthTest;
 			DepthOpt.DepthWriteMask = Batch->bDisableDepthWrite ? D3D11_DEPTH_WRITE_MASK_ZERO : D3D11_DEPTH_WRITE_MASK_ALL;
 		}
-		else if (PassType == EMeshPassType::GBuffer || PassType == EMeshPassType::ForwardOpaque || PassType == EMeshPassType::ForwardMeshDecal)
+		else if (PassType == EMeshPassType::GBuffer
+			|| PassType == EMeshPassType::ForwardOpaque
+			|| PassType == EMeshPassType::ForwardMeshDecal
+			|| PassType == EMeshPassType::EditorPicking)
 		{
 			if (!Batch->bDisableDepthTest)
 			{
@@ -245,6 +253,7 @@ void FMeshPassProcessor::ExecutePass(
 		if (PassType == EMeshPassType::DepthPrepass ||
 			PassType == EMeshPassType::GBuffer ||
 			PassType == EMeshPassType::ForwardOpaque ||
+			PassType == EMeshPassType::EditorPicking ||
 			PassType == EMeshPassType::ForwardMeshDecal ||
 			Batch->bDisableDepthTest ||
 			Batch->bDisableDepthWrite)
@@ -300,6 +309,8 @@ EMaterialPassType FMeshPassProcessor::ToMaterialPassType(EMeshPassType PassType)
 		return EMaterialPassType::ForwardTransparent;
 	case EMeshPassType::ForwardMeshDecal:
 		return EMaterialPassType::ForwardOpaque;
+	case EMeshPassType::EditorPicking:
+		return EMaterialPassType::Picking;
 	case EMeshPassType::EditorGrid:
 		return EMaterialPassType::EditorGrid;
 	case EMeshPassType::EditorPrimitive:
@@ -324,6 +335,8 @@ bool FMeshPassProcessor::ShouldDrawInPass(const FMeshBatch& Batch, EMeshPassType
 		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ForwardMeshDecal);
 	case EMeshPassType::ForwardTransparent:
 		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ForwardTransparent);
+	case EMeshPassType::EditorPicking:
+		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::EditorPicking);
 	case EMeshPassType::EditorGrid:
 		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::EditorGrid);
 	case EMeshPassType::EditorPrimitive:
