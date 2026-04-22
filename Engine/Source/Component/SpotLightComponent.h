@@ -15,6 +15,7 @@ public:
 	float GetOuterConeAngle() const { return OuterConeAngle; }
 
 	void DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
+	void Serialize(FArchive& Ar) override;
 
 protected:
 	void MarkTransformDirty() override;

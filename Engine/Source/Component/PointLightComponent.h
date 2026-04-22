@@ -14,6 +14,7 @@ public:
 	float GetLightFalloffExponent() const { return LightFalloffExponent; };
 
 	void DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
+	void Serialize(FArchive& Ar) override;
 
 protected:
 	void MarkTransformDirty() override;
