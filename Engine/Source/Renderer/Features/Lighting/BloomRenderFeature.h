@@ -36,7 +36,6 @@ public:
 
 private:
 	ID3D11Texture2D* BloomBrightnessTexture = nullptr;
-	ID3D11RenderTargetView* BloomBrightnessRTV = nullptr;
 	ID3D11ShaderResourceView* BloomBrightnessSRV = nullptr;
 	ID3D11UnorderedAccessView* BloomBrightnessUAV = nullptr;
 

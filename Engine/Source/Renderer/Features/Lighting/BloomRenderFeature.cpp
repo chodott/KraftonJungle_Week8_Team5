@@ -154,7 +154,6 @@ void FBloomRenderFeature::Release()
 
 	// Bloom 전용 버퍼
 	SafeRelease(BloomBrightnessTexture);
-	SafeRelease(BloomBrightnessRTV);
 	SafeRelease(BloomBrightnessSRV);
 	SafeRelease(BloomBrightnessUAV);
 
@@ -185,9 +184,9 @@ bool FBloomRenderFeature::Initialize(FRenderer& Renderer, const FSceneRenderTarg
 			// 텍스처만 해제하고 재생성
 			auto SafeRelease = [](auto*& ptr) { if (ptr) { ptr->Release(); ptr = nullptr; } };
 			SafeRelease(BloomBrightnessTexture);
-			SafeRelease(BloomBrightnessRTV);
 			SafeRelease(BloomBrightnessSRV);
 			SafeRelease(BloomBrightnessUAV);
+
 			SafeRelease(BloomScratchTexture);
 			SafeRelease(BloomScratchSRV);
 			SafeRelease(BloomScratchUAV);
@@ -205,13 +204,9 @@ bool FBloomRenderFeature::Initialize(FRenderer& Renderer, const FSceneRenderTarg
 		Desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		Desc.SampleDesc.Count = 1;
 		Desc.Usage = D3D11_USAGE_DEFAULT;
-		Desc.BindFlags = D3D11_BIND_RENDER_TARGET
-			| D3D11_BIND_SHADER_RESOURCE
-			| D3D11_BIND_UNORDERED_ACCESS;
+		Desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
 
 		if (FAILED(Device->CreateTexture2D(&Desc, nullptr, &BloomBrightnessTexture)))
-			return false;
-		if (FAILED(Device->CreateRenderTargetView(BloomBrightnessTexture, nullptr, &BloomBrightnessRTV)))
 			return false;
 		if (FAILED(Device->CreateShaderResourceView(BloomBrightnessTexture, nullptr, &BloomBrightnessSRV)))
 			return false;
