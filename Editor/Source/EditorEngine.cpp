@@ -41,7 +41,7 @@
 
 namespace
 {
-	constexpr const char* PreviewSceneContextName = "PreviewScene";
+	constexpr auto PreviewSceneContextName = "PreviewScene";
 
 	const TArray<FWorldContext*>& GetEmptyPreviewWorldContexts()
 	{
@@ -162,7 +162,6 @@ namespace
 
 		return CameraComponent;
 	}
-
 }
 
 FEditorEngine::~FEditorEngine() = default;
@@ -170,7 +169,10 @@ FEditorEngine::~FEditorEngine() = default;
 void FEditorEngine::Shutdown()
 {
 	FEngineLog::Get().SetCallback({});
-	if (IsPIEActive() || IsPIEPaused()) EndPIE();
+	if (IsPIEActive() || IsPIEPaused())
+	{
+		EndPIE();
+	}
 	for (auto& Pair : BillboardSelectionTintOriginalColors)
 	{
 		if (Pair.first && !Pair.first->IsPendingKill())
@@ -329,7 +331,7 @@ FWorldContext* FEditorEngine::CreatePreviewWorldContext(const FString& ContextNa
 		return ExistingContext;
 	}
 
-	const float AspectRatio = (Height > 0) ? (static_cast<float>(Width) / static_cast<float>(Height)) : 1.0f;
+	const float    AspectRatio    = (Height > 0) ? (static_cast<float>(Width) / static_cast<float>(Height)) : 1.0f;
 	FWorldContext* PreviewContext = CreateWorldContext(ContextName, EWorldType::Preview, AspectRatio, false);
 	if (!PreviewContext)
 	{
@@ -371,6 +373,295 @@ void FEditorEngine::HandleResize(int32 Width, int32 Height)
 	}
 
 	UpdateEditorWorldAspectRatio(static_cast<float>(Width) / static_cast<float>(Height));
+}
+
+void FEditorEngine::ClearDebugDrawForFrame()
+{
+	GetDebugDrawManager().Clear();
+}
+
+void FEditorEngine::CreateInitUI()
+{
+	auto*    RawEditorVP = static_cast<FEditorViewportClient*>(ViewportClient.get());
+	auto     Overlay     = std::make_unique<SEditorViewportOverlay>(this, &EditorUI, RawEditorVP);
+	SWidget* RawOverlay  = SlateApplication->CreateWidget(std::move(Overlay));
+	SlateApplication->AddOverlayWidget(RawOverlay);
+}
+
+bool FEditorEngine::StartPIE()
+{
+	if (bIsPIEActive)
+	{
+		return false;
+	}
+
+	if (EditorWorldContext == nullptr || EditorWorldContext->World == nullptr)
+	{
+		return false;
+	}
+
+	if (ULevel* EditorLevel = EditorWorldContext->World->GetScene())
+	{
+		EditorLevel->EnsureEssentialActors();
+	}
+
+	UWorld* PIEWorld = UWorld::DuplicateWorldForPIE(EditorWorldContext->World);
+	if (PIEWorld == nullptr)
+	{
+		return false;
+	}
+
+	PIEWorld->ResetRuntimeState();
+
+	const float AspectRatio = GetWindowAspectRatio();
+	PIEWorldContext         = CreateWorldContext("PIE", EWorldType::PIE, PIEWorld);
+	if (PIEWorldContext == nullptr)
+	{
+		PIEWorld->CleanupWorld();
+		PIEWorld->MarkPendingKill();
+		return false;
+	}
+
+	UpdateWorldAspectRatio(PIEWorld, AspectRatio);
+
+	SavedPIEViewportStates.clear();
+	for (FViewportEntry& Entry : ViewportRegistry.GetEntries())
+	{
+		if (!Entry.bActive)
+		{
+			continue;
+		}
+
+		FPIEViewportStateBackup Backup;
+		Backup.ViewportId           = Entry.Id;
+		Backup.WorldContext         = Entry.WorldContext;
+		Backup.LocalState           = Entry.LocalState;
+		Backup.LocalState.ViewMode  = Entry.LocalState.ViewMode;
+		Backup.LocalState.ShowFlags = Entry.LocalState.ShowFlags;
+		SavedPIEViewportStates.push_back(Backup);
+	}
+
+	SavedPIESelectedActor = GetSelectedActor();
+
+	FViewportEntry* PIEViewportEntry = nullptr;
+	if (SlateApplication)
+	{
+		const FViewportId FocusedId = SlateApplication->GetFocusedViewportId();
+		if (FocusedId != INVALID_VIEWPORT_ID)
+		{
+			FViewportEntry* FocusedEntry = ViewportRegistry.FindEntryByViewportID(FocusedId);
+			if (FocusedEntry && FocusedEntry->bActive)
+			{
+				PIEViewportEntry = FocusedEntry;
+			}
+		}
+	}
+
+	if (PIEViewportEntry == nullptr)
+	{
+		for (FViewportEntry& Entry : ViewportRegistry.GetEntries())
+		{
+			if (Entry.bActive)
+			{
+				PIEViewportEntry = &Entry;
+				break;
+			}
+		}
+	}
+
+	if (PIEViewportEntry)
+	{
+		PIEViewportEntry->WorldContext = PIEWorldContext;
+		PIEViewportId                  = PIEViewportEntry->Id;
+		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_UUID, false);
+		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, false);
+		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, false);
+		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, false);
+		if (PIEViewportEntry->LocalState.ProjectionType == EViewportType::Perspective)
+		{
+			PIEViewportEntry->LocalState.Position  = FVector::ZeroVector;
+			PIEViewportEntry->LocalState.Rotation  = FRotator::ZeroRotator;
+			PIEViewportEntry->LocalState.bShowGrid = false;
+		}
+		else
+		{
+			// PIE should not inherit the last perspective camera when launched from
+			// an ortho viewport. Start from a deterministic perspective state instead.
+			const FViewportLocalState PreviousViewportState = PIEViewportEntry->LocalState;
+			FViewportLocalState       PIEViewportState      = FViewportLocalState::CreateDefault(EViewportType::Perspective);
+			PIEViewportState.ShowFlags                      = PreviousViewportState.ShowFlags;
+			PIEViewportState.ViewMode                       = PreviousViewportState.ViewMode;
+			PIEViewportState.GridSize                       = PreviousViewportState.GridSize;
+			PIEViewportState.LineThickness                  = PreviousViewportState.LineThickness;
+			PIEViewportState.NearPlane                      = PreviousViewportState.NearPlane;
+			PIEViewportState.FarPlane                       = PreviousViewportState.FarPlane;
+			PIEViewportState.bShowGrid                      = false;
+			PIEViewportEntry->LocalState                    = PIEViewportState;
+		}
+	}
+
+	ApplyPIEStartView();
+
+	RefreshPIEPlayerCameraActors();
+
+	SetSelectedActor(nullptr);
+
+	PrePIEActiveWorldContext    = ActiveWorldContext ? ActiveWorldContext : EditorWorldContext;
+	ActiveWorldContext          = PIEWorldContext;
+	bIsPIEActive                = true;
+	bIsPIEPaused                = false;
+	bIsPIEInputCaptured         = true;
+	PIEPossessionState          = EPIEPossessionState::Possessed;
+	bWasCursorHiddenForPIE      = true;
+	bIsPIECursorCurrentlyHidden = false;
+	CenterCursorInPIEViewport();
+	SyncPIECursorState();
+
+	PIEWorld->BeginPlay();
+	return true;
+}
+
+void FEditorEngine::EndPIE()
+{
+	if (!bIsPIEActive)
+	{
+		return;
+	}
+
+	for (const FPIEViewportStateBackup& Backup : SavedPIEViewportStates)
+	{
+		FViewportEntry* RestoreViewportEntry = ViewportRegistry.FindEntryByViewportID(Backup.ViewportId);
+		if (RestoreViewportEntry)
+		{
+			RestoreViewportEntry->WorldContext = Backup.WorldContext;
+			RestoreViewportEntry->LocalState   = Backup.LocalState;
+		}
+	}
+	SavedPIEViewportStates.clear();
+
+	DestroyWorldContext(PIEWorldContext);
+	PIEWorldContext = nullptr;
+
+	ActiveWorldContext       = PrePIEActiveWorldContext ? PrePIEActiveWorldContext : EditorWorldContext;
+	PrePIEActiveWorldContext = nullptr;
+	SetSelectedActor(SavedPIESelectedActor.Get());
+	SavedPIESelectedActor = nullptr;
+
+	if (bWasCursorHiddenForPIE)
+	{
+		if (bIsPIECursorCurrentlyHidden)
+		{
+			::ShowCursor(TRUE);
+		}
+		bWasCursorHiddenForPIE      = false;
+		bIsPIECursorCurrentlyHidden = false;
+	}
+	::ClipCursor(nullptr);
+
+	bIsPIEActive        = false;
+	bIsPIEPaused        = false;
+	bIsPIEInputCaptured = false;
+	PIEPossessionState  = EPIEPossessionState::Ejected;
+	PIEViewportId       = INVALID_VIEWPORT_ID;
+	PIEPlayerCameraActors.clear();
+	ActivePIEPlayerCameraIndex = -1;
+}
+
+void FEditorEngine::TogglePIEPause()
+{
+	if (bIsPIEActive)
+	{
+		bIsPIEPaused = !bIsPIEPaused;
+	}
+}
+
+void FEditorEngine::CapturePIEInput()
+{
+	if (!bIsPIEActive || bIsPIEPaused || PIEViewportId == INVALID_VIEWPORT_ID)
+	{
+		return;
+	}
+
+	if (FViewportEntry* PIEViewportEntry = ViewportRegistry.FindEntryByViewportID(PIEViewportId))
+	{
+		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_UUID, false);
+		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, false);
+		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, false);
+		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, false);
+		PIEViewportEntry->LocalState.bShowGrid = false;
+	}
+
+	bIsPIEInputCaptured    = true;
+	PIEPossessionState     = EPIEPossessionState::Possessed;
+	bWasCursorHiddenForPIE = true;
+	CenterCursorInPIEViewport();
+	SyncPIECursorState();
+}
+
+void FEditorEngine::ReleasePIEInputCapture()
+{
+	if (!bIsPIEActive)
+	{
+		return;
+	}
+
+	if (FViewportEntry* PIEViewportEntry = ViewportRegistry.FindEntryByViewportID(PIEViewportId))
+	{
+		for (const FPIEViewportStateBackup& Backup : SavedPIEViewportStates)
+		{
+			if (Backup.ViewportId == PIEViewportId)
+			{
+				PIEViewportEntry->LocalState = Backup.LocalState;
+				break;
+			}
+		}
+	}
+
+	bIsPIEInputCaptured = false;
+	PIEPossessionState  = EPIEPossessionState::Ejected;
+	SyncPIECursorState();
+}
+
+void FEditorEngine::TogglePIEPossession()
+{
+	if (!bIsPIEActive)
+	{
+		return;
+	}
+
+	if (PIEPossessionState == EPIEPossessionState::Possessed)
+	{
+		ReleasePIEInputCapture();
+		return;
+	}
+
+	ApplyPIEStartView();
+	CapturePIEInput();
+}
+
+bool FEditorEngine::CyclePIEPlayerCamera(int32 Direction)
+{
+	const int32 CameraCount = static_cast<int32>(PIEPlayerCameraActors.size());
+	if (!bIsPIEActive || CameraCount <= 0)
+	{
+		return false;
+	}
+
+	int32 NextCameraIndex = ActivePIEPlayerCameraIndex;
+	if (NextCameraIndex < 0 || NextCameraIndex >= CameraCount)
+	{
+		NextCameraIndex = 0;
+	}
+	else
+	{
+		NextCameraIndex = (NextCameraIndex + Direction) % CameraCount;
+		if (NextCameraIndex < 0)
+		{
+			NextCameraIndex += CameraCount;
+		}
+	}
+
+	return ApplyPIEPlayerCameraByIndex(NextCameraIndex);
 }
 
 void FEditorEngine::PreInitialize()
@@ -418,8 +709,8 @@ void FEditorEngine::FinalizeInitialize()
 	const int32 W = MainWindow ? MainWindow->GetWidth() : 800;
 	const int32 H = MainWindow ? MainWindow->GetHeight() : 600;
 
-	TArray<FViewport>& Viewports = ViewportRegistry.GetViewports();
-	FViewport* VPs[MAX_VIEWPORTS] = {
+	TArray<FViewport>& Viewports          = ViewportRegistry.GetViewports();
+	FViewport*         VPs[MAX_VIEWPORTS] = {
 		&Viewports[0], &Viewports[1], &Viewports[2], &Viewports[3]
 	};
 
@@ -427,89 +718,9 @@ void FEditorEngine::FinalizeInitialize()
 	SlateApplication->Initialize(FRect(0, 0, W, H), VPs, MAX_VIEWPORTS);
 	EditorUI.OnSlateReady();
 	CreateInitUI();
-	FObjManager::PreloadAllModelFiles(FPaths::FromPath(FPaths::MeshDir()).c_str());
+	// TODO : 메시 프리로드를 더 잘 할 수 없을까...
+	//FObjManager::PreloadAllModelFiles(FPaths::FromPath(FPaths::MeshDir()).c_str());
 	RefreshLightGizmoSelectionVisibility();
-}
-
-void FEditorEngine::RefreshLightGizmoSelectionVisibility()
-{
-	RefreshLightActorGizmosForLevel(this, GetEditorScene());
-
-	for (FWorldContext* PreviewContext : PreviewWorldContexts)
-	{
-		if (!PreviewContext || !PreviewContext->World)
-		{
-			continue;
-		}
-
-		RefreshLightActorGizmosForLevel(this, PreviewContext->World->GetScene());
-	}
-
-	RefreshSelectedBillboardTint();
-}
-
-void FEditorEngine::RefreshSelectedBillboardTint()
-{
-	const FLinearColor HighlightTint = FLinearColor(1.0f, 0.62f, 0.22f, 1.0f);
-	const TArray<AActor*> SelectedActors = GetSelectedActors();
-	TSet<UBillboardComponent*> SelectedBillboards;
-
-	for (AActor* SelectedActor : SelectedActors)
-	{
-		if (!SelectedActor || SelectedActor->IsPendingDestroy())
-		{
-			continue;
-		}
-
-		for (UActorComponent* Component : SelectedActor->GetComponents())
-		{
-			if (!Component || !Component->IsA(UBillboardComponent::StaticClass()))
-			{
-				continue;
-			}
-
-			UBillboardComponent* BillboardComponent = static_cast<UBillboardComponent*>(Component);
-			if (BillboardComponent->IsPendingKill() || BillboardComponent->IsA(UUUIDBillboardComponent::StaticClass()))
-			{
-				continue;
-			}
-
-			SelectedBillboards.insert(BillboardComponent);
-		}
-	}
-
-	for (auto It = BillboardSelectionTintOriginalColors.begin(); It != BillboardSelectionTintOriginalColors.end();)
-	{
-		UBillboardComponent* BillboardComponent = It->first;
-		if (!BillboardComponent || BillboardComponent->IsPendingKill())
-		{
-			It = BillboardSelectionTintOriginalColors.erase(It);
-			continue;
-		}
-
-		if (SelectedBillboards.find(BillboardComponent) == SelectedBillboards.end())
-		{
-			BillboardComponent->SetBaseColorLinear(It->second);
-			It = BillboardSelectionTintOriginalColors.erase(It);
-			continue;
-		}
-
-		++It;
-	}
-
-	for (UBillboardComponent* BillboardComponent : SelectedBillboards)
-	{
-		if (!BillboardComponent || BillboardComponent->IsPendingKill())
-		{
-			continue;
-		}
-
-		if (BillboardSelectionTintOriginalColors.find(BillboardComponent) == BillboardSelectionTintOriginalColors.end())
-		{
-			BillboardSelectionTintOriginalColors[BillboardComponent] = BillboardComponent->GetBaseColor();
-		}
-		BillboardComponent->SetBaseColorLinear(HighlightTint);
-	}
 }
 
 void FEditorEngine::PrepareFrame(float DeltaTime)
@@ -554,7 +765,7 @@ void FEditorEngine::TickWorlds(float DeltaTime)
 
 std::unique_ptr<IViewportClient> FEditorEngine::CreateViewportClient()
 {
-	auto Client = std::make_unique<FEditorViewportClient>(*this, EditorUI, ViewportRegistry, MainWindow);
+	auto Client             = std::make_unique<FEditorViewportClient>(*this, EditorUI, ViewportRegistry, MainWindow);
 	EditorViewportClientRaw = Client.get();
 	return Client;
 }
@@ -590,293 +801,17 @@ FEditorViewportController* FEditorEngine::GetViewportController()
 	return CameraSubsystem.GetViewportController();
 }
 
-void FEditorEngine::ClearDebugDrawForFrame()
+FViewport* FEditorEngine::FindViewport(FViewportId Id)
 {
-	GetDebugDrawManager().Clear();
-}
-
-void FEditorEngine::CreateInitUI()
-{
-	auto* RawEditorVP = static_cast<FEditorViewportClient*>(ViewportClient.get());
-	std::unique_ptr<SEditorViewportOverlay> Overlay = std::make_unique<SEditorViewportOverlay>(this, &EditorUI, RawEditorVP);
-	SWidget* RawOverlay = SlateApplication->CreateWidget(std::move(Overlay));
-	SlateApplication->AddOverlayWidget(RawOverlay);
-}
-
-bool FEditorEngine::StartPIE()
-{
-	if (bIsPIEActive)
-	{
-		return false;
-	}
-
-	if (EditorWorldContext == nullptr || EditorWorldContext->World == nullptr)
-	{
-		return false;
-	}
-
-	if (ULevel* EditorLevel = EditorWorldContext->World->GetScene())
-	{
-		EditorLevel->EnsureEssentialActors();
-	}
-
-	UWorld* PIEWorld = UWorld::DuplicateWorldForPIE(EditorWorldContext->World);
-	if (PIEWorld == nullptr)
-	{
-		return false;
-	}
-
-	PIEWorld->ResetRuntimeState();
-
-	const float AspectRatio = GetWindowAspectRatio();
-	PIEWorldContext = CreateWorldContext("PIE", EWorldType::PIE, PIEWorld);
-	if (PIEWorldContext == nullptr)
-	{
-		PIEWorld->CleanupWorld();
-		PIEWorld->MarkPendingKill();
-		return false;
-	}
-
-	UpdateWorldAspectRatio(PIEWorld, AspectRatio);
-
-	SavedPIEViewportStates.clear();
 	for (FViewportEntry& Entry : ViewportRegistry.GetEntries())
 	{
-		if (!Entry.bActive)
+		if (Entry.Id == Id && Entry.bActive)
 		{
-			continue;
-		}
-
-		FPIEViewportStateBackup Backup;
-		Backup.ViewportId = Entry.Id;
-		Backup.WorldContext = Entry.WorldContext;
-		Backup.LocalState = Entry.LocalState;
-		Backup.LocalState.ViewMode = Entry.LocalState.ViewMode;
-		Backup.LocalState.ShowFlags = Entry.LocalState.ShowFlags;
-		SavedPIEViewportStates.push_back(Backup);
-	}
-
-	SavedPIESelectedActor = GetSelectedActor();
-
-	FViewportEntry* PIEViewportEntry = nullptr;
-	if (SlateApplication)
-	{
-		const FViewportId FocusedId = SlateApplication->GetFocusedViewportId();
-		if (FocusedId != INVALID_VIEWPORT_ID)
-		{
-			FViewportEntry* FocusedEntry = ViewportRegistry.FindEntryByViewportID(FocusedId);
-			if (FocusedEntry && FocusedEntry->bActive)
-			{
-				PIEViewportEntry = FocusedEntry;
-			}
+			return Entry.Viewport;
 		}
 	}
 
-	if (PIEViewportEntry == nullptr)
-	{
-		for (FViewportEntry& Entry : ViewportRegistry.GetEntries())
-		{
-			if (Entry.bActive)
-			{
-				PIEViewportEntry = &Entry;
-				break;
-			}
-		}
-	}
-
-	if (PIEViewportEntry)
-	{
-		PIEViewportEntry->WorldContext = PIEWorldContext;
-		PIEViewportId = PIEViewportEntry->Id;
-		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_UUID, false);
-		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, false);
-		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, false);
-		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, false);
-		if (PIEViewportEntry->LocalState.ProjectionType == EViewportType::Perspective)
-		{
-			PIEViewportEntry->LocalState.Position = FVector::ZeroVector;
-			PIEViewportEntry->LocalState.Rotation = FRotator::ZeroRotator;
-			PIEViewportEntry->LocalState.bShowGrid = false;
-		}
-		else
-		{
-			// PIE should not inherit the last perspective camera when launched from
-			// an ortho viewport. Start from a deterministic perspective state instead.
-			const FViewportLocalState PreviousViewportState = PIEViewportEntry->LocalState;
-			FViewportLocalState PIEViewportState = FViewportLocalState::CreateDefault(EViewportType::Perspective);
-			PIEViewportState.ShowFlags = PreviousViewportState.ShowFlags;
-			PIEViewportState.ViewMode = PreviousViewportState.ViewMode;
-			PIEViewportState.GridSize = PreviousViewportState.GridSize;
-			PIEViewportState.LineThickness = PreviousViewportState.LineThickness;
-			PIEViewportState.NearPlane = PreviousViewportState.NearPlane;
-			PIEViewportState.FarPlane = PreviousViewportState.FarPlane;
-			PIEViewportState.bShowGrid = false;
-			PIEViewportEntry->LocalState = PIEViewportState;
-		}
-	}
-
-	ApplyPIEStartView();
-
-	RefreshPIEPlayerCameraActors();
-
-	SetSelectedActor(nullptr);
-
-	PrePIEActiveWorldContext = ActiveWorldContext ? ActiveWorldContext : EditorWorldContext;
-	ActiveWorldContext = PIEWorldContext;
-	bIsPIEActive = true;
-	bIsPIEPaused = false;
-	bIsPIEInputCaptured = true;
-	PIEPossessionState = EPIEPossessionState::Possessed;
-	bWasCursorHiddenForPIE = true;
-	bIsPIECursorCurrentlyHidden = false;
-	CenterCursorInPIEViewport();
-	SyncPIECursorState();
-
-	PIEWorld->BeginPlay();
-	return true;
-}
-
-void FEditorEngine::EndPIE()
-{
-	if (!bIsPIEActive)
-	{
-		return;
-	}
-
-	for (const FPIEViewportStateBackup& Backup : SavedPIEViewportStates)
-	{
-		FViewportEntry* RestoreViewportEntry = ViewportRegistry.FindEntryByViewportID(Backup.ViewportId);
-		if (RestoreViewportEntry)
-		{
-			RestoreViewportEntry->WorldContext = Backup.WorldContext;
-			RestoreViewportEntry->LocalState = Backup.LocalState;
-		}
-	}
-	SavedPIEViewportStates.clear();
-
-	DestroyWorldContext(PIEWorldContext);
-	PIEWorldContext = nullptr;
-
-	ActiveWorldContext = PrePIEActiveWorldContext ? PrePIEActiveWorldContext : EditorWorldContext;
-	PrePIEActiveWorldContext = nullptr;
-	SetSelectedActor(SavedPIESelectedActor.Get());
-	SavedPIESelectedActor = nullptr;
-
-	if (bWasCursorHiddenForPIE)
-	{
-		if (bIsPIECursorCurrentlyHidden)
-		{
-			::ShowCursor(TRUE);
-		}
-		bWasCursorHiddenForPIE = false;
-		bIsPIECursorCurrentlyHidden = false;
-	}
-	::ClipCursor(nullptr);
-
-	bIsPIEActive = false;
-	bIsPIEPaused = false;
-	bIsPIEInputCaptured = false;
-	PIEPossessionState = EPIEPossessionState::Ejected;
-	PIEViewportId = INVALID_VIEWPORT_ID;
-	PIEPlayerCameraActors.clear();
-	ActivePIEPlayerCameraIndex = -1;
-}
-
-void FEditorEngine::TogglePIEPause()
-{
-	if (bIsPIEActive)
-	{
-		bIsPIEPaused = !bIsPIEPaused;
-	}
-}
-
-void FEditorEngine::CapturePIEInput()
-{
-	if (!bIsPIEActive || bIsPIEPaused || PIEViewportId == INVALID_VIEWPORT_ID)
-	{
-		return;
-	}
-
-	if (FViewportEntry* PIEViewportEntry = ViewportRegistry.FindEntryByViewportID(PIEViewportId))
-	{
-		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_UUID, false);
-		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, false);
-		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, false);
-		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, false);
-		PIEViewportEntry->LocalState.bShowGrid = false;
-	}
-
-	bIsPIEInputCaptured = true;
-	PIEPossessionState = EPIEPossessionState::Possessed;
-	bWasCursorHiddenForPIE = true;
-	CenterCursorInPIEViewport();
-	SyncPIECursorState();
-}
-
-void FEditorEngine::ReleasePIEInputCapture()
-{
-	if (!bIsPIEActive)
-	{
-		return;
-	}
-
-	if (FViewportEntry* PIEViewportEntry = ViewportRegistry.FindEntryByViewportID(PIEViewportId))
-	{
-		for (const FPIEViewportStateBackup& Backup : SavedPIEViewportStates)
-		{
-			if (Backup.ViewportId == PIEViewportId)
-			{
-				PIEViewportEntry->LocalState = Backup.LocalState;
-				break;
-			}
-		}
-	}
-
-	bIsPIEInputCaptured = false;
-	PIEPossessionState = EPIEPossessionState::Ejected;
-	SyncPIECursorState();
-}
-
-void FEditorEngine::TogglePIEPossession()
-{
-	if (!bIsPIEActive)
-	{
-		return;
-	}
-
-	if (PIEPossessionState == EPIEPossessionState::Possessed)
-	{
-		ReleasePIEInputCapture();
-		return;
-	}
-
-	ApplyPIEStartView();
-	CapturePIEInput();
-}
-
-bool FEditorEngine::CyclePIEPlayerCamera(int32 Direction)
-{
-	const int32 CameraCount = static_cast<int32>(PIEPlayerCameraActors.size());
-	if (!bIsPIEActive || CameraCount <= 0)
-	{
-		return false;
-	}
-
-	int32 NextCameraIndex = ActivePIEPlayerCameraIndex;
-	if (NextCameraIndex < 0 || NextCameraIndex >= CameraCount)
-	{
-		NextCameraIndex = 0;
-	}
-	else
-	{
-		NextCameraIndex = (NextCameraIndex + Direction) % CameraCount;
-		if (NextCameraIndex < 0)
-		{
-			NextCameraIndex += CameraCount;
-		}
-	}
-
-	return ApplyPIEPlayerCameraByIndex(NextCameraIndex);
+	return nullptr;
 }
 
 bool FEditorEngine::InitEditorPreview()
@@ -1057,7 +992,7 @@ void FEditorEngine::InitEditorViewportRouting()
 bool FEditorEngine::InitEditorWorlds()
 {
 	const float AspectRatio = GetWindowAspectRatio();
-	EditorWorldContext = CreateWorldContext("EditorScene", EWorldType::Editor, AspectRatio, true);
+	EditorWorldContext      = CreateWorldContext("EditorScene", EWorldType::Editor, AspectRatio, true);
 	if (!EditorWorldContext)
 	{
 		return false;
@@ -1122,6 +1057,173 @@ void FEditorEngine::UpdateEditorWorldAspectRatio(float AspectRatio)
 	}
 }
 
+void FEditorEngine::SyncFocusedViewportLocalState()
+{
+	if (!EditorViewportClientRaw || !SlateApplication)
+	{
+		return;
+	}
+
+	FViewportId          FocusedId    = SlateApplication->GetFocusedViewportId();
+	FViewportEntry*      FocusedEntry = ViewportRegistry.FindEntryByViewportID(FocusedId);
+	FViewportLocalState* LocalState   = nullptr;
+	if (FocusedEntry && FocusedEntry->bActive)
+	{
+		if (FocusedEntry->WorldContext && FocusedEntry->WorldContext->World)
+		{
+			ActiveWorldContext = FocusedEntry->WorldContext;
+		}
+
+		const bool bIsPIEViewport =
+				FocusedEntry->WorldContext &&
+				FocusedEntry->WorldContext->WorldType == EWorldType::PIE;
+
+		if (!bIsPIEViewport && FocusedEntry->LocalState.ProjectionType == EViewportType::Perspective)
+		{
+			LocalState = &FocusedEntry->LocalState;
+		}
+	}
+
+	CameraSubsystem.GetViewportController()->SetActiveLocalState(LocalState);
+}
+
+void FEditorEngine::SyncPlatformCursor()
+{
+	if (!SlateApplication || !SlateApplication->GetIsCoursorInArea())
+	{
+		return;
+	}
+
+	const EMouseCursor SlateCursor   = SlateApplication->GetCurrentCursor();
+	LPCWSTR            WinCursorName = IDC_ARROW;
+	switch (SlateCursor)
+	{
+	case EMouseCursor::Default: WinCursorName = IDC_ARROW;
+		break;
+	case EMouseCursor::ResizeLeftRight: WinCursorName = IDC_SIZEWE;
+		break;
+	case EMouseCursor::ResizeUpDown: WinCursorName = IDC_SIZENS;
+		break;
+	case EMouseCursor::Hand: WinCursorName = IDC_HAND;
+		break;
+	case EMouseCursor::None: WinCursorName = nullptr;
+		break;
+	}
+
+	if (WinCursorName)
+	{
+		::SetCursor(::LoadCursor(NULL, WinCursorName));
+	}
+	else
+	{
+		::SetCursor(nullptr);
+	}
+}
+
+void FEditorEngine::SyncPIECursorState()
+{
+	if (!bIsPIEActive || PIEViewportId == INVALID_VIEWPORT_ID || MainWindow == nullptr)
+	{
+		if (bWasCursorHiddenForPIE && bIsPIECursorCurrentlyHidden)
+		{
+			::ShowCursor(TRUE);
+			bIsPIECursorCurrentlyHidden = false;
+		}
+		::ClipCursor(nullptr);
+		return;
+	}
+
+	if (!bIsPIEInputCaptured)
+	{
+		if (bWasCursorHiddenForPIE && bIsPIECursorCurrentlyHidden)
+		{
+			::ShowCursor(TRUE);
+			bIsPIECursorCurrentlyHidden = false;
+		}
+		::ClipCursor(nullptr);
+		return;
+	}
+
+	HWND       Hwnd          = MainWindow->GetHwnd();
+	const bool bWindowActive = (Hwnd != nullptr) &&
+			(::GetForegroundWindow() == Hwnd);
+
+	if (!bWindowActive)
+	{
+		if (bWasCursorHiddenForPIE && bIsPIECursorCurrentlyHidden)
+		{
+			::ShowCursor(TRUE);
+			bIsPIECursorCurrentlyHidden = false;
+		}
+		::ClipCursor(nullptr);
+		return;
+	}
+
+	if (bWasCursorHiddenForPIE && !bIsPIECursorCurrentlyHidden)
+	{
+		::ShowCursor(FALSE);
+		bIsPIECursorCurrentlyHidden = true;
+	}
+
+	FViewport* PIEViewport = FindViewport(PIEViewportId);
+	if (PIEViewport == nullptr)
+	{
+		::ClipCursor(nullptr);
+		return;
+	}
+
+	const FRect& Rect = PIEViewport->GetRect();
+	if (!Rect.IsValid())
+	{
+		::ClipCursor(nullptr);
+		return;
+	}
+
+	if (Hwnd == nullptr)
+	{
+		::ClipCursor(nullptr);
+		return;
+	}
+
+	POINT TopLeft     = { Rect.X, Rect.Y };
+	POINT BottomRight = { Rect.X + Rect.Width, Rect.Y + Rect.Height };
+	::ClientToScreen(Hwnd, &TopLeft);
+	::ClientToScreen(Hwnd, &BottomRight);
+
+	RECT ClipRect = { TopLeft.x, TopLeft.y, BottomRight.x, BottomRight.y };
+	::ClipCursor(&ClipRect);
+}
+
+void FEditorEngine::CenterCursorInPIEViewport()
+{
+	if (!bIsPIEActive || PIEViewportId == INVALID_VIEWPORT_ID || MainWindow == nullptr)
+	{
+		return;
+	}
+
+	FViewport* PIEViewport = FindViewport(PIEViewportId);
+	if (PIEViewport == nullptr)
+	{
+		return;
+	}
+
+	HWND Hwnd = MainWindow->GetHwnd();
+	if (Hwnd == nullptr)
+	{
+		return;
+	}
+
+	const FRect& Rect = PIEViewport->GetRect();
+	if (!Rect.IsValid())
+	{
+		return;
+	}
+
+	POINT Center = { Rect.X + Rect.Width / 2, Rect.Y + Rect.Height / 2 };
+	::ClientToScreen(Hwnd, &Center);
+	::SetCursorPos(Center.x, Center.y);
+}
+
 void FEditorEngine::RefreshPIEPlayerCameraActors()
 {
 	PIEPlayerCameraActors.clear();
@@ -1184,10 +1286,10 @@ bool FEditorEngine::ApplyPIEPlayerCameraByIndex(int32 CameraIndex)
 		if (FCamera* Camera = CameraComponent->GetCamera())
 		{
 			PIEViewportEntry->LocalState.ProjectionType = EViewportType::Perspective;
-			PIEViewportEntry->LocalState.Position = Camera->GetPosition();
-			PIEViewportEntry->LocalState.Rotation = FRotator(Camera->GetPitch(), Camera->GetYaw(), 0.0f);
-			PIEViewportEntry->LocalState.FovY = Camera->GetFOV();
-			PIEViewportEntry->LocalState.bShowGrid = false;
+			PIEViewportEntry->LocalState.Position       = Camera->GetPosition();
+			PIEViewportEntry->LocalState.Rotation       = FRotator(Camera->GetPitch(), Camera->GetYaw(), 0.0f);
+			PIEViewportEntry->LocalState.FovY           = Camera->GetFOV();
+			PIEViewportEntry->LocalState.bShowGrid      = false;
 		}
 	}
 
@@ -1222,23 +1324,23 @@ void FEditorEngine::ApplyPIEStartView()
 
 	AActor* StartActor = DefaultPawnActor ? DefaultPawnActor : PlayerStartActor;
 
-	FVector StartLocation = FVector::ZeroVector;
+	FVector  StartLocation = FVector::ZeroVector;
 	FRotator StartRotation = FRotator::ZeroRotator;
 	if (StartActor)
 	{
 		const FTransform StartTransform = StartActor->GetActorTransform();
-		StartLocation = StartTransform.GetLocation();
-		StartRotation = StartTransform.Rotator();
+		StartLocation                   = StartTransform.GetLocation();
+		StartRotation                   = StartTransform.Rotator();
 	}
 
-	UCameraComponent* PawnCameraComponent = EnsurePIECameraComponent(StartActor);
+	UCameraComponent*    PawnCameraComponent    = EnsurePIECameraComponent(StartActor);
 	USpringArmComponent* PawnSpringArmComponent = StartActor ? StartActor->GetComponentByClass<USpringArmComponent>() : nullptr;
 	if (PawnCameraComponent)
 	{
 		FCamera* PawnCamera = PawnCameraComponent->GetCamera();
 		if (PawnCamera)
 		{
-			FVector CameraLocation = StartLocation;
+			FVector  CameraLocation = StartLocation;
 			FRotator CameraRotation = StartRotation;
 			if (PawnSpringArmComponent)
 			{
@@ -1262,12 +1364,12 @@ void FEditorEngine::ApplyPIEStartView()
 		if (FCamera* SceneCamera = SceneCameraComponent->GetCamera())
 		{
 			// 기본 Pawn에 카메라가 없으면, Pawn 뒤쪽에서 바라보는 간단한 3인칭 뷰를 사용한다.
-			FVector CameraLocation = StartLocation;
+			FVector  CameraLocation = StartLocation;
 			FRotator CameraRotation = StartRotation;
 			if (DefaultPawnActor && StartActor == DefaultPawnActor)
 			{
 				const FVector PawnForward = StartRotation.Vector().GetSafeNormal();
-				CameraLocation = StartLocation - PawnForward * 5.0f + FVector(0.0f, 0.0f, 2.0f);
+				CameraLocation            = StartLocation - PawnForward * 5.0f + FVector(0.0f, 0.0f, 2.0f);
 			}
 
 			SceneCamera->SetPosition(CameraLocation);
@@ -1283,13 +1385,13 @@ void FEditorEngine::ApplyPIEStartView()
 		PIEViewportEntry->LocalState.ProjectionType = EViewportType::Perspective;
 		if (PawnCameraComponent && PawnCameraComponent->GetCamera())
 		{
-			FCamera* PawnCamera = PawnCameraComponent->GetCamera();
+			FCamera* PawnCamera                   = PawnCameraComponent->GetCamera();
 			PIEViewportEntry->LocalState.Position = PawnCamera->GetPosition();
 			PIEViewportEntry->LocalState.Rotation = FRotator(PawnCamera->GetPitch(), PawnCamera->GetYaw(), 0.0f);
 		}
 		else if (DefaultPawnActor && StartActor == DefaultPawnActor)
 		{
-			const FVector PawnForward = StartRotation.Vector().GetSafeNormal();
+			const FVector PawnForward             = StartRotation.Vector().GetSafeNormal();
 			PIEViewportEntry->LocalState.Position = StartLocation - PawnForward * 5.0f + FVector(0.0f, 0.0f, 2.0f);
 		}
 		else
@@ -1317,8 +1419,8 @@ AActor* FEditorEngine::ResolvePIEDefaultPawnActor(UWorld* PIEWorld) const
 		return nullptr;
 	}
 
-	const FLevelGameplaySettings& GameplaySettings = PIELevel->GetGameplaySettings();
-	const FString& DefaultPawnMeshAsset = GameplaySettings.DefaultPawnMeshAsset;
+	const FLevelGameplaySettings& GameplaySettings     = PIELevel->GetGameplaySettings();
+	const FString&                DefaultPawnMeshAsset = GameplaySettings.DefaultPawnMeshAsset;
 	if (DefaultPawnMeshAsset.empty())
 	{
 		return nullptr;
@@ -1362,7 +1464,8 @@ AActor* FEditorEngine::ResolvePIEDefaultPawnActor(UWorld* PIEWorld) const
 	if (!SpringArmComponent)
 	{
 		SpringArmComponent = FObjectFactory::ConstructObject<USpringArmComponent>(
-			SpawnedPawnActor, "SpringArmComponent");
+			SpawnedPawnActor,
+			"SpringArmComponent");
 	}
 	if (SpringArmComponent)
 	{
@@ -1387,7 +1490,8 @@ AActor* FEditorEngine::ResolvePIEDefaultPawnActor(UWorld* PIEWorld) const
 	if (!CameraComponent)
 	{
 		CameraComponent = FObjectFactory::ConstructObject<UCameraComponent>(
-			SpawnedPawnActor, "PawnCameraComponent");
+			SpawnedPawnActor,
+			"PawnCameraComponent");
 	}
 	if (CameraComponent)
 	{
@@ -1447,168 +1551,6 @@ AActor* FEditorEngine::ResolvePIEDefaultPawnActor(UWorld* PIEWorld) const
 	return SpawnedPawnActor;
 }
 
-void FEditorEngine::SyncFocusedViewportLocalState()
-{
-	if (!EditorViewportClientRaw || !SlateApplication)
-	{
-		return;
-	}
-
-	FViewportId FocusedId = SlateApplication->GetFocusedViewportId();
-	FViewportEntry* FocusedEntry = ViewportRegistry.FindEntryByViewportID(FocusedId);
-	FViewportLocalState* LocalState = nullptr;
-	if (FocusedEntry && FocusedEntry->bActive)
-	{
-		if (FocusedEntry->WorldContext && FocusedEntry->WorldContext->World)
-		{
-			ActiveWorldContext = FocusedEntry->WorldContext;
-		}
-
-		const bool bIsPIEViewport =
-			FocusedEntry->WorldContext &&
-			FocusedEntry->WorldContext->WorldType == EWorldType::PIE;
-
-		if (!bIsPIEViewport && FocusedEntry->LocalState.ProjectionType == EViewportType::Perspective)
-		{
-			LocalState = &FocusedEntry->LocalState;
-		}
-	}
-
-	CameraSubsystem.GetViewportController()->SetActiveLocalState(LocalState);
-}
-
-void FEditorEngine::SyncPlatformCursor()
-{
-	if (!SlateApplication || !SlateApplication->GetIsCoursorInArea())
-	{
-		return;
-	}
-
-	const EMouseCursor SlateCursor = SlateApplication->GetCurrentCursor();
-	LPCWSTR WinCursorName = IDC_ARROW;
-	switch (SlateCursor)
-	{
-	case EMouseCursor::Default:         WinCursorName = IDC_ARROW;  break;
-	case EMouseCursor::ResizeLeftRight: WinCursorName = IDC_SIZEWE; break;
-	case EMouseCursor::ResizeUpDown:    WinCursorName = IDC_SIZENS; break;
-	case EMouseCursor::Hand:            WinCursorName = IDC_HAND;   break;
-	case EMouseCursor::None:            WinCursorName = nullptr;    break;
-	}
-
-	if (WinCursorName)
-	{
-		::SetCursor(::LoadCursor(NULL, WinCursorName));
-	}
-	else
-	{
-		::SetCursor(nullptr);
-	}
-}
-
-void FEditorEngine::SyncPIECursorState()
-{
-	if (!bIsPIEActive || PIEViewportId == INVALID_VIEWPORT_ID || MainWindow == nullptr)
-	{
-		if (bWasCursorHiddenForPIE && bIsPIECursorCurrentlyHidden)
-		{
-			::ShowCursor(TRUE);
-			bIsPIECursorCurrentlyHidden = false;
-		}
-		::ClipCursor(nullptr);
-		return;
-	}
-
-	if (!bIsPIEInputCaptured)
-	{
-		if (bWasCursorHiddenForPIE && bIsPIECursorCurrentlyHidden)
-		{
-			::ShowCursor(TRUE);
-			bIsPIECursorCurrentlyHidden = false;
-		}
-		::ClipCursor(nullptr);
-		return;
-	}
-
-	HWND Hwnd = MainWindow->GetHwnd();
-	const bool bWindowActive = (Hwnd != nullptr) &&
-		(::GetForegroundWindow() == Hwnd);
-
-	if (!bWindowActive)
-	{
-		if (bWasCursorHiddenForPIE && bIsPIECursorCurrentlyHidden)
-		{
-			::ShowCursor(TRUE);
-			bIsPIECursorCurrentlyHidden = false;
-		}
-		::ClipCursor(nullptr);
-		return;
-	}
-
-	if (bWasCursorHiddenForPIE && !bIsPIECursorCurrentlyHidden)
-	{
-		::ShowCursor(FALSE);
-		bIsPIECursorCurrentlyHidden = true;
-	}
-
-	FViewport* PIEViewport = FindViewport(PIEViewportId);
-	if (PIEViewport == nullptr)
-	{
-		::ClipCursor(nullptr);
-		return;
-	}
-
-	const FRect& Rect = PIEViewport->GetRect();
-	if (!Rect.IsValid())
-	{
-		::ClipCursor(nullptr);
-		return;
-	}
-
-	if (Hwnd == nullptr)
-	{
-		::ClipCursor(nullptr);
-		return;
-	}
-
-	POINT TopLeft = { Rect.X, Rect.Y };
-	POINT BottomRight = { Rect.X + Rect.Width, Rect.Y + Rect.Height };
-	::ClientToScreen(Hwnd, &TopLeft);
-	::ClientToScreen(Hwnd, &BottomRight);
-
-	RECT ClipRect = { TopLeft.x, TopLeft.y, BottomRight.x, BottomRight.y };
-	::ClipCursor(&ClipRect);
-}
-
-void FEditorEngine::CenterCursorInPIEViewport()
-{
-	if (!bIsPIEActive || PIEViewportId == INVALID_VIEWPORT_ID || MainWindow == nullptr)
-	{
-		return;
-	}
-
-	FViewport* PIEViewport = FindViewport(PIEViewportId);
-	if (PIEViewport == nullptr)
-	{
-		return;
-	}
-
-	HWND Hwnd = MainWindow->GetHwnd();
-	if (Hwnd == nullptr)
-	{
-		return;
-	}
-
-	const FRect& Rect = PIEViewport->GetRect();
-	if (!Rect.IsValid())
-	{
-		return;
-	}
-
-	POINT Center = { Rect.X + Rect.Width / 2, Rect.Y + Rect.Height / 2 };
-	::ClientToScreen(Hwnd, &Center);
-	::SetCursorPos(Center.x, Center.y);
-}
-
 void FEditorEngine::SyncViewportClient()
 {
 	if (!GetActiveWorldContext())
@@ -1616,8 +1558,8 @@ void FEditorEngine::SyncViewportClient()
 		return;
 	}
 
-	IViewportClient* TargetViewportClient = ViewportClient.get();
-	const FWorldContext* ActiveSceneContext = GetActiveWorldContext();
+	IViewportClient*     TargetViewportClient = ViewportClient.get();
+	const FWorldContext* ActiveSceneContext   = GetActiveWorldContext();
 	if (ActiveSceneContext && ActiveSceneContext->WorldType == EWorldType::Preview && PreviewViewportClient)
 	{
 		TargetViewportClient = PreviewViewportClient.get();
@@ -1629,15 +1571,83 @@ void FEditorEngine::SyncViewportClient()
 	}
 }
 
-FViewport* FEditorEngine::FindViewport(FViewportId Id)
+void FEditorEngine::RefreshLightGizmoSelectionVisibility()
 {
-	for (FViewportEntry& Entry : ViewportRegistry.GetEntries())
+	RefreshLightActorGizmosForLevel(this, GetEditorScene());
+
+	for (FWorldContext* PreviewContext : PreviewWorldContexts)
 	{
-		if (Entry.Id == Id && Entry.bActive)
+		if (!PreviewContext || !PreviewContext->World)
 		{
-			return Entry.Viewport;
+			continue;
+		}
+
+		RefreshLightActorGizmosForLevel(this, PreviewContext->World->GetScene());
+	}
+
+	RefreshSelectedBillboardTint();
+}
+
+void FEditorEngine::RefreshSelectedBillboardTint()
+{
+	const auto                 HighlightTint  = FLinearColor(1.0f, 0.62f, 0.22f, 1.0f);
+	const TArray<AActor*>      SelectedActors = GetSelectedActors();
+	TSet<UBillboardComponent*> SelectedBillboards;
+
+	for (AActor* SelectedActor : SelectedActors)
+	{
+		if (!SelectedActor || SelectedActor->IsPendingDestroy())
+		{
+			continue;
+		}
+
+		for (UActorComponent* Component : SelectedActor->GetComponents())
+		{
+			if (!Component || !Component->IsA(UBillboardComponent::StaticClass()))
+			{
+				continue;
+			}
+
+			auto BillboardComponent = static_cast<UBillboardComponent*>(Component);
+			if (BillboardComponent->IsPendingKill() || BillboardComponent->IsA(UUUIDBillboardComponent::StaticClass()))
+			{
+				continue;
+			}
+
+			SelectedBillboards.insert(BillboardComponent);
 		}
 	}
 
-	return nullptr;
+	for (auto It = BillboardSelectionTintOriginalColors.begin(); It != BillboardSelectionTintOriginalColors.end();)
+	{
+		UBillboardComponent* BillboardComponent = It->first;
+		if (!BillboardComponent || BillboardComponent->IsPendingKill())
+		{
+			It = BillboardSelectionTintOriginalColors.erase(It);
+			continue;
+		}
+
+		if (SelectedBillboards.find(BillboardComponent) == SelectedBillboards.end())
+		{
+			BillboardComponent->SetBaseColorLinear(It->second);
+			It = BillboardSelectionTintOriginalColors.erase(It);
+			continue;
+		}
+
+		++It;
+	}
+
+	for (UBillboardComponent* BillboardComponent : SelectedBillboards)
+	{
+		if (!BillboardComponent || BillboardComponent->IsPendingKill())
+		{
+			continue;
+		}
+
+		if (BillboardSelectionTintOriginalColors.find(BillboardComponent) == BillboardSelectionTintOriginalColors.end())
+		{
+			BillboardSelectionTintOriginalColors[BillboardComponent] = BillboardComponent->GetBaseColor();
+		}
+		BillboardComponent->SetBaseColorLinear(HighlightTint);
+	}
 }
