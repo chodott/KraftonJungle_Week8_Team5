@@ -87,28 +87,36 @@ bool FBloomRenderFeature::Render(
 	{
 		UpdateBlurConstantBuffer(Renderer, Width, Height);
 
-		ID3D11ShaderResourceView* srvs[] = { BloomBrightnessSRV };
-		ID3D11UnorderedAccessView* uavs[] = { BloomScratchUAV };
-		ID3D11Buffer* cbs[] = { BlurConstantBuffer };
+		for (int i = 0; i < BlurIterations; ++i)
+		{
+			bool bPingPong = (i % 2 == 0);
 
-		BlurCS->Bind(DeviceContext);
-		DeviceContext->CSSetConstantBuffers(0, 1, cbs);
-		DeviceContext->CSSetShaderResources(0, 1, srvs);
-		DeviceContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
+			ID3D11ShaderResourceView* srvs[] = { bPingPong ? BloomBrightnessSRV : BloomScratchSRV };
+			ID3D11UnorderedAccessView* uavs[] = { bPingPong ? BloomScratchUAV : BloomBrightnessUAV };
+			ID3D11Buffer* cbs[] = { BlurConstantBuffer };
 
-		DeviceContext->Dispatch((Width + 15) / 16, (Height + 15) / 16, 1);
+			BlurCS->Bind(DeviceContext);
+			DeviceContext->CSSetConstantBuffers(0, 1, cbs);
+			DeviceContext->CSSetShaderResources(0, 1, srvs);
+			DeviceContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
 
-		ID3D11UnorderedAccessView* nullUAV[] = { nullptr };
-		ID3D11ShaderResourceView* nullSRV[] = { nullptr };
-		DeviceContext->CSSetUnorderedAccessViews(0, 1, nullUAV, nullptr);
-		DeviceContext->CSSetShaderResources(0, 1, nullSRV);
+			DeviceContext->Dispatch((Width + 15) / 16, (Height + 15) / 16, 1);
+
+			ID3D11UnorderedAccessView* nullUAV[] = { nullptr };
+			ID3D11ShaderResourceView* nullSRV[] = { nullptr };
+			DeviceContext->CSSetUnorderedAccessViews(0, 1, nullUAV, nullptr);
+			DeviceContext->CSSetShaderResources(0, 1, nullSRV);
+		}
 	}
+
+	ID3D11ShaderResourceView* finalBloomSRV =
+		(BlurIterations % 2 == 1) ? BloomScratchSRV : BloomBrightnessSRV;
 
 	// ── Pass 3: Composite → SceneColorWrite ────────────────
 	{
 		UpdateCompositeConstantBuffer(Renderer);
 
-		ID3D11ShaderResourceView* srvs[] = { Targets.SceneColorSRV, BloomScratchSRV };
+		ID3D11ShaderResourceView* srvs[] = { Targets.SceneColorSRV, finalBloomSRV };
 		ID3D11UnorderedAccessView* uavs[] = { Targets.GetSceneColorWriteUAV() };
 		ID3D11Buffer* cbs[] = { CompositeConstantBuffer };
 

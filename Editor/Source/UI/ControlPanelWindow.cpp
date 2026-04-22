@@ -490,6 +490,12 @@ void FControlPanelWindow::Render(FEditorEngine *Engine)
 			float Threshold = Bloom ? Bloom->GetThreshold() : 0.0f;
 			float BloomIntensity = Bloom ? Bloom->GetBloomIntensity() : 0.0f;
 			float Exposure = Bloom ? Bloom->GetExposure() : 0.0f;
+			int Range = Bloom ? Bloom->GetBlurIterations() * 4 : 1 * 4;
+
+			if (ImGui::DragInt("Range (px)", &Range, 4.0f, 0, 50 * 4))
+			{
+				if (Bloom) Bloom->SetBlurIterations(Range / 4);
+			}
 			if (ImGui::DragFloat("Threshold", &Threshold, 0.01f, 0.0f, 1.0f))
 			{
 				if (Bloom) Bloom->SetThreshold(Threshold);

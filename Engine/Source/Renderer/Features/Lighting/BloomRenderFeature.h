@@ -23,11 +23,13 @@ public:
 	void Release();
 
 	void SetApplyBloom(bool bInApplyBloom) { bApplyBloom = bInApplyBloom; }
+	void SetBlurIterations(int InBloomRange) { BlurIterations = InBloomRange; }
 	void SetThreshold(float InThreshold) { Threshold = InThreshold; }
 	void SetBloomIntensity(float InBloomIntensity) { BloomIntensity = InBloomIntensity; }
 	void SetExposure(float InExposure) { Exposure = InExposure; }
 
 	bool IsBloomApplied() const { return bApplyBloom; }
+	int GetBlurIterations() const { return BlurIterations; }
 	float GetThreshold() const { return Threshold; }
 	float GetBloomIntensity() const { return BloomIntensity; }
 	float GetExposure() const { return Exposure; }
@@ -59,6 +61,7 @@ private:
 	void UpdateCompositeConstantBuffer(FRenderer& Renderer);
 
 	bool bApplyBloom = false;
+	int BlurIterations = 1;
 	float Threshold = 0.3f;
 	float BloomIntensity = 3.0f;
 	float Exposure = 1.0f;
