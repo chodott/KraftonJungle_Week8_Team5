@@ -462,10 +462,12 @@ void FControlPanelWindow::Render(FEditorEngine *Engine)
             if (ImGui::RadioButton("Volume Draw", Mode == EDecalProjectionMode::VolumeDraw))
             {
                 Renderer->SetDecalProjectionMode(EDecalProjectionMode::VolumeDraw);
+                if (OnSettingsChanged) OnSettingsChanged();
             }
             if (ImGui::RadioButton("Clustered Lookup", Mode == EDecalProjectionMode::ClusteredLookup))
             {
                 Renderer->SetDecalProjectionMode(EDecalProjectionMode::ClusteredLookup);
+                if (OnSettingsChanged) OnSettingsChanged();
             }
         }
         else
@@ -485,6 +487,7 @@ void FControlPanelWindow::Render(FEditorEngine *Engine)
 			if (ImGui::Checkbox("Apply", &bApplyBloom))
 			{
 				if (Bloom) Bloom->SetApplyBloom(bApplyBloom);
+				if (OnSettingsChanged) OnSettingsChanged();
 			}
 
 			float Threshold = Bloom ? Bloom->GetThreshold() : 0.0f;
@@ -495,18 +498,22 @@ void FControlPanelWindow::Render(FEditorEngine *Engine)
 			if (ImGui::DragInt("Range (px)", &Range, 4.0f, 0, 50 * 4))
 			{
 				if (Bloom) Bloom->SetBlurIterations(Range / 4);
+				if (OnSettingsChanged) OnSettingsChanged();
 			}
 			if (ImGui::DragFloat("Threshold", &Threshold, 0.01f, 0.0f, 1.0f))
 			{
 				if (Bloom) Bloom->SetThreshold(Threshold);
+				if (OnSettingsChanged) OnSettingsChanged();
 			}
 			if (ImGui::DragFloat("Bloom Intensity", &BloomIntensity, 0.05f, 0.0f, 30.0f))
 			{
 				if (Bloom) Bloom->SetBloomIntensity(BloomIntensity);
+				if (OnSettingsChanged) OnSettingsChanged();
 			}
 			if (ImGui::DragFloat("Exposure", &Exposure, 0.05f, 0.0f, 10.0f))
 			{
 				if (Bloom) Bloom->SetExposure(Exposure);
+				if (OnSettingsChanged) OnSettingsChanged();
 			}
 		}
 		else

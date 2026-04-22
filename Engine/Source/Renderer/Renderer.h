@@ -34,6 +34,14 @@ enum class EToneMappingMode : uint8
 	Linear   = 3,
 };
 
+struct FToneMappingSettings
+{
+	EToneMappingMode Mode           = EToneMappingMode::Hable;
+	float            Exposure       = 0.22f;
+	float            ShoulderStrength = 0.0f;
+	float            LinearWhite    = 0.65f;
+};
+
 struct FVertex;
 struct FRenderMesh;
 struct FMeshPassFrameStats;
@@ -211,6 +219,17 @@ public:
 		return DecalProjectionMode;
 	}
 
+	const FToneMappingSettings& GetToneMappingSettings() const
+	{
+		return ToneMappingSettings;
+	}
+
+	void SetToneMappingSettings(const FToneMappingSettings& InSettings)
+	{
+		ToneMappingSettings = InSettings;
+		ToneMappingMode     = InSettings.Mode;
+	}
+
 	FDecalStats    GetDecalStats() const;
 	FFogStats      GetFogStats() const;
 	FLightStats    GetLightStats() const;
@@ -299,6 +318,7 @@ private:
 	std::shared_ptr<FPixelShaderHandle>  FinalImageBlitPixelShader  = nullptr;
 	std::shared_ptr<FPixelShaderHandle>  ToneMappingPixelShaders[4] = {}; // [ACES, Hable, Reinhard, Linear]
 	EToneMappingMode                     ToneMappingMode            = EToneMappingMode::Hable;
+	FToneMappingSettings                 ToneMappingSettings;
 	ID3D11Buffer*                        ToneMappingConstantBuffer  = nullptr;
 	ID3D11RasterizerState*               FullscreenRasterizerState  = nullptr;
 	ID3D11DepthStencilState*             FullscreenNoDepthState     = nullptr;

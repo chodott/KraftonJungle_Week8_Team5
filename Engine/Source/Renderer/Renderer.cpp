@@ -795,7 +795,12 @@ bool FRenderer::ResolveSceneColorTargets(
 		return false;
 	}
 
-	*reinterpret_cast<FToneMappingConstants*>(Mapped.pData) = FToneMappingConstants {};
+	*reinterpret_cast<FToneMappingConstants*>(Mapped.pData) = FToneMappingConstants {
+		ToneMappingSettings.Exposure,
+		ToneMappingSettings.ShoulderStrength,
+		ToneMappingSettings.LinearWhite,
+		0.0f
+	};
 	DeviceContext->Unmap(ToneMappingConstantBuffer, 0);
 
 	FFullscreenPassPipelineState PipelineState;
