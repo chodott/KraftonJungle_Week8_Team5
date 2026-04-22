@@ -96,11 +96,25 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			}
 			else
 			{
-				Batch.Domain   = EMaterialDomain::Opaque;
-				Batch.PassMask =
-						static_cast<uint32>(EMeshPassMask::DepthPrepass) |
-						static_cast<uint32>(EMeshPassMask::GBuffer) |
-						static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+				FVector4 BaseColor = Batch.Material
+					? Batch.Material->GetVectorParameter("BaseColor")
+					: FVector4(1.0f, 1.0f, 1.0f, 1.0f);
+				const bool bIsTransparent = BaseColor.W < 1.0f;
+
+				if (bIsTransparent)
+				{
+					Batch.Domain             = EMaterialDomain::Transparent;
+					Batch.PassMask           = static_cast<uint32>(EMeshPassMask::ForwardTransparent);
+					Batch.bDisableDepthWrite = true;
+				}
+				else
+				{
+					Batch.Domain   = EMaterialDomain::Opaque;
+					Batch.PassMask =
+							static_cast<uint32>(EMeshPassMask::DepthPrepass) |
+							static_cast<uint32>(EMeshPassMask::GBuffer) |
+							static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+				}
 			}
 			SceneCommandBuilderUtils::AddBatch(BuildContext, OutSceneViewData, std::move(Batch));
 			continue;
@@ -148,11 +162,25 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			}
 			else
 			{
-				Batch.Domain   = EMaterialDomain::Opaque;
-				Batch.PassMask =
-						static_cast<uint32>(EMeshPassMask::DepthPrepass) |
-						static_cast<uint32>(EMeshPassMask::GBuffer) |
-						static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+				FVector4 BaseColor = Batch.Material
+					? Batch.Material->GetVectorParameter("BaseColor")
+					: FVector4(1.0f, 1.0f, 1.0f, 1.0f);
+				const bool bIsTransparent = BaseColor.W < 1.0f;
+
+				if (bIsTransparent)
+				{
+					Batch.Domain             = EMaterialDomain::Transparent;
+					Batch.PassMask           = static_cast<uint32>(EMeshPassMask::ForwardTransparent);
+					Batch.bDisableDepthWrite = true;
+				}
+				else
+				{
+					Batch.Domain   = EMaterialDomain::Opaque;
+					Batch.PassMask =
+							static_cast<uint32>(EMeshPassMask::DepthPrepass) |
+							static_cast<uint32>(EMeshPassMask::GBuffer) |
+							static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+				}
 			}
 			SceneCommandBuilderUtils::AddBatch(BuildContext, OutSceneViewData, std::move(Batch));
 		}
