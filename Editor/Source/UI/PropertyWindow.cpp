@@ -51,6 +51,7 @@
 #include "World/World.h"
 
 #include <algorithm>
+#include <chrono>
 
 #include "Renderer/Features/Billboard/BillboardRenderer.h"
 
@@ -182,15 +183,28 @@ namespace
 	
 	// FPaths::TextureDir()를 스캔해서 사용 가능한 텍스처 파일 목록을 반환.
 	// 콤보 오픈 시에만 호출되므로 매번 디스크 스캔해도 비용이 작음 — 런타임에 추가된 파일도 즉시 반영.
-	TArray<std::filesystem::path> GetAvailableTexturePaths()
+	const TArray<std::filesystem::path>& GetAvailableTexturePaths()
 	{
+		using FClock = std::chrono::steady_clock;
+
+		static TArray<std::filesystem::path> CachedPaths;
+		static FClock::time_point LastRefreshTime = FClock::time_point::min();
+		const FClock::time_point Now = FClock::now();
+		if (LastRefreshTime != FClock::time_point::min()
+			&& std::chrono::duration_cast<std::chrono::milliseconds>(Now - LastRefreshTime).count() < 1000)
+		{
+			return CachedPaths;
+		}
+
 		TArray<std::filesystem::path> Paths;
 
 		std::error_code ErrorCode;
 		const std::filesystem::path TextureDir = FPaths::TextureDir();
 		if (!std::filesystem::exists(TextureDir, ErrorCode))
 		{
-			return Paths;
+			CachedPaths.clear();
+			LastRefreshTime = Now;
+			return CachedPaths;
 		}
 
 		for (auto& Entry : std::filesystem::recursive_directory_iterator(TextureDir, ErrorCode))
@@ -201,11 +215,65 @@ namespace
 			}
 		}
 		std::sort(Paths.begin(), Paths.end());
-		return Paths;
+
+		CachedPaths = std::move(Paths);
+		LastRefreshTime = Now;
+		return CachedPaths;
+	}
+
+	FString GetTextureMaterialName(const std::filesystem::path& TexturePath)
+	{
+		std::error_code ErrorCode;
+		const std::filesystem::path RelativePath = std::filesystem::relative(TexturePath, FPaths::ProjectRoot(), ErrorCode);
+		FString MaterialName = FPaths::FromPath(ErrorCode ? TexturePath.lexically_normal() : RelativePath.lexically_normal());
+		std::replace(MaterialName.begin(), MaterialName.end(), '\\', '/');
+		return MaterialName;
 	}
 
 	// Material의 현재 Normal Texture 슬롯에 대한 콤보 박스 UI.
 	// None 선택 시 해제, 파일 선택 시 디스크에서 로드. 반환값은 변경 여부 (현재는 사용하지 않음).
+	std::shared_ptr<FMaterial> LoadTextureMaterial(const std::filesystem::path& TexturePath)
+	{
+		return FMaterialManager::Get().LoadFromTexturePath(GetTextureMaterialName(TexturePath));
+	}
+
+	TMap<FString, bool> BuildTextureBackedDynamicMaterialLookup(const TArray<std::filesystem::path>& TexturePaths)
+	{
+		TMap<FString, bool> Lookup;
+		for (const std::filesystem::path& TexturePath : TexturePaths)
+		{
+			const FString MaterialName = GetTextureMaterialName(TexturePath);
+			const std::shared_ptr<FMaterial> Material = FMaterialManager::Get().FindByName(MaterialName);
+			if (!Material)
+			{
+				continue;
+			}
+
+			const std::shared_ptr<FMaterialTexture> MaterialTexture = Material->GetMaterialTexture();
+			if (MaterialTexture && MaterialTexture->SourcePath == MaterialName)
+			{
+				Lookup[MaterialName] = true;
+			}
+		}
+		return Lookup;
+	}
+
+	TArray<FString> BuildMaterialPickerNames(const TArray<FString>& MaterialNames, const TArray<std::filesystem::path>& TexturePaths)
+	{
+		const TMap<FString, bool> TextureBackedLookup = BuildTextureBackedDynamicMaterialLookup(TexturePaths);
+		TArray<FString> FilteredNames;
+		for (const FString& MaterialName : MaterialNames)
+		{
+			if (TextureBackedLookup.find(MaterialName) == TextureBackedLookup.end())
+			{
+				FilteredNames.push_back(MaterialName);
+			}
+		}
+		return FilteredNames;
+	}
+
+	// Materialì˜ í˜„ìž¬ Normal Texture ìŠ¬ë¡¯ì— ëŒ€í•œ ì½¤ë³´ ë°•ìŠ¤ UI.
+	// None ì„ íƒ ì‹œ í•´ì œ, íŒŒì¼ ì„ íƒ ì‹œ ë””ìŠ¤í¬ì—ì„œ ë¡œë“œ. ë°˜í™˜ê°’ì€ ë³€ê²½ ì—¬ë¶€ (í˜„ìž¬ëŠ” ì‚¬ìš©í•˜ì§€ ì•ŠìŒ).
 	bool DrawNormalTextureCombo(UMeshComponent* MeshComponent, int32 MaterialIndex, const std::shared_ptr<FMaterial>& CurrentMaterial)
 	{
 		if (!CurrentMaterial)
@@ -261,7 +329,8 @@ namespace
 				const std::string Name = Path.filename().string();
 				const std::filesystem::path NormalizedPath = Path.lexically_normal();
 				const bool bSelected = (!CurrentPath.empty() && NormalizedPath == CurrentPath);
-				ImGui::PushID(Name.c_str());
+				const std::string PathId = NormalizedPath.string();
+				ImGui::PushID(PathId.c_str());
 				if (ImGui::Selectable(Name.c_str(), bSelected))
 				{
 					if (MeshComponent)
@@ -701,7 +770,8 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 	ImGui::Spacing();
 	ImGui::TextDisabled("Materials");
 
-	TArray<FString> MaterialNames = FMaterialManager::Get().GetAllMaterialNames();
+	const TArray<std::filesystem::path> TexturePaths = GetAvailableTexturePaths();
+	const TArray<FString> MaterialNames = BuildMaterialPickerNames(FMaterialManager::Get().GetAllMaterialNames(), TexturePaths);
 	const uint32 NumSections = CurrentMesh->GetNumSections();
 
 	if (ImGui::BeginCombo("Apply To All", "Select Material..."))
@@ -717,6 +787,26 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 						MeshComponent->SetMaterial(SectionIndex, Material);
 					}
 				}
+			}
+		}
+		if (!TexturePaths.empty())
+		{
+			ImGui::SeparatorText("Textures");
+			for (const std::filesystem::path& TexturePath : TexturePaths)
+			{
+				const FString TextureMaterialName = GetTextureMaterialName(TexturePath);
+				ImGui::PushID(TextureMaterialName.c_str());
+				if (ImGui::Selectable(TextureMaterialName.c_str(), false))
+				{
+					if (std::shared_ptr<FMaterial> Material = LoadTextureMaterial(TexturePath))
+					{
+						for (uint32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
+						{
+							MeshComponent->SetMaterial(SectionIndex, Material);
+						}
+					}
+				}
+				ImGui::PopID();
 			}
 		}
 		ImGui::EndCombo();
@@ -766,6 +856,29 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 				if (bSelected)
 				{
 					ImGui::SetItemDefaultFocus();
+				}
+			}
+			if (!TexturePaths.empty())
+			{
+				ImGui::SeparatorText("Textures");
+				for (const std::filesystem::path& TexturePath : TexturePaths)
+				{
+					const FString TextureMaterialName = GetTextureMaterialName(TexturePath);
+					const bool bSelected = (CurrentMaterialName == TextureMaterialName);
+					ImGui::PushID(TextureMaterialName.c_str());
+					if (ImGui::Selectable(TextureMaterialName.c_str(), bSelected))
+					{
+						if (std::shared_ptr<FMaterial> Material = LoadTextureMaterial(TexturePath))
+						{
+							MeshComponent->SetMaterial(SectionIndex, Material);
+							CurrentMaterial = MeshComponent->GetMaterial(SectionIndex);
+						}
+					}
+					if (bSelected)
+					{
+						ImGui::SetItemDefaultFocus();
+					}
+					ImGui::PopID();
 				}
 			}
 			ImGui::EndCombo();
@@ -1832,6 +1945,8 @@ void FPropertyWindow::DrawDecalComponentDetails(UDecalComponent* DecalComponent,
 			const std::string Label = Path.filename().string();
 			const std::wstring FullPath = Path.wstring();
 			const bool bSelected = (FullPath == CurrentPath);
+			const std::string PathId = Path.string();
+			ImGui::PushID(PathId.c_str());
 			if (ImGui::Selectable(Label.c_str(), bSelected))
 			{
 				if (AActor* OwnerActor = DecalComponent->GetOwner())
@@ -1854,6 +1969,7 @@ void FPropertyWindow::DrawDecalComponentDetails(UDecalComponent* DecalComponent,
 			{
 				ImGui::SetItemDefaultFocus();
 			}
+			ImGui::PopID();
 		}
 		ImGui::EndCombo();
 	}
@@ -2524,7 +2640,8 @@ void FPropertyWindow::Render(FEditorEngine* Engine)
 					if (UStaticMesh* MeshData = MeshComp->GetStaticMesh())
 					{
 						// 매니저에서 모든 머티리얼 리스트 가져오기
-						TArray<FString> MatNames = FMaterialManager::Get().GetAllMaterialNames();
+						const TArray<std::filesystem::path> TexturePaths = GetAvailableTexturePaths();
+						TArray<FString> MatNames = BuildMaterialPickerNames(FMaterialManager::Get().GetAllMaterialNames(), TexturePaths);
 						uint32 NumSections = MeshData->GetNumSections();
 
 						// ========================================================
@@ -2569,6 +2686,26 @@ void FPropertyWindow::Render(FEditorEngine* Engine)
 									}
 								}
 								ImGui::PopID();
+							}
+							if (!TexturePaths.empty())
+							{
+								ImGui::SeparatorText("Textures");
+								for (const std::filesystem::path& TexturePath : TexturePaths)
+								{
+									const FString TextureMaterialName = GetTextureMaterialName(TexturePath);
+									ImGui::PushID(TextureMaterialName.c_str());
+									if (ImGui::Selectable(TextureMaterialName.c_str(), false))
+									{
+										if (std::shared_ptr<FMaterial> TextureMaterial = LoadTextureMaterial(TexturePath))
+										{
+											for (uint32 j = 0; j < NumSections; ++j)
+											{
+												MeshComp->SetMaterial(j, TextureMaterial);
+											}
+										}
+									}
+									ImGui::PopID();
+								}
 							}
 							ImGui::EndCombo();
 						}
@@ -2651,6 +2788,30 @@ void FPropertyWindow::Render(FEditorEngine* Engine)
 										ImGui::SetItemDefaultFocus();
 									}
 									ImGui::PopID();
+								}
+								if (!TexturePaths.empty())
+								{
+									ImGui::SeparatorText("Textures");
+									for (const std::filesystem::path& TexturePath : TexturePaths)
+									{
+										const FString TextureMaterialName = GetTextureMaterialName(TexturePath);
+										const bool bSelected = (CurrentMatName == TextureMaterialName);
+										ImGui::PushID(TextureMaterialName.c_str());
+										if (ImGui::Selectable(TextureMaterialName.c_str(), bSelected))
+										{
+											if (std::shared_ptr<FMaterial> TextureMaterial = LoadTextureMaterial(TexturePath))
+											{
+												MeshComp->SetMaterial(i, TextureMaterial);
+												CurrentMat = MeshComp->GetMaterial(i);
+												CurrentMatName = CurrentMat ? CurrentMat->GetOriginName() : "None";
+											}
+										}
+										if (bSelected)
+										{
+											ImGui::SetItemDefaultFocus();
+										}
+										ImGui::PopID();
+									}
 								}
 								ImGui::EndCombo();
 							}

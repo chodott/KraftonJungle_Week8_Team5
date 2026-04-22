@@ -21,6 +21,9 @@ public:
 	std::shared_ptr<FMaterial> LoadFromFile(ID3D11Device* InDevice, FRenderStateManager* InStateManager, const FString& InFilePath);
 
 	// 이름으로 이미 로드된 Material 조회
+	std::shared_ptr<FMaterial> LoadFromTexturePath(const FString& InTexturePath);
+
+	// Look up a material by its registered name.
 	std::shared_ptr<FMaterial> FindByName(const FString& Name) const;
 
 	// 프로그래밍 방식으로 생성한 Material 등록
