@@ -19,6 +19,7 @@
 #include "Camera/Camera.h"
 #include "Component/CameraComponent.h"
 #include "Component/BillboardComponent.h"
+#include "Component/LineBatchComponent.h"
 #include "Component/SpringArmComponent.h"
 #include "Component/StaticMeshComponent.h"
 #include "Component/UUIDBillboardComponent.h"
@@ -107,6 +108,54 @@ namespace
 			else if (Actor->IsA(ASpotLightActor::StaticClass()))
 			{
 				static_cast<ASpotLightActor*>(Actor)->SetEditorGizmoVisible(bSelected);
+			}
+		}
+	}
+
+	bool IsLightComponentDebugGizmoName(const FString& Name)
+	{
+		constexpr const char* PointSuffix = "_PointRadiusGizmo";
+		constexpr const char* SpotSuffix = "_SpotConeGizmo";
+
+		auto HasSuffix = [](const FString& Value, const char* Suffix)
+		{
+			const size_t SuffixLength = std::strlen(Suffix);
+			return Value.size() >= SuffixLength &&
+				Value.compare(Value.size() - SuffixLength, SuffixLength, Suffix) == 0;
+		};
+
+		return HasSuffix(Name, PointSuffix) || HasSuffix(Name, SpotSuffix);
+	}
+
+	void RefreshAttachedLightComponentGizmosForLevel(FEditorEngine* Engine, ULevel* Level)
+	{
+		if (!Engine || !Level)
+		{
+			return;
+		}
+
+		for (AActor* Actor : Level->GetActors())
+		{
+			if (!Actor || Actor->IsPendingDestroy())
+			{
+				continue;
+			}
+
+			const bool bSelected = Engine->IsActorSelected(Actor);
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				if (!Component || !Component->IsA(ULineBatchComponent::StaticClass()))
+				{
+					continue;
+				}
+
+				ULineBatchComponent* LineBatchComponent = static_cast<ULineBatchComponent*>(Component);
+				if (!IsLightComponentDebugGizmoName(LineBatchComponent->GetName()))
+				{
+					continue;
+				}
+
+				LineBatchComponent->SetEditorVisualization(bSelected);
 			}
 		}
 	}
@@ -427,13 +476,13 @@ void FEditorEngine::FinalizeInitialize()
 	SlateApplication->Initialize(FRect(0, 0, W, H), VPs, MAX_VIEWPORTS);
 	EditorUI.OnSlateReady();
 	CreateInitUI();
-	FObjManager::PreloadAllModelFiles(FPaths::FromPath(FPaths::MeshDir()).c_str());
 	RefreshLightGizmoSelectionVisibility();
 }
 
 void FEditorEngine::RefreshLightGizmoSelectionVisibility()
 {
 	RefreshLightActorGizmosForLevel(this, GetEditorScene());
+	RefreshAttachedLightComponentGizmosForLevel(this, GetEditorScene());
 
 	for (FWorldContext* PreviewContext : PreviewWorldContexts)
 	{
@@ -443,6 +492,7 @@ void FEditorEngine::RefreshLightGizmoSelectionVisibility()
 		}
 
 		RefreshLightActorGizmosForLevel(this, PreviewContext->World->GetScene());
+		RefreshAttachedLightComponentGizmosForLevel(this, PreviewContext->World->GetScene());
 	}
 
 	RefreshSelectedBillboardTint();

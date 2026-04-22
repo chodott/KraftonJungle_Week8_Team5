@@ -499,6 +499,21 @@ namespace
 		return SpotLightComponent ? (SpotLightComponent->GetName() + "_SpotConeGizmo") : FString();
 	}
 
+	bool IsActorSelectedInEditor(AActor* Actor)
+	{
+		if (!Actor || !GEngine)
+		{
+			return true;
+		}
+
+		FEditorEngine* EditorEngine = static_cast<FEditorEngine*>(GEngine);
+		if (!EditorEngine)
+		{
+			return true;
+		}
+		return EditorEngine->IsActorSelected(Actor);
+	}
+
 	void RefreshAttachedLightBillboard(ULightComponent* LightComponent)
 	{
 		if (!LightComponent)
@@ -544,6 +559,9 @@ namespace
 			return;
 		}
 
+		const bool bIsSelected = IsActorSelectedInEditor(OwnerActor);
+		RadiusGizmoComponent->SetEditorVisualization(bIsSelected);
+
 		RadiusGizmoComponent->Clear();
 		const float Radius = (std::max)(PointLightComponent->GetAttenuationRadius(), 0.0f);
 		if (Radius <= FMath::SmallNumber)
@@ -574,6 +592,9 @@ namespace
 		{
 			return;
 		}
+
+		const bool bIsSelected = IsActorSelectedInEditor(OwnerActor);
+		ConeGizmoComponent->SetEditorVisualization(bIsSelected);
 
 		ConeGizmoComponent->Clear();
 
