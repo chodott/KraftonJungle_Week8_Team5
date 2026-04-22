@@ -1,4 +1,4 @@
-﻿#include "SceneLightingPasses.h"
+#include "SceneLightingPasses.h"
 
 #include "Renderer/Renderer.h"
 #include "Renderer/Features/Lighting/LightRenderFeature.h"

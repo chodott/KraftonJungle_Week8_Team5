@@ -1,4 +1,4 @@
-﻿#include "Actor/SkySphereActor.h"
+#include "Actor/SkySphereActor.h"
 
 #include "Actor/PlaneActor.h"
 

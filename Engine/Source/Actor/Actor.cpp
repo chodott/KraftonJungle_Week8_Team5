@@ -424,6 +424,12 @@ void AActor::PostDuplicate(UObject* DuplicatedObject, const FDuplicateContext& C
 			DuplicatedComponent->OnRegister();
 		}
 
+		if (DuplicatedComponent->IsA(UPrimitiveComponent::StaticClass()))
+		{
+			UPrimitiveComponent* PrimitiveComponent = static_cast<UPrimitiveComponent*>(DuplicatedComponent);
+			PrimitiveComponent->UpdateBounds();
+		}
+
 		Component->PostDuplicate(DuplicatedComponent, Context);
 	}
 }
@@ -441,7 +447,7 @@ void AActor::PostSpawnInitialize()
 
 			UUIDComponent->SetWorldOffset(FVector(0.0f, 0.0f, 0.3f));
 			UUIDComponent->SetWorldScale(0.3f);
-			UUIDComponent->SetTextColor(FVector4(1.0f, 1.0f, 1.0f, 1.0f));
+			UUIDComponent->SetTextColorLinear(FLinearColor::White);
 		}
 	}
 

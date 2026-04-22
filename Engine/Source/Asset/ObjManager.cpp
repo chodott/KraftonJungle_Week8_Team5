@@ -34,7 +34,8 @@ namespace
 	constexpr uint32 GModelVersionEmbeddedMaterials = 2;
 	constexpr uint32 GModelVersionSourceTimestamp   = 3;
 	constexpr uint32 GModelVersionNormalTexture		= 4;
-	constexpr uint32 GModelVersion                  = GModelVersionNormalTexture;
+	constexpr uint32 GModelVersionEmissiveTexture   = 5;
+	constexpr uint32 GModelVersion                  = GModelVersionEmissiveTexture;
 
 	constexpr char   GLODMagic[4]                    = { 'L', 'O', 'D', 'F' };
 	constexpr uint32 GLODVersionLegacy               = 1;
@@ -912,18 +913,14 @@ namespace
 		return Material;
 	}
 
-	void ApplyBaseColorToMaterial(const std::shared_ptr<FMaterial>& Material, const FVector4& BaseColor)
+	void ApplyBaseColorToMaterial(const std::shared_ptr<FMaterial>& Material, const FLinearColor& BaseColor)
 	{
 		if (!Material)
 		{
 			return;
 		}
 
-		const float DiffuseColor[4] = { BaseColor.X, BaseColor.Y, BaseColor.Z, BaseColor.W };
-		if (FMaterialConstantBuffer* ConstantBuffer = Material->GetConstantBuffer(0))
-		{
-			ConstantBuffer->SetData(DiffuseColor, sizeof(DiffuseColor));
-		}
+		Material->SetLinearColorParameter("BaseColor", BaseColor);
 	}
 
 	bool TryLoadTextureIntoMaterial(const std::shared_ptr<FMaterial>& Material, const std::filesystem::path& TexturePath, const char* LogPrefix)
@@ -934,7 +931,11 @@ namespace
 		}
 
 		ID3D11ShaderResourceView* NewSRV = nullptr;
-		if (!GEngine->GetRenderer()->CreateTextureFromSTB(GEngine->GetRenderer()->GetDevice(), TexturePath, &NewSRV))
+		if (!GEngine->GetRenderer()->CreateTextureFromSTB(
+			GEngine->GetRenderer()->GetDevice(),
+			TexturePath,
+			&NewSRV,
+			ETextureColorSpace::ColorSRGB))
 		{
 			return false;
 		}
@@ -980,6 +981,44 @@ namespace
 		{
 			return false;
 		}
+
+		ID3D11ShaderResourceView* NewSRV = nullptr;
+		if (!GEngine->GetRenderer()->CreateTextureFromSTB(
+			GEngine->GetRenderer()->GetDevice(),
+			TexturePath,
+			&NewSRV,
+			ETextureColorSpace::DataLinear))
+		{
+			return false;
+		}
+
+		auto NormalTexture = std::make_shared<FMaterialTexture>();
+		NormalTexture->TextureSRV = NewSRV;
+		Material->SetNormalTexture(NormalTexture);
+		UE_LOG("%s %s", LogPrefix, WideToUtf8(TexturePath.wstring()).c_str());
+		return true;
+	}
+
+	bool TryLoadEmissiveTextureIntoMaterial(const std::shared_ptr<FMaterial>& Material, const std::filesystem::path& TexturePath, const char* LogPrefix)
+	{
+		if (!Material || TexturePath.empty())
+		{
+			return false;
+		}
+
+		ID3D11ShaderResourceView* NewSRV = nullptr;
+		if (!GEngine->GetRenderer()->CreateTextureFromSTB(
+			GEngine->GetRenderer()->GetDevice(),
+			TexturePath,
+			&NewSRV,
+			ETextureColorSpace::ColorSRGB))
+		{
+			return false;
+		}
+
+		auto EmissiveTexture = std::make_shared<FMaterialTexture>();
+		EmissiveTexture->TextureSRV = NewSRV;
+		Material->SetEmissiveTexture(EmissiveTexture);
 		UE_LOG("%s %s", LogPrefix, WideToUtf8(TexturePath.wstring()).c_str());
 		return true;
 	}
@@ -1414,6 +1453,16 @@ namespace
 						MaterialInfo.Name.c_str());
 				}
 			}
+			if (!MaterialInfo.EmissiveTexturePath.empty())
+			{
+				const std::filesystem::path TexturePath = ResolveTextureReferencePath(ModelPath, MaterialInfo.EmissiveTexturePath);
+				if (!TryLoadEmissiveTextureIntoMaterial(Material, TexturePath, "[.Model Loader] Auto-loaded emissive map:"))
+				{
+					UE_LOG("[.Model Loader] Failed to resolve embedded emissive map '%s' for material '%s'.",
+						MaterialInfo.EmissiveTexturePath.c_str(),
+						MaterialInfo.Name.c_str());
+				}
+			}
 
 			if (!Material)
 			{
@@ -1739,7 +1788,7 @@ UStaticMesh* FObjManager::LoadModelStaticMeshAsset(const FString& PathFileName)
 		return nullptr;
 	}
 
-	if (Version != GModelVersionLegacy && Version != GModelVersionEmbeddedMaterials && Version != GModelVersionSourceTimestamp && Version != GModelVersionNormalTexture)
+	if (Version < GModelVersionLegacy || Version > GModelVersion)
 	{
 		UE_LOG("[FObjManager] Unsupported .Model version %u: %s", Version, AbsolutePath.c_str());
 		return nullptr;
@@ -1823,15 +1872,36 @@ UStaticMesh* FObjManager::LoadModelStaticMeshAsset(const FString& PathFileName)
 		FModelMaterialInfo& MaterialInfo = MaterialInfos[SlotIndex];
 		MaterialInfo.Name                = GetMaterialSlotNameOrDefault(MaterialSlotNames, SlotIndex);
 
-		if (!ReadBinaryValue(File, MaterialInfo.BaseColor.X)
-			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.Y)
-			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.Z)
-			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.W)
+		if (!ReadBinaryValue(File, MaterialInfo.BaseColor.R)
+			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.G)
+			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.B)
+			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.A)
 			|| !ReadUtf8String(File, MaterialInfo.DiffuseTexturePath)
-			|| (Version >= GModelVersionNormalTexture && !ReadUtf8String(File, MaterialInfo.NormalTexturePath)))
+			|| (Version >= GModelVersionNormalTexture && !ReadUtf8String(File, MaterialInfo.NormalTexturePath))
+			|| (Version >= GModelVersionEmissiveTexture && !ReadUtf8String(File, MaterialInfo.EmissiveTexturePath)))
 		{
 			UE_LOG("[FObjManager] Failed to read .Model material metadata: %s", AbsolutePath.c_str());
 			return nullptr;
+		}
+	}
+
+	if (Version < GModelVersionEmissiveTexture)
+	{
+		const FString ObjPath = GetObjFilePathFromModelPath(PathFileName);
+		const std::filesystem::path ObjFilePath = FPaths::ToPath(FPaths::ToAbsolutePath(ObjPath)).lexically_normal();
+		if (PathExists(ObjFilePath))
+		{
+			TArray<FModelMaterialInfo> RebuiltInfos;
+			if (BuildModelMaterialInfosFromObj(ObjPath, PathFileName, MaterialSlotNames, RebuiltInfos))
+			{
+				for (uint32 SlotIndex = 0; SlotIndex < MaterialInfos.size() && SlotIndex < RebuiltInfos.size(); ++SlotIndex)
+				{
+					if (MaterialInfos[SlotIndex].EmissiveTexturePath.empty())
+					{
+						MaterialInfos[SlotIndex].EmissiveTexturePath = RebuiltInfos[SlotIndex].EmissiveTexturePath;
+					}
+				}
+			}
 		}
 	}
 
@@ -2104,12 +2174,13 @@ bool FObjManager::SaveModelStaticMeshAsset(const FString& PathFileName, const FS
 	for (uint32 SlotIndex = 0; SlotIndex < MaterialSlotCount; ++SlotIndex)
 	{
 		const FModelMaterialInfo MaterialInfo = GetMaterialInfoOrDefault(MaterialInfos, SlotIndex);
-		if (!WriteBinaryValue(File, MaterialInfo.BaseColor.X)
-			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.Y)
-			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.Z)
-			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.W)
+		if (!WriteBinaryValue(File, MaterialInfo.BaseColor.R)
+			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.G)
+			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.B)
+			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.A)
 			|| !WriteUtf8String(File, MaterialInfo.DiffuseTexturePath)
-			|| !WriteUtf8String(File, MaterialInfo.NormalTexturePath))
+			|| !WriteUtf8String(File, MaterialInfo.NormalTexturePath)
+			|| !WriteUtf8String(File, MaterialInfo.EmissiveTexturePath))
 		{
 			return false;
 		}
@@ -2215,9 +2286,10 @@ bool FObjManager::BuildModelMaterialInfosFromObj(
 
 	struct FParsedMaterialData
 	{
-		FVector4 BaseColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
+		FLinearColor BaseColor = FLinearColor::White;
 		FString  DiffuseTexturePath;
 		FString  NormalTexturePath;
+		FString  EmissiveTexturePath;
 	};
 
 	TMap<FString, FParsedMaterialData> ParsedMaterials;
@@ -2281,7 +2353,7 @@ bool FObjManager::BuildModelMaterialInfosFromObj(
 				float G = 1.0f;
 				float B = 1.0f;
 				MtlSS >> R >> G >> B;
-				ParsedMaterials[CurrentMaterialName].BaseColor = FVector4(R, G, B, 1.0f);
+				ParsedMaterials[CurrentMaterialName].BaseColor = FLinearColor(R, G, B, 1.0f);
 			}
 			else if (MtlType == "map_Kd" && !CurrentMaterialName.empty())
 			{
@@ -2327,6 +2399,28 @@ bool FObjManager::BuildModelMaterialInfosFromObj(
 						CurrentMaterialName.c_str());
 				}
 			}
+			else if (MtlType == "map_Ke" && !CurrentMaterialName.empty())
+			{
+				std::string TextureReferenceRaw;
+				std::getline(MtlSS, TextureReferenceRaw);
+				FString TextureReference = ExtractTextureReferenceFromMtlStatement(TextureReferenceRaw);
+				if (TextureReference.empty())
+				{
+					continue;
+				}
+
+				const std::filesystem::path TexturePath = ResolveTextureReferencePath(MtlPath, TextureReference);
+				if (PathExists(TexturePath))
+				{
+					ParsedMaterials[CurrentMaterialName].EmissiveTexturePath = MakeStoredTexturePath(ModelPath, TexturePath);
+				}
+				else
+				{
+					UE_LOG("[FObjManager] Failed to resolve MTL texture '%s' for material '%s'.",
+						TextureReference.c_str(),
+						CurrentMaterialName.c_str());
+				}
+			}
 		}
 	}
 
@@ -2338,6 +2432,7 @@ bool FObjManager::BuildModelMaterialInfosFromObj(
 			MaterialInfo.BaseColor          = It->second.BaseColor;
 			MaterialInfo.DiffuseTexturePath = It->second.DiffuseTexturePath;
 			MaterialInfo.NormalTexturePath = It->second.NormalTexturePath;
+			MaterialInfo.EmissiveTexturePath = It->second.EmissiveTexturePath;
 		}
 	}
 
@@ -2384,7 +2479,16 @@ bool FObjManager::ParseMtlFile(const FString& MtlFIlePath)
 			float B = 0.0f;
 			SS >> R >> G >> B;
 
-			ApplyBaseColorToMaterial(CurrentMaterial, FVector4(R, G, B, 1.0f));
+			ApplyBaseColorToMaterial(CurrentMaterial, FLinearColor(R, G, B, 1.0f));
+		}
+		else if (Type == "Ke" && CurrentMaterial)
+		{
+			float R = 0.0f;
+			float G = 0.0f;
+			float B = 0.0f;
+			SS >> R >> G >> B;
+
+			CurrentMaterial->SetLinearColorParameter("EmissiveColor", FLinearColor(R, G, B, 1.0f));
 		}
 		else if (Type == "map_Kd" && CurrentMaterial)
 		{

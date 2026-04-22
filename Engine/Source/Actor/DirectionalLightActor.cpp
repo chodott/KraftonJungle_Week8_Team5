@@ -179,7 +179,7 @@ void ADirectionalLightActor::UpdateBillboardTint()
 		return;
 	}
 
-	FVector4 Tint = DirectionalLightComponent->GetColor().ToVector4();
-	Tint.W = 1.0f;
-	IconBillboardComponent->SetBaseColor(Tint);
+	FLinearColor Tint = DirectionalLightComponent->GetColor();
+	Tint.A = 1.0f;
+	IconBillboardComponent->SetBaseColorLinear(Tint);
 }

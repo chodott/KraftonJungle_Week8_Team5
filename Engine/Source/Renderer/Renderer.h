@@ -15,6 +15,7 @@
 #include "Renderer/Common/RenderMode.h"
 #include "Renderer/Common/RenderFrameContext.h"
 #include "Renderer/GraphicsCore/RenderStateManager.h"
+#include "Renderer/HotReload/ShaderHotReloadService.h"
 #include "Renderer/Common/SceneRenderTargets.h"
 #include "Renderer/UI/Screen/UIDrawList.h"
 #include "Renderer/Resources/Shader/ShaderManager.h"
@@ -23,6 +24,23 @@
 #include <d3d11.h>
 #include <filesystem>
 #include <memory>
+#include <string>
+
+enum class EToneMappingMode : uint8
+{
+	ACES     = 0,
+	Hable    = 1,
+	Reinhard = 2,
+	Linear   = 3,
+};
+
+struct FToneMappingSettings
+{
+	EToneMappingMode Mode           = EToneMappingMode::Hable;
+	float            Exposure       = 0.22f;
+	float            ShoulderStrength = 0.0f;
+	float            LinearWhite    = 0.65f;
+};
 
 struct FVertex;
 struct FRenderMesh;
@@ -49,9 +67,16 @@ class FFireBallRenderFeature;
 class FFXAARenderFeature;
 class FDebugLineRenderFeature;
 class FLightRenderFeature;
+class FBloomRenderFeature;
 class FBillboardRenderer;
 class FDebugDrawManager;
 struct FScreenUIPassInputs;
+
+enum class ETextureColorSpace : uint8
+{
+	ColorSRGB,
+	DataLinear,
+};
 
 class ENGINE_API FRenderer
 {
@@ -90,10 +115,20 @@ public:
 	bool RenderGameFrame(const FGameFrameRequest& Request);
 	bool RenderEditorFrame(const FEditorFrameRequest& Request);
 
-	bool CreateTextureFromSTB(ID3D11Device* Device, const char* FilePath, ID3D11ShaderResourceView** OutSRV);
-	bool CreateTextureFromSTB(ID3D11Device* Device, const std::filesystem::path& FilePath, ID3D11ShaderResourceView** OutSRV);
+	bool CreateTextureFromSTB(
+		ID3D11Device*              Device,
+		const char*                FilePath,
+		ID3D11ShaderResourceView** OutSRV,
+		ETextureColorSpace         ColorSpace);
+	bool CreateTextureFromSTB(
+		ID3D11Device*                Device,
+		const std::filesystem::path& FilePath,
+		ID3D11ShaderResourceView**   OutSRV,
+		ETextureColorSpace           ColorSpace);
 
 	void ConfigureMaterialPasses(FMaterial& Material, bool bTexturedMaterial);
+	void TickShaderHotReload(float DeltaTime);
+	bool ApplyShaderReload(const FShaderReloadTransaction& Transaction, std::string& OutError);
 
 	FMaterial* GetDefaultMaterial() const
 	{
@@ -153,6 +188,7 @@ public:
 	FFireBallRenderFeature*    GetFireBallFeature() const;
 	FFXAARenderFeature*        GetFXAAFeature() const;
 	FLightRenderFeature*       GetLightFeature() const;
+	FBloomRenderFeature*	   GetBloomFeature() const;
 
 	FSceneRenderer& GetSceneRenderer()
 	{
@@ -183,6 +219,17 @@ public:
 		return DecalProjectionMode;
 	}
 
+	const FToneMappingSettings& GetToneMappingSettings() const
+	{
+		return ToneMappingSettings;
+	}
+
+	void SetToneMappingSettings(const FToneMappingSettings& InSettings)
+	{
+		ToneMappingSettings = InSettings;
+		ToneMappingMode     = InSettings.Mode;
+	}
+
 	FDecalStats    GetDecalStats() const;
 	FFogStats      GetFogStats() const;
 	FLightStats    GetLightStats() const;
@@ -199,7 +246,11 @@ public:
 	void UpdateObjectConstantBuffer(const FMeshBatch& Batch);
 	void ClearDepthBuffer(ID3D11DepthStencilView* DepthStencilView);
 	void PreparePassDomain(EPassDomain Domain, const FSceneRenderTargets& Targets);
-	bool ResolveSceneColorTargets(const FSceneRenderTargets& Targets);
+	bool ResolveSceneColorTargets(
+		FSceneRenderTargets& Targets,
+		const FFrameContext& Frame,
+		const FViewContext&  View,
+		bool                 bApplyFXAA);
 
 	ID3D11ShaderResourceView* GetFolderIconSRV() const
 	{
@@ -228,6 +279,7 @@ private:
 	friend class FEditorFrameRenderer;
 	bool CreateConstantBuffers();
 	bool CreateSamplers();
+	bool EnsureFinalImageResources();
 
 
 	std::unique_ptr<FRenderStateManager> RenderStateManager = nullptr;
@@ -253,6 +305,7 @@ private:
 	std::unique_ptr<FVolumeDecalRenderFeature> VolumeDecalFeature;
 	std::unique_ptr<FFireBallRenderFeature>    FireBallFeature;
 	std::unique_ptr<FLightRenderFeature>       LightFeature;
+	std::unique_ptr<FBloomRenderFeature>       BloomFeature;
 	std::unique_ptr<FFXAARenderFeature>        FXAAFeature;
 	EDecalProjectionMode                       DecalProjectionMode = EDecalProjectionMode::ClusteredLookup;
 
@@ -260,5 +313,15 @@ private:
 	ID3D11ShaderResourceView*            FileIconSRV   = nullptr;
 	std::unique_ptr<FSceneTargetManager> SceneTargetManager;
 	std::unique_ptr<FDecalTextureCache>  DecalTextureCache;
-	ID3D11SamplerState*                  NormalSampler = nullptr;
+	ID3D11SamplerState*                  NormalSampler              = nullptr;
+	std::shared_ptr<FVertexShaderHandle> FinalImageVertexShader     = nullptr;
+	std::shared_ptr<FPixelShaderHandle>  FinalImageBlitPixelShader  = nullptr;
+	std::shared_ptr<FPixelShaderHandle>  ToneMappingPixelShaders[4] = {}; // [ACES, Hable, Reinhard, Linear]
+	EToneMappingMode                     ToneMappingMode            = EToneMappingMode::Hable;
+	FToneMappingSettings                 ToneMappingSettings;
+	ID3D11Buffer*                        ToneMappingConstantBuffer  = nullptr;
+	ID3D11RasterizerState*               FullscreenRasterizerState  = nullptr;
+	ID3D11DepthStencilState*             FullscreenNoDepthState     = nullptr;
+	ID3D11SamplerState*                  FullscreenPointSampler     = nullptr;
+	FShaderHotReloadService              ShaderHotReloadService;
 };

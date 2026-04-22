@@ -1,6 +1,6 @@
-﻿#include "Renderer/Resources/Shader/ShaderManager.h"
+#include "Renderer/Resources/Shader/ShaderManager.h"
+
 #include "Renderer/Resources/Shader/ShaderMap.h"
-#include "Renderer/Resources/Shader/Shader.h"
 
 FShaderManager::~FShaderManager()
 {
@@ -21,8 +21,15 @@ bool FShaderManager::LoadPixelShader(ID3D11Device* Device, const wchar_t* FilePa
 
 void FShaderManager::Bind(ID3D11DeviceContext* DeviceContext)
 {
-	if (VS) VS->Bind(DeviceContext);
-	if (PS) PS->Bind(DeviceContext);
+	if (VS)
+	{
+		VS->Bind(DeviceContext);
+	}
+
+	if (PS)
+	{
+		PS->Bind(DeviceContext);
+	}
 }
 
 void FShaderManager::Release()

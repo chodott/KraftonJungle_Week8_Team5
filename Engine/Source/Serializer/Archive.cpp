@@ -1,4 +1,4 @@
-﻿#include "Archive.h"
+#include "Archive.h"
 #include "ThirdParty/nlohmann/json.hpp"
 
 using json = nlohmann::json;
@@ -88,6 +88,16 @@ void FArchive::Serialize(const FString& Key, FVector4& Value)
 	{
 		auto& xyzw = Json[Key];
 		Value = { xyzw[0].get<float>(), xyzw[1].get<float>(), xyzw[2].get<float>(),xyzw[3].get<float>() };
+	}
+}
+
+void FArchive::Serialize(const FString& Key, FLinearColor& Value)
+{
+	FVector4 SerializedValue = Value.ToVector4();
+	Serialize(Key, SerializedValue);
+	if (IsLoading())
+	{
+		Value = FLinearColor(SerializedValue);
 	}
 }
 

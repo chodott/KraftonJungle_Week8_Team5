@@ -1,11 +1,11 @@
-﻿#include "Renderer/Features/Outline/OutlineRenderFeature.h"
+#include "Renderer/Features/Outline/OutlineRenderFeature.h"
 
 #include "Core/Paths.h"
 #include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Mesh/RenderMesh.h"
 #include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/Resources/Shader/ShaderResource.h"
+#include "Renderer/Resources/Shader/ShaderRegistry.h"
 
 namespace
 {
@@ -123,6 +123,23 @@ bool FOutlineRenderFeature::Initialize(FRenderer& Renderer)
 		}
 	}
 
+	if (!OutlineOverlayBlendState)
+	{
+		D3D11_BLEND_DESC BlendDesc = {};
+		BlendDesc.RenderTarget[0].BlendEnable = TRUE;
+		BlendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+		BlendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+		BlendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+		BlendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+		BlendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+		BlendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+		BlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+		if (FAILED(Device->CreateBlendState(&BlendDesc, &OutlineOverlayBlendState)))
+		{
+			return false;
+		}
+	}
+
 	if (!OutlineRasterizerState)
 	{
 		D3D11_RASTERIZER_DESC RasterDesc = {};
@@ -154,32 +171,36 @@ bool FOutlineRenderFeature::Initialize(FRenderer& Renderer)
 	const std::wstring ShaderDir = FPaths::ShaderDir();
 	if (!OutlinePostVS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl").c_str(), "main", "vs_5_0");
-		if (!Resource || FAILED(Device->CreateVertexShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &OutlinePostVS)))
-		{
-			return false;
-		}
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Vertex;
+		Recipe.SourcePath = ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "vs_5_0";
+		Recipe.LayoutType = EVertexLayoutType::FullscreenNone;
+		OutlinePostVS = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(Device, Recipe);
 	}
 
 	if (!OutlineMaskPS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"SelectionHighlight/OutlineMaskPixelShader.hlsl").c_str(), "main", "ps_5_0");
-		if (!Resource || FAILED(Device->CreatePixelShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &OutlineMaskPS)))
-		{
-			return false;
-		}
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Pixel;
+		Recipe.SourcePath = ShaderDir + L"SelectionHighlight/OutlineMaskPixelShader.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "ps_5_0";
+		OutlineMaskPS = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
 	}
 
 	if (!OutlineSobelPS)
 	{
-		auto Resource = FShaderResource::GetOrCompile((ShaderDir + L"SelectionHighlight/OutlineSobelPixelShader.hlsl").c_str(), "main", "ps_5_0");
-		if (!Resource || FAILED(Device->CreatePixelShader(Resource->GetBufferPointer(), Resource->GetBufferSize(), nullptr, &OutlineSobelPS)))
-		{
-			return false;
-		}
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Pixel;
+		Recipe.SourcePath = ShaderDir + L"SelectionHighlight/OutlineSobelPixelShader.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "ps_5_0";
+		OutlineSobelPS = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
 	}
 
-	return true;
+	return OutlinePostVS != nullptr && OutlineMaskPS != nullptr && OutlineSobelPS != nullptr;
 }
 
 void FOutlineRenderFeature::UpdateOutlinePostConstantBuffer(
@@ -334,7 +355,8 @@ bool FOutlineRenderFeature::RenderCompositePass(
 	}
 
 	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
-	if (!DeviceContext || !Targets.SceneColorRTV || !Targets.SceneDepthDSV)
+	ID3D11RenderTargetView* CompositeRTV = Targets.OverlayColorRTV ? Targets.OverlayColorRTV : Targets.SceneColorRTV;
+	if (!DeviceContext || !CompositeRTV || !Targets.SceneDepthDSV)
 	{
 		return false;
 	}
@@ -342,7 +364,7 @@ bool FOutlineRenderFeature::RenderCompositePass(
 	constexpr float BlendFactor[4] = { 0.f, 0.f, 0.f, 0.f };
 
 	FFullscreenPassPipelineState CompositePipelineState;
-	CompositePipelineState.BlendState = OutlineBlendState;
+	CompositePipelineState.BlendState = Targets.OverlayColorRTV ? OutlineOverlayBlendState : OutlineBlendState;
 	CompositePipelineState.BlendFactor = BlendFactor;
 	CompositePipelineState.DepthStencilState = StencilNotEqualState;
 	CompositePipelineState.StencilRef = 1;
@@ -378,7 +400,7 @@ bool FOutlineRenderFeature::RenderCompositePass(
 		Renderer,
 		Frame,
 		View,
-		Targets.SceneColorRTV,
+		CompositeRTV,
 		Targets.SceneDepthDSV,
 		View.Viewport,
 		{ OutlinePostVS, OutlineSobelPS },
@@ -420,6 +442,11 @@ void FOutlineRenderFeature::Release()
 		OutlineBlendState->Release();
 		OutlineBlendState = nullptr;
 	}
+	if (OutlineOverlayBlendState)
+	{
+		OutlineOverlayBlendState->Release();
+		OutlineOverlayBlendState = nullptr;
+	}
 	if (OutlineRasterizerState)
 	{
 		OutlineRasterizerState->Release();
@@ -430,19 +457,7 @@ void FOutlineRenderFeature::Release()
 		OutlineSampler->Release();
 		OutlineSampler = nullptr;
 	}
-	if (OutlinePostVS)
-	{
-		OutlinePostVS->Release();
-		OutlinePostVS = nullptr;
-	}
-	if (OutlineMaskPS)
-	{
-		OutlineMaskPS->Release();
-		OutlineMaskPS = nullptr;
-	}
-	if (OutlineSobelPS)
-	{
-		OutlineSobelPS->Release();
-		OutlineSobelPS = nullptr;
-	}
+	OutlinePostVS.reset();
+	OutlineMaskPS.reset();
+	OutlineSobelPS.reset();
 }

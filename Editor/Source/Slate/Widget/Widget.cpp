@@ -1,4 +1,4 @@
-﻿#include "Widget.h"
+#include "Widget.h"
 
 bool SWidget::IsHover(FPoint Point) const
 {

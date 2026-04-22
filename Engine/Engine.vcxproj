@@ -55,8 +55,8 @@
     <ClInclude Include="Source\Component\LightComponentBase.h" />
     <ClInclude Include="Source\Component\LineBatchComponent.h" />
     <ClInclude Include="Source\Component\LocalHeightFogComponent.h" />
-    <ClInclude Include="Source\Component\MeshDecalComponent.h" />
     <ClInclude Include="Source\Component\MeshComponent.h" />
+    <ClInclude Include="Source\Component\MeshDecalComponent.h" />
     <ClInclude Include="Source\Component\MoveComponent.h" />
     <ClInclude Include="Source\Component\MovementComponent.h" />
     <ClInclude Include="Source\Component\PointLightComponent.h" />
@@ -67,6 +67,7 @@
     <ClInclude Include="Source\Component\SceneComponent.h" />
     <ClInclude Include="Source\Component\SkyComponent.h" />
     <ClInclude Include="Source\Component\SpotLightComponent.h" />
+    <ClInclude Include="Source\Component\SpringArmComponent.h" />
     <ClInclude Include="Source\Component\StaticMeshComponent.h" />
     <ClInclude Include="Source\Component\SubUVComponent.h" />
     <ClInclude Include="Source\Component\TextComponent.h" />
@@ -125,6 +126,7 @@
     <ClInclude Include="Source\Platform\Windows\WindowsWindow.h" />
     <ClInclude Include="Source\Primitive\PrimitiveGizmo.h" />
     <ClInclude Include="Source\Primitive\UnrealEditorStyledGizmo.h" />
+    <ClInclude Include="Source\Renderer\Features\Lighting\BloomRenderFeature.h" />
     <ClInclude Include="Source\Renderer\GPUStats.h" />
     <ClInclude Include="Source\Renderer\Renderer.h" />
     <ClInclude Include="Source\Renderer\Common\RenderFeatureInterfaces.h" />
@@ -149,6 +151,7 @@
     <ClInclude Include="Source\Renderer\Features\Fog\FogStats.h" />
     <ClInclude Include="Source\Renderer\Features\Fog\FogTypes.h" />
     <ClInclude Include="Source\Renderer\Features\Lighting\LightRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Features\Lighting\LightStats.h" />
     <ClInclude Include="Source\Renderer\Features\Lighting\LightTypes.h" />
     <ClInclude Include="Source\Renderer\Features\Outline\OutlineRenderFeature.h" />
     <ClInclude Include="Source\Renderer\Features\Outline\OutlineTypes.h" />
@@ -173,6 +176,8 @@
     <ClInclude Include="Source\Renderer\GraphicsCore\RenderDevice.h" />
     <ClInclude Include="Source\Renderer\GraphicsCore\RenderState.h" />
     <ClInclude Include="Source\Renderer\GraphicsCore\RenderStateManager.h" />
+    <ClInclude Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.h" />
+    <ClInclude Include="Source\Renderer\HotReload\ShaderHotReloadService.h" />
     <ClInclude Include="Source\Renderer\Mesh\MeshBatch.h" />
     <ClInclude Include="Source\Renderer\Mesh\MeshData.h" />
     <ClInclude Include="Source\Renderer\Mesh\RenderMesh.h" />
@@ -181,8 +186,13 @@
     <ClInclude Include="Source\Renderer\Resources\Material\Material.h" />
     <ClInclude Include="Source\Renderer\Resources\Material\MaterialManager.h" />
     <ClInclude Include="Source\Renderer\Resources\Shader\Shader.h" />
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderCompiler.h" />
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderHandles.h" />
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderManager.h" />
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderMap.h" />
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderPathUtils.h" />
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderRecipe.h" />
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderRegistry.h" />
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderResource.h" />
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderType.h" />
     <ClInclude Include="Source\Renderer\Scene\MeshPassProcessor.h" />
@@ -358,8 +368,8 @@
     <ClCompile Include="Source\Component\LightComponentBase.cpp" />
     <ClCompile Include="Source\Component\LineBatchComponent.cpp" />
     <ClCompile Include="Source\Component\LocalHeightFogComponent.cpp" />
-    <ClCompile Include="Source\Component\MeshDecalComponent.cpp" />
     <ClCompile Include="Source\Component\MeshComponent.cpp" />
+    <ClCompile Include="Source\Component\MeshDecalComponent.cpp" />
     <ClCompile Include="Source\Component\MoveComponent.cpp" />
     <ClCompile Include="Source\Component\MovementComponent.cpp" />
     <ClCompile Include="Source\Component\PointLightComponent.cpp" />
@@ -370,6 +380,7 @@
     <ClCompile Include="Source\Component\SceneComponent.cpp" />
     <ClCompile Include="Source\Component\SkyComponent.cpp" />
     <ClCompile Include="Source\Component\SpotLightComponent.cpp" />
+    <ClCompile Include="Source\Component\SpringArmComponent.cpp" />
     <ClCompile Include="Source\Component\StaticMeshComponent.cpp" />
     <ClCompile Include="Source\Component\SubUVComponent.cpp" />
     <ClCompile Include="Source\Component\TextComponent.cpp" />
@@ -411,6 +422,7 @@
     <ClCompile Include="Source\Platform\Windows\WindowsWindow.cpp" />
     <ClCompile Include="Source\Primitive\PrimitiveGizmo.cpp" />
     <ClCompile Include="Source\Primitive\UnrealEditorStyledGizmo.cpp" />
+    <ClCompile Include="Source\Renderer\Features\Lighting\BloomRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Renderer.cpp" />
     <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderer.cpp" />
@@ -438,13 +450,20 @@
     <ClCompile Include="Source\Renderer\Frame\Viewport\ViewportCompositor.cpp" />
     <ClCompile Include="Source\Renderer\GraphicsCore\RenderState.cpp" />
     <ClCompile Include="Source\Renderer\GraphicsCore\RenderStateManager.cpp" />
+    <ClCompile Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.cpp" />
+    <ClCompile Include="Source\Renderer\HotReload\ShaderHotReloadService.cpp" />
     <ClCompile Include="Source\Renderer\Mesh\MeshData.cpp" />
     <ClCompile Include="Source\Renderer\Mesh\RenderMesh.cpp" />
     <ClCompile Include="Source\Renderer\Resources\Material\Material.cpp" />
     <ClCompile Include="Source\Renderer\Resources\Material\MaterialManager.cpp" />
     <ClCompile Include="Source\Renderer\Resources\Shader\Shader.cpp" />
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderCompiler.cpp" />
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderHandles.cpp" />
     <ClCompile Include="Source\Renderer\Resources\Shader\ShaderManager.cpp" />
     <ClCompile Include="Source\Renderer\Resources\Shader\ShaderMap.cpp" />
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderPathUtils.cpp" />
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderRecipe.cpp" />
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderRegistry.cpp" />
     <ClCompile Include="Source\Renderer\Resources\Shader\ShaderResource.cpp" />
     <ClCompile Include="Source\Renderer\Scene\MeshPassProcessor.cpp" />
     <ClCompile Include="Source\Renderer\Scene\SceneRenderer.cpp" />
@@ -566,7 +585,7 @@
       <PreprocessorDefinitions>NOMINMAX;ENGINECORE_EXPORTS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalOptions>/utf-8 /FS %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)Source\;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -584,7 +603,7 @@
       <PreprocessorDefinitions>NOMINMAX;ENGINECORE_EXPORTS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalOptions>/utf-8 /FS %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)Source\;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>

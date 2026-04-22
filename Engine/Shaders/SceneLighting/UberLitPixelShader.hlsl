@@ -10,6 +10,7 @@ SamplerState Sampler : register(s0);
 #if HAS_NORMAL_MAP
 Texture2D NormalMap : register(t1);
 #endif
+Texture2D EmissiveMap : register(t2);
 
 #include "../LightCommon.hlsli"
 
@@ -23,6 +24,7 @@ Texture2D NormalMap : register(t1);
 
 // Diffuse 텍스처 색상
 #define TextureColor (Texture.Sample(Sampler, Input.UV) * ColorTint)
+#define EmissiveTerm (EmissiveColor.rgb + EmissiveMap.Sample(Sampler, Input.UV).rgb)
 
 float4 main(VS_OUTPUT Input) : SV_TARGET
 {
@@ -30,8 +32,6 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 	{
 		return VisualizeClusterLightCulling(Input.Position, Input.WorldPosition);
 	}
-
-	float4 finalPixel = TextureColor;
 
 	    // ── 법선 결정 ──
 #if HAS_NORMAL_MAP
@@ -51,7 +51,7 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 #if LIGHTING_MODEL_GOURAUD
 
 	float3 finalColor = baseColor.rgb * Input.VertexLighting.rgb + Input.VertexSpecular;
-	finalColor += EmissiveColor.rgb;
+	finalColor += EmissiveTerm;
 	return float4(finalColor, baseColor.a);
 	
 #elif LIGHTING_MODEL_LAMBERT
@@ -73,7 +73,7 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 	lighting += ComputeClusteredLocalLightingLambert(Input.Position, Input.WorldPosition, N).rgb;
 
 	baseColor.rgb *= lighting;
-	baseColor.rgb += EmissiveColor.rgb;
+	baseColor.rgb += EmissiveTerm;
 	return float4(baseColor.rgb, baseColor.a);
 	
 #elif LIGHTING_MODEL_PHONG
@@ -99,7 +99,7 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 		diffuseLighting += dirDiffuse;
 		totalLighting += CalculateDirectionalLight(Directional, Input.WorldPosition, N, V).rgb;
 	}
-
+	
 	ComputeClusteredLocalLightingContributions(
 		Input.Position,
 		Input.WorldPosition,
@@ -112,10 +112,10 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 
 	float3 specularLighting = max(totalLighting - diffuseLighting, 0.0f.xxx);
 	float3 finalColor = baseColor.rgb * diffuseLighting + specularLighting;
-	finalColor += EmissiveColor.rgb;
+	finalColor += EmissiveTerm;
 	return float4(finalColor, baseColor.a);
 	
 #endif
 
-	return baseColor;
+	return float4(baseColor.rgb + EmissiveTerm, baseColor.a);
 }

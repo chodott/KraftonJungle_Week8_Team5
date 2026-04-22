@@ -5,8 +5,8 @@
 
 #include "Core/Paths.h"
 #include "Renderer/Renderer.h"
+#include "Renderer/Resources/Shader/ShaderRegistry.h"
 #include "Renderer/Scene/SceneViewData.h"
-#include "Renderer/Resources/Shader/ShaderResource.h"
 
 namespace
 {
@@ -101,8 +101,14 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 			auto   Headers          = static_cast<const FLightClusterHeaderGPU*>(Mapped.pData);
 			uint32 TotalAssignments = 0;
 			uint32 OverflowDropped  = 0;
+			uint32 ActiveClusters   = 0;
 			for (uint32 i = 0; i < PendingReadbackClusterCount; ++i)
 			{
+				if (Headers[i].Count > 0u)
+				{
+					++ActiveClusters;
+				}
+
 				TotalAssignments      += Headers[i].Count;
 				const uint32 RawCount = Headers[i].Pad0;
 				if (RawCount > Headers[i].Count)
@@ -112,6 +118,10 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 			}
 			Stats.TotalLightClusterAssignments = TotalAssignments;
 			Stats.OverflowCulledSlots          = OverflowDropped;
+			Stats.ActiveClusters               = ActiveClusters;
+			Stats.AvgLightsPerActiveCluster    = ActiveClusters > 0u
+				? static_cast<double>(TotalAssignments) / static_cast<double>(ActiveClusters)
+				: 0.0;
 			DC->Unmap(ClusterHeaderStagingBuffer, 0);
 		}
 		bHasPendingReadback = false;
@@ -209,7 +219,7 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 		}
 	}
 
-	DeviceContext->CSSetShader(TileDepthBoundsCS, nullptr, 0);
+	TileDepthBoundsCS->Bind(DeviceContext);
 	DeviceContext->CSSetConstantBuffers(LightClusterSlots::ClusterGlobalCB, 1, &ClusterGlobalConstantBuffer);
 
 	ID3D11ShaderResourceView*  TileDepthSRV[1]     = { Targets.SceneDepthSRV };
@@ -231,7 +241,7 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 	DeviceContext->CSSetShaderResources(0, 1, NullTileSRV);
 	DeviceContext->CSSetUnorderedAccessViews(0, 1, NullTileUAV, TileInitialCount);
 
-	DeviceContext->CSSetShader(LightCullingCS, nullptr, 0);
+	LightCullingCS->Bind(DeviceContext);
 	DeviceContext->CSSetConstantBuffers(LightClusterSlots::ClusterGlobalCB, 1, &ClusterGlobalConstantBuffer);
 
 	ID3D11ShaderResourceView* CSRVs[2] = { LightCullProxySRV, TileDepthBoundsSRV };
@@ -315,8 +325,6 @@ bool FLightRenderFeature::Render(
 		DeviceContext->PSSetShaderResources(LightClusterSlots::ClusterLightIndexSRV, 1, &ClusterLightIndexSRV);
 	}
 
-	DeviceContext->IASetInputLayout(LightInputLayout);
-
 	return true;
 }
 
@@ -359,51 +367,46 @@ void FLightRenderFeature::Release()
 
 	SafeRelease(ClusterHeaderStagingBuffer);
 
-	SafeRelease(TileDepthBoundsCS);
-	SafeRelease(LightCullingCS);
+	TileDepthBoundsCS.reset();
+	LightCullingCS.reset();
 
 	for (uint32 VariantIndex = 0; VariantIndex < ShaderVariantCount; ++VariantIndex)
 	{
-		SafeRelease(GouraudVS[VariantIndex]);
-		SafeRelease(GouraudPS[VariantIndex]);
-		SafeRelease(LambertVS[VariantIndex]);
-		SafeRelease(LambertPS[VariantIndex]);
-		SafeRelease(PhongVS[VariantIndex]);
-		SafeRelease(PhongPS[VariantIndex]);
-		SafeRelease(WorldNormalVS[VariantIndex]);
-		SafeRelease(WorldNormalPS[VariantIndex]);
+		GouraudVariants[VariantIndex] = {};
+		LambertVariants[VariantIndex] = {};
+		PhongVariants[VariantIndex] = {};
+		WorldNormalVariants[VariantIndex] = {};
 	}
-	SafeRelease(LightInputLayout);
 	SafeRelease(DepthSampler);
 }
 
-ID3D11VertexShader* FLightRenderFeature::GetCurrentVS(bool bHasNormalMap, ERenderMode RenderMode) const
+std::shared_ptr<FVertexShaderHandle> FLightRenderFeature::GetCurrentVSHandle(bool bHasNormalMap, ERenderMode RenderMode) const
 {
 	const uint32 Variant = ToShaderVariantIndex(bHasNormalMap);
 	if (RenderMode == ERenderMode::WorldNormal)
 	{
-		return WorldNormalVS[Variant];
+		return WorldNormalVariants[Variant].VertexHandle;
 	}
 	switch (CurrentLightingModel)
 	{
-	case ELightingModel::Lambert: return LambertVS[Variant];
-	case ELightingModel::Phong: return PhongVS[Variant];
-	default: return GouraudVS[Variant];
+	case ELightingModel::Lambert: return LambertVariants[Variant].VertexHandle;
+	case ELightingModel::Phong: return PhongVariants[Variant].VertexHandle;
+	default: return GouraudVariants[Variant].VertexHandle;
 	}
 }
 
-ID3D11PixelShader* FLightRenderFeature::GetCurrentPS(bool bHasNormalMap, ERenderMode RenderMode) const
+std::shared_ptr<FPixelShaderHandle> FLightRenderFeature::GetCurrentPSHandle(bool bHasNormalMap, ERenderMode RenderMode) const
 {
 	const uint32 Variant = ToShaderVariantIndex(bHasNormalMap);
 	if (RenderMode == ERenderMode::WorldNormal)
 	{
-		return WorldNormalPS[Variant];
+		return WorldNormalVariants[Variant].PixelHandle;
 	}
 	switch (CurrentLightingModel)
 	{
-	case ELightingModel::Lambert: return LambertPS[Variant];
-	case ELightingModel::Phong: return PhongPS[Variant];
-	default: return GouraudPS[Variant];
+	case ELightingModel::Lambert: return LambertVariants[Variant].PixelHandle;
+	case ELightingModel::Phong: return PhongVariants[Variant].PixelHandle;
+	default: return GouraudVariants[Variant].PixelHandle;
 	}
 }
 
@@ -450,40 +453,22 @@ bool FLightRenderFeature::Initialize(FRenderer& Renderer)
 
 	if (!LightCullingCS)
 	{
-		const std::wstring CSPath   = FPaths::ShaderDir().wstring() + L"SceneLighting/LightCullingCS.hlsl";
-		auto               Resource = FShaderResource::GetOrCompile(CSPath.c_str(), "main", "cs_5_0", nullptr);
-		if (!Resource)
-		{
-			return false;
-		}
-
-		if (FAILED(Device->CreateComputeShader(
-			Resource->GetBufferPointer(),
-			Resource->GetBufferSize(),
-			nullptr,
-			&LightCullingCS)))
-		{
-			return false;
-		}
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Compute;
+		Recipe.SourcePath = FPaths::ShaderDir().wstring() + L"SceneLighting/LightCullingCS.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "cs_5_0";
+		LightCullingCS = FShaderRegistry::Get().GetOrCreateComputeShaderHandle(Device, Recipe);
 	}
 
 	if (!TileDepthBoundsCS)
 	{
-		const std::wstring CSPath   = FPaths::ShaderDir().wstring() + L"SceneLighting/TileDepthBoundsCS.hlsl";
-		auto               Resource = FShaderResource::GetOrCompile(CSPath.c_str(), "main", "cs_5_0", nullptr);
-		if (!Resource)
-		{
-			return false;
-		}
-
-		if (FAILED(Device->CreateComputeShader(
-			Resource->GetBufferPointer(),
-			Resource->GetBufferSize(),
-			nullptr,
-			&TileDepthBoundsCS)))
-		{
-			return false;
-		}
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Compute;
+		Recipe.SourcePath = FPaths::ShaderDir().wstring() + L"SceneLighting/TileDepthBoundsCS.hlsl";
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "cs_5_0";
+		TileDepthBoundsCS = FShaderRegistry::Get().GetOrCreateComputeShaderHandle(Device, Recipe);
 	}
 
 	if (!DepthSampler)
@@ -503,7 +488,7 @@ bool FLightRenderFeature::Initialize(FRenderer& Renderer)
 		}
 	}
 
-	return true;
+	return LightCullingCS != nullptr && TileDepthBoundsCS != nullptr;
 }
 
 bool FLightRenderFeature::CompileShaderVariants(FRenderer& Renderer)
@@ -517,125 +502,69 @@ bool FLightRenderFeature::CompileShaderVariants(FRenderer& Renderer)
 	const std::wstring VSPath = FPaths::ShaderDir().wstring() + L"SceneLighting/UberLitVertexShader.hlsl";
 	const std::wstring PSPath = FPaths::ShaderDir().wstring() + L"SceneLighting/UberLitPixelShader.hlsl";
 
-	const D3D11_INPUT_ELEMENT_DESC InputDesc[] =
+	auto BuildVertexRecipe = [&](const std::wstring& Path, const std::vector<FShaderMacroDesc>& Macros) -> FShaderRecipe
 	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "TANGENT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Vertex;
+		Recipe.SourcePath = Path;
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "vs_5_0";
+		Recipe.LayoutType = EVertexLayoutType::MeshVertex;
+		Recipe.Macros = Macros;
+		return Recipe;
 	};
 
-	auto CreateVariantVertexShader = [&](ID3D11VertexShader*& OutShader, const D3D_SHADER_MACRO* Macros) -> bool
+	auto BuildPixelRecipe = [&](const std::wstring& Path, const std::vector<FShaderMacroDesc>& Macros) -> FShaderRecipe
 	{
-		if (OutShader)
-		{
-			return true;
-		}
-
-		auto Resource = FShaderResource::GetOrCompile(VSPath.c_str(), "main", "vs_5_0", Macros);
-		if (!Resource)
-		{
-			return false;
-		}
-
-		if (!LightInputLayout)
-		{
-			if (FAILED(Device->CreateInputLayout(
-				InputDesc,
-				_countof(InputDesc),
-				Resource->GetBufferPointer(),
-				Resource->GetBufferSize(),
-				&LightInputLayout)))
-			{
-				return false;
-			}
-		}
-
-		return SUCCEEDED(Device->CreateVertexShader(
-			Resource->GetBufferPointer(),
-			Resource->GetBufferSize(),
-			nullptr,
-			&OutShader));
-	};
-
-	auto CreateVariantPixelShader = [&](ID3D11PixelShader*& OutShader, const D3D_SHADER_MACRO* Macros) -> bool
-	{
-		if (OutShader)
-		{
-			return true;
-		}
-
-		auto Resource = FShaderResource::GetOrCompile(PSPath.c_str(), "main", "ps_5_0", Macros);
-		if (!Resource)
-		{
-			return false;
-		}
-
-		return SUCCEEDED(Device->CreatePixelShader(
-			Resource->GetBufferPointer(),
-			Resource->GetBufferSize(),
-			nullptr,
-			&OutShader));
+		FShaderRecipe Recipe = {};
+		Recipe.Stage = EShaderStage::Pixel;
+		Recipe.SourcePath = Path;
+		Recipe.EntryPoint = "main";
+		Recipe.Target = "ps_5_0";
+		Recipe.Macros = Macros;
+		return Recipe;
 	};
 
 	for (uint32 VariantIndex = 0; VariantIndex < ShaderVariantCount; ++VariantIndex)
 	{
-		const bool       bHasNormalMap         = (VariantIndex != 0);
-		D3D_SHADER_MACRO GouraudVertexMacros[] =
-		{
-			{ "LIGHTING_MODEL_GOURAUD", "1" },
-			{ "VERTEX_NORMAL_MAP", bHasNormalMap ? "1" : "0" },
-			{ nullptr, nullptr }
-		};
-		D3D_SHADER_MACRO LambertVertexMacros[] =
-		{
-			{ "LIGHTING_MODEL_LAMBERT", "1" },
-			{ nullptr, nullptr }
-		};
-		D3D_SHADER_MACRO PhongVertexMacros[] =
-		{
-			{ "LIGHTING_MODEL_PHONG", "1" },
-			{ nullptr, nullptr }
-		};
-		D3D_SHADER_MACRO WorldNormalVertexMacros[] =
-		{
-			{ "VIEWMODE_WORLD_NORMAL", "1" },
-			{ nullptr, nullptr }
-		};
-		D3D_SHADER_MACRO GouraudPixelMacros[] =
-		{
-			{ "LIGHTING_MODEL_GOURAUD", "1" },
-			{ "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" },
-			{ nullptr, nullptr }
-		};
-		D3D_SHADER_MACRO LambertPixelMacros[] =
-		{
-			{ "LIGHTING_MODEL_LAMBERT", "1" },
-			{ "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" },
-			{ nullptr, nullptr }
-		};
-		D3D_SHADER_MACRO PhongPixelMacros[] =
-		{
-			{ "LIGHTING_MODEL_PHONG", "1" },
-			{ "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" },
-			{ nullptr, nullptr }
-		};
-		D3D_SHADER_MACRO WorldNormalPixelMacros[] =
-		{
-			{ "VIEWMODE_WORLD_NORMAL", "1" },
-			{ "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" },
-			{ nullptr, nullptr }
-		};
+		const bool bHasNormalMap = (VariantIndex != 0);
 
-		if (!CreateVariantVertexShader(GouraudVS[VariantIndex], GouraudVertexMacros)
-			|| !CreateVariantPixelShader(GouraudPS[VariantIndex], GouraudPixelMacros)
-			|| !CreateVariantVertexShader(LambertVS[VariantIndex], LambertVertexMacros)
-			|| !CreateVariantPixelShader(LambertPS[VariantIndex], LambertPixelMacros)
-			|| !CreateVariantVertexShader(PhongVS[VariantIndex], PhongVertexMacros)
-			|| !CreateVariantPixelShader(PhongPS[VariantIndex], PhongPixelMacros)
-			|| !CreateVariantVertexShader(WorldNormalVS[VariantIndex], WorldNormalVertexMacros)
-			|| !CreateVariantPixelShader(WorldNormalPS[VariantIndex], WorldNormalPixelMacros))
+		GouraudVariants[VariantIndex].VertexHandle = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(
+			Device,
+			BuildVertexRecipe(VSPath, { { "LIGHTING_MODEL_GOURAUD", "1" }, { "VERTEX_NORMAL_MAP", bHasNormalMap ? "1" : "0" } }));
+		GouraudVariants[VariantIndex].PixelHandle = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(
+			Device,
+			BuildPixelRecipe(PSPath, { { "LIGHTING_MODEL_GOURAUD", "1" }, { "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" } }));
+
+		LambertVariants[VariantIndex].VertexHandle = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(
+			Device,
+			BuildVertexRecipe(VSPath, { { "LIGHTING_MODEL_LAMBERT", "1" } }));
+		LambertVariants[VariantIndex].PixelHandle = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(
+			Device,
+			BuildPixelRecipe(PSPath, { { "LIGHTING_MODEL_LAMBERT", "1" }, { "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" } }));
+
+		PhongVariants[VariantIndex].VertexHandle = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(
+			Device,
+			BuildVertexRecipe(VSPath, { { "LIGHTING_MODEL_PHONG", "1" } }));
+		PhongVariants[VariantIndex].PixelHandle = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(
+			Device,
+			BuildPixelRecipe(PSPath, { { "LIGHTING_MODEL_PHONG", "1" }, { "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" } }));
+
+		WorldNormalVariants[VariantIndex].VertexHandle = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(
+			Device,
+			BuildVertexRecipe(VSPath, { { "VIEWMODE_WORLD_NORMAL", "1" } }));
+		WorldNormalVariants[VariantIndex].PixelHandle = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(
+			Device,
+			BuildPixelRecipe(PSPath, { { "VIEWMODE_WORLD_NORMAL", "1" }, { "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" } }));
+
+		if (!GouraudVariants[VariantIndex].VertexHandle
+			|| !GouraudVariants[VariantIndex].PixelHandle
+			|| !LambertVariants[VariantIndex].VertexHandle
+			|| !LambertVariants[VariantIndex].PixelHandle
+			|| !PhongVariants[VariantIndex].VertexHandle
+			|| !PhongVariants[VariantIndex].PixelHandle
+			|| !WorldNormalVariants[VariantIndex].VertexHandle
+			|| !WorldNormalVariants[VariantIndex].PixelHandle)
 		{
 			return false;
 		}
@@ -712,7 +641,7 @@ void FLightRenderFeature::UpdateClusterGlobalConstantBuffer(
 	CB.ClusterCountZ   = LightCullingConfig::ClusterCountZ;
 	CB.LocalLightCount = (std::min)(static_cast<uint32>(SceneViewData.LightingInputs.LocalLights.size()), LightListConfig::MaxLocalLights);
 
-	CB.DirectionalLightCount = static_cast<uint32>(SceneViewData.LightingInputs.DirectionalLights.size());
+	CB.bOrthographic         = SceneViewData.View.bOrthographic ? 1u : 0u;
 	CB.MaxLightsPerCluster   = LightListConfig::MaxLightsPerCluster;
 	CB.LightingEnabled       = SceneViewData.RenderMode != ERenderMode::Unlit ? 1u : 0u;
 	CB.VisualizationMode     = SceneViewData.RenderMode == ERenderMode::LightCullingHeatmap ? 1u : 0u;

@@ -1,8 +1,9 @@
-﻿#include "Viewport/Services/EditorViewportRenderService.h"
+#include "Viewport/Services/EditorViewportRenderService.h"
 
 #include "EditorEngine.h"
 #include "Viewport/EditorViewportRegistry.h"
 #include "Actor/Actor.h"
+#include "Camera/Camera.h"
 #include "Core/Engine.h"
 #include "Gizmo/Gizmo.h"
 #include "Math/Frustum.h"
@@ -20,6 +21,7 @@
 #include "Component/SkyComponent.h"
 #include "Component/SubUVComponent.h"
 #include "Component/TextComponent.h"
+#include "Component/CameraComponent.h"
 #include "Slate/Widget/Painter.h"
 
 namespace
@@ -196,9 +198,23 @@ void FEditorViewportRenderService::RenderAll(
 		// 씬 패킷과 별도로, 그리드/기즈모 같은 추가 씬 커맨드는 별도 큐로 유지한다.
 		TArray<FMeshBatch> AdditionalMeshBatches;
 		AdditionalMeshBatches.reserve(Renderer->GetPrevCommandCount());
-		const FMatrix ViewMatrix = Entry.LocalState.BuildViewMatrix();
-		const FMatrix ProjectionMatrix = Entry.LocalState.BuildProjMatrix(AspectRatio);
-
+		FMatrix ViewMatrix = Entry.LocalState.BuildViewMatrix();
+		FMatrix ProjectionMatrix = Entry.LocalState.BuildProjMatrix(AspectRatio);
+		if (EntryWorldContext &&
+			EntryWorldContext->WorldType == EWorldType::PIE &&
+			EditorEngine->IsPIEActive() &&
+			EditorEngine->IsPIEInputCaptured())
+		{
+			if (UCameraComponent* ActiveCameraComponent = EntryWorld->GetActiveCameraComponent())
+			{
+				if (FCamera* ActiveCamera = ActiveCameraComponent->GetCamera())
+				{
+					ActiveCamera->SetAspectRatio(AspectRatio);
+				}
+				ViewMatrix = ActiveCameraComponent->GetViewMatrix();
+				ProjectionMatrix = ActiveCameraComponent->GetProjectionMatrix();
+			}
+		}
 		FFrustum Frustum;
 		Frustum.ExtractFromVP(ViewMatrix * ProjectionMatrix);
 		const FVector CameraPosition = ViewMatrix.GetInverse().GetTranslation();

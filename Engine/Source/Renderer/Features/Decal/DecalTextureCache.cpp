@@ -23,9 +23,9 @@ namespace
         return std::filesystem::path(TexturePath).lexically_normal().wstring();
     }
 
-    std::vector<unsigned char> CreateCircularMaskPixels(uint32 Width, uint32 Height)
-    {
-        std::vector<unsigned char> Pixels(Width * Height * 4, 255u);
+	std::vector<unsigned char> CreateCircularMaskPixels(uint32 Width, uint32 Height)
+	{
+		std::vector<unsigned char> Pixels(Width * Height * 4, 255u);
         const float InvWidth = Width > 1 ? 1.0f / static_cast<float>(Width - 1) : 0.0f;
         const float InvHeight = Height > 1 ? 1.0f / static_cast<float>(Height - 1) : 0.0f;
 
@@ -48,40 +48,59 @@ namespace
             }
         }
 
-        return Pixels;
-    }
+		return Pixels;
+	}
+
+	bool CreateColorTextureSRV(
+		ID3D11Device* Device,
+		const void* PixelData,
+		uint32 Width,
+		uint32 Height,
+		uint32 SysMemPitch,
+		ID3D11ShaderResourceView** OutSRV)
+	{
+		if (!Device || !PixelData || !OutSRV || Width == 0 || Height == 0)
+		{
+			return false;
+		}
+
+		*OutSRV = nullptr;
+
+		D3D11_TEXTURE2D_DESC Desc = {};
+		Desc.Width = Width;
+		Desc.Height = Height;
+		Desc.MipLevels = 1;
+		Desc.ArraySize = 1;
+		Desc.Format = DXGI_FORMAT_R8G8B8A8_TYPELESS;
+		Desc.SampleDesc.Count = 1;
+		Desc.Usage = D3D11_USAGE_DEFAULT;
+		Desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+		D3D11_SUBRESOURCE_DATA InitData = {};
+		InitData.pSysMem = PixelData;
+		InitData.SysMemPitch = SysMemPitch;
+
+		ID3D11Texture2D* Texture = nullptr;
+		if (FAILED(Device->CreateTexture2D(&Desc, &InitData, &Texture)) || !Texture)
+		{
+			return false;
+		}
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
+		SRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+		SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		SRVDesc.Texture2D.MostDetailedMip = 0;
+		SRVDesc.Texture2D.MipLevels = 1;
+
+		const HRESULT Hr = Device->CreateShaderResourceView(Texture, &SRVDesc, OutSRV);
+		Texture->Release();
+		return SUCCEEDED(Hr);
+	}
 }
 
 bool FDecalTextureCache::CreateSolidColorTextureSRV(ID3D11Device* Device, uint32 PackedRGBA, ID3D11ShaderResourceView** OutSRV)
 {
-    if (Device == nullptr || OutSRV == nullptr)
-    {
-        return false;
-    }
-
-    *OutSRV = nullptr;
-
-    D3D11_TEXTURE2D_DESC Desc = {};
-    Desc.Width = 1;
-    Desc.Height = 1;
-    Desc.MipLevels = 1;
-    Desc.ArraySize = 1;
-    Desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    Desc.SampleDesc.Count = 1;
-    Desc.Usage = D3D11_USAGE_DEFAULT;
-    Desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-
-    const D3D11_SUBRESOURCE_DATA InitData = { &PackedRGBA, sizeof(PackedRGBA), 0 };
-
-    ID3D11Texture2D* Texture = nullptr;
-    if (FAILED(Device->CreateTexture2D(&Desc, &InitData, &Texture)) || !Texture)
-    {
-        return false;
-    }
-
-    const HRESULT Hr = Device->CreateShaderResourceView(Texture, nullptr, OutSRV);
-    Texture->Release();
-    return SUCCEEDED(Hr);
+	return CreateColorTextureSRV(Device, &PackedRGBA, 1u, 1u, sizeof(PackedRGBA), OutSRV);
 }
 
 bool FDecalTextureCache::LoadTexturePixels(const std::wstring& TexturePath, std::vector<unsigned char>& OutPixels, uint32& OutWidth, uint32& OutHeight)
@@ -162,30 +181,11 @@ ID3D11ShaderResourceView* FDecalTextureCache::GetOrLoadBaseColorTexture(ID3D11De
         return FallbackBaseColorSRV;
     }
 
-    D3D11_TEXTURE2D_DESC Desc = {};
-    Desc.Width = Width;
-    Desc.Height = Height;
-    Desc.MipLevels = 1;
-    Desc.ArraySize = 1;
-    Desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    Desc.SampleDesc.Count = 1;
-    Desc.Usage = D3D11_USAGE_DEFAULT;
-    Desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-
-    D3D11_SUBRESOURCE_DATA InitData = { Pixels.data(), Width * 4, 0 };
-    ID3D11Texture2D* Texture = nullptr;
-    if (FAILED(Device->CreateTexture2D(&Desc, &InitData, &Texture)) || !Texture)
-    {
-        return FallbackBaseColorSRV;
-    }
-
-    ID3D11ShaderResourceView* LoadedSRV = nullptr;
-    const HRESULT Hr = Device->CreateShaderResourceView(Texture, nullptr, &LoadedSRV);
-    Texture->Release();
-    if (FAILED(Hr) || !LoadedSRV)
-    {
-        return FallbackBaseColorSRV;
-    }
+	ID3D11ShaderResourceView* LoadedSRV = nullptr;
+	if (!CreateColorTextureSRV(Device, Pixels.data(), Width, Height, Width * 4, &LoadedSRV) || !LoadedSRV)
+	{
+		return FallbackBaseColorSRV;
+	}
 
     BaseColorTextureCache.emplace(NormalizedPath, LoadedSRV);
     return LoadedSRV;
@@ -402,7 +402,7 @@ void FDecalTextureCache::ResolveTextureArray(ID3D11Device* Device, FSceneViewDat
     Desc.Height = CanonicalH;
     Desc.MipLevels = 1;
     Desc.ArraySize = ArraySize;
-    Desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	Desc.Format = DXGI_FORMAT_R8G8B8A8_TYPELESS;
     Desc.SampleDesc.Count = 1;
     Desc.Usage = D3D11_USAGE_DEFAULT;
     Desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -423,7 +423,7 @@ void FDecalTextureCache::ResolveTextureArray(ID3D11Device* Device, FSceneViewDat
     }
 
     D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
-    SRVDesc.Format = Desc.Format;
+	SRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
     SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
     SRVDesc.Texture2DArray.MostDetailedMip = 0;
     SRVDesc.Texture2DArray.MipLevels = 1;

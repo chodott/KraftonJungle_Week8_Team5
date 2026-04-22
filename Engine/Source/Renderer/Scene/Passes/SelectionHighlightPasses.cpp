@@ -1,4 +1,4 @@
-﻿#include "Renderer/Scene/Passes/ScenePasses.h"
+#include "Renderer/Scene/Passes/ScenePasses.h"
 
 #include "Renderer/Features/Outline/OutlineRenderFeature.h"
 #include "Renderer/Renderer.h"

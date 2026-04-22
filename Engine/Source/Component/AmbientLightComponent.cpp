@@ -1,4 +1,4 @@
-﻿#include "AmbientLightComponent.h"
+#include "AmbientLightComponent.h"
 
 #include "Object/Class.h"
 

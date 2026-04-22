@@ -1,4 +1,4 @@
-﻿#include "ViewportChromeWidget.h"
+#include "ViewportChromeWidget.h"
 #include "UI/EditorUI.h"
 
 FVector2 SViewportChromeWidget::ComputeDesiredSize() const

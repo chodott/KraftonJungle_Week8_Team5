@@ -1,4 +1,4 @@
-﻿#pragma once
+# pragma once
 #include "CoreMinimal.h"
 #include "Level/WorldTypes.h"
 
@@ -7,15 +7,19 @@ class UWorld;
 
 struct ENGINE_API FWorldContext
 {
-	FString ContextName;
+	FString    ContextName;
 	EWorldType WorldType = EWorldType::Game;
-	UWorld* World = nullptr;
+	UWorld*    World     = nullptr;
 
-	bool IsValid() const { return World != nullptr; }
+	bool IsValid() const
+	{
+		return World != nullptr;
+	}
+
 	void Reset()
 	{
 		ContextName.clear();
 		WorldType = EWorldType::Game;
-		World = nullptr;
+		World     = nullptr;
 	}
 };

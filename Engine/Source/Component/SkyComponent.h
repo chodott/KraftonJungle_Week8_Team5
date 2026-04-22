@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "Component/StaticMeshComponent.h"
 
 class ENGINE_API USkyComponent : public UStaticMeshComponent

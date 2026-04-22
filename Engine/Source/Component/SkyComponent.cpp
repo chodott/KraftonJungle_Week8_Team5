@@ -1,4 +1,4 @@
-﻿#include "Component/SkyComponent.h"
+#include "Component/SkyComponent.h"
 
 #include <filesystem>
 

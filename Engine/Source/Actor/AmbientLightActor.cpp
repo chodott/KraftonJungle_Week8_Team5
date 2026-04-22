@@ -89,7 +89,7 @@ void AAmbientLightActor::UpdateBillboardTint()
 		return;
 	}
 
-	FVector4 Tint = AmbientLightComponent->GetColor().ToVector4();
-	Tint.W = 1.0f;
-	IconBillboardComponent->SetBaseColor(Tint);
+	FLinearColor Tint = AmbientLightComponent->GetColor();
+	Tint.A = 1.0f;
+	IconBillboardComponent->SetBaseColorLinear(Tint);
 }

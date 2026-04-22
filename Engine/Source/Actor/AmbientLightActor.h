@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "Actor.h"
 #include "Component/AmbientLightComponent.h"
 #include "Component/BillboardComponent.h"

@@ -1,4 +1,4 @@
-﻿#include "EditorViewportRegistry.h"
+#include "EditorViewportRegistry.h"
 
 #include <cmath>
 #include "Math/MathUtility.h"

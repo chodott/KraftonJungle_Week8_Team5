@@ -1,4 +1,4 @@
-﻿#include "Subsystem/EditorSelectionSubsystem.h"
+#include "Subsystem/EditorSelectionSubsystem.h"
 
 #include <algorithm>
 

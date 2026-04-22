@@ -1,4 +1,4 @@
-﻿#include "EditorUI.h"
+#include "EditorUI.h"
 
 #include "Actor/Actor.h"
 #include "Component/SceneComponent.h"
@@ -7,6 +7,7 @@
 #include "Object/Object.h"
 #include "Platform/Windows/WindowsWindow.h"
 #include "Renderer/Renderer.h"
+#include "Renderer/Features/Lighting/BloomRenderFeature.h"
 
 #include "imgui.h"
 #include "imgui_impl_dx11.h"
@@ -168,6 +169,8 @@ void FEditorUI::Initialize(FEditorEngine *InEngine)
 {
     Engine = InEngine;
     Console.SetDebugState(&DebugState);
+
+    ControlPanel.OnSettingsChanged = [this]() { SaveEditorSettings(); };
 
     Property.OnChanged = [this](const FVector &Loc, const FVector &Rot, const FVector &Scl) {
         if (!Engine)
@@ -537,6 +540,7 @@ void FEditorUI::BuildDefaultLayout(uint32 DockID)
     ImGui::DockBuilderDockWindow("Stats", DockLeft);
     ImGui::DockBuilderDockWindow("Properties", DockRightTop);
     ImGui::DockBuilderDockWindow("Control Panel", DockRightBottom);
+    ImGui::DockBuilderDockWindow("Level Gameplay", DockRightBottom);
     ImGui::DockBuilderDockWindow("Console", DockBottom);
 
     ImGui::DockBuilderFinish(DockID);
@@ -617,50 +621,46 @@ void FEditorUI::LoadEditorSettings()
         S.ShowFlags.SetFlag(EEngineShowFlags::SF_LocalFogDebug, _wtoi(Buf) != 0);
     }
 
-    bool bAnyDebugDrawEnabled = false;
-    bool bAnyDebugVolumeEnabled = false;
-    bool bAnyWorldAxisEnabled = false;
-    bool bAnyCollisionEnabled = false;
-    bool bAnySceneBVHEnabled = false;
-    bool bAnyMeshBVHEnabled = false;
-    bool bAnyDecalDebugEnabled = false;
-    bool bAnyLocalFogDebugEnabled = false;
-
-    for (const FViewportEntry &Entry : ViewportRegistry.GetEntries())
+    if (FRenderer* Renderer = Engine->GetRenderer())
     {
-        bAnyDebugDrawEnabled =
-            bAnyDebugDrawEnabled
-            || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw)
-            || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_Collision)
-            || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_SceneBVH)
-            || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_MeshBVH);
-        bAnyDebugVolumeEnabled =
-            bAnyDebugVolumeEnabled
-            || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugVolume)
-            || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalDebug)
-            || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_LocalFogDebug);
-        bAnyWorldAxisEnabled =
-            bAnyWorldAxisEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_WorldAxis);
-        bAnyCollisionEnabled =
-            bAnyCollisionEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_Collision);
-        bAnySceneBVHEnabled = bAnySceneBVHEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_SceneBVH);
-        bAnyMeshBVHEnabled = bAnyMeshBVHEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_MeshBVH);
-        bAnyDecalDebugEnabled =
-            bAnyDecalDebugEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalDebug);
-        bAnyLocalFogDebugEnabled =
-            bAnyLocalFogDebugEnabled || Entry.LocalState.ShowFlags.HasFlag(EEngineShowFlags::SF_LocalFogDebug);
-    }
+        FToneMappingSettings TM = Renderer->GetToneMappingSettings();
 
-    for (FViewportEntry &Entry : ViewportRegistry.GetEntries())
-    {
-        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, bAnyDebugDrawEnabled);
-        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, bAnyDebugVolumeEnabled);
-        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, bAnyWorldAxisEnabled);
-        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_Collision, bAnyCollisionEnabled);
-        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_SceneBVH, bAnySceneBVHEnabled);
-        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_MeshBVH, bAnyMeshBVHEnabled);
-        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DecalDebug, bAnyDecalDebugEnabled);
-        Entry.LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_LocalFogDebug, bAnyLocalFogDebugEnabled);
+        GetPrivateProfileStringW(L"ToneMapping", L"Mode", L"1", Buf, 64, Path.c_str());
+        TM.Mode = static_cast<EToneMappingMode>(std::clamp(_wtoi(Buf), 0, 3));
+
+        GetPrivateProfileStringW(L"ToneMapping", L"Exposure", L"0.22", Buf, 64, Path.c_str());
+        TM.Exposure = static_cast<float>(_wtof(Buf));
+
+        GetPrivateProfileStringW(L"ToneMapping", L"ShoulderStrength", L"0.0", Buf, 64, Path.c_str());
+        TM.ShoulderStrength = static_cast<float>(_wtof(Buf));
+
+        GetPrivateProfileStringW(L"ToneMapping", L"LinearWhite", L"0.65", Buf, 64, Path.c_str());
+        TM.LinearWhite = static_cast<float>(_wtof(Buf));
+
+        Renderer->SetToneMappingSettings(TM);
+
+        // Bloom
+        if (FBloomRenderFeature* Bloom = Renderer->GetBloomFeature())
+        {
+            GetPrivateProfileStringW(L"Bloom", L"Apply", L"0", Buf, 64, Path.c_str());
+            Bloom->SetApplyBloom(_wtoi(Buf) != 0);
+
+            GetPrivateProfileStringW(L"Bloom", L"BlurIterations", L"1", Buf, 64, Path.c_str());
+            Bloom->SetBlurIterations(_wtoi(Buf));
+
+            GetPrivateProfileStringW(L"Bloom", L"Threshold", L"0.3", Buf, 64, Path.c_str());
+            Bloom->SetThreshold(static_cast<float>(_wtof(Buf)));
+
+            GetPrivateProfileStringW(L"Bloom", L"Intensity", L"3.0", Buf, 64, Path.c_str());
+            Bloom->SetBloomIntensity(static_cast<float>(_wtof(Buf)));
+
+            GetPrivateProfileStringW(L"Bloom", L"Exposure", L"1.0", Buf, 64, Path.c_str());
+            Bloom->SetExposure(static_cast<float>(_wtof(Buf)));
+        }
+
+        // Decal projection mode
+        GetPrivateProfileStringW(L"Renderer", L"DecalProjectionMode", L"1", Buf, 64, Path.c_str());
+        Renderer->SetDecalProjectionMode(static_cast<EDecalProjectionMode>(_wtoi(Buf)));
     }
 
     FSlateApplication *Slate = Engine->GetSlateApplication();
@@ -765,6 +765,45 @@ void FEditorUI::SaveEditorSettings()
         WritePrivateProfileStringW(Sec, L"SF.ProjectileArrow",
                                    S.ShowFlags.HasFlag(EEngineShowFlags::SF_ProjectileArrow) ? L"1" : L"0",
                                    Path.c_str());
+    }
+
+    if (FRenderer* Renderer = Engine->GetRenderer())
+    {
+        const FToneMappingSettings TM = Renderer->GetToneMappingSettings();
+
+        WritePrivateProfileStringW(L"ToneMapping", L"Mode",
+            std::to_wstring(static_cast<int>(TM.Mode)).c_str(), Path.c_str());
+
+        swprintf(Buf, 64, L"%.4f", TM.Exposure);
+        WritePrivateProfileStringW(L"ToneMapping", L"Exposure", Buf, Path.c_str());
+
+        swprintf(Buf, 64, L"%.4f", TM.ShoulderStrength);
+        WritePrivateProfileStringW(L"ToneMapping", L"ShoulderStrength", Buf, Path.c_str());
+
+        swprintf(Buf, 64, L"%.4f", TM.LinearWhite);
+        WritePrivateProfileStringW(L"ToneMapping", L"LinearWhite", Buf, Path.c_str());
+
+        // Bloom
+        if (FBloomRenderFeature* Bloom = Renderer->GetBloomFeature())
+        {
+            WritePrivateProfileStringW(L"Bloom", L"Apply", Bloom->IsBloomApplied() ? L"1" : L"0", Path.c_str());
+
+            WritePrivateProfileStringW(L"Bloom", L"BlurIterations",
+                std::to_wstring(Bloom->GetBlurIterations()).c_str(), Path.c_str());
+
+            swprintf(Buf, 64, L"%.4f", Bloom->GetThreshold());
+            WritePrivateProfileStringW(L"Bloom", L"Threshold", Buf, Path.c_str());
+
+            swprintf(Buf, 64, L"%.4f", Bloom->GetBloomIntensity());
+            WritePrivateProfileStringW(L"Bloom", L"Intensity", Buf, Path.c_str());
+
+            swprintf(Buf, 64, L"%.4f", Bloom->GetExposure());
+            WritePrivateProfileStringW(L"Bloom", L"Exposure", Buf, Path.c_str());
+        }
+
+        // Decal projection mode
+        WritePrivateProfileStringW(L"Renderer", L"DecalProjectionMode",
+            std::to_wstring(static_cast<int>(Renderer->GetDecalProjectionMode())).c_str(), Path.c_str());
     }
 
     FSlateApplication *Slate = Engine->GetSlateApplication();
@@ -873,6 +912,7 @@ void FEditorUI::Render()
                         Cam->GetCamera()->SetRotation(0.f, 0.f);
                     }
                     Engine->GetEditorScene()->ClearActors();
+                    Engine->GetEditorScene()->EnsureEssentialActors();
                     Engine->CollectGarbage();
                     UE_LOG("New scene created");
                 }
@@ -1003,6 +1043,8 @@ void FEditorUI::Render()
         }
         if (ImGui::BeginMenu("Show"))
         {
+            ImGui::MenuItem("Level Gameplay Panel", nullptr, &bShowLevelGameplayWindow);
+
             if (Engine)
             {
                 FEditorViewportRegistry &ViewportRegistry = Engine->GetViewportRegistry();
@@ -1067,7 +1109,7 @@ void FEditorUI::Render()
                     {
                         SaveEditorSettings();
                     }
-
+                    ImGui::EndDisabled();
 
                     ImGui::Dummy(ImVec2(0.0f, 5.0f));
                     ImGui::SeparatorText("Actor Helpers");
@@ -1144,8 +1186,6 @@ void FEditorUI::Render()
 
                     ImGui::Unindent();
 
-                    ImGui::EndDisabled();
-
                     ImGui::Dummy(ImVec2(0.0f, 5.0f));
                     ImGui::SeparatorText("Post-Processing Show Flags");
                     ImGui::Dummy(ImVec2(0.0f, 5.0f));
@@ -1154,6 +1194,69 @@ void FEditorUI::Render()
                     ShowFlagCheckbox("Height Fog", EEngineShowFlags::SF_Fog);
                     ShowFlagCheckbox("Decal Projection", EEngineShowFlags::SF_Decal);
                 }
+            }
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Tone Mapping"))
+        {
+            FRenderer* Renderer = Engine ? Engine->GetRenderer() : nullptr;
+            if (Renderer)
+            {
+                FToneMappingSettings Settings = Renderer->GetToneMappingSettings();
+                bool bChanged = false;
+
+                ImGui::SeparatorText("Tone Mapping");
+
+                const char* ModeNames[] = { "ACES", "Hable", "Reinhard", "Linear" };
+                int CurrentMode = static_cast<int>(Settings.Mode);
+                if (ImGui::Combo("Mode", &CurrentMode, ModeNames, 4))
+                {
+                    Settings.Mode = static_cast<EToneMappingMode>(CurrentMode);
+                    bChanged = true;
+                }
+
+                ImGui::Dummy(ImVec2(0.0f, 3.0f));
+
+                if (ImGui::DragFloat("Exposure", &Settings.Exposure, 0.01f, 0.01f, 5.0f, "%.3f"))
+                {
+                    bChanged = true;
+                }
+
+                if (Settings.Mode == EToneMappingMode::Hable)
+                {
+                    if (ImGui::DragFloat("Shoulder Strength", &Settings.ShoulderStrength, 0.01f, 0.0f, 1.0f, "%.3f"))
+                    {
+                        bChanged = true;
+                    }
+                    if (ImGui::DragFloat("Linear White", &Settings.LinearWhite, 0.05f, 0.1f, 20.0f, "%.3f"))
+                    {
+                        bChanged = true;
+                    }
+                }
+                else if (Settings.Mode == EToneMappingMode::Reinhard)
+                {
+                    if (ImGui::DragFloat("Linear White", &Settings.LinearWhite, 0.05f, 0.1f, 20.0f, "%.3f"))
+                    {
+                        bChanged = true;
+                    }
+                }
+
+                if (bChanged)
+                {
+                    Renderer->SetToneMappingSettings(Settings);
+                    SaveEditorSettings();
+                }
+
+                ImGui::Dummy(ImVec2(0.0f, 3.0f));
+                if (ImGui::Button("Reset to Default"))
+                {
+                    Renderer->SetToneMappingSettings(FToneMappingSettings{});
+                    SaveEditorSettings();
+                }
+            }
+            else
+            {
+                ImGui::TextDisabled("Renderer unavailable.");
             }
             ImGui::EndMenu();
         }
@@ -1345,6 +1448,10 @@ void FEditorUI::Render()
     }
 
     ControlPanel.Render(Engine);
+    if (bShowLevelGameplayWindow)
+    {
+        ControlPanel.RenderLevelGameplay(Engine, &bShowLevelGameplayWindow);
+    }
     Property.Render(Engine);
     Console.Render();
     if (DebugState.StatDisplayMode != EStatDisplayMode::None)

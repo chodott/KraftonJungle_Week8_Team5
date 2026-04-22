@@ -1,4 +1,4 @@
-﻿#include "Renderer/Frame/UI/FramePasses.h"
+#include "Renderer/Frame/UI/FramePasses.h"
 
 #include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Renderer.h"

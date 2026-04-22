@@ -15,6 +15,7 @@
 #include "Renderer/Features/SubUV/SubUVRenderFeature.h"
 #include "Renderer/Features/Text/TextRenderFeature.h"
 #include "Renderer/Features/Lighting/LightRenderFeature.h"
+#include "Renderer/Features/Lighting/BloomRenderFeature.h"
 #include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Resources/Material/MaterialManager.h"
 #include "Renderer/Resources/Shader/Shader.h"
@@ -38,7 +39,11 @@ bool FRendererResourceBootstrap::Initialize(FRenderer& Renderer)
 
 	ID3D11ShaderResourceView* NewSRV = nullptr;
 	std::filesystem::path DefaultTexturePath = FPaths::TextureDir() / "Default.png";
-	if (!Renderer.CreateTextureFromSTB(Renderer.GetDevice(), DefaultTexturePath, &NewSRV))
+	if (!Renderer.CreateTextureFromSTB(
+		Renderer.GetDevice(),
+		DefaultTexturePath,
+		&NewSRV,
+		ETextureColorSpace::ColorSRGB))
 	{
 		return false;
 	}
@@ -169,7 +174,12 @@ bool FRendererResourceBootstrap::Initialize(FRenderer& Renderer)
 	Renderer.DebugLineFeature = std::make_unique<FDebugLineRenderFeature>();
 	Renderer.FireBallFeature = std::make_unique<FFireBallRenderFeature>();
 	Renderer.LightFeature = std::make_unique<FLightRenderFeature>();
+	Renderer.BloomFeature = std::make_unique<FBloomRenderFeature>();
 	if (!Renderer.LightFeature)
+	{
+		return false;
+	}
+	if (!Renderer.BloomFeature)
 	{
 		return false;
 	}
@@ -187,8 +197,8 @@ bool FRendererResourceBootstrap::Initialize(FRenderer& Renderer)
 
 	std::filesystem::path FolderIconPath = FPaths::AssetDir() / FString("Textures/FolderIcon.png");
 	std::filesystem::path FileIconPath = FPaths::AssetDir() / FString("Textures/FileIcon.png");
-	Renderer.CreateTextureFromSTB(Device, FolderIconPath, &Renderer.FolderIconSRV);
-	Renderer.CreateTextureFromSTB(Device, FileIconPath, &Renderer.FileIconSRV);
+	Renderer.CreateTextureFromSTB(Device, FolderIconPath, &Renderer.FolderIconSRV, ETextureColorSpace::ColorSRGB);
+	Renderer.CreateTextureFromSTB(Device, FileIconPath, &Renderer.FileIconSRV, ETextureColorSpace::ColorSRGB);
 	if (!Renderer.DecalTextureCache->InitializeFallbackTexture(Device))
 	{
 		return false;

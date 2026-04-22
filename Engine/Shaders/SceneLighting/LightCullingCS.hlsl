@@ -7,6 +7,7 @@ RWStructuredBuffer<uint>                OutClusterLightIndices : register(u1);
 
 static const float kEpsilon = 1e-5f;
 static const uint kLightCullingGroupSize = 64u;
+static const float kMinClusterDepthExtent = 1.0e-3f;
 
 groupshared uint   gHeaderOffset;
 groupshared uint   gRawCount;
@@ -46,12 +47,10 @@ float2 ComputeTileNdcMax(uint2 tileCoord)
 
 float3 NdcToView(float2 ndcXY, float viewDepth)
 {
-    float4 clipPos = float4(ndcXY, 1.0f, 1.0f);
+    float deviceDepth = ViewDepthToDeviceDepth(viewDepth);
+    float4 clipPos = float4(ndcXY, deviceDepth, 1.0f);
     float4 viewPos = mul(clipPos, ClusterInverseProjection);
-    viewPos.xyz /= max(viewPos.w, kEpsilon);
-
-    float scale = viewDepth / max(viewPos.x, kEpsilon);
-    return viewPos.xyz * scale;
+    return viewPos.xyz / max(viewPos.w, kEpsilon);
 }
 
 bool BuildDepthAwareClusterBoundingSphere(
@@ -68,11 +67,28 @@ bool BuildDepthAwareClusterBoundingSphere(
     float zNear = max(sliceNear, tileMinViewZ);
     float zFar  = min(sliceFar,  tileMaxViewZ);
 
-    if (zFar <= zNear)
+    if (zFar < zNear)
     {
         centerVS = 0.0f.xxx;
         radius   = 0.0f;
         return false;
+    }
+
+    // Orthographic tiles frequently collapse to a single depth value.
+    // Keep a minimal slab thickness so those tiles still produce a cluster volume.
+    if ((zFar - zNear) < kMinClusterDepthExtent)
+    {
+        const float centerDepth = 0.5f * (zNear + zFar);
+        const float halfExtent  = 0.5f * kMinClusterDepthExtent;
+        zNear = max(NearZ, centerDepth - halfExtent);
+        zFar  = min(FarZ,  centerDepth + halfExtent);
+
+        if (zFar <= zNear)
+        {
+            centerVS = 0.0f.xxx;
+            radius   = 0.0f;
+            return false;
+        }
     }
 
     float2 ndcMin = ComputeTileNdcMin(tileCoord);

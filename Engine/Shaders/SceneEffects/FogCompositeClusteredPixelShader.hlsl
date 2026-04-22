@@ -252,7 +252,6 @@ float ComputeLocalFogAmount(
     float OpticalDepth = AverageDensity * SegmentLength;
     float FogAmount = 1.0f - exp2(-OpticalDepth);
 
-    FogAmount *= saturate(Fog.FogColor.a);
     FogAmount = min(FogAmount, MaxOpacity);
     return saturate(FogAmount);
 }
@@ -303,7 +302,6 @@ float ComputeGlobalFogAmount(
     float MinTransmittance = 1.0f - MaxOpacity;
     float Transmittance = max(saturate(exp2(-OpticalDepth)), MinTransmittance);
     float FogAmount = 1.0f - Transmittance;
-    FogAmount *= saturate(Fog.FogColor.a);
     return saturate(FogAmount);
 }
 

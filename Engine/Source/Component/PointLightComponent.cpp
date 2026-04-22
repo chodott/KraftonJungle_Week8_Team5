@@ -4,8 +4,21 @@
 
 #include "Math/MathUtility.h"
 #include "Object/Class.h"
+#include "Serializer/Archive.h"
 
 IMPLEMENT_RTTI(UPointLightComponent, ULightComponent)
+
+void UPointLightComponent::Serialize(FArchive& Ar)
+{
+	ULightComponent::Serialize(Ar);
+	Ar.Serialize("AttenuationRadius", AttenuationRadius);
+	Ar.Serialize("LightFalloffExponent", LightFalloffExponent);
+	if (Ar.IsLoading())
+	{
+		AttenuationRadius = (std::max)(0.0f, AttenuationRadius);
+		LightFalloffExponent = (std::max)(0.0f, LightFalloffExponent);
+	}
+}
 
 void UPointLightComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const
 {

@@ -49,3 +49,9 @@ class ENGINE_API FFireBallPass : public IRenderPass
 public:
 	bool Execute(FPassContext& Context) override;
 };
+
+class ENGINE_API FBloomPass : public IRenderPass
+{
+public:
+	bool Execute(FPassContext& Context) override;
+};

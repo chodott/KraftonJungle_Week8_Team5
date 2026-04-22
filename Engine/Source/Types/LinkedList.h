@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <forward_list>
 #include <list>
 #include <memory>

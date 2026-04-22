@@ -1,4 +1,4 @@
-﻿#include "Renderer/Features/SubUV/SubUVRenderFeature.h"
+#include "Renderer/Features/SubUV/SubUVRenderFeature.h"
 
 #include "Renderer/Renderer.h"
 

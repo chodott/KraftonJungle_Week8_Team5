@@ -137,7 +137,7 @@ struct FLightClusterGlobalCB
 	uint32 ClusterCountZ   = 0;
 	uint32 LocalLightCount = 0;
 
-	uint32 DirectionalLightCount = 0;
+	uint32 bOrthographic         = 0;
 	uint32 MaxLightsPerCluster   = LightListConfig::MaxLightsPerCluster;
 	uint32 LightingEnabled       = 1;
 	uint32 VisualizationMode     = 0;

@@ -1,4 +1,4 @@
-﻿#include "Painter.h"
+#include "Painter.h"
 #include "TextMetrics.h"
 
 #include <algorithm>

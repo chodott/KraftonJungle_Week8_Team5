@@ -1,4 +1,4 @@
-﻿#include "Component/LineBatchComponent.h"
+#include "Component/LineBatchComponent.h"
 #include "Math/MathUtility.h"
 #include "Object/Class.h"
 #include <algorithm>

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "SceneManagerWindow.h" 
 #include "ControlPanelWindow.h"
 #include "PropertyWindow.h"
@@ -61,6 +61,7 @@ private:
 	bool bLayoutInitialized = false;
 	bool bImGuiInitialized = false;
 	bool bRequestViewportFocusOnNextRender = false;
+	bool bShowLevelGameplayWindow = true;
 	FRect CentralDockRect;
 	bool bHasCentralDockRect = false;
 	FDebugState DebugState;

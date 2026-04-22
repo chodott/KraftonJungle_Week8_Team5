@@ -9,7 +9,7 @@
 #include <d3d11.h>
 #include <chrono>
 
-#include "Renderer/Resources/Shader/Shader.h"
+#include "Renderer/Resources/Shader/ShaderHandles.h"
 
 class FRenderer;
 struct FClusterRange
@@ -111,11 +111,11 @@ private:
 	ID3D11RasterizerState* CompositeRasterizerState = nullptr;
 	ID3D11SamplerState* LinearSampler = nullptr;
 	ID3D11SamplerState* PointSampler = nullptr;
-	ID3D11VertexShader* CompositeVS = nullptr;
-	ID3D11PixelShader* CompositePS = nullptr;
+	std::shared_ptr<FVertexShaderHandle> CompositeVS = nullptr;
+	std::shared_ptr<FPixelShaderHandle> CompositePS = nullptr;
 	
-	std::shared_ptr<FVertexShader> DebugBoxVS = nullptr;
-	std::shared_ptr<FPixelShader> DebugBoxPS = nullptr;
+	std::shared_ptr<FVertexShaderHandle> DebugBoxVS = nullptr;
+	std::shared_ptr<FPixelShaderHandle> DebugBoxPS = nullptr;
 	
 	
 	ID3D11Buffer*             DebugBoxVertexBuffer  = nullptr;

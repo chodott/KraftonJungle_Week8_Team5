@@ -1,4 +1,4 @@
-﻿#include "Math/Frustum.h"
+#include "Math/Frustum.h"
 #include "Component/PrimitiveComponent.h"
 
 void FFrustum::ExtractFromVP(const FMatrix& VP)

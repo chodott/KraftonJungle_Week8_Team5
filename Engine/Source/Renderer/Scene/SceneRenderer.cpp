@@ -1,4 +1,4 @@
-﻿#include "Renderer/Scene/SceneRenderer.h"
+#include "Renderer/Scene/SceneRenderer.h"
 
 #include "Renderer/Scene/MeshPassProcessor.h"
 #include "Renderer/Scene/Builders/SceneCommandBuilder.h"
@@ -105,6 +105,7 @@ bool FSceneRenderer::RenderSceneView(
 		FVector4(ClearColor[0], ClearColor[1], ClearColor[2], ClearColor[3])
 	};
 
+	// [16-bit HDR] R16G16B16A16_FLOAT 선형 공간에서 모든 씬 패스 실행
 	FRenderPipeline Pipeline;
 	BuildDefaultSceneRenderPipeline(Pipeline, *MeshPassProcessor);
 	if (!Pipeline.Execute(PassContext))
@@ -112,5 +113,10 @@ bool FSceneRenderer::RenderSceneView(
 		return false;
 	}
 
-	return Renderer.ResolveSceneColorTargets(Targets);
+	// ACES 톤매핑 + LinearToSRGB 후 [8-bit LDR] R8G8B8A8_UNORM 백버퍼로 blit
+	return Renderer.ResolveSceneColorTargets(
+		Targets,
+		SceneViewData.Frame,
+		SceneViewData.View,
+		SceneViewData.PostProcessInputs.bApplyFXAA);
 }

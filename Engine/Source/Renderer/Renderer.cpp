@@ -1,4 +1,4 @@
-﻿#include "Renderer/Renderer.h"
+#include "Renderer/Renderer.h"
 #include "Actor/Actor.h"
 #include "Component/DecalComponent.h"
 #include "Component/StaticMeshComponent.h"
@@ -17,16 +17,19 @@
 #include "Renderer/Features/SubUV/SubUVRenderFeature.h"
 #include "Renderer/Features/Text/TextRenderFeature.h"
 #include "Renderer/Features/Lighting/LightRenderFeature.h"
+#include "Renderer/Features/Lighting/BloomRenderFeature.h"
 #include "Renderer/Frame/EditorFrameRenderer.h"
 #include "Renderer/Frame/GameFrameRenderer.h"
 #include "Renderer/Frame/RendererResourceBootstrap.h"
 #include "Renderer/Frame/SceneTargetManager.h"
 #include "Renderer/Frame/Viewport/ViewportCompositor.h"
+#include "Renderer/GraphicsCore/FullscreenPass.h"
 #include "Renderer/Mesh/RenderMesh.h"
 #include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Resources/Material/MaterialManager.h"
 #include "Renderer/Resources/Shader/Shader.h"
 #include "Renderer/Resources/Shader/ShaderMap.h"
+#include "Renderer/Resources/Shader/ShaderRegistry.h"
 #include "Renderer/Resources/Shader/ShaderResource.h"
 #include "Renderer/Resources/Shader/ShaderType.h"
 #include "Renderer/Scene/Builders/DebugSceneBuilder.h"
@@ -53,6 +56,14 @@
 
 namespace
 {
+	struct FToneMappingConstants
+	{
+		float Exposure         = 0.22f;
+		float ShoulderStrength = 0.0f;
+		float LinearWhite      = 0.65f;
+		float Pad0             = 0.0f;
+	};
+
 	ID3D11Texture2D* ResolveTextureFromRenderTarget(ID3D11RenderTargetView* RenderTargetView)
 	{
 		if (!RenderTargetView)
@@ -124,12 +135,17 @@ bool FRenderer::Initialize(HWND InHwnd, int32 Width, int32 Height)
 		return false;
 	}
 
+	if (!ShaderHotReloadService.Initialize(FPaths::ShaderDir().wstring()))
+	{
+		OutputDebugStringA("[ShaderHotReload] watcher init failed.\n");
+	}
+
 	return true;
 }
 
 void FRenderer::BeginFrame()
 {
-	constexpr float ClearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
+	constexpr float ClearColor[4] = { 0.01f, 0.01f, 0.01f, 1.0f };
 	RenderDevice.BeginFrame(ClearColor);
 	if (SceneRenderer)
 	{
@@ -144,6 +160,8 @@ void FRenderer::EndFrame()
 
 void FRenderer::Release()
 {
+	ShaderHotReloadService.Shutdown();
+
 	if (SceneTargetManager)
 	{
 		SceneTargetManager->Release();
@@ -151,6 +169,33 @@ void FRenderer::Release()
 	if (ViewportCompositor)
 	{
 		ViewportCompositor->Release();
+	}
+
+	if (ToneMappingConstantBuffer)
+	{
+		ToneMappingConstantBuffer->Release();
+		ToneMappingConstantBuffer = nullptr;
+	}
+	if (FullscreenRasterizerState)
+	{
+		FullscreenRasterizerState->Release();
+		FullscreenRasterizerState = nullptr;
+	}
+	if (FullscreenNoDepthState)
+	{
+		FullscreenNoDepthState->Release();
+		FullscreenNoDepthState = nullptr;
+	}
+	if (FullscreenPointSampler)
+	{
+		FullscreenPointSampler->Release();
+		FullscreenPointSampler = nullptr;
+	}
+	FinalImageVertexShader.reset();
+	FinalImageBlitPixelShader.reset();
+	for (auto& Shader : ToneMappingPixelShaders)
+	{
+		Shader.reset();
 	}
 	FRendererResourceBootstrap::Release(*this);
 	RenderDevice.Release();
@@ -207,24 +252,32 @@ bool FRenderer::RenderEditorFrame(const FEditorFrameRequest& Request)
 	return FEditorFrameRenderer::Render(*this, Request);
 }
 
-bool FRenderer::CreateTextureFromSTB(ID3D11Device* Device, const char* FilePath, ID3D11ShaderResourceView** OutSRV)
+bool FRenderer::CreateTextureFromSTB(
+	ID3D11Device*              Device,
+	const char*                FilePath,
+	ID3D11ShaderResourceView** OutSRV,
+	ETextureColorSpace         ColorSpace)
 {
 	if (FilePath == nullptr)
 	{
 		return false;
 	}
 
-	return CreateTextureFromSTB(Device, FPaths::ToPath(FilePath), OutSRV);
+	return CreateTextureFromSTB(Device, FPaths::ToPath(FilePath), OutSRV, ColorSpace);
 }
 
-bool FRenderer::CreateTextureFromSTB(ID3D11Device*                Device,
-                                     const std::filesystem::path& FilePath,
-                                     ID3D11ShaderResourceView**   OutSRV)
+bool FRenderer::CreateTextureFromSTB(
+	ID3D11Device*                Device,
+	const std::filesystem::path& FilePath,
+	ID3D11ShaderResourceView**   OutSRV,
+	ETextureColorSpace           ColorSpace)
 {
 	if (Device == nullptr || OutSRV == nullptr || FilePath.empty())
 	{
 		return false;
 	}
+
+	*OutSRV = nullptr;
 
 	std::ifstream File(FilePath, std::ios::binary | std::ios::ate);
 	if (!File.is_open())
@@ -254,12 +307,19 @@ bool FRenderer::CreateTextureFromSTB(ID3D11Device*                Device,
 		return false;
 	}
 
+	const DXGI_FORMAT TextureFormat = (ColorSpace == ETextureColorSpace::ColorSRGB)
+		                                  ? DXGI_FORMAT_R8G8B8A8_TYPELESS
+		                                  : DXGI_FORMAT_R8G8B8A8_UNORM;
+	const DXGI_FORMAT SRVFormat = (ColorSpace == ETextureColorSpace::ColorSRGB)
+		                              ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
+		                              : DXGI_FORMAT_R8G8B8A8_UNORM;
+
 	D3D11_TEXTURE2D_DESC Desc = {};
 	Desc.Width                = W;
 	Desc.Height               = H;
 	Desc.MipLevels            = 1;
 	Desc.ArraySize            = 1;
-	Desc.Format               = DXGI_FORMAT_R8G8B8A8_UNORM;
+	Desc.Format               = TextureFormat;
 	Desc.SampleDesc.Count     = 1;
 	Desc.Usage                = D3D11_USAGE_DEFAULT;
 	Desc.BindFlags            = D3D11_BIND_SHADER_RESOURCE;
@@ -273,7 +333,13 @@ bool FRenderer::CreateTextureFromSTB(ID3D11Device*                Device,
 		return false;
 	}
 
-	Hr = Device->CreateShaderResourceView(Tex, nullptr, OutSRV);
+	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
+	SRVDesc.Format                          = SRVFormat;
+	SRVDesc.ViewDimension                   = D3D11_SRV_DIMENSION_TEXTURE2D;
+	SRVDesc.Texture2D.MostDetailedMip       = 0;
+	SRVDesc.Texture2D.MipLevels             = 1;
+
+	Hr = Device->CreateShaderResourceView(Tex, &SRVDesc, OutSRV);
 	Tex->Release();
 	return SUCCEEDED(Hr);
 }
@@ -326,6 +392,46 @@ void FRenderer::ConfigureMaterialPasses(FMaterial& Material, bool bTexturedMater
 	Material.SetPassShaders(EMaterialPassType::DepthOnly, DepthPass);
 	Material.SetPassShaders(EMaterialPassType::GBuffer, GBufferPass);
 	Material.SetPassShaders(EMaterialPassType::OutlineMask, OutlineMaskPass);
+}
+
+void FRenderer::TickShaderHotReload(float DeltaTime)
+{
+	ShaderHotReloadService.Tick(*this, DeltaTime);
+}
+
+bool FRenderer::ApplyShaderReload(const FShaderReloadTransaction& Transaction, std::string& OutError)
+{
+	ID3D11Device*        Device  = GetDevice();
+	ID3D11DeviceContext* Context = GetDeviceContext();
+	if (!Device || !Context)
+	{
+		OutError = "Invalid D3D device/context.";
+		return false;
+	}
+
+	Context->ClearState();
+	Context->Flush();
+
+	if (!FShaderRegistry::Get().ApplyTransaction(Device, Transaction, OutError))
+	{
+		return false;
+	}
+
+	if (Transaction.bRequiresFullFallback)
+	{
+		if (DefaultMaterial)
+		{
+			ConfigureMaterialPasses(*DefaultMaterial, false);
+		}
+
+		if (DefaultTextureMaterial)
+		{
+			ConfigureMaterialPasses(*DefaultTextureMaterial, true);
+		}
+	}
+
+	SetConstantBuffers();
+	return true;
 }
 
 size_t FRenderer::GetPrevCommandCount() const
@@ -386,6 +492,11 @@ FFXAARenderFeature* FRenderer::GetFXAAFeature() const
 FLightRenderFeature* FRenderer::GetLightFeature() const
 {
 	return LightFeature.get();
+}
+
+FBloomRenderFeature* FRenderer::GetBloomFeature() const
+{
+	return BloomFeature.get();
 }
 
 FBillboardRenderer& FRenderer::GetBillboardRenderer()
@@ -452,7 +563,7 @@ FLightStats FRenderer::GetLightStats() const
 	{
 		return LightFeature->GetStats();
 	}
-	return FLightStats{};
+	return FLightStats {};
 }
 
 FGPUFrameStats FRenderer::GetGPUStats() const
@@ -564,7 +675,7 @@ void FRenderer::UpdateObjectConstantBuffer(const FMatrix& World)
 	}
 
 	FObjectConstantBuffer CBData;
-	CBData.World                = World.GetTransposed();
+	CBData.World = World.GetTransposed();
 	// HLSL cbuffer 기본 column-major 해석으로 인해 CPU에서 한 번 더 전치되어 들어가므로
 	// inverse-transpose를 의도할 때는 여기서 inverse만 채워야 셰이더에서 (inverse)^T가 된다.
 	CBData.WorldInvTranspose    = World.GetInverse();
@@ -590,7 +701,7 @@ void FRenderer::UpdateObjectConstantBuffer(const FMeshBatch& Batch)
 	}
 
 	FObjectConstantBuffer CBData;
-	CBData.World                = Batch.World.GetTransposed();
+	CBData.World = Batch.World.GetTransposed();
 	// HLSL cbuffer 기본 column-major 해석으로 인해 CPU에서 한 번 더 전치되어 들어가므로
 	// inverse-transpose를 의도할 때는 여기서 inverse만 채워야 셰이더에서 (inverse)^T가 된다.
 	CBData.WorldInvTranspose    = Batch.World.GetInverse();
@@ -652,48 +763,140 @@ void FRenderer::PreparePassDomain(EPassDomain Domain, const FSceneRenderTargets&
 	}
 }
 
-bool FRenderer::ResolveSceneColorTargets(const FSceneRenderTargets& Targets)
+bool FRenderer::ResolveSceneColorTargets(
+	FSceneRenderTargets& Targets,
+	const FFrameContext& Frame,
+	const FViewContext&  View,
+	bool                 bApplyFXAA)
 {
+	ID3D11DeviceContext* DeviceContext = GetDeviceContext();
+	if (!DeviceContext || !Targets.SceneColorRead || !Targets.SceneColorWrite || !EnsureFinalImageResources())
+	{
+		return false;
+	}
+
+	PreparePassDomain(EPassDomain::Copy, Targets);
+
+	if (RenderStateManager)
+	{
+		if (Targets.SceneColorRead->Texture)
+		{
+			RenderStateManager->UnbindResourceEverywhere(Targets.SceneColorRead->Texture);
+		}
+		if (Targets.SceneColorWrite->Texture)
+		{
+			RenderStateManager->UnbindResourceEverywhere(Targets.SceneColorWrite->Texture);
+		}
+	}
+
+	D3D11_MAPPED_SUBRESOURCE Mapped = {};
+	if (FAILED(DeviceContext->Map(ToneMappingConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
+	{
+		return false;
+	}
+
+	*reinterpret_cast<FToneMappingConstants*>(Mapped.pData) = FToneMappingConstants {
+		ToneMappingSettings.Exposure,
+		ToneMappingSettings.ShoulderStrength,
+		ToneMappingSettings.LinearWhite,
+		0.0f
+	};
+	DeviceContext->Unmap(ToneMappingConstantBuffer, 0);
+
+	FFullscreenPassPipelineState PipelineState;
+	PipelineState.DepthStencilState = FullscreenNoDepthState;
+	PipelineState.RasterizerState   = FullscreenRasterizerState;
+
+	const FFullscreenPassConstantBufferBinding ToneMappingBuffers[] =
+	{
+		{ 0, ToneMappingConstantBuffer },
+	};
+	const FFullscreenPassShaderResourceBinding ToneMappingResources[] =
+	{
+		{ 0, Targets.SceneColorRead->SRV },
+	};
+	const FFullscreenPassSamplerBinding ToneMappingSamplers[] =
+	{
+		{ 0, FullscreenPointSampler },
+	};
+	const FFullscreenPassBindings ToneMappingBindings
+	{
+		ToneMappingBuffers,
+		(sizeof(ToneMappingBuffers) / sizeof(ToneMappingBuffers[0])),
+		ToneMappingResources,
+		(sizeof(ToneMappingResources) / sizeof(ToneMappingResources[0])),
+		ToneMappingSamplers,
+		(sizeof(ToneMappingSamplers) / sizeof(ToneMappingSamplers[0]))
+	};
+
+	if (!ExecuteFullscreenPass(
+		*this,
+		Frame,
+		View,
+		Targets.SceneColorWrite->RTV,
+		nullptr,
+		View.Viewport,
+		{ FinalImageVertexShader, ToneMappingPixelShaders[static_cast<int>(ToneMappingMode)] },
+		PipelineState,
+		ToneMappingBindings,
+		[](ID3D11DeviceContext& Context)
+		{
+			Context.Draw(3, 0);
+		}))
+	{
+		return false;
+	}
+
+	Targets.SwapSceneColor();
+
+	if (bApplyFXAA && FXAAFeature)
+	{
+		PreparePassDomain(EPassDomain::Copy, Targets);
+		if (!FXAAFeature->Render(*this, Frame, View, Targets))
+		{
+			return false;
+		}
+	}
+
 	if (!Targets.NeedsSceneColorResolve())
 	{
 		return true;
 	}
 
-	ID3D11DeviceContext* DeviceContext = GetDeviceContext();
-	if (!DeviceContext || !Targets.SceneColorRead || !Targets.FinalSceneColor)
-	{
-		return false;
-	}
+	PreparePassDomain(EPassDomain::Copy, Targets);
 
-	ID3D11Texture2D* DestinationTexture = Targets.FinalSceneColor->Texture;
-	if (!DestinationTexture)
+	const FFullscreenPassShaderResourceBinding BlitResources[] =
 	{
-		DestinationTexture = ResolveTextureFromRenderTarget(Targets.FinalSceneColor->RTV);
-	}
+		{ 0, Targets.SceneColorRead->SRV },
+	};
+	const FFullscreenPassSamplerBinding BlitSamplers[] =
+	{
+		{ 0, FullscreenPointSampler },
+	};
+	const FFullscreenPassBindings BlitBindings
+	{
+		nullptr,
+		0u,
+		BlitResources,
+		(sizeof(BlitResources) / sizeof(BlitResources[0])),
+		BlitSamplers,
+		(sizeof(BlitSamplers) / sizeof(BlitSamplers[0]))
+	};
 
-	if (!DestinationTexture || !Targets.SceneColorRead->Texture)
-	{
-		if (DestinationTexture)
+	return ExecuteFullscreenPass(
+		*this,
+		Frame,
+		View,
+		Targets.FinalSceneColor->RTV,
+		nullptr,
+		View.Viewport,
+		{ FinalImageVertexShader, FinalImageBlitPixelShader },
+		PipelineState,
+		BlitBindings,
+		[](ID3D11DeviceContext& Context)
 		{
-			DestinationTexture->Release();
-		}
-		return false;
-	}
-
-	if (RenderStateManager)
-	{
-		RenderStateManager->UnbindResourceEverywhere(Targets.SceneColorRead->Texture);
-		RenderStateManager->UnbindResourceEverywhere(DestinationTexture);
-	}
-
-	DeviceContext->CopyResource(DestinationTexture, Targets.SceneColorRead->Texture);
-
-	if (!Targets.FinalSceneColor->Texture)
-	{
-		DestinationTexture->Release();
-	}
-
-	return true;
+			Context.Draw(3, 0);
+		});
 }
 
 bool FRenderer::CreateConstantBuffers()
@@ -743,4 +946,123 @@ bool FRenderer::CreateSamplers()
 	}
 
 	return true;
+}
+
+bool FRenderer::EnsureFinalImageResources()
+{
+	ID3D11Device* Device = GetDevice();
+	if (!Device)
+	{
+		return false;
+	}
+
+	const std::wstring ShaderDir = FPaths::ShaderDir().wstring();
+
+	if (!FinalImageVertexShader)
+	{
+		FShaderRecipe Recipe   = {};
+		Recipe.Stage           = EShaderStage::Vertex;
+		Recipe.SourcePath      = ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl";
+		Recipe.EntryPoint      = "main";
+		Recipe.Target          = "vs_5_0";
+		Recipe.LayoutType      = EVertexLayoutType::FullscreenNone;
+		FinalImageVertexShader = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(Device, Recipe);
+	}
+
+	if (!FinalImageBlitPixelShader)
+	{
+		FShaderRecipe Recipe      = {};
+		Recipe.Stage              = EShaderStage::Pixel;
+		Recipe.SourcePath         = ShaderDir + L"FinalImagePostProcess/BlitPixelShader.hlsl";
+		Recipe.EntryPoint         = "main";
+		Recipe.Target             = "ps_5_0";
+		FinalImageBlitPixelShader = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
+	}
+
+	static constexpr const char* ToneMappingMacros[] = {
+		"TONEMAPPING_ACES",
+		"TONEMAPPING_HABLE",
+		"TONEMAPPING_REINHARD",
+		"TONEMAPPING_LINEAR",
+	};
+	for (int i = 0; i < 4; ++i)
+	{
+		if (!ToneMappingPixelShaders[i])
+		{
+			FShaderRecipe Recipe       = {};
+			Recipe.Stage               = EShaderStage::Pixel;
+			Recipe.SourcePath          = ShaderDir + L"FinalImagePostProcess/ToneMappingPixelShader.hlsl";
+			Recipe.EntryPoint          = "main";
+			Recipe.Target              = "ps_5_0";
+			Recipe.Macros              = { { ToneMappingMacros[i], "1" } };
+			ToneMappingPixelShaders[i] = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
+		}
+	}
+
+	if (!ToneMappingConstantBuffer)
+	{
+		D3D11_BUFFER_DESC Desc = {};
+		Desc.ByteWidth         = sizeof(FToneMappingConstants);
+		Desc.Usage             = D3D11_USAGE_DYNAMIC;
+		Desc.BindFlags         = D3D11_BIND_CONSTANT_BUFFER;
+		Desc.CPUAccessFlags    = D3D11_CPU_ACCESS_WRITE;
+		if (FAILED(Device->CreateBuffer(&Desc, nullptr, &ToneMappingConstantBuffer)))
+		{
+			return false;
+		}
+	}
+
+	if (!FullscreenRasterizerState)
+	{
+		D3D11_RASTERIZER_DESC Desc = {};
+		Desc.FillMode              = D3D11_FILL_SOLID;
+		Desc.CullMode              = D3D11_CULL_NONE;
+		Desc.DepthClipEnable       = TRUE;
+		if (FAILED(Device->CreateRasterizerState(&Desc, &FullscreenRasterizerState)))
+		{
+			return false;
+		}
+	}
+
+	if (!FullscreenNoDepthState)
+	{
+		D3D11_DEPTH_STENCIL_DESC Desc = {};
+		Desc.DepthEnable              = FALSE;
+		Desc.DepthWriteMask           = D3D11_DEPTH_WRITE_MASK_ZERO;
+		Desc.DepthFunc                = D3D11_COMPARISON_ALWAYS;
+		if (FAILED(Device->CreateDepthStencilState(&Desc, &FullscreenNoDepthState)))
+		{
+			return false;
+		}
+	}
+
+	if (!FullscreenPointSampler)
+	{
+		D3D11_SAMPLER_DESC Desc = {};
+		Desc.Filter             = D3D11_FILTER_MIN_MAG_MIP_POINT;
+		Desc.AddressU           = D3D11_TEXTURE_ADDRESS_CLAMP;
+		Desc.AddressV           = D3D11_TEXTURE_ADDRESS_CLAMP;
+		Desc.AddressW           = D3D11_TEXTURE_ADDRESS_CLAMP;
+		Desc.ComparisonFunc     = D3D11_COMPARISON_NEVER;
+		Desc.MinLOD             = 0.0f;
+		Desc.MaxLOD             = D3D11_FLOAT32_MAX;
+		if (FAILED(Device->CreateSamplerState(&Desc, &FullscreenPointSampler)))
+		{
+			return false;
+		}
+	}
+
+	for (int i = 0; i < 4; ++i)
+	{
+		if (!ToneMappingPixelShaders[i])
+		{
+			return false;
+		}
+	}
+	return FinalImageVertexShader != nullptr
+			&& FinalImageBlitPixelShader != nullptr
+			&& ToneMappingConstantBuffer != nullptr
+			&& FullscreenRasterizerState != nullptr
+			&& FullscreenNoDepthState != nullptr
+			&& FullscreenPointSampler != nullptr;
 }

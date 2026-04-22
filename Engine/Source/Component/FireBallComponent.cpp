@@ -1,4 +1,4 @@
-﻿#include "Component/FireBallComponent.h"
+#include "Component/FireBallComponent.h"
 
 #include "Object/Class.h"
 #include "Serializer/Archive.h"

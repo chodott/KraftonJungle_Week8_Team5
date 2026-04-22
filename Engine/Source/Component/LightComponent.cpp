@@ -4,6 +4,7 @@
 
 #include "Actor/Actor.h"
 #include "Object/Class.h"
+#include "Serializer/Archive.h"
 
 IMPLEMENT_RTTI(ULightComponent, ULightComponentBase)
 
@@ -11,11 +12,11 @@ void ULightComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateCont
 {
 	ULightComponentBase::DuplicateShallow(DuplicatedObject, Context);
 
-	ULightComponent* DuplicatedLightComponent = static_cast<ULightComponent*>(DuplicatedObject);
-	DuplicatedLightComponent->LightColor = LightColor;
-	DuplicatedLightComponent->Intensity = Intensity;
+	auto DuplicatedLightComponent            = static_cast<ULightComponent*>(DuplicatedObject);
+	DuplicatedLightComponent->LightColor     = LightColor;
+	DuplicatedLightComponent->Intensity      = Intensity;
 	DuplicatedLightComponent->IntensityUnits = IntensityUnits;
-	DuplicatedLightComponent->bVisible = bVisible;
+	DuplicatedLightComponent->bVisible       = bVisible;
 }
 
 void ULightComponent::SetIntensity(float NewIntensity)
@@ -42,10 +43,10 @@ void ULightComponent::SetIntensityUnits(ELightUnits NewUnit)
 		return;
 	}
 
-	const float OldScale = ComputePhotometricScale();
+	const float OldScale           = ComputePhotometricScale();
 	const float EffectiveIntensity = Intensity * OldScale;
 
-	IntensityUnits = NewUnit;
+	IntensityUnits       = NewUnit;
 	const float NewScale = ComputePhotometricScale();
 	if (NewScale > 0.0f)
 	{
@@ -92,6 +93,24 @@ bool ULightComponent::SupportsIntensityUnit(ELightUnits UnitType) const
 		return true;
 	default:
 		return false;
+	}
+}
+
+void ULightComponent::Serialize(FArchive& Ar)
+{
+	FVector4 Color = LightColor.ToVector4();
+	uint32   Units = (uint32)IntensityUnits;
+
+	ULightComponentBase::Serialize(Ar);
+	Ar.Serialize("Intensity", Intensity);
+	Ar.Serialize("LightColor", Color);
+	Ar.Serialize("IntensityUnits", Units);
+	Ar.Serialize("bVisible", bVisible);
+	if (Ar.IsLoading())
+	{
+		Intensity = (std::max)(0.0f, Intensity);
+		LightColor = FLinearColor(Color.X, Color.Y, Color.Z, Color.W);
+		IntensityUnits = static_cast<ELightUnits>(Units);
 	}
 }
 

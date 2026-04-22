@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "Types/CoreTypes.h"
 
 enum class EObjectFlags : uint32

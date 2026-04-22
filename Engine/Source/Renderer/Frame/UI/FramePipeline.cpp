@@ -1,4 +1,4 @@
-﻿#include "Renderer/Frame/UI/FramePipeline.h"
+#include "Renderer/Frame/UI/FramePipeline.h"
 
 void FFrameRenderPipeline::Reset()
 {

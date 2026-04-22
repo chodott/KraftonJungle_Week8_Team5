@@ -1,4 +1,4 @@
-﻿#include "Core/GameEngine.h"
+#include "Core/GameEngine.h"
 
 #include "Core/ViewportClient.h"
 #include "World/World.h"

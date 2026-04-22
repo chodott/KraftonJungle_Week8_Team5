@@ -558,9 +558,13 @@ void FStatWindow::RenderLightStats(FRenderer* Renderer)
 	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.BudgetCulledLights);
 	AddStatLine(Lines, "Budget Culled (over cap)", Buffer);
 	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.TotalLightClusterAssignments);
-	AddStatLine(Lines, "Light-Cluster Assignments", Buffer);
+	AddStatLine(Lines, "Cluster-Light Pairs (prev frame)", Buffer);
 	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.OverflowCulledSlots);
 	AddStatLine(Lines, "Overflow Culled (per-cluster cap)", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%u", Stats.ActiveClusters);
+	AddStatLine(Lines, "Active Clusters (prev frame)", Buffer);
+	std::snprintf(Buffer, sizeof(Buffer), "%.3f", Stats.AvgLightsPerActiveCluster);
+	AddStatLine(Lines, "Avg Lights / Active Cluster", Buffer);
 
 	AddStatHeader(Lines, "[Cluster Grid]");
 	std::snprintf(Buffer, sizeof(Buffer), "%u x %u x %u", Stats.ClusterCountX, Stats.ClusterCountY, Stats.ClusterCountZ);

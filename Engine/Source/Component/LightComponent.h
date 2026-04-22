@@ -20,22 +20,42 @@ public:
 	void SetColor(FLinearColor NewColor);
 	void SetVisible(bool bNewVisible);
 
-	float GetIntensity() const { return Intensity; }
-	ELightUnits GetIntensityUnits() const { return IntensityUnits; }
-	float GetEffectiveIntensity() const { return Intensity * ComputePhotometricScale(); }
-	FLinearColor GetColor() const { return LightColor; }
-	bool GetVisible() const { return bVisible; }
+	float GetIntensity() const
+	{
+		return Intensity;
+	}
 
-	void DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
+	ELightUnits GetIntensityUnits() const
+	{
+		return IntensityUnits;
+	}
+
+	float GetEffectiveIntensity() const
+	{
+		return Intensity * ComputePhotometricScale();
+	}
+
+	FLinearColor GetColor() const
+	{
+		return LightColor;
+	}
+
+	bool GetVisible() const
+	{
+		return bVisible;
+	}
+
+	void         DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
 	virtual bool SupportsIntensityUnit(ELightUnits UnitType) const;
+	void         Serialize(FArchive& Ar) override;
 
 protected:
-	void NotifyOwnerLightPropertyChanged();
+	void          NotifyOwnerLightPropertyChanged();
 	virtual float ComputePhotometricScale() const;
 
 protected:
-	FLinearColor LightColor = FLinearColor::White;
-	float Intensity = 0.0f;
-	ELightUnits IntensityUnits = ELightUnits::Unitless;
-	bool bVisible = true;
+	FLinearColor LightColor     = FLinearColor::White;
+	float        Intensity      = 0.0f;
+	ELightUnits  IntensityUnits = ELightUnits::Unitless;
+	bool         bVisible       = true;
 };

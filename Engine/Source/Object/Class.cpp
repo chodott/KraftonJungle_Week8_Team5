@@ -1,4 +1,4 @@
-﻿#include "Object/Class.h"
+#include "Object/Class.h"
 
 UClass::UClass(FString InName, UClass* InSuperClass, CreateFunc InCreateFunc)
 	: Name(std::move(InName)),

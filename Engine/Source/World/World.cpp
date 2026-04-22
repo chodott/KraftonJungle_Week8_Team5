@@ -1,4 +1,4 @@
-﻿#include "World/World.h"
+#include "World/World.h"
 #include "Object/Class.h"  
 #include "Level/Level.h"
 #include "Object/ObjectFactory.h"
@@ -71,6 +71,11 @@ void UWorld::InitializeWorld(float AspectRatio, ID3D11Device* Device)
 			SceneDir / "DefaultScene.json",
 			SceneDir / "Default.scene"
 		});
+	}
+
+	if (PersistentLevel)
+	{
+		PersistentLevel->EnsureEssentialActors();
 	}
 }
 

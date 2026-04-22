@@ -1,4 +1,4 @@
-﻿#include "BillboardRenderer.h"
+#include "BillboardRenderer.h"
 
 #include <WICTextureLoader.h>
 #include <algorithm>
@@ -161,10 +161,9 @@ FMaterial* FBillboardRenderer::GetOrCreateMaterial(const UBillboardComponent& Co
 	Material->SetMaterialTexture(Texture);
 	const FVector2 CellSize = Component.GetUVMax() - Component.GetUVMin();
 	const FVector2 UVOffset = Component.GetUVMin();
-	const FVector4 BaseColor = Component.GetBaseColor();
 	Material->SetParameterData("CellSize", &CellSize, sizeof(FVector2));
 	Material->SetParameterData("UVOffset", &UVOffset, sizeof(FVector2));
-	Material->SetParameterData("BaseColor", &BaseColor, sizeof(FVector4));
+	Material->SetLinearColorParameter("BaseColor", Component.GetBaseColor());
 	return Material;
 }
 
@@ -198,7 +197,18 @@ std::shared_ptr<FMaterialTexture> FBillboardRenderer::GetOrLoadTexture(const std
 	}
 
 	ID3D11ShaderResourceView* SRV = nullptr;
-	HRESULT Hr = DirectX::CreateWICTextureFromFile(Device, DeviceContext, NormalizedPath.c_str(), nullptr, &SRV);
+	HRESULT Hr = DirectX::CreateWICTextureFromFileEx(
+		Device,
+		DeviceContext,
+		NormalizedPath.c_str(),
+		0,
+		D3D11_USAGE_DEFAULT,
+		D3D11_BIND_SHADER_RESOURCE,
+		0,
+		0,
+		DirectX::WIC_LOADER_FORCE_SRGB,
+		nullptr,
+		&SRV);
 	if (FAILED(Hr) || !SRV)
 	{
 		return nullptr;

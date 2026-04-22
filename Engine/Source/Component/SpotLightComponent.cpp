@@ -4,8 +4,21 @@
 
 #include "Math/MathUtility.h"
 #include "Object/Class.h"
+#include "Serializer/Archive.h"
 
 IMPLEMENT_RTTI(USpotLightComponent, UPointLightComponent)
+
+void USpotLightComponent::Serialize(FArchive& Ar)
+{
+	UPointLightComponent::Serialize(Ar);
+	Ar.Serialize("InnerConeAngle", InnerConeAngle);
+	Ar.Serialize("OuterConeAngle", OuterConeAngle);
+	if (Ar.IsLoading())
+	{
+		OuterConeAngle = FMath::Clamp(OuterConeAngle, 0.0f, 80.0f);
+		InnerConeAngle = FMath::Clamp(InnerConeAngle, 0.0f, OuterConeAngle);
+	}
+}
 
 void USpotLightComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const
 {

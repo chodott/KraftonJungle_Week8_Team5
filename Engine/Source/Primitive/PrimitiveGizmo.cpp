@@ -1,4 +1,4 @@
-﻿#include "Primitive/PrimitiveGizmo.h"
+#include "Primitive/PrimitiveGizmo.h"
 
 #include "Primitive/UnrealEditorStyledGizmo.h"
 

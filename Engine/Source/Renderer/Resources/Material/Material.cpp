@@ -1,10 +1,10 @@
 #include "Renderer/Resources/Material/Material.h"
-#include "Renderer/Resources/Shader/Shader.h"
 #include "Renderer/Renderer.h"
 #include "Core/Engine.h"
 #include "Debug/EngineLog.h"
+#include "Renderer/Resources/Shader/ShaderHandles.h"
 #include <cstdint>
-#include <cstring>		
+#include <cstring>
 
 
 FMaterialTexture::~FMaterialTexture()
@@ -245,19 +245,13 @@ bool FMaterial::HasPixelTextureBinding() const
 std::unique_ptr<FDynamicMaterial> FMaterial::CreateDynamicMaterial() const
 {
 	ID3D11Device* Device = nullptr;
-	bool bShouldReleaseDevice = false;
 	for (const auto& CB : ConstantBuffers)
 	{
 		if (CB.GPUBuffer)
 		{
 			CB.GPUBuffer->GetDevice(&Device);
-			bShouldReleaseDevice = true;
 			break;
 		}
-	}
-	if (!Device && GEngine && GEngine->GetRenderer())
-	{
-		Device = GEngine->GetRenderer()->GetDevice();
 	}
 	if (!Device)
 	{
@@ -296,10 +290,7 @@ std::unique_ptr<FDynamicMaterial> FMaterial::CreateDynamicMaterial() const
 		Dynamic->ConstantBuffers.push_back(std::move(NewCB));
 	}
 
-	if (bShouldReleaseDevice)
-	{
-		Device->Release();
-	}
+	Device->Release();
 	return Dynamic;
 }
 
@@ -325,8 +316,8 @@ bool FDynamicMaterial::SetVector3Parameter(const FString& ParamName, const FVect
 void FMaterial::Bind(ID3D11DeviceContext* DeviceContext, EMaterialPassType PassType)
 {
 	const FMaterialPassShaders* PassShaders = GetPassShaders(PassType);
-	const std::shared_ptr<FVertexShader>& BoundVS = PassShaders ? PassShaders->VS : VertexShader;
-	const std::shared_ptr<FPixelShader>& BoundPS = PassShaders ? PassShaders->PS : PixelShader;
+	const std::shared_ptr<FVertexShaderHandle>& BoundVS = PassShaders ? PassShaders->VS : VertexShader;
+	const std::shared_ptr<FPixelShaderHandle>& BoundPS = PassShaders ? PassShaders->PS : PixelShader;
 
 	if (BoundVS)
 	{
@@ -391,34 +382,4 @@ void FMaterial::Release()
 		CB.Release();
 	}
 	ConstantBuffers.clear();
-}
-
-bool LoadNormalTextureFromFile(const std::shared_ptr<FMaterial>& Material, const std::filesystem::path& TexturePath)
-{
-	if (!Material || TexturePath.empty())
-	{
-		return false;
-	}
-
-	ID3D11ShaderResourceView* NewSRV = nullptr;
-	if (!GEngine->GetRenderer()->CreateTextureFromSTB(GEngine->GetRenderer()->GetDevice(), TexturePath, &NewSRV))
-	{
-		return false;
-	}
-
-	auto NormalTexture = std::make_shared<FMaterialTexture>();
-	NormalTexture->TextureSRV = NewSRV;
-	NormalTexture->SourcePath = TexturePath.string();
-	Material->SetNormalTexture(NormalTexture);
-	UE_LOG("[Material] Loaded normal map: %s", TexturePath.string().c_str());
-	return true;
-}
-
-void ClearNormalTexture(const std::shared_ptr<FMaterial>& Material)
-{
-	if (!Material)
-	{
-		return;
-	}
-	Material->SetNormalTexture(nullptr);
 }

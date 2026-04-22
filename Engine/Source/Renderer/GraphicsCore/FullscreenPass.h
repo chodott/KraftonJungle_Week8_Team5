@@ -1,9 +1,11 @@
-﻿#pragma once
+#pragma once
 
 #include "EngineAPI.h"
 #include "Renderer/Common/RenderFrameContext.h"
+#include "Renderer/Resources/Shader/ShaderHandles.h"
 
 #include <d3d11.h>
+#include <memory>
 #include <utility>
 
 class FRenderer;
@@ -12,6 +14,50 @@ struct ENGINE_API FFullscreenPassShaderSet
 {
 	ID3D11VertexShader* VS = nullptr;
 	ID3D11PixelShader* PS = nullptr;
+	std::shared_ptr<FVertexShaderHandle> VSHandle = nullptr;
+	std::shared_ptr<FPixelShaderHandle> PSHandle = nullptr;
+
+	FFullscreenPassShaderSet() = default;
+
+	FFullscreenPassShaderSet(ID3D11VertexShader* InVS, ID3D11PixelShader* InPS)
+		: VS(InVS)
+		, PS(InPS)
+	{
+	}
+
+	FFullscreenPassShaderSet(
+		std::shared_ptr<FVertexShaderHandle> InVSHandle,
+		std::shared_ptr<FPixelShaderHandle> InPSHandle)
+		: VSHandle(std::move(InVSHandle))
+		, PSHandle(std::move(InPSHandle))
+	{
+	}
+
+	void Bind(ID3D11DeviceContext* Context) const
+	{
+		if (!Context)
+		{
+			return;
+		}
+
+		if (VSHandle)
+		{
+			VSHandle->Bind(Context);
+		}
+		else
+		{
+			Context->VSSetShader(VS, nullptr, 0);
+		}
+
+		if (PSHandle)
+		{
+			PSHandle->Bind(Context);
+		}
+		else
+		{
+			Context->PSSetShader(PS, nullptr, 0);
+		}
+	}
 };
 
 struct ENGINE_API FFullscreenPassPipelineState
@@ -132,8 +178,7 @@ inline void BeginFullscreenPass(
 	Context->IASetInputLayout(nullptr);
 	Context->IASetIndexBuffer(nullptr, DXGI_FORMAT_UNKNOWN, 0);
 	Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	Context->VSSetShader(Shaders.VS, nullptr, 0);
-	Context->PSSetShader(Shaders.PS, nullptr, 0);
+	Shaders.Bind(Context);
 }
 
 inline void EndFullscreenPass(ID3D11DeviceContext* Context)

@@ -1,4 +1,4 @@
-﻿#include "EditorViewportController.h"
+#include "EditorViewportController.h"
 #include "Component/CameraComponent.h"
 #include "Input/InputManager.h"
 #include "Input/EnhancedInputManager.h"

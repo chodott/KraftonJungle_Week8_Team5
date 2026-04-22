@@ -1,4 +1,4 @@
-﻿#include "AxisRenderer.h"
+#include "AxisRenderer.h"
 
 void FAxisRenderer::RenderWorldAxis(/* TODO */)
 {

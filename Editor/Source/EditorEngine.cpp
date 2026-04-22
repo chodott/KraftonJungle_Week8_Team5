@@ -5,9 +5,11 @@
 #include "Actor/Actor.h"
 #include "Actor/PointLightActor.h"
 #include "Actor/PlayerCameraActor.h"
+#include "Actor/StaticMeshActor.h"
 #include "Actor/SpotLightActor.h"
 #include "Core/ShowFlags.h"
 #include "Object/Class.h"
+#include "Object/ObjectIterator.h"
 #include "Renderer/Mesh/MeshData.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/Features/Decal/DecalProjectionMode.h"
@@ -16,6 +18,7 @@
 #include "Renderer/GPUStats.h"
 #include "Camera/Camera.h"
 #include "Component/CameraComponent.h"
+#include "Component/SpringArmComponent.h"
 #include "Component/StaticMeshComponent.h"
 #include "Core/ConsoleVariableManager.h"
 #include "Core/Engine.h"
@@ -32,6 +35,7 @@
 #include "Slate/EditorViewportOverlay.h"
 
 #include <cstring>
+#include <filesystem>
 
 namespace
 {
@@ -104,6 +108,59 @@ namespace
 			}
 		}
 	}
+
+	UCameraComponent* EnsurePIECameraComponent(AActor* Actor)
+	{
+		if (Actor == nullptr)
+		{
+			return nullptr;
+		}
+
+		USpringArmComponent* SpringArmComponent = Actor->GetComponentByClass<USpringArmComponent>();
+		if (SpringArmComponent == nullptr)
+		{
+			SpringArmComponent = FObjectFactory::ConstructObject<USpringArmComponent>(Actor, "PIESpringArmComponent");
+			if (SpringArmComponent)
+			{
+				Actor->AddOwnedComponent(SpringArmComponent);
+				if (USceneComponent* RootSceneComponent = Actor->GetRootComponent())
+				{
+					SpringArmComponent->AttachTo(RootSceneComponent);
+				}
+				SpringArmComponent->SetTargetArmLength(4.0f);
+				SpringArmComponent->SetSocketOffset(FVector(0.0f, 0.0f, 1.5f));
+				if (!SpringArmComponent->IsRegistered())
+				{
+					SpringArmComponent->OnRegister();
+				}
+			}
+		}
+
+		UCameraComponent* CameraComponent = Actor->GetComponentByClass<UCameraComponent>();
+		if (CameraComponent == nullptr)
+		{
+			CameraComponent = FObjectFactory::ConstructObject<UCameraComponent>(Actor, "PIEPlayerCameraComponent");
+			if (CameraComponent)
+			{
+				Actor->AddOwnedComponent(CameraComponent);
+				if (SpringArmComponent)
+				{
+					CameraComponent->AttachTo(SpringArmComponent);
+				}
+				else if (USceneComponent* RootSceneComponent = Actor->GetRootComponent())
+				{
+					CameraComponent->AttachTo(RootSceneComponent);
+				}
+				if (!CameraComponent->IsRegistered())
+				{
+					CameraComponent->OnRegister();
+				}
+			}
+		}
+
+		return CameraComponent;
+	}
+
 }
 
 FEditorEngine::~FEditorEngine() = default;
@@ -381,6 +438,8 @@ void FEditorEngine::RefreshLightGizmoSelectionVisibility()
 
 void FEditorEngine::PrepareFrame(float DeltaTime)
 {
+	FEngine::PrepareFrame(DeltaTime);
+
 	if (bIsPIEActive && PIEViewportId != INVALID_VIEWPORT_ID)
 	{
 		if (SlateApplication && !SlateApplication->IsViewportActive(PIEViewportId))
@@ -479,6 +538,11 @@ bool FEditorEngine::StartPIE()
 		return false;
 	}
 
+	if (ULevel* EditorLevel = EditorWorldContext->World->GetScene())
+	{
+		EditorLevel->EnsureEssentialActors();
+	}
+
 	UWorld* PIEWorld = UWorld::DuplicateWorldForPIE(EditorWorldContext->World);
 	if (PIEWorld == nullptr)
 	{
@@ -547,7 +611,6 @@ bool FEditorEngine::StartPIE()
 	{
 		PIEViewportEntry->WorldContext = PIEWorldContext;
 		PIEViewportId = PIEViewportEntry->Id;
-		PIEViewportEntry->LocalState.ViewMode = ERenderMode::Lit_Gouraud;
 		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_UUID, false);
 		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, false);
 		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, false);
@@ -575,11 +638,9 @@ bool FEditorEngine::StartPIE()
 		}
 	}
 
+	ApplyPIEStartView();
+
 	RefreshPIEPlayerCameraActors();
-	if (ActivePIEPlayerCameraIndex >= 0)
-	{
-		ApplyPIEPlayerCameraByIndex(ActivePIEPlayerCameraIndex);
-	}
 
 	SetSelectedActor(nullptr);
 
@@ -588,6 +649,7 @@ bool FEditorEngine::StartPIE()
 	bIsPIEActive = true;
 	bIsPIEPaused = false;
 	bIsPIEInputCaptured = true;
+	PIEPossessionState = EPIEPossessionState::Possessed;
 	bWasCursorHiddenForPIE = true;
 	bIsPIECursorCurrentlyHidden = false;
 	CenterCursorInPIEViewport();
@@ -637,6 +699,7 @@ void FEditorEngine::EndPIE()
 	bIsPIEActive = false;
 	bIsPIEPaused = false;
 	bIsPIEInputCaptured = false;
+	PIEPossessionState = EPIEPossessionState::Ejected;
 	PIEViewportId = INVALID_VIEWPORT_ID;
 	PIEPlayerCameraActors.clear();
 	ActivePIEPlayerCameraIndex = -1;
@@ -657,7 +720,17 @@ void FEditorEngine::CapturePIEInput()
 		return;
 	}
 
+	if (FViewportEntry* PIEViewportEntry = ViewportRegistry.FindEntryByViewportID(PIEViewportId))
+	{
+		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_UUID, false);
+		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, false);
+		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, false);
+		PIEViewportEntry->LocalState.ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, false);
+		PIEViewportEntry->LocalState.bShowGrid = false;
+	}
+
 	bIsPIEInputCaptured = true;
+	PIEPossessionState = EPIEPossessionState::Possessed;
 	bWasCursorHiddenForPIE = true;
 	CenterCursorInPIEViewport();
 	SyncPIECursorState();
@@ -670,8 +743,38 @@ void FEditorEngine::ReleasePIEInputCapture()
 		return;
 	}
 
+	if (FViewportEntry* PIEViewportEntry = ViewportRegistry.FindEntryByViewportID(PIEViewportId))
+	{
+		for (const FPIEViewportStateBackup& Backup : SavedPIEViewportStates)
+		{
+			if (Backup.ViewportId == PIEViewportId)
+			{
+				PIEViewportEntry->LocalState = Backup.LocalState;
+				break;
+			}
+		}
+	}
+
 	bIsPIEInputCaptured = false;
+	PIEPossessionState = EPIEPossessionState::Ejected;
 	SyncPIECursorState();
+}
+
+void FEditorEngine::TogglePIEPossession()
+{
+	if (!bIsPIEActive)
+	{
+		return;
+	}
+
+	if (PIEPossessionState == EPIEPossessionState::Possessed)
+	{
+		ReleasePIEInputCapture();
+		return;
+	}
+
+	ApplyPIEStartView();
+	CapturePIEInput();
 }
 
 bool FEditorEngine::CyclePIEPlayerCamera(int32 Direction)
@@ -1013,6 +1116,258 @@ bool FEditorEngine::ApplyPIEPlayerCameraByIndex(int32 CameraIndex)
 
 	ActivePIEPlayerCameraIndex = CameraIndex;
 	return true;
+}
+
+void FEditorEngine::ApplyPIEStartView()
+{
+	if (PIEWorldContext == nullptr || PIEWorldContext->World == nullptr)
+	{
+		return;
+	}
+
+	ULevel* PIELevel = PIEWorldContext->World->GetScene();
+	if (PIELevel == nullptr)
+	{
+		return;
+	}
+
+	PIELevel->EnsureEssentialActors();
+	AActor* PlayerStartActor = PIELevel->FindPlayerStartActor();
+	if (PlayerStartActor == nullptr)
+	{
+		PlayerStartActor = PIELevel->EnsurePlayerStartActor();
+	}
+	AActor* DefaultPawnActor = ResolvePIEDefaultPawnActor(PIEWorldContext->World);
+	if (DefaultPawnActor && PlayerStartActor && DefaultPawnActor != PlayerStartActor)
+	{
+		DefaultPawnActor->SetActorTransform(PlayerStartActor->GetActorTransform());
+	}
+
+	AActor* StartActor = DefaultPawnActor ? DefaultPawnActor : PlayerStartActor;
+
+	FVector StartLocation = FVector::ZeroVector;
+	FRotator StartRotation = FRotator::ZeroRotator;
+	if (StartActor)
+	{
+		const FTransform StartTransform = StartActor->GetActorTransform();
+		StartLocation = StartTransform.GetLocation();
+		StartRotation = StartTransform.Rotator();
+	}
+
+	UCameraComponent* PawnCameraComponent = EnsurePIECameraComponent(StartActor);
+	USpringArmComponent* PawnSpringArmComponent = StartActor ? StartActor->GetComponentByClass<USpringArmComponent>() : nullptr;
+	if (PawnCameraComponent)
+	{
+		FCamera* PawnCamera = PawnCameraComponent->GetCamera();
+		if (PawnCamera)
+		{
+			FVector CameraLocation = StartLocation;
+			FRotator CameraRotation = StartRotation;
+			if (PawnSpringArmComponent)
+			{
+				CameraLocation = PawnSpringArmComponent->GetSocketWorldLocation();
+				CameraRotation = PawnSpringArmComponent->GetSocketWorldRotation();
+			}
+			else
+			{
+				CameraLocation = PawnCameraComponent->GetWorldLocation();
+			}
+
+			PawnCamera->SetPosition(CameraLocation);
+			PawnCamera->SetRotation(CameraRotation.Yaw, CameraRotation.Pitch);
+			PawnCamera->SetAspectRatio(GetWindowAspectRatio());
+		}
+
+		PIEWorldContext->World->SetActiveCameraComponent(PawnCameraComponent);
+	}
+	else if (UCameraComponent* SceneCameraComponent = PIEWorldContext->World->GetActiveCameraComponent())
+	{
+		if (FCamera* SceneCamera = SceneCameraComponent->GetCamera())
+		{
+			// 기본 Pawn에 카메라가 없으면, Pawn 뒤쪽에서 바라보는 간단한 3인칭 뷰를 사용한다.
+			FVector CameraLocation = StartLocation;
+			FRotator CameraRotation = StartRotation;
+			if (DefaultPawnActor && StartActor == DefaultPawnActor)
+			{
+				const FVector PawnForward = StartRotation.Vector().GetSafeNormal();
+				CameraLocation = StartLocation - PawnForward * 5.0f + FVector(0.0f, 0.0f, 2.0f);
+			}
+
+			SceneCamera->SetPosition(CameraLocation);
+			SceneCamera->SetRotation(CameraRotation.Yaw, CameraRotation.Pitch);
+			SceneCamera->SetAspectRatio(GetWindowAspectRatio());
+		}
+
+		PIEWorldContext->World->SetActiveCameraComponent(SceneCameraComponent);
+	}
+
+	if (FViewportEntry* PIEViewportEntry = ViewportRegistry.FindEntryByViewportID(PIEViewportId))
+	{
+		PIEViewportEntry->LocalState.ProjectionType = EViewportType::Perspective;
+		if (PawnCameraComponent && PawnCameraComponent->GetCamera())
+		{
+			FCamera* PawnCamera = PawnCameraComponent->GetCamera();
+			PIEViewportEntry->LocalState.Position = PawnCamera->GetPosition();
+			PIEViewportEntry->LocalState.Rotation = FRotator(PawnCamera->GetPitch(), PawnCamera->GetYaw(), 0.0f);
+		}
+		else if (DefaultPawnActor && StartActor == DefaultPawnActor)
+		{
+			const FVector PawnForward = StartRotation.Vector().GetSafeNormal();
+			PIEViewportEntry->LocalState.Position = StartLocation - PawnForward * 5.0f + FVector(0.0f, 0.0f, 2.0f);
+		}
+		else
+		{
+			PIEViewportEntry->LocalState.Position = StartLocation;
+		}
+		if (!PawnCameraComponent || !PawnCameraComponent->GetCamera())
+		{
+			PIEViewportEntry->LocalState.Rotation = StartRotation;
+		}
+		PIEViewportEntry->LocalState.bShowGrid = false;
+	}
+}
+
+AActor* FEditorEngine::ResolvePIEDefaultPawnActor(UWorld* PIEWorld) const
+{
+	if (!PIEWorld)
+	{
+		return nullptr;
+	}
+
+	ULevel* PIELevel = PIEWorld->GetScene();
+	if (!PIELevel)
+	{
+		return nullptr;
+	}
+
+	const FLevelGameplaySettings& GameplaySettings = PIELevel->GetGameplaySettings();
+	const FString& DefaultPawnMeshAsset = GameplaySettings.DefaultPawnMeshAsset;
+	if (DefaultPawnMeshAsset.empty())
+	{
+		return nullptr;
+	}
+
+	AStaticMeshActor* SpawnedPawnActor = nullptr;
+	for (AActor* ExistingActor : PIELevel->GetActors())
+	{
+		if (ExistingActor == nullptr || ExistingActor->IsPendingDestroy())
+		{
+			continue;
+		}
+
+		if (ExistingActor->GetName() == "PIE_DefaultPawn")
+		{
+			if (ExistingActor->IsA(AStaticMeshActor::StaticClass()))
+			{
+				SpawnedPawnActor = static_cast<AStaticMeshActor*>(ExistingActor);
+				break;
+			}
+			return ExistingActor;
+		}
+	}
+
+	if (!SpawnedPawnActor)
+	{
+		SpawnedPawnActor = PIELevel->SpawnActor<AStaticMeshActor>("PIE_DefaultPawn");
+	}
+	if (!SpawnedPawnActor)
+	{
+		return nullptr;
+	}
+
+	UStaticMeshComponent* MeshComponent = SpawnedPawnActor->GetComponentByClass<UStaticMeshComponent>();
+	if (!MeshComponent)
+	{
+		return SpawnedPawnActor;
+	}
+
+	USpringArmComponent* SpringArmComponent = SpawnedPawnActor->GetComponentByClass<USpringArmComponent>();
+	if (!SpringArmComponent)
+	{
+		SpringArmComponent = FObjectFactory::ConstructObject<USpringArmComponent>(
+			SpawnedPawnActor, "SpringArmComponent");
+	}
+	if (SpringArmComponent)
+	{
+		if (SpringArmComponent->GetOwner() != SpawnedPawnActor)
+		{
+			SpawnedPawnActor->AddOwnedComponent(SpringArmComponent);
+			if (USceneComponent* RootSceneComponent = SpawnedPawnActor->GetRootComponent())
+			{
+				SpringArmComponent->AttachTo(RootSceneComponent);
+			}
+		}
+		// FPS 기본값: 팔 길이를 0으로 두고, 눈높이만 소폭 올린다.
+		SpringArmComponent->SetTargetArmLength(GameplaySettings.DefaultPawnSpringArmLength);
+		SpringArmComponent->SetSocketOffset(GameplaySettings.DefaultPawnSpringArmSocketOffset);
+		if (!SpringArmComponent->IsRegistered())
+		{
+			SpringArmComponent->OnRegister();
+		}
+	}
+
+	UCameraComponent* CameraComponent = SpawnedPawnActor->GetComponentByClass<UCameraComponent>();
+	if (!CameraComponent)
+	{
+		CameraComponent = FObjectFactory::ConstructObject<UCameraComponent>(
+			SpawnedPawnActor, "PawnCameraComponent");
+	}
+	if (CameraComponent)
+	{
+		if (CameraComponent->GetOwner() != SpawnedPawnActor)
+		{
+			SpawnedPawnActor->AddOwnedComponent(CameraComponent);
+			if (SpringArmComponent)
+			{
+				CameraComponent->AttachTo(SpringArmComponent);
+			}
+			else if (USceneComponent* RootSceneComponent = SpawnedPawnActor->GetRootComponent())
+			{
+				CameraComponent->AttachTo(RootSceneComponent);
+			}
+		}
+
+		if (!CameraComponent->IsRegistered())
+		{
+			CameraComponent->OnRegister();
+		}
+	}
+
+	std::filesystem::path CandidateMeshPath = FPaths::ToPath(DefaultPawnMeshAsset);
+	if (!CandidateMeshPath.is_absolute())
+	{
+		CandidateMeshPath = FPaths::MeshDir() / CandidateMeshPath;
+	}
+
+	UStaticMesh* PawnMesh = nullptr;
+	for (TObjectIterator<UStaticMesh> It; It; ++It)
+	{
+		UStaticMesh* MeshAsset = It.Get();
+		if (!MeshAsset)
+		{
+			continue;
+		}
+
+		if (MeshAsset->GetAssetPathFileName() == DefaultPawnMeshAsset)
+		{
+			PawnMesh = MeshAsset;
+			break;
+		}
+	}
+
+	if (!PawnMesh)
+	{
+		PawnMesh = FObjManager::LoadStaticMeshAsset(FPaths::FromPath(CandidateMeshPath));
+	}
+
+	if (PawnMesh)
+	{
+		MeshComponent->SetStaticMesh(PawnMesh);
+		MeshComponent->UpdateBounds();
+	}
+
+	SpawnedPawnActor->SetVisible(true);
+	return SpawnedPawnActor;
 }
 
 void FEditorEngine::SyncFocusedViewportLocalState()

@@ -3,7 +3,6 @@
 Texture2D<float> InputDepthTexture : register(t0);
 RWStructuredBuffer<FTileDepthBoundsGPU> OutTileDepthBounds : register(u0);
 
-static const float kEpsilon = 1e-5f;
 static const float kDepthSkyThreshold = 0.999999f;
 
 groupshared uint gMinViewZBits;
@@ -12,9 +11,7 @@ groupshared uint gHasGeometry;
 
 float DeviceDepthToViewZ(float deviceDepth)
 {
-	float4 clipPos = float4(0.0f, 0.0f, deviceDepth, 1.0f);
-	float4 viewPos = mul(clipPos, ClusterInverseProjection);
-	return max(viewPos.x / max(viewPos.w, kEpsilon), NearZ);
+	return max(LinearizeDeviceDepth(deviceDepth), NearZ);
 }
 
 [numthreads(16, 16, 1)]

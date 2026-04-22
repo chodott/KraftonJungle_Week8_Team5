@@ -1,5 +1,6 @@
-﻿#pragma once
+#pragma once
 #include "CoreMinimal.h"
+#include "Math/LinearColor.h"
 #include "Math/Vector.h"
 
 //Json을 담아두는곳
@@ -19,6 +20,7 @@ public:
 	void Serialize(const FString& Key, FVector2& Value);
 	void Serialize(const FString& Key, FVector& Value);
 	void Serialize(const FString& Key, FVector4& Value);
+	void Serialize(const FString& Key, FLinearColor& Value);
 	// 배열
 	void Serialize(const FString& Key, TArray<FArchive*>& SubArchives);
 	void SerializeUIntArray(const FString& Key, TArray<uint32>& Values);

@@ -1,4 +1,4 @@
-﻿#include "Platform/Windows/WindowsEngineLaunch.h"
+#include "Platform/Windows/WindowsEngineLaunch.h"
 
 #include "Core/EngineLoop.h"
 

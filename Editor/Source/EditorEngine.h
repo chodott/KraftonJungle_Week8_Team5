@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "Core/Engine.h"
 #include "Subsystem/EditorCameraSubsystem.h"
@@ -26,6 +26,12 @@ public:
 		Playing,
 		Paused,
 		Stopped
+	};
+
+	enum class EPIEPossessionState : uint8
+	{
+		Possessed,
+		Ejected
 	};
 
 	FEditorEngine() = default;
@@ -98,11 +104,13 @@ public:
 	bool IsPIEActive() const { return bIsPIEActive; }
 	bool IsPIEPaused() const { return bIsPIEPaused; }
 	bool IsPIEInputCaptured() const { return bIsPIEInputCaptured; }
+	EPIEPossessionState GetPIEPossessionState() const { return PIEPossessionState; }
 	bool StartPIE();
 	void EndPIE();
 	void TogglePIEPause();
 	void CapturePIEInput();
 	void ReleasePIEInputCapture();
+	void TogglePIEPossession();
 	bool CyclePIEPlayerCamera(int32 Direction);
 
 protected:
@@ -171,6 +179,10 @@ private:
 	void RefreshPIEPlayerCameraActors();
 	// 인덱스로 지정한 PlayerCamera를 PIE 시작/전환용 카메라로 적용한다.
 	bool ApplyPIEPlayerCameraByIndex(int32 CameraIndex);
+	// PIE 시작 시 PlayerStart/DefaultPawn 정책 기반 카메라 시작 상태를 적용한다.
+	void ApplyPIEStartView();
+	// 레벨 DefaultPawn 설정을 기준으로 소유할 액터를 찾는다.
+	AActor* ResolvePIEDefaultPawnActor(UWorld* PIEWorld) const;
 	// 활성 월드 종류에 따라 Editor/Preview ViewportClient를 전환한다.
 	void SyncViewportClient();
 	// 현재 선택 상태에 맞춰 Point/Spot Light Gizmo 표시 상태를 갱신한다.
@@ -202,6 +214,7 @@ private:
 	bool bIsPIEActive = false;
 	bool bIsPIEPaused = false;
 	bool bIsPIEInputCaptured = false;
+	EPIEPossessionState PIEPossessionState = EPIEPossessionState::Ejected;
 	TArray<TObjectPtr<APlayerCameraActor>> PIEPlayerCameraActors;
 	int32 ActivePIEPlayerCameraIndex = -1;
 };

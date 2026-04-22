@@ -1,4 +1,4 @@
-﻿#include "Renderer/Features/SubUV/SubUVRenderer.h"
+#include "Renderer/Features/SubUV/SubUVRenderer.h"
 #include "Renderer/Resources/Shader/Shader.h"
 #include "Renderer/Resources/Shader/ShaderResource.h"
 #include "Renderer/Resources/Shader/ShaderType.h"
@@ -35,8 +35,19 @@ bool FSubUVRenderer::Initialize(FRenderer* InRenderer, const std::wstring& Textu
 		return false;
 	}
 
-	// 텍스처 및 샘플러 생성
-	HRESULT Hr = DirectX::CreateWICTextureFromFile(Device, DeviceContext, TexturePath.c_str(), nullptr, &TextureSRV);
+	// Color-authored sprite sheet textures must sample through sRGB decode.
+	HRESULT Hr = DirectX::CreateWICTextureFromFileEx(
+		Device,
+		DeviceContext,
+		TexturePath.c_str(),
+		0,
+		D3D11_USAGE_DEFAULT,
+		D3D11_BIND_SHADER_RESOURCE,
+		0,
+		0,
+		DirectX::WIC_LOADER_FORCE_SRGB,
+		nullptr,
+		&TextureSRV);
 	if (FAILED(Hr)) return false;
 
 	D3D11_SAMPLER_DESC SamplerDesc = {};
@@ -93,12 +104,17 @@ bool FSubUVRenderer::Initialize(FRenderer* InRenderer, const std::wstring& Textu
 	SubUVMaterial->SetBlendOption(blendOption);
 	SubUVMaterial->SetBlendState(BS);
 
-	// b2: SubUV 파라미터 (CellSize(8), UVOffset(8)) = 16 bytes
-	int32 SlotIndex = SubUVMaterial->CreateConstantBuffer(Device, 16);
+	// b2: SubUV 파라미터 (CellSize(8), UVOffset(8), BaseColor(16)) = 32 bytes
+	int32 SlotIndex = SubUVMaterial->CreateConstantBuffer(Device, 32);
 	if (SlotIndex >= 0)
 	{
 		SubUVMaterial->RegisterParameter("CellSize", SlotIndex, 0, 8);
 		SubUVMaterial->RegisterParameter("UVOffset", SlotIndex, 8, 8);
+		SubUVMaterial->RegisterParameter("BaseColor", SlotIndex, 16, 16);
+
+		// 기본 색상을 흰색으로 초기화
+		const FVector4 White(1.0f, 1.0f, 1.0f, 1.0f);
+		SubUVMaterial->SetParameterData("BaseColor", &White, 16);
 	}
 
 	return true;

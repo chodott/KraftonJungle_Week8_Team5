@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source">
@@ -100,6 +100,9 @@
     <Filter Include="Source\Renderer\GraphicsCore">
       <UniqueIdentifier>{f9751046-12c1-7b17-2628-833efdac5af8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\Renderer\HotReload">
+      <UniqueIdentifier>{27562620-06c8-c3a6-4da6-6bf48e882720}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source\Renderer\Mesh">
       <UniqueIdentifier>{3f6706ba-bb95-d0d9-a0d2-be3af0cf86fc}</UniqueIdentifier>
     </Filter>
@@ -183,6 +186,9 @@
     <ClCompile Include="Source\Actor\LocalHeightFogActor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Actor\MeshDecalActor.cpp">
+      <Filter>Source\Actor</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Actor\PlaneActor.cpp">
       <Filter>Source\Actor</Filter>
     </ClCompile>
@@ -261,6 +267,9 @@
     <ClCompile Include="Source\Component\MeshComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Component\MeshDecalComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Component\MoveComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
@@ -289,6 +298,9 @@
       <Filter>Source\Component</Filter>
     </ClCompile>
     <ClCompile Include="Source\Component\SpotLightComponent.cpp">
+      <Filter>Source\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Component\SpringArmComponent.cpp">
       <Filter>Source\Component</Filter>
     </ClCompile>
     <ClCompile Include="Source\Component\StaticMeshComponent.cpp">
@@ -495,6 +507,12 @@
     <ClCompile Include="Source\Renderer\GraphicsCore\RenderStateManager.cpp">
       <Filter>Source\Renderer\GraphicsCore</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.cpp">
+      <Filter>Source\Renderer\HotReload</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\HotReload\ShaderHotReloadService.cpp">
+      <Filter>Source\Renderer\HotReload</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Renderer\Mesh\MeshData.cpp">
       <Filter>Source\Renderer\Mesh</Filter>
     </ClCompile>
@@ -510,10 +528,25 @@
     <ClCompile Include="Source\Renderer\Resources\Shader\Shader.cpp">
       <Filter>Source\Renderer\Resources\Shader</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderCompiler.cpp">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderHandles.cpp">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Renderer\Resources\Shader\ShaderManager.cpp">
       <Filter>Source\Renderer\Resources\Shader</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Resources\Shader\ShaderMap.cpp">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderPathUtils.cpp">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderRecipe.cpp">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Renderer\Resources\Shader\ShaderRegistry.cpp">
       <Filter>Source\Renderer\Resources\Shader</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Resources\Shader\ShaderResource.cpp">
@@ -603,6 +636,7 @@
     <ClCompile Include="Source\World\World.cpp">
       <Filter>Source\World</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Renderer\Features\Lighting\BloomRenderFeature.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\CoreMinimal.h">
@@ -633,6 +667,9 @@
       <Filter>Source\Actor</Filter>
     </ClInclude>
     <ClInclude Include="Source\Actor\LocalHeightFogActor.h">
+      <Filter>Source\Actor</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Actor\MeshDecalActor.h">
       <Filter>Source\Actor</Filter>
     </ClInclude>
     <ClInclude Include="Source\Actor\PlaneActor.h">
@@ -713,6 +750,9 @@
     <ClInclude Include="Source\Component\MeshComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Component\MeshDecalComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Component\MoveComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
@@ -741,6 +781,9 @@
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\SpotLightComponent.h">
+      <Filter>Source\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Component\SpringArmComponent.h">
       <Filter>Source\Component</Filter>
     </ClInclude>
     <ClInclude Include="Source\Component\StaticMeshComponent.h">
@@ -965,6 +1008,9 @@
     <ClInclude Include="Source\Renderer\Features\Decal\DecalTypes.h">
       <Filter>Source\Renderer\Features\Decal</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Decal\MeshDecalTypes.h">
+      <Filter>Source\Renderer\Features\Decal</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Decal\VolumeDecalRenderFeature.h">
       <Filter>Source\Renderer\Features\Decal</Filter>
     </ClInclude>
@@ -984,6 +1030,9 @@
       <Filter>Source\Renderer\Features\Fog</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Lighting\LightRenderFeature.h">
+      <Filter>Source\Renderer\Features\Lighting</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Lighting\LightStats.h">
       <Filter>Source\Renderer\Features\Lighting</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Lighting\LightTypes.h">
@@ -1058,6 +1107,12 @@
     <ClInclude Include="Source\Renderer\GraphicsCore\RenderStateManager.h">
       <Filter>Source\Renderer\GraphicsCore</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Renderer\HotReload\ShaderDirectoryWatcherWin.h">
+      <Filter>Source\Renderer\HotReload</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\HotReload\ShaderHotReloadService.h">
+      <Filter>Source\Renderer\HotReload</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Renderer\Mesh\MeshBatch.h">
       <Filter>Source\Renderer\Mesh</Filter>
     </ClInclude>
@@ -1082,10 +1137,25 @@
     <ClInclude Include="Source\Renderer\Resources\Shader\Shader.h">
       <Filter>Source\Renderer\Resources\Shader</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderCompiler.h">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderHandles.h">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderManager.h">
       <Filter>Source\Renderer\Resources\Shader</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderMap.h">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderPathUtils.h">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderRecipe.h">
+      <Filter>Source\Renderer\Resources\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Renderer\Resources\Shader\ShaderRegistry.h">
       <Filter>Source\Renderer\Resources\Shader</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Resources\Shader\ShaderResource.h">
@@ -1505,6 +1575,7 @@
     <ClInclude Include="ThirdParty\nlohmann\json.hpp">
       <Filter>ThirdParty\nlohmann</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Renderer\Features\Lighting\BloomRenderFeature.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

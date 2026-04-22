@@ -1,5 +1,6 @@
-﻿#pragma once
+#pragma once
 #include "Component/PrimitiveComponent.h"
+#include "Math/LinearColor.h"
 #include "Renderer/Mesh/MeshData.h"
 
 enum EHorizTextAligment : int;
@@ -22,8 +23,10 @@ public:
 
 	virtual FString GetDisplayText() const { return Text; }
 
-	void SetTextColor(const FVector4& InColor) { TextColor = InColor; }
-	const FVector4& GetTextColor() const { return TextColor; }
+	void SetTextColorLinear(const FLinearColor& InColor) { TextColor = InColor; }
+	void SetTextColor(const FVector4& InColor) { SetTextColorLinear(FLinearColor(InColor)); }
+	void SetTextColorSRGB(const FVector4& InColor) { SetTextColorLinear(FLinearColor::FromSRGB(InColor)); }
+	const FLinearColor& GetTextColor() const { return TextColor; }
 
 	void SetBillboard(bool bInBillboard) { bBillboard = bInBillboard; }
 	bool IsBillboard() const { return bBillboard; }
@@ -57,7 +60,7 @@ public:
 
 protected:
 	FString Text = "Text";
-	FVector4 TextColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
+	FLinearColor TextColor = FLinearColor::White;
 	float TextScale = 1.0f;
 	bool bBillboard = false;
 

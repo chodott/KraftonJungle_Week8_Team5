@@ -1,4 +1,4 @@
-﻿#include "Renderer/UI/Screen/ScreenUIPassBuilder.h"
+#include "Renderer/UI/Screen/ScreenUIPassBuilder.h"
 
 #include "Renderer/Common/RenderFeatureInterfaces.h"
 #include "Renderer/Mesh/Vertex.h"
@@ -78,7 +78,7 @@ FDynamicMaterial* FScreenUIPassBuilder::GetOrCreateFontMaterial(FRenderer& Rende
         return nullptr;
     }
 
-    Material->SetVectorParameter("TextColor", ToColor(Color));
+    Material->SetVectorParameter("TextColor", ToDisplayColor(Color));
 
     FDepthStencilStateOption DepthOpt = Material->GetDepthStencilOption();
     DepthOpt.DepthEnable = false;
@@ -157,7 +157,7 @@ void FScreenUIPassBuilder::AppendFilledRect(FScreenUIPassInputs& PassInputs, con
         return;
     }
 
-    const FVector4 Color = ToColor(Element.Color);
+    const FVector4 Color = ToDisplayColor(Element.Color);
     AppendQuad(
         *Mesh,
         DrawRect.X,
@@ -186,7 +186,7 @@ void FScreenUIPassBuilder::AppendRectOutline(FScreenUIPassInputs& PassInputs, co
         return;
     }
 
-    const FVector4 Color = ToColor(Element.Color);
+    const FVector4 Color = ToDisplayColor(Element.Color);
     const FUIRect* Clip = HasClip(Element) ? &Element.ClipRect : nullptr;
     const float X = Element.Rect.X;
     const float Y = Element.Rect.Y;

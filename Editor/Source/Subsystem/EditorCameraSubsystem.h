@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "Controller/EditorViewportController.h"
 #include "Types/ObjectPtr.h"
