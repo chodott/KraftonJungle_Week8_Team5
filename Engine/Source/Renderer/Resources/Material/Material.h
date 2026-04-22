@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Math/LinearColor.h"
 #include "Renderer/GraphicsCore/RenderState.h"
 #include <d3d11.h>
 #include <array>
@@ -179,6 +180,8 @@ public:
 	bool SetParameterData(const FString& ParamName, const void* Data, uint32 DataSize);
 	bool GetParameterData(const FString& ParamName, void* OutData, uint32 DataSize) const;
 	FVector4 GetVectorParameter(const FString& ParamName) const;
+	bool SetLinearColorParameter(const FString& ParamName, const FLinearColor& Value);
+	bool SetSRGBColorParameter(const FString& ParamName, const FVector4& Value);
 
 	// ?곸닔 踰꾪띁 ?щ’ 異붽? (b2, b3, ... ?쒖꽌?濡?
 	int32 CreateConstantBuffer(ID3D11Device* Device, uint32 InSize);

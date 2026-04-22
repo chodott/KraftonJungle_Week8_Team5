@@ -1,5 +1,6 @@
 #pragma once
 #include "Component/PrimitiveComponent.h"
+#include "Math/LinearColor.h"
 
 struct FDynamicMesh;
 class FArchive;
@@ -46,8 +47,10 @@ public:
 	void SetUVMax(const FVector2& InUVMax) { UVMax = InUVMax; }
 	const FVector2& GetUVMax() const { return UVMax; }
 
+	void SetBaseColorLinear(const FLinearColor& InBaseColor);
 	void SetBaseColor(const FVector4& InBaseColor);
-	const FVector4& GetBaseColor() const;
+	void SetBaseColorSRGB(const FVector4& InBaseColor);
+	const FLinearColor& GetBaseColor() const;
 
 	FDynamicMesh* GetBillboardMesh() const { return BillboardMesh.get(); }
 
@@ -70,7 +73,7 @@ private:
 	FVector2 Size = FVector2(1.f, 1.f);
 	FVector2 UVMin = FVector2(0.f, 0.f);
 	FVector2 UVMax = FVector2(1.f, 1.f);
-	FVector4 BaseColor = FVector4(1.f, 1.f, 1.f, 1.f);
+	FLinearColor BaseColor = FLinearColor::White;
 
 	bool bBillboardMeshDirty = true;
 	std::shared_ptr<struct FDynamicMesh> BillboardMesh;

@@ -185,7 +185,7 @@ void APointLightActor::UpdateBillboardTint()
 		return;
 	}
 
-	FVector4 Tint = PointLightComponent->GetColor().ToVector4();
-	Tint.W = 1.0f;
-	IconBillboardComponent->SetBaseColor(Tint);
+	FLinearColor Tint = PointLightComponent->GetColor();
+	Tint.A = 1.0f;
+	IconBillboardComponent->SetBaseColorLinear(Tint);
 }

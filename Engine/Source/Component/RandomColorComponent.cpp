@@ -70,11 +70,11 @@ void URandomColorComponent::Tick(float DeltaTime)
 }
 
 namespace {
-	FVector4 GenerateRandomColor()
+	FLinearColor GenerateRandomColor()
 	{
 		static std::mt19937 Rng(std::random_device{}());
 		static std::uniform_real_distribution<float> Dist(0.0f, 1.0f);
-		return { Dist(Rng), Dist(Rng), Dist(Rng), 1.0f };
+		return FLinearColor(Dist(Rng), Dist(Rng), Dist(Rng), 1.0f);
 	}
 }
 
@@ -85,9 +85,9 @@ void URandomColorComponent::ApplyRandomColor()
 		return;
 	}
 
-	FVector4 Color = GenerateRandomColor();
-	if (!DynamicMaterial->SetVectorParameter("BaseColor", Color))
+	const FLinearColor Color = GenerateRandomColor();
+	if (!DynamicMaterial->SetLinearColorParameter("BaseColor", Color))
 	{
-		DynamicMaterial->SetVectorParameter("ColorTint", Color);
+		DynamicMaterial->SetLinearColorParameter("ColorTint", Color);
 	}
 }

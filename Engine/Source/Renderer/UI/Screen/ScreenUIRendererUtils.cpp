@@ -22,7 +22,7 @@ namespace
 
 namespace ScreenUIRendererUtils
 {
-    FVector4 ToColor(uint32 C)
+    FVector4 ToDisplayColor(uint32 C)
     {
         const float A = ((C >> 24) & 0xFF) / 255.0f;
         const float R = ((C >> 16) & 0xFF) / 255.0f;

@@ -8,7 +8,8 @@ struct FVertex;
 
 namespace ScreenUIRendererUtils
 {
-    ENGINE_API FVector4 ToColor(uint32 Color);
+    // Screen UI is authored in display space and drawn after viewport composition.
+    ENGINE_API FVector4 ToDisplayColor(uint32 Color);
     ENGINE_API void ConvertTextMeshToScreenSpace(FDynamicMesh& Mesh);
     ENGINE_API bool HasClip(const FUIDrawElement& Element);
     ENGINE_API FUIRect IntersectUIRect(const FUIRect& A, const FUIRect& B);

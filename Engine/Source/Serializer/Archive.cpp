@@ -91,6 +91,16 @@ void FArchive::Serialize(const FString& Key, FVector4& Value)
 	}
 }
 
+void FArchive::Serialize(const FString& Key, FLinearColor& Value)
+{
+	FVector4 SerializedValue = Value.ToVector4();
+	Serialize(Key, SerializedValue);
+	if (IsLoading())
+	{
+		Value = FLinearColor(SerializedValue);
+	}
+}
+
 void FArchive::Serialize(const FString& Key, TArray<FArchive*>& SubArchives)
 {
 	json& Json = *static_cast<json*>(JsonData);

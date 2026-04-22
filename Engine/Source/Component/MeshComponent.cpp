@@ -80,10 +80,10 @@ void UMeshComponent::Serialize(FArchive& Ar)
 		Ar.Serialize(GMaterialBaseColorCountKey, MaterialBaseColorCount);
 		for (int32 MaterialIndex = 0; MaterialIndex < MaterialBaseColorCount; ++MaterialIndex)
 		{
-			FVector4 BaseColor(1.0f, 1.0f, 1.0f, 1.0f);
+			FLinearColor BaseColor = FLinearColor::White;
 			if (const std::shared_ptr<FMaterial>& Material = Materials[MaterialIndex])
 			{
-				BaseColor = Material->GetVectorParameter("BaseColor");
+				BaseColor = FLinearColor(Material->GetVectorParameter("BaseColor"));
 			}
 
 			Ar.Serialize(FString(GMaterialBaseColorKeyPrefix) + std::to_string(MaterialIndex), BaseColor);
@@ -118,7 +118,7 @@ void UMeshComponent::Serialize(FArchive& Ar)
 				continue;
 			}
 
-			FVector4 BaseColor(1.0f, 1.0f, 1.0f, 1.0f);
+			FLinearColor BaseColor = FLinearColor::White;
 			Ar.Serialize(BaseColorKey, BaseColor);
 
 			if (!Materials[MaterialIndex])
@@ -132,8 +132,7 @@ void UMeshComponent::Serialize(FArchive& Ar)
 				continue;
 			}
 
-			const float BaseColorArray[4] = { BaseColor.X, BaseColor.Y, BaseColor.Z, BaseColor.W };
-			MaterialInstance->SetParameterData("BaseColor", BaseColorArray, sizeof(BaseColorArray));
+			MaterialInstance->SetLinearColorParameter("BaseColor", BaseColor);
 			Materials[MaterialIndex] = MaterialInstance;
 		}
 	}

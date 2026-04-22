@@ -122,12 +122,22 @@ FRenderMesh* UBillboardComponent::GetRenderMesh() const
 	return BillboardMesh.get();
 }
 
-void UBillboardComponent::SetBaseColor(const FVector4& InBaseColor)
+void UBillboardComponent::SetBaseColorLinear(const FLinearColor& InBaseColor)
 {
 	BaseColor = InBaseColor;
 }
 
-const FVector4& UBillboardComponent::GetBaseColor() const
+void UBillboardComponent::SetBaseColor(const FVector4& InBaseColor)
+{
+	SetBaseColorLinear(FLinearColor(InBaseColor));
+}
+
+void UBillboardComponent::SetBaseColorSRGB(const FVector4& InBaseColor)
+{
+	SetBaseColorLinear(FLinearColor::FromSRGB(InBaseColor));
+}
+
+const FLinearColor& UBillboardComponent::GetBaseColor() const
 {
 	return BaseColor;
 }

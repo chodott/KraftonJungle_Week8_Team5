@@ -1,5 +1,6 @@
 #pragma once
 #include "Component/PrimitiveComponent.h"
+#include "Math/LinearColor.h"
 
 struct FDynamicMesh;
 
@@ -27,8 +28,10 @@ public:
 	}
 	const FVector2& GetSize() const { return Size; }
 
-	void SetColor(const FVector4& InColor) { Color = InColor; }
-	const FVector4& GetColor() const { return Color; }
+	void SetColorLinear(const FLinearColor& InColor) { Color = InColor; }
+	void SetColor(const FVector4& InColor) { SetColorLinear(FLinearColor(InColor)); }
+	void SetColorSRGB(const FVector4& InColor) { SetColorLinear(FLinearColor::FromSRGB(InColor)); }
+	const FLinearColor& GetColor() const { return Color; }
 
 	void SetColumns(int32 InColumns)
 	{
@@ -133,7 +136,7 @@ private:
 
 private:
 	FVector2 Size = FVector2(1.f, 1.f);
-	FVector4 Color = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
+	FLinearColor Color = FLinearColor::White;
 
 	int32 Columns = 3;
 	int32 Rows = 4;

@@ -1,12 +1,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Math/LinearColor.h"
 #include "Renderer/Mesh/MeshData.h"
 
 struct FModelMaterialInfo
 {
 	FString Name = "M_Default";
-	FVector4 BaseColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
+	FLinearColor BaseColor = FLinearColor::White;
 	FString DiffuseTexturePath;
 	FString NormalTexturePath;
 	FString EmissiveTexturePath;

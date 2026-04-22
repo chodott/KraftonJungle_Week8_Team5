@@ -161,10 +161,9 @@ FMaterial* FBillboardRenderer::GetOrCreateMaterial(const UBillboardComponent& Co
 	Material->SetMaterialTexture(Texture);
 	const FVector2 CellSize = Component.GetUVMax() - Component.GetUVMin();
 	const FVector2 UVOffset = Component.GetUVMin();
-	const FVector4 BaseColor = Component.GetBaseColor();
 	Material->SetParameterData("CellSize", &CellSize, sizeof(FVector2));
 	Material->SetParameterData("UVOffset", &UVOffset, sizeof(FVector2));
-	Material->SetParameterData("BaseColor", &BaseColor, sizeof(FVector4));
+	Material->SetLinearColorParameter("BaseColor", Component.GetBaseColor());
 	return Material;
 }
 

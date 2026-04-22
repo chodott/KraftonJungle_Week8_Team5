@@ -217,6 +217,17 @@ FVector4 FMaterial::GetVectorParameter(const FString& ParamName) const
 	return Result;
 }
 
+bool FMaterial::SetLinearColorParameter(const FString& ParamName, const FLinearColor& Value)
+{
+	const FVector4 LinearColor = Value.ToVector4();
+	return SetParameterData(ParamName, &LinearColor, sizeof(LinearColor));
+}
+
+bool FMaterial::SetSRGBColorParameter(const FString& ParamName, const FVector4& Value)
+{
+	return SetLinearColorParameter(ParamName, FLinearColor::FromSRGB(Value));
+}
+
 void FMaterial::SetPixelTextureBinding(uint32 Slot, ID3D11ShaderResourceView* TextureSRV, ID3D11SamplerState* SamplerState)
 {
 	PixelTextureBinding.Slot = Slot;

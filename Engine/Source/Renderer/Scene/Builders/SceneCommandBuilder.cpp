@@ -85,7 +85,7 @@ namespace
 	}
 }
 
-FMaterial* FSceneCommandResourceCache::GetOrCreateTextMaterial(const FSceneCommandBuildContext& BuildContext, const FVector4& TextColor)
+FMaterial* FSceneCommandResourceCache::GetOrCreateTextMaterial(const FSceneCommandBuildContext& BuildContext, const FLinearColor& TextColor)
 {
 	if (!BuildContext.TextFeature)
 	{
@@ -112,7 +112,7 @@ FMaterial* FSceneCommandResourceCache::GetOrCreateTextMaterial(const FSceneComma
 	}
 
 	std::shared_ptr<FDynamicMaterial> Material(OwnedMaterial.release());
-	Material->SetVectorParameter("TextColor", TextColor);
+	Material->SetLinearColorParameter("TextColor", TextColor);
 
 	FDynamicMaterial* RawMaterial  = Material.get();
 	TextMaterialsByColor[ColorKey] = std::move(Material);
@@ -192,8 +192,7 @@ FMaterial* FSceneCommandResourceCache::GetOrCreateMeshDecalMaterial(
 	}
 
 	const FLinearColor& Tint = Component->GetBaseColorTint();
-	const FVector4      BaseColor(Tint.R, Tint.G, Tint.B, Tint.A);
-	Material->SetVectorParameter("BaseColor", BaseColor);
+	Material->SetLinearColorParameter("BaseColor", Tint);
 
 	std::shared_ptr<FMaterialTexture> TextureBinding;
 	const std::wstring&               TexturePath = Component->GetTexturePath();
@@ -255,12 +254,12 @@ void FSceneCommandResourceCache::PruneStaleSubUVMaterials(const TArray<const USu
 	}
 }
 
-uint32 FSceneCommandResourceCache::ToColorKey(const FVector4& Color)
+uint32 FSceneCommandResourceCache::ToColorKey(const FLinearColor& Color)
 {
-	const uint32 A = ToColorChannel(Color.W);
-	const uint32 R = ToColorChannel(Color.X);
-	const uint32 G = ToColorChannel(Color.Y);
-	const uint32 B = ToColorChannel(Color.Z);
+	const uint32 A = ToColorChannel(Color.A);
+	const uint32 R = ToColorChannel(Color.R);
+	const uint32 G = ToColorChannel(Color.G);
+	const uint32 B = ToColorChannel(Color.B);
 	return (A << 24) | (R << 16) | (G << 8) | B;
 }
 
@@ -269,7 +268,7 @@ void FSceneCommandResourceCache::UpdateSubUVMaterialParams(
 	int32           Columns,
 	int32           Rows,
 	int32           CurrentFrame,
-	const FVector4& Color)
+	const FLinearColor& Color)
 {
 	if (Columns <= 0 || Rows <= 0)
 	{
@@ -289,7 +288,7 @@ void FSceneCommandResourceCache::UpdateSubUVMaterialParams(
 
 	Material.SetParameterData("CellSize", &CellSize, sizeof(FVector2));
 	Material.SetParameterData("UVOffset", &UVOffset, sizeof(FVector2));
-	Material.SetParameterData("BaseColor", &Color, sizeof(FVector4));
+	Material.SetLinearColorParameter("BaseColor", Color);
 }
 
 void FSceneCommandBuilder::BuildSceneViewData(

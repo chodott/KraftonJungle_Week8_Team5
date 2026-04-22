@@ -98,7 +98,7 @@ void UTextRenderComponent::Serialize(FArchive& Ar)
 		Ar.Serialize("VerticalAlignment", SavedVerticalAlignment);
 
 		SetText(Text);
-		SetTextColor(TextColor);
+		SetTextColorLinear(TextColor);
 		SetTextScale(TextScale);
 		SetBillboard(bBillboard);
 		SetHorizontalAlignment(static_cast<EHorizTextAligment>(static_cast<int32>(SavedHorizontalAlignment)));

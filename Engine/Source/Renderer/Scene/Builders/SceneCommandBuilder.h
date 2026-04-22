@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Level/SceneRenderPacket.h"
+#include "Math/LinearColor.h"
 #include "Renderer/Common/RenderFeatureInterfaces.h"
 #include "Renderer/Scene/SceneViewData.h"
 #include "Renderer/Scene/Builders/SceneCommandMeshBuilder.h"
@@ -23,19 +24,19 @@ struct FSceneCommandBuildContext;
 class ENGINE_API FSceneCommandResourceCache
 {
 public:
-	FMaterial* GetOrCreateTextMaterial(const FSceneCommandBuildContext& BuildContext, const FVector4& TextColor);
+	FMaterial* GetOrCreateTextMaterial(const FSceneCommandBuildContext& BuildContext, const FLinearColor& TextColor);
 	FMaterial* GetOrCreateSubUVMaterial(const FSceneCommandBuildContext& BuildContext, const USubUVComponent* Component);
 	FMaterial* GetOrCreateMeshDecalMaterial(const FSceneCommandBuildContext& BuildContext, const class UMeshDecalComponent* Component);
 	void       PruneStaleSubUVMaterials(const TArray<const USubUVComponent*>& ActiveComponents);
 
 private:
-	static uint32 ToColorKey(const FVector4& Color);
+	static uint32 ToColorKey(const FLinearColor& Color);
 	static void   UpdateSubUVMaterialParams(
 		FMaterial&      Material,
 		int32           Columns,
 		int32           Rows,
 		int32           CurrentFrame,
-		const FVector4& Color);
+		const FLinearColor& Color);
 
 	TMap<uint32, std::shared_ptr<FDynamicMaterial>>                 TextMaterialsByColor;
 	TMap<const USubUVComponent*, std::shared_ptr<FDynamicMaterial>> SubUVMaterialsByComponent;

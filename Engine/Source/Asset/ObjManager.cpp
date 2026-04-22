@@ -913,18 +913,14 @@ namespace
 		return Material;
 	}
 
-	void ApplyBaseColorToMaterial(const std::shared_ptr<FMaterial>& Material, const FVector4& BaseColor)
+	void ApplyBaseColorToMaterial(const std::shared_ptr<FMaterial>& Material, const FLinearColor& BaseColor)
 	{
 		if (!Material)
 		{
 			return;
 		}
 
-		const float DiffuseColor[4] = { BaseColor.X, BaseColor.Y, BaseColor.Z, BaseColor.W };
-		if (FMaterialConstantBuffer* ConstantBuffer = Material->GetConstantBuffer(0))
-		{
-			ConstantBuffer->SetData(DiffuseColor, sizeof(DiffuseColor));
-		}
+		Material->SetLinearColorParameter("BaseColor", BaseColor);
 	}
 
 	bool TryLoadTextureIntoMaterial(const std::shared_ptr<FMaterial>& Material, const std::filesystem::path& TexturePath, const char* LogPrefix)
@@ -1876,10 +1872,10 @@ UStaticMesh* FObjManager::LoadModelStaticMeshAsset(const FString& PathFileName)
 		FModelMaterialInfo& MaterialInfo = MaterialInfos[SlotIndex];
 		MaterialInfo.Name                = GetMaterialSlotNameOrDefault(MaterialSlotNames, SlotIndex);
 
-		if (!ReadBinaryValue(File, MaterialInfo.BaseColor.X)
-			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.Y)
-			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.Z)
-			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.W)
+		if (!ReadBinaryValue(File, MaterialInfo.BaseColor.R)
+			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.G)
+			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.B)
+			|| !ReadBinaryValue(File, MaterialInfo.BaseColor.A)
 			|| !ReadUtf8String(File, MaterialInfo.DiffuseTexturePath)
 			|| (Version >= GModelVersionNormalTexture && !ReadUtf8String(File, MaterialInfo.NormalTexturePath))
 			|| (Version >= GModelVersionEmissiveTexture && !ReadUtf8String(File, MaterialInfo.EmissiveTexturePath)))
@@ -2178,10 +2174,10 @@ bool FObjManager::SaveModelStaticMeshAsset(const FString& PathFileName, const FS
 	for (uint32 SlotIndex = 0; SlotIndex < MaterialSlotCount; ++SlotIndex)
 	{
 		const FModelMaterialInfo MaterialInfo = GetMaterialInfoOrDefault(MaterialInfos, SlotIndex);
-		if (!WriteBinaryValue(File, MaterialInfo.BaseColor.X)
-			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.Y)
-			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.Z)
-			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.W)
+		if (!WriteBinaryValue(File, MaterialInfo.BaseColor.R)
+			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.G)
+			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.B)
+			|| !WriteBinaryValue(File, MaterialInfo.BaseColor.A)
 			|| !WriteUtf8String(File, MaterialInfo.DiffuseTexturePath)
 			|| !WriteUtf8String(File, MaterialInfo.NormalTexturePath)
 			|| !WriteUtf8String(File, MaterialInfo.EmissiveTexturePath))
@@ -2290,7 +2286,7 @@ bool FObjManager::BuildModelMaterialInfosFromObj(
 
 	struct FParsedMaterialData
 	{
-		FVector4 BaseColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
+		FLinearColor BaseColor = FLinearColor::White;
 		FString  DiffuseTexturePath;
 		FString  NormalTexturePath;
 		FString  EmissiveTexturePath;
@@ -2357,7 +2353,7 @@ bool FObjManager::BuildModelMaterialInfosFromObj(
 				float G = 1.0f;
 				float B = 1.0f;
 				MtlSS >> R >> G >> B;
-				ParsedMaterials[CurrentMaterialName].BaseColor = FVector4(R, G, B, 1.0f);
+				ParsedMaterials[CurrentMaterialName].BaseColor = FLinearColor(R, G, B, 1.0f);
 			}
 			else if (MtlType == "map_Kd" && !CurrentMaterialName.empty())
 			{
@@ -2483,7 +2479,7 @@ bool FObjManager::ParseMtlFile(const FString& MtlFIlePath)
 			float B = 0.0f;
 			SS >> R >> G >> B;
 
-			ApplyBaseColorToMaterial(CurrentMaterial, FVector4(R, G, B, 1.0f));
+			ApplyBaseColorToMaterial(CurrentMaterial, FLinearColor(R, G, B, 1.0f));
 		}
 		else if (Type == "Ke" && CurrentMaterial)
 		{
@@ -2492,8 +2488,7 @@ bool FObjManager::ParseMtlFile(const FString& MtlFIlePath)
 			float B = 0.0f;
 			SS >> R >> G >> B;
 
-			const float EmissiveColor[4] = { R, G, B, 1.0f };
-			CurrentMaterial->SetParameterData("EmissiveColor", EmissiveColor, sizeof(EmissiveColor));
+			CurrentMaterial->SetLinearColorParameter("EmissiveColor", FLinearColor(R, G, B, 1.0f));
 		}
 		else if (Type == "map_Kd" && CurrentMaterial)
 		{
