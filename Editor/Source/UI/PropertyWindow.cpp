@@ -1061,15 +1061,6 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 	std::sort(AllMaterialNames.begin(), AllMaterialNames.end());
 
 	FString& SelectedMaterialSource = MaterialSourceSelectionCache[MeshComponent];
-	if (SelectedMaterialSource.empty() && NumSections > 0)
-	{
-		if (std::shared_ptr<FMaterial> FirstSectionMaterial = MeshComponent->GetMaterial(0))
-		{
-			const FString FirstMaterialName = FirstSectionMaterial->GetOriginName();
-			SelectedMaterialSource = MaterialManager.GetMaterialSourceByName(FirstMaterialName);
-		}
-	}
-
 	if (!SelectedMaterialSource.empty() &&
 		std::find(MaterialSources.begin(), MaterialSources.end(), SelectedMaterialSource) == MaterialSources.end())
 	{
