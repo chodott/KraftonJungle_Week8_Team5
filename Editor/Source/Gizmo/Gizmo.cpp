@@ -492,6 +492,36 @@ bool FGizmo::BeginDrag(AActor* SelectedActor, const FViewportEntry* Entry, const
 	return BeginAxisDrag(Axis, SelectedActor, Entry, Picker, ScreenX, ScreenY);
 }
 
+bool FGizmo::BeginDrag(AActor* SelectedActor, const TArray<AActor*>& SelectedActors, const FViewportEntry* Entry, const FPicker& Picker, int32 ScreenX, int32 ScreenY)
+{
+	if (!BeginDrag(SelectedActor, Entry, Picker, ScreenX, ScreenY))
+	{
+		return false;
+	}
+
+	DragSelectionTransforms.clear();
+	DragPivotStartWorldLocation = DragStartActorLocation;
+	DragPivotStartWorldRotation = DragStartActorRotation;
+	DragPivotStartRelativeScale = DragStartActorScale;
+
+	for (AActor* Actor : SelectedActors)
+	{
+		if (!Actor || Actor == SelectedActor || Actor->IsPendingDestroy())
+		{
+			continue;
+		}
+
+		FDragSelectionTransform EntryTransform;
+		EntryTransform.Actor = Actor;
+		EntryTransform.StartWorldLocation = GetActorWorldLocation(Actor);
+		EntryTransform.StartWorldRotation = GetActorWorldRotation(Actor);
+		EntryTransform.StartRelativeScale = GetActorRelativeScale(Actor);
+		DragSelectionTransforms.push_back(EntryTransform);
+	}
+
+	return true;
+}
+
 bool FGizmo::UpdateDrag(AActor* SelectedActor, const FViewportEntry* Entry, const FPicker& Picker, int32 ScreenX, int32 ScreenY)
 {
 	if (ActiveAxis == EGizmoAxis::None || !SelectedActor || SelectedActor->IsPendingDestroy() || !Entry)
@@ -611,6 +641,100 @@ bool FGizmo::UpdateDrag(AActor* SelectedActor, const FViewportEntry* Entry, cons
 	return false;
 }
 
+bool FGizmo::UpdateDrag(AActor* SelectedActor, const TArray<AActor*>& SelectedActors, const FViewportEntry* Entry, const FPicker& Picker, int32 ScreenX, int32 ScreenY)
+{
+	(void)SelectedActors;
+	if (!UpdateDrag(SelectedActor, Entry, Picker, ScreenX, ScreenY))
+	{
+		return false;
+	}
+
+	if (DragSelectionTransforms.empty() || !SelectedActor || SelectedActor->IsPendingDestroy())
+	{
+		return true;
+	}
+
+	const FVector PivotCurrentWorldLocation = GetActorWorldLocation(SelectedActor);
+	const FQuat PivotCurrentWorldRotation = GetActorWorldRotation(SelectedActor);
+	const FVector PivotCurrentRelativeScale = GetActorRelativeScale(SelectedActor);
+
+	bool bApplied = true;
+	if (Mode == EGizmoMode::Location)
+	{
+		const FVector WorldDelta = PivotCurrentWorldLocation - DragPivotStartWorldLocation;
+		for (const FDragSelectionTransform& SelectionTransform : DragSelectionTransforms)
+		{
+			AActor* OtherActor = SelectionTransform.Actor.Get();
+			if (!OtherActor || OtherActor->IsPendingDestroy())
+			{
+				continue;
+			}
+
+			bApplied = ApplyActorWorldLocation(OtherActor, SelectionTransform.StartWorldLocation + WorldDelta) && bApplied;
+		}
+		return bApplied;
+	}
+
+	if (Mode == EGizmoMode::Rotation)
+	{
+		const FQuat PivotDeltaRotation = (DragPivotStartWorldRotation.Inverse() * PivotCurrentWorldRotation).GetNormalized();
+		for (const FDragSelectionTransform& SelectionTransform : DragSelectionTransforms)
+		{
+			AActor* OtherActor = SelectionTransform.Actor.Get();
+			if (!OtherActor || OtherActor->IsPendingDestroy())
+			{
+				continue;
+			}
+
+			const FVector StartOffsetWorld = SelectionTransform.StartWorldLocation - DragPivotStartWorldLocation;
+			const FVector RotatedOffsetWorld = PivotDeltaRotation.RotateVector(StartOffsetWorld);
+			const FVector NewWorldLocation = PivotCurrentWorldLocation + RotatedOffsetWorld;
+			const FQuat NewWorldRotation = (SelectionTransform.StartWorldRotation * PivotDeltaRotation).GetNormalized();
+			bApplied = ApplyActorWorldLocation(OtherActor, NewWorldLocation) && bApplied;
+			bApplied = ApplyActorWorldRotation(OtherActor, NewWorldRotation) && bApplied;
+		}
+		return bApplied;
+	}
+
+	if (Mode == EGizmoMode::Scale)
+	{
+		const FVector SafeStartScale(
+			std::abs(DragPivotStartRelativeScale.X) > ParallelTolerance ? DragPivotStartRelativeScale.X : 1.0f,
+			std::abs(DragPivotStartRelativeScale.Y) > ParallelTolerance ? DragPivotStartRelativeScale.Y : 1.0f,
+			std::abs(DragPivotStartRelativeScale.Z) > ParallelTolerance ? DragPivotStartRelativeScale.Z : 1.0f);
+		const FVector PivotScaleRatio(
+			PivotCurrentRelativeScale.X / SafeStartScale.X,
+			PivotCurrentRelativeScale.Y / SafeStartScale.Y,
+			PivotCurrentRelativeScale.Z / SafeStartScale.Z);
+
+		for (const FDragSelectionTransform& SelectionTransform : DragSelectionTransforms)
+		{
+			AActor* OtherActor = SelectionTransform.Actor.Get();
+			if (!OtherActor || OtherActor->IsPendingDestroy())
+			{
+				continue;
+			}
+
+			const FVector StartOffsetWorld = SelectionTransform.StartWorldLocation - DragPivotStartWorldLocation;
+			const FVector StartOffsetPivotLocal = DragPivotStartWorldRotation.UnrotateVector(StartOffsetWorld);
+			const FVector ScaledOffsetPivotLocal(
+				StartOffsetPivotLocal.X * PivotScaleRatio.X,
+				StartOffsetPivotLocal.Y * PivotScaleRatio.Y,
+				StartOffsetPivotLocal.Z * PivotScaleRatio.Z);
+			const FVector NewOffsetWorld = PivotCurrentWorldRotation.RotateVector(ScaledOffsetPivotLocal);
+			const FVector NewWorldLocation = PivotCurrentWorldLocation + NewOffsetWorld;
+			const FVector NewScale = ClampScaleVector(FVector(
+				SelectionTransform.StartRelativeScale.X * PivotScaleRatio.X,
+				SelectionTransform.StartRelativeScale.Y * PivotScaleRatio.Y,
+				SelectionTransform.StartRelativeScale.Z * PivotScaleRatio.Z));
+			bApplied = ApplyActorWorldLocation(OtherActor, NewWorldLocation) && bApplied;
+			bApplied = ApplyActorRelativeScale(OtherActor, NewScale) && bApplied;
+		}
+	}
+
+	return bApplied;
+}
+
 void FGizmo::UpdateHover(AActor* SelectedActor, const FViewportEntry* Entry, const FPicker& Picker, int32 ScreenX, int32 ScreenY)
 {
 	if (IsDragging())
@@ -646,6 +770,10 @@ void FGizmo::EndDrag()
 	DragStartActorRotation = FQuat::Identity;
 	DragStartScreenX = 0;
 	DragStartScreenY = 0;
+	DragPivotStartWorldLocation = FVector::ZeroVector;
+	DragPivotStartWorldRotation = FQuat::Identity;
+	DragPivotStartRelativeScale = FVector::OneVector;
+	DragSelectionTransforms.clear();
 }
 
 bool FGizmo::EnsureTranslationMeshes() const

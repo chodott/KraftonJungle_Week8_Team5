@@ -17,8 +17,14 @@
 #include "World/World.h"
 #include "World/WorldContext.h"
 #include "Component/CameraComponent.h"
+#include "Component/PrimitiveComponent.h"
+#include "Component/SceneComponent.h"
 #include "Component/SpringArmComponent.h"
+#include "Object/Object.h"
+#include "Object/ObjectFactory.h"
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 namespace
 {
@@ -57,6 +63,356 @@ namespace
 		}
 
 		return World->GetScene();
+	}
+
+	FString BuildUniqueDuplicateName(ULevel* Scene, const FString& SourceName)
+	{
+		if (!Scene)
+		{
+			return SourceName + "_Copy";
+		}
+
+		TSet<FString> ExistingNames;
+		for (AActor* Actor : Scene->GetActors())
+		{
+			if (!Actor || Actor->IsPendingDestroy())
+			{
+				continue;
+			}
+			ExistingNames.insert(Actor->GetName());
+		}
+
+		const FString BaseName = SourceName + "_Copy";
+		if (ExistingNames.find(BaseName) == ExistingNames.end())
+		{
+			return BaseName;
+		}
+
+		for (int32 Index = 1; Index < 10000; ++Index)
+		{
+			const FString Candidate = BaseName + "_" + std::to_string(Index);
+			if (ExistingNames.find(Candidate) == ExistingNames.end())
+			{
+				return Candidate;
+			}
+		}
+
+		return BaseName + "_" + std::to_string(FObjectFactory::GetLastUUID());
+	}
+
+	void DuplicateSelectedActors(FEditorEngine* EditorEngine, ULevel* Scene, const TArray<AActor*>& SelectedActors)
+	{
+		if (!EditorEngine || !Scene || SelectedActors.empty())
+		{
+			return;
+		}
+
+		// 선택 틴트가 적용된 상태로 복제되지 않도록,
+		// 복제 전에 선택을 한 번 비워 원본 색상을 먼저 복원한다.
+		EditorEngine->ClearSelectedActors();
+
+		FDuplicateContext DuplicateContext;
+		DuplicateContext.Register(Scene, Scene);
+		TArray<std::pair<AActor*, AActor*>> DuplicatePairs;
+		DuplicatePairs.reserve(SelectedActors.size());
+
+		for (AActor* SourceActor : SelectedActors)
+		{
+			if (!SourceActor || SourceActor->IsPendingDestroy())
+			{
+				continue;
+			}
+
+			const FString NewName = BuildUniqueDuplicateName(Scene, SourceActor->GetName());
+			AActor* DuplicatedActor = static_cast<AActor*>(SourceActor->Duplicate(Scene, NewName, DuplicateContext));
+			if (!DuplicatedActor)
+			{
+				continue;
+			}
+
+			Scene->RegisterActor(DuplicatedActor);
+			if (USceneComponent* RootComponent = DuplicatedActor->GetRootComponent())
+			{
+				RootComponent->SetRelativeLocation(RootComponent->GetRelativeLocation() + FVector(0.1f, 0.1f, 0.0f));
+			}
+
+			for (UActorComponent* Component : DuplicatedActor->GetComponents())
+			{
+				if (!Component || !Component->IsA(UPrimitiveComponent::StaticClass()))
+				{
+					continue;
+				}
+
+				UPrimitiveComponent* PrimitiveComponent = static_cast<UPrimitiveComponent*>(Component);
+				PrimitiveComponent->UpdateBounds();
+			}
+			DuplicatePairs.push_back({ SourceActor, DuplicatedActor });
+		}
+
+		for (const auto& Pair : DuplicatePairs)
+		{
+			Pair.first->FixupDuplicatedReferences(Pair.second, DuplicateContext);
+		}
+
+		for (const auto& Pair : DuplicatePairs)
+		{
+			Pair.first->PostDuplicate(Pair.second, DuplicateContext);
+		}
+
+		EditorEngine->ClearSelectedActors();
+		for (const auto& Pair : DuplicatePairs)
+		{
+			EditorEngine->AddSelectedActor(Pair.second);
+		}
+		Scene->MarkSpatialDirty();
+	}
+
+	bool ComputeSelectionBounds(const TArray<AActor*>& SelectedActors, FVector& OutCenter, float& OutRadius)
+	{
+		if (SelectedActors.empty())
+		{
+			return false;
+		}
+
+		bool bHasAnyPoint = false;
+		FVector BoundsMin = FVector::ZeroVector;
+		FVector BoundsMax = FVector::ZeroVector;
+		auto Expand = [&](const FVector& Point)
+		{
+			if (!bHasAnyPoint)
+			{
+				BoundsMin = Point;
+				BoundsMax = Point;
+				bHasAnyPoint = true;
+				return;
+			}
+
+			BoundsMin.X = std::min(BoundsMin.X, Point.X);
+			BoundsMin.Y = std::min(BoundsMin.Y, Point.Y);
+			BoundsMin.Z = std::min(BoundsMin.Z, Point.Z);
+			BoundsMax.X = std::max(BoundsMax.X, Point.X);
+			BoundsMax.Y = std::max(BoundsMax.Y, Point.Y);
+			BoundsMax.Z = std::max(BoundsMax.Z, Point.Z);
+		};
+
+		for (AActor* Actor : SelectedActors)
+		{
+			if (!Actor || Actor->IsPendingDestroy())
+			{
+				continue;
+			}
+
+			bool bUsedPrimitiveBounds = false;
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				if (!Component || !Component->IsA(UPrimitiveComponent::StaticClass()))
+				{
+					continue;
+				}
+
+				UPrimitiveComponent* PrimitiveComponent = static_cast<UPrimitiveComponent*>(Component);
+				if (PrimitiveComponent->IsPendingKill())
+				{
+					continue;
+				}
+
+				const FBoxSphereBounds Bounds = PrimitiveComponent->GetWorldBounds();
+				Expand(Bounds.Center - Bounds.BoxExtent);
+				Expand(Bounds.Center + Bounds.BoxExtent);
+				bUsedPrimitiveBounds = true;
+			}
+
+			if (!bUsedPrimitiveBounds)
+			{
+				if (USceneComponent* RootComponent = Actor->GetRootComponent())
+				{
+					Expand(RootComponent->GetWorldLocation());
+				}
+			}
+		}
+
+		if (!bHasAnyPoint)
+		{
+			return false;
+		}
+
+		OutCenter = (BoundsMin + BoundsMax) * 0.5f;
+		OutRadius = std::max((BoundsMax - OutCenter).Size(), 10.0f);
+		return true;
+	}
+
+	void FocusSelectedActors(FEditorEngine* EditorEngine, FViewportEntry* Entry)
+	{
+		if (!EditorEngine || !Entry || !Entry->Viewport)
+		{
+			return;
+		}
+
+		const TArray<AActor*> SelectedActors = EditorEngine->GetSelectedActors();
+		if (SelectedActors.empty())
+		{
+			return;
+		}
+
+		FVector FocusCenter = FVector::ZeroVector;
+		float FocusRadius = 0.0f;
+		if (!ComputeSelectionBounds(SelectedActors, FocusCenter, FocusRadius))
+		{
+			return;
+		}
+
+		if (Entry->LocalState.ProjectionType == EViewportType::Perspective)
+		{
+			const float SafeFovDegrees = std::clamp(Entry->LocalState.FovY, 15.0f, 150.0f);
+			const float SafeFovRadians = SafeFovDegrees * (3.14159265358979323846f / 180.0f);
+			float AspectRatio = 16.0f / 9.0f;
+			if (Entry->Viewport)
+			{
+				const FRect& Rect = Entry->Viewport->GetRect();
+				if (Rect.Height > 0)
+				{
+					AspectRatio = static_cast<float>(Rect.Width) / static_cast<float>(Rect.Height);
+				}
+			}
+
+			const float VerticalHalfFov = SafeFovRadians * 0.5f;
+			const float HorizontalHalfFov = std::atan(std::tan(VerticalHalfFov) * AspectRatio);
+			const float LimitingHalfFov = std::min(VerticalHalfFov, HorizontalHalfFov);
+			const float TargetFillRatio = 0.7f;
+			const float Distance =
+				(FocusRadius / std::max(std::tan(LimitingHalfFov) * TargetFillRatio, 1.0e-3f))
+				+ FocusRadius * 0.1f;
+			const FVector ViewForward = Entry->LocalState.Rotation.Vector().GetSafeNormal();
+			Entry->LocalState.Position = FocusCenter - ViewForward * Distance;
+		}
+		else
+		{
+			Entry->LocalState.OrthoTarget = FocusCenter;
+			Entry->LocalState.OrthoZoom = std::max(FocusRadius * 1.5f, 1.0f);
+		}
+	}
+
+	bool ProjectWorldToScreen(const FViewportEntry* Entry, const FVector& WorldPosition, FVector2& OutScreenPosition, float& OutDepth)
+	{
+		if (!Entry || !Entry->Viewport)
+		{
+			return false;
+		}
+
+		const FRect& Rect = Entry->Viewport->GetRect();
+		if (!Rect.IsValid())
+		{
+			return false;
+		}
+
+		const float AspectRatio = static_cast<float>(Rect.Width) / static_cast<float>(Rect.Height);
+		const FMatrix ViewMatrix = Entry->LocalState.BuildViewMatrix();
+		const FMatrix ProjectionMatrix = Entry->LocalState.BuildProjMatrix(AspectRatio);
+
+		const FVector ViewPosition(
+			WorldPosition.X * ViewMatrix.M[0][0] + WorldPosition.Y * ViewMatrix.M[1][0] + WorldPosition.Z * ViewMatrix.M[2][0] + ViewMatrix.M[3][0],
+			WorldPosition.X * ViewMatrix.M[0][1] + WorldPosition.Y * ViewMatrix.M[1][1] + WorldPosition.Z * ViewMatrix.M[2][1] + ViewMatrix.M[3][1],
+			WorldPosition.X * ViewMatrix.M[0][2] + WorldPosition.Y * ViewMatrix.M[1][2] + WorldPosition.Z * ViewMatrix.M[2][2] + ViewMatrix.M[3][2]);
+
+		const float ClipX = ViewPosition.X * ProjectionMatrix.M[0][0] + ViewPosition.Y * ProjectionMatrix.M[1][0] + ViewPosition.Z * ProjectionMatrix.M[2][0] + ProjectionMatrix.M[3][0];
+		const float ClipY = ViewPosition.X * ProjectionMatrix.M[0][1] + ViewPosition.Y * ProjectionMatrix.M[1][1] + ViewPosition.Z * ProjectionMatrix.M[2][1] + ProjectionMatrix.M[3][1];
+		const float ClipZ = ViewPosition.X * ProjectionMatrix.M[0][2] + ViewPosition.Y * ProjectionMatrix.M[1][2] + ViewPosition.Z * ProjectionMatrix.M[2][2] + ProjectionMatrix.M[3][2];
+		const float ClipW = ViewPosition.X * ProjectionMatrix.M[0][3] + ViewPosition.Y * ProjectionMatrix.M[1][3] + ViewPosition.Z * ProjectionMatrix.M[2][3] + ProjectionMatrix.M[3][3];
+		if (std::abs(ClipW) < 1.0e-5f)
+		{
+			return false;
+		}
+
+		const float NdcX = ClipX / ClipW;
+		const float NdcY = ClipY / ClipW;
+		const float NdcZ = ClipZ / ClipW;
+		OutScreenPosition.X = (NdcX * 0.5f + 0.5f) * static_cast<float>(Rect.Width);
+		OutScreenPosition.Y = (1.0f - (NdcY * 0.5f + 0.5f)) * static_cast<float>(Rect.Height);
+		OutDepth = NdcZ;
+		return std::isfinite(OutScreenPosition.X) && std::isfinite(OutScreenPosition.Y) && std::isfinite(OutDepth);
+	}
+
+	void SelectActorsInMarquee(FEditorEngine* EditorEngine, ULevel* Scene, const FViewportEntry* Entry, const FRect& MarqueeRect)
+	{
+		if (!EditorEngine || !Scene || !Entry || !MarqueeRect.IsValid())
+		{
+			return;
+		}
+
+		TArray<std::pair<AActor*, float>> Hits;
+		for (AActor* Actor : Scene->GetActors())
+		{
+			if (!Actor || Actor->IsPendingDestroy() || !Actor->IsVisible())
+			{
+				continue;
+			}
+
+			FVector ProbePoint = FVector::ZeroVector;
+			bool bHasProbe = false;
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				if (!Component || !Component->IsA(UPrimitiveComponent::StaticClass()))
+				{
+					continue;
+				}
+
+				UPrimitiveComponent* PrimitiveComponent = static_cast<UPrimitiveComponent*>(Component);
+				if (PrimitiveComponent->IsPendingKill() || !PrimitiveComponent->IsPickable())
+				{
+					continue;
+				}
+
+				ProbePoint = PrimitiveComponent->GetWorldBounds().Center;
+				bHasProbe = true;
+				break;
+			}
+
+			if (!bHasProbe)
+			{
+				if (USceneComponent* Root = Actor->GetRootComponent())
+				{
+					ProbePoint = Root->GetWorldLocation();
+					bHasProbe = true;
+				}
+			}
+
+			if (!bHasProbe)
+			{
+				continue;
+			}
+
+			FVector2 Projected(0.0f, 0.0f);
+			float Depth = 0.0f;
+			if (!ProjectWorldToScreen(Entry, ProbePoint, Projected, Depth))
+			{
+				continue;
+			}
+
+			if (Projected.X < 0.0f || Projected.X > static_cast<float>(Entry->Viewport->GetRect().Width) ||
+				Projected.Y < 0.0f || Projected.Y > static_cast<float>(Entry->Viewport->GetRect().Height))
+			{
+				continue;
+			}
+
+			const int32 ScreenX = static_cast<int32>(Projected.X);
+			const int32 ScreenY = static_cast<int32>(Projected.Y);
+			if (ScreenX >= MarqueeRect.X && ScreenX <= MarqueeRect.X + MarqueeRect.Width &&
+				ScreenY >= MarqueeRect.Y && ScreenY <= MarqueeRect.Y + MarqueeRect.Height)
+			{
+				Hits.push_back({ Actor, Depth });
+			}
+		}
+
+		std::sort(Hits.begin(), Hits.end(), [](const auto& Left, const auto& Right)
+		{
+			return Left.second < Right.second;
+		});
+
+		EditorEngine->ClearSelectedActors();
+		for (const auto& Hit : Hits)
+		{
+			EditorEngine->AddSelectedActor(Hit.first);
+		}
 	}
 }
 
@@ -454,7 +810,42 @@ void FEditorViewportInputService::HandleMessage(
 		if (!ImGui::GetCurrentContext() || !ImGui::GetIO().WantCaptureMouse)
 		{
 			FViewportEntry* FocusedEntry = ViewportRegistry.FindEntryByViewportID(Slate->GetFocusedViewportId());
+			const bool bRightMouseDown = Engine->GetInputManager() &&
+				Engine->GetInputManager()->IsMouseButtonDown(FInputManager::MOUSE_RIGHT);
 			if (FocusedEntry &&
+				FocusedEntry->bActive &&
+				FocusedEntry->LocalState.ProjectionType == EViewportType::Perspective &&
+				bRightMouseDown)
+			{
+				const float WheelDelta = static_cast<float>(GET_WHEEL_DELTA_WPARAM(WParam)) / WHEEL_DELTA;
+				const float SpeedScale = std::pow(1.1f, WheelDelta);
+
+				FCamera* TargetCamera = nullptr;
+				if (IsPIEViewportEntry(FocusedEntry))
+				{
+					if (UWorld* PIEWorld = GetViewportWorld(FocusedEntry))
+					{
+						if (UCameraComponent* ActiveCameraComponent = PIEWorld->GetActiveCameraComponent())
+						{
+							TargetCamera = ActiveCameraComponent->GetCamera();
+						}
+					}
+				}
+				else if (IsEditorViewportEntry(FocusedEntry))
+				{
+					if (ULevel* Scene = GetViewportScene(FocusedEntry))
+					{
+						TargetCamera = Scene->GetCamera();
+					}
+				}
+
+				if (TargetCamera)
+				{
+					const float NewSpeed = std::clamp(TargetCamera->GetSpeed() * SpeedScale, 0.1f, 20.0f);
+					TargetCamera->SetSpeed(NewSpeed);
+				}
+			}
+			else if (FocusedEntry &&
 				FocusedEntry->bActive &&
 				IsEditorViewportEntry(FocusedEntry) &&
 				FocusedEntry->LocalState.ProjectionType != EViewportType::Perspective)
@@ -496,6 +887,7 @@ void FEditorViewportInputService::HandleMessage(
 	case WM_SYSKEYDOWN:
 	{
 		const bool bAltDown = (::GetKeyState(VK_MENU) & 0x8000) != 0;
+		const bool bCtrlDown = (::GetKeyState(VK_CONTROL) & 0x8000) != 0;
 		if (bAltDown && WParam == 'P')
 		{
 			const bool bWantsKeyboard = ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureKeyboard;
@@ -549,6 +941,52 @@ void FEditorViewportInputService::HandleMessage(
 			return;
 		}
 
+		if (ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureKeyboard)
+		{
+			return;
+		}
+
+		if (bCtrlDown && WParam == 'D')
+		{
+			if (ULevel* Scene = GetViewportScene(Entry))
+			{
+				DuplicateSelectedActors(EditorEngine, Scene, EditorEngine->GetSelectedActors());
+				if (OnSelectionChanged)
+				{
+					OnSelectionChanged();
+				}
+			}
+			return;
+		}
+
+		if (!bCtrlDown && WParam == 'F')
+		{
+			FocusSelectedActors(EditorEngine, Entry);
+			return;
+		}
+
+		if (!bCtrlDown && WParam == VK_DELETE)
+		{
+			if (ULevel* Scene = GetViewportScene(Entry))
+			{
+				const TArray<AActor*> ActorsToDelete = EditorEngine->GetSelectedActors();
+				for (AActor* Actor : ActorsToDelete)
+				{
+					if (!Actor || Actor->IsPendingDestroy())
+					{
+						continue;
+					}
+					Scene->DestroyActor(Actor);
+				}
+				EditorEngine->ClearSelectedActors();
+				if (OnSelectionChanged)
+				{
+					OnSelectionChanged();
+				}
+			}
+			return;
+		}
+
 		switch (WParam)
 		{
 		case 'W':
@@ -594,13 +1032,46 @@ void FEditorViewportInputService::HandleMessage(
 		ScreenMouseX = MouseX - Rect.X;
 		ScreenMouseY = MouseY - Rect.Y;
 
-		if (SelectedActor && Gizmo.BeginDrag(SelectedActor, Entry, Picker, ScreenMouseX, ScreenMouseY))
+		const bool bCtrlDown = (::GetKeyState(VK_CONTROL) & 0x8000) != 0;
+		const bool bShiftDown = (::GetKeyState(VK_SHIFT) & 0x8000) != 0;
+		const bool bAltDown = (::GetKeyState(VK_MENU) & 0x8000) != 0;
+		if (IsEditorViewportEntry(Entry) && bCtrlDown && bAltDown)
+		{
+			bIsMarqueeSelecting = true;
+			MarqueeViewportId = Entry->Id;
+			MarqueeStartWindowX = MouseX;
+			MarqueeStartWindowY = MouseY;
+			MarqueeCurrentWindowX = MouseX;
+			MarqueeCurrentWindowY = MouseY;
+			Gizmo.ClearHover();
+			return;
+		}
+
+		const TArray<AActor*> SelectedActors = EditorEngine->GetSelectedActors();
+		if (SelectedActor && Gizmo.BeginDrag(SelectedActor, SelectedActors, Entry, Picker, ScreenMouseX, ScreenMouseY))
 		{
 			return;
 		}
 
 		AActor* PickedActor = Picker.PickActor(Scene, Entry, ScreenMouseX, ScreenMouseY);
-		EditorEngine->SetSelectedActor(PickedActor);
+		if (bShiftDown)
+		{
+			if (PickedActor)
+			{
+				EditorEngine->AddSelectedActor(PickedActor);
+			}
+		}
+		else if (bCtrlDown)
+		{
+			if (PickedActor)
+			{
+				EditorEngine->ToggleSelectedActor(PickedActor);
+			}
+		}
+		else
+		{
+			EditorEngine->SetSelectedActor(PickedActor);
+		}
 		if (OnSelectionChanged)
 		{
 			OnSelectionChanged();
@@ -610,6 +1081,13 @@ void FEditorViewportInputService::HandleMessage(
 
 	case WM_MOUSEMOVE:
 	{
+		if (bIsMarqueeSelecting)
+		{
+			MarqueeCurrentWindowX = MouseX;
+			MarqueeCurrentWindowY = MouseY;
+			return;
+		}
+
 		FViewport* Viewport = ViewportRegistry.GetViewportById(Slate->GetHoveredViewportId());
 		if (!Viewport)
 		{
@@ -649,7 +1127,7 @@ void FEditorViewportInputService::HandleMessage(
 			return;
 		}
 
-		if (Gizmo.UpdateDrag(SelectedActor, HoveredEntry, Picker, ScreenMouseX, ScreenMouseY) && OnSelectionChanged)
+		if (Gizmo.UpdateDrag(SelectedActor, EditorEngine->GetSelectedActors(), HoveredEntry, Picker, ScreenMouseX, ScreenMouseY) && OnSelectionChanged)
 		{
 			OnSelectionChanged();
 		}
@@ -658,6 +1136,42 @@ void FEditorViewportInputService::HandleMessage(
 
 	case WM_LBUTTONUP:
 	{
+		if (bIsMarqueeSelecting)
+		{
+			bIsMarqueeSelecting = false;
+			const FViewportId CapturedViewportId = MarqueeViewportId;
+			MarqueeViewportId = INVALID_VIEWPORT_ID;
+
+			FViewportEntry* MarqueeEntry = ViewportRegistry.FindEntryByViewportID(CapturedViewportId);
+			if (!MarqueeEntry || !MarqueeEntry->Viewport || !IsEditorViewportEntry(MarqueeEntry))
+			{
+				return;
+			}
+
+			MarqueeCurrentWindowX = MouseX;
+			MarqueeCurrentWindowY = MouseY;
+			const FRect& ViewportRect = MarqueeEntry->Viewport->GetRect();
+			FRect SelectionRect;
+			SelectionRect.X = std::min(MarqueeStartWindowX, MarqueeCurrentWindowX) - ViewportRect.X;
+			SelectionRect.Y = std::min(MarqueeStartWindowY, MarqueeCurrentWindowY) - ViewportRect.Y;
+			SelectionRect.Width = std::abs(MarqueeCurrentWindowX - MarqueeStartWindowX);
+			SelectionRect.Height = std::abs(MarqueeCurrentWindowY - MarqueeStartWindowY);
+			SelectionRect = IntersectRect(SelectionRect, FRect(0, 0, ViewportRect.Width, ViewportRect.Height));
+
+			if (SelectionRect.Width > 2 && SelectionRect.Height > 2)
+			{
+				if (ULevel* Scene = GetViewportScene(MarqueeEntry))
+				{
+					SelectActorsInMarquee(EditorEngine, Scene, MarqueeEntry, SelectionRect);
+					if (OnSelectionChanged)
+					{
+						OnSelectionChanged();
+					}
+				}
+			}
+			return;
+		}
+
 		const bool bEditablePIEViewport = Entry && IsPIEViewportEntry(Entry) && !EditorEngine->IsPIEInputCaptured();
 		if (!Entry || (!IsEditorViewportEntry(Entry) && !bEditablePIEViewport))
 		{
@@ -698,4 +1212,18 @@ void FEditorViewportInputService::HandleMessage(
 	default:
 		return;
 	}
+}
+
+bool FEditorViewportInputService::GetMarqueeSelectionRect(FRect& OutRect) const
+{
+	if (!bIsMarqueeSelecting)
+	{
+		return false;
+	}
+
+	OutRect.X = std::min(MarqueeStartWindowX, MarqueeCurrentWindowX);
+	OutRect.Y = std::min(MarqueeStartWindowY, MarqueeCurrentWindowY);
+	OutRect.Width = std::abs(MarqueeCurrentWindowX - MarqueeStartWindowX);
+	OutRect.Height = std::abs(MarqueeCurrentWindowY - MarqueeStartWindowY);
+	return OutRect.IsValid();
 }

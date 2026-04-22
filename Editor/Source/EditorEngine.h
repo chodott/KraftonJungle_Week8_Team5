@@ -10,6 +10,7 @@
 
 class AActor;
 class APlayerCameraActor;
+class UBillboardComponent;
 class FEditorViewportClient;
 class FShowFlags;
 
@@ -187,6 +188,7 @@ private:
 	void SyncViewportClient();
 	// 현재 선택 상태에 맞춰 Point/Spot Light Gizmo 표시 상태를 갱신한다.
 	void RefreshLightGizmoSelectionVisibility();
+	void RefreshSelectedBillboardTint();
 	// 선택된 액터의 BVH를 디버그 라인 요청에 추가한다.
 
 	FEditorUI EditorUI;
@@ -211,6 +213,7 @@ private:
 	FViewportId PIEViewportId = INVALID_VIEWPORT_ID;
 	bool bWasCursorHiddenForPIE = false;
 	bool bIsPIECursorCurrentlyHidden = false;
+	TMap<UBillboardComponent*, FLinearColor> BillboardSelectionTintOriginalColors;
 	bool bIsPIEActive = false;
 	bool bIsPIEPaused = false;
 	bool bIsPIEInputCaptured = false;

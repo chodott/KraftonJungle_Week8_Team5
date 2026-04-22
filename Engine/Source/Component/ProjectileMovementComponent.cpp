@@ -118,24 +118,18 @@ void UProjectileMovementComponent::StopSimulation()
 void UProjectileMovementComponent::SetAutoStartSimulation(bool bInAutoStartSimulation)
 {
 	bAutoStartSimulation = bInAutoStartSimulation;
-	SetTickInEditor(bAutoStartSimulation);
-	if (AActor* OwnerActor = GetOwner(); OwnerActor && bAutoStartSimulation)
-	{
-		OwnerActor->SetTickInEditor(true);
-	}
+	// Projectile movement should not auto-simulate in Editor world.
+	SetTickInEditor(false);
 
 	UpdateVelocityArrow();
 }
 
 void UProjectileMovementComponent::Tick(float DeltaTime)
 {
-	if (!bSimulationEnabled && bAutoStartSimulation && !Velocity.IsNearlyZero())
+	UWorld* World = GetOwner() ? GetOwner()->GetWorld() : nullptr;
+	if (!World || (World->GetWorldType() != EWorldType::PIE && World->GetWorldType() != EWorldType::Game))
 	{
-		UWorld* World = GetOwner() ? GetOwner()->GetWorld() : nullptr;
-		if (World && World->GetWorldType() == EWorldType::Editor)
-		{
-			bSimulationEnabled = IsComponentTickEnabled();
-		}
+		return;
 	}
 
 	if (!bSimulationEnabled)
@@ -227,6 +221,7 @@ void UProjectileMovementComponent::EnsureVelocityArrowComponent()
 		VelocityArrowComponent->SetStaticMesh(GetVelocityArrowMesh());
 		VelocityArrowComponent->SetIgnoreParentScaleInRender(true);
 		VelocityArrowComponent->SetEditorVisualization(true);
+		VelocityArrowComponent->SetHiddenInGame(true);
 		VelocityArrowComponent->SetDrawDebugBounds(false);
 		VelocityArrowComponent->SetInstanceComponent(IsInstanceComponent());
 	}
@@ -245,6 +240,8 @@ void UProjectileMovementComponent::EnsureVelocityArrowComponent()
 	{
 		VelocityArrowComponent->OnRegister();
 	}
+
+	VelocityArrowComponent->SetHiddenInGame(true);
 }
 
 void UProjectileMovementComponent::UpdateVelocityArrow()

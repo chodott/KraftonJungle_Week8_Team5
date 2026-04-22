@@ -149,15 +149,27 @@ void UMeshComponent::Serialize(FArchive& Ar)
 			TArray<FString> MaterialNames;
 			Ar.SerializeStringArray("Materials", MaterialNames);
 
+			// Keep pre-populated mesh default materials from SetStaticMesh() when
+			// serialized material names are not globally registered (e.g. embedded .model materials).
+			TArray<std::shared_ptr<FMaterial>> ExistingMaterials = Materials;
 			Materials.clear();
-			for (const FString& MaterialName : MaterialNames)
+			Materials.resize(MaterialNames.size(), nullptr);
+			for (int32 MaterialIndex = 0; MaterialIndex < static_cast<int32>(MaterialNames.size()); ++MaterialIndex)
 			{
+				const FString& MaterialName = MaterialNames[MaterialIndex];
 				if (!MaterialName.empty())
 				{
 					std::shared_ptr<FMaterial> LoadedMaterial = FMaterialManager::Get().FindByName(MaterialName);
-					Materials.push_back(DuplicateMaterialInstance(LoadedMaterial));
+					if (!LoadedMaterial &&
+						MaterialIndex >= 0 &&
+						MaterialIndex < static_cast<int32>(ExistingMaterials.size()) &&
+						ExistingMaterials[MaterialIndex] &&
+						ExistingMaterials[MaterialIndex]->GetOriginName() == MaterialName)
+					{
+						LoadedMaterial = ExistingMaterials[MaterialIndex];
+					}
+					Materials[MaterialIndex] = LoadedMaterial;
 				}
-				else Materials.push_back(nullptr);
 			}
 		}
 
