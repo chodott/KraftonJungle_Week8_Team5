@@ -58,10 +58,25 @@ namespace
 {
 	struct FToneMappingConstants
 	{
-		float Exposure         = 0.22f;
-		float ShoulderStrength = 0.0f;
-		float LinearWhite      = 0.65f;
-		float Pad0             = 0.0f;
+		float Exposure;
+		float ShoulderStrength;
+		float LinearWhite;
+		float HableB;
+
+		float HableC;
+		float HableD;
+		float HableE;
+		float HableF;
+
+		float AcesA;
+		float AcesB;
+		float AcesC;
+		float AcesD;
+
+		float AcesE;
+		float Pad1 = 0.f;
+		float Pad2 = 0.f;
+		float Pad3 = 0.f;
 	};
 
 	ID3D11Texture2D* ResolveTextureFromRenderTarget(ID3D11RenderTargetView* RenderTargetView)
@@ -789,19 +804,31 @@ bool FRenderer::ResolveSceneColorTargets(
 		}
 	}
 
-	D3D11_MAPPED_SUBRESOURCE Mapped = {};
-	if (FAILED(DeviceContext->Map(ToneMappingConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
+	if (bToneMappingDirty)
 	{
-		return false;
+		D3D11_MAPPED_SUBRESOURCE Mapped = {};
+		if (FAILED(DeviceContext->Map(ToneMappingConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
+		{
+			return false;
+		}
+		*reinterpret_cast<FToneMappingConstants*>(Mapped.pData) = FToneMappingConstants {
+			ToneMappingSettings.Exposure,
+			ToneMappingSettings.ShoulderStrength,
+			ToneMappingSettings.LinearWhite,
+			ToneMappingSettings.HableB,
+			ToneMappingSettings.HableC,
+			ToneMappingSettings.HableD,
+			ToneMappingSettings.HableE,
+			ToneMappingSettings.HableF,
+			ToneMappingSettings.AcesA,
+			ToneMappingSettings.AcesB,
+			ToneMappingSettings.AcesC,
+			ToneMappingSettings.AcesD,
+			ToneMappingSettings.AcesE,
+		};
+		DeviceContext->Unmap(ToneMappingConstantBuffer, 0);
+		bToneMappingDirty = false;
 	}
-
-	*reinterpret_cast<FToneMappingConstants*>(Mapped.pData) = FToneMappingConstants {
-		ToneMappingSettings.Exposure,
-		ToneMappingSettings.ShoulderStrength,
-		ToneMappingSettings.LinearWhite,
-		0.0f
-	};
-	DeviceContext->Unmap(ToneMappingConstantBuffer, 0);
 
 	FFullscreenPassPipelineState PipelineState;
 	PipelineState.DepthStencilState = FullscreenNoDepthState;

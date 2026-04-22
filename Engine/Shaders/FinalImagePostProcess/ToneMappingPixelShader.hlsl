@@ -4,9 +4,24 @@ SamplerState SceneSampler : register(s0);
 cbuffer ToneMappingConstants : register(b0)
 {
 	float Exposure;
-	float ShoulderStrength; // Hable A (default 0.22)
-	float LinearWhite;      // Hable W / Reinhard 화이트 포인트 (default 11.2)
-	float Pad0;
+	float ShoulderStrength; // Hable A
+	float LinearWhite;      // Hable W / Reinhard 화이트 포인트
+	float HableB;
+
+	float HableC;
+	float HableD;
+	float HableE;
+	float HableF;
+
+	float AcesA;
+	float AcesB;
+	float AcesC;
+	float AcesD;
+
+	float AcesE;
+	float Pad1;
+	float Pad2;
+	float Pad3;
 };
 
 struct PSInput
@@ -21,25 +36,20 @@ struct PSInput
 
 float3 ApplyTonemap(float3 x)
 {
-	const float a = 2.51f;
-	const float b = 0.03f;
-	const float c = 2.43f;
-	const float d = 0.59f;
-	const float e = 0.14f;
-	return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
+	return saturate((x * (AcesA * x + AcesB)) / (x * (AcesC * x + AcesD) + AcesE));
 }
 
 #elif defined(TONEMAPPING_HABLE)
 
-// Uncharted 2 filmic. B~F는 표준 기본값 고정.
+// Uncharted 2 filmic.
 float3 HablePartial(float3 x)
 {
 	const float A = ShoulderStrength;
-	const float B = 0.22f;
-	const float C = 0.10f;
-	const float D = 0.20f;
-	const float E = 0.01f;
-	const float F = 0.30f;
+	const float B = HableB;
+	const float C = HableC;
+	const float D = HableD;
+	const float E = HableE;
+	const float F = HableF;
 	return ((x * (A * x + C * B) + D * E) / (x * (A * x + B) + D * F)) - E / F;
 }
 
@@ -69,12 +79,7 @@ float3 ApplyTonemap(float3 color)
 
 float3 ApplyTonemap(float3 x)
 {
-	const float a = 2.51f;
-	const float b = 0.03f;
-	const float c = 2.43f;
-	const float d = 0.59f;
-	const float e = 0.14f;
-	return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
+	return saturate((x * (AcesA * x + AcesB)) / (x * (AcesC * x + AcesD) + AcesE));
 }
 
 #endif
