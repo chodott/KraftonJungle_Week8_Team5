@@ -34,8 +34,8 @@
 
 enum class EFileDialogType
 {
-    Open,
-    Save
+	Open,
+	Save
 };
 
 namespace
@@ -43,17 +43,20 @@ namespace
 	FString GetNormalizedExtension(const FString& FilePath)
 	{
 		FString Extension = FPaths::FromPath(FPaths::ToPath(FilePath).extension());
-		std::transform(Extension.begin(), Extension.end(), Extension.begin(), [](unsigned char Ch)
-		{
-			return static_cast<char>(std::tolower(Ch));
-		});
+		std::transform(Extension.begin(),
+		               Extension.end(),
+		               Extension.begin(),
+		               [](unsigned char Ch)
+		               {
+			               return static_cast<char>(std::tolower(Ch));
+		               });
 		return Extension;
 	}
 
 	std::filesystem::path FindObjViewerExecutable()
 	{
 		const std::filesystem::path ProjectRoot = FPaths::ProjectRoot();
-		const std::filesystem::path DebugPath = ProjectRoot / "ObjViewer/Bin/Debug/ObjViewer.exe";
+		const std::filesystem::path DebugPath   = ProjectRoot / "ObjViewer/Bin/Debug/ObjViewer.exe";
 		if (std::filesystem::exists(DebugPath))
 		{
 			return DebugPath;
@@ -78,10 +81,10 @@ namespace
 
 		if (Extension == ".model")
 		{
-			const std::filesystem::path ModelPath = FPaths::ToPath(FPaths::ToAbsolutePath(FilePath)).lexically_normal();
-			std::filesystem::path ObjFileName = ModelPath.stem();
-			ObjFileName += FPaths::ToPath(".obj");
-			const std::filesystem::path ObjPath = ModelPath.parent_path() / ObjFileName;
+			const std::filesystem::path ModelPath   = FPaths::ToPath(FPaths::ToAbsolutePath(FilePath)).lexically_normal();
+			std::filesystem::path       ObjFileName = ModelPath.stem();
+			ObjFileName                             += FPaths::ToPath(".obj");
+			const std::filesystem::path ObjPath     = ModelPath.parent_path() / ObjFileName;
 			if (std::filesystem::exists(ObjPath))
 			{
 				return FPaths::FromPath(ObjPath);
@@ -98,7 +101,7 @@ namespace
 
 	bool LaunchObjViewer(const FString& FilePath)
 	{
-		const FString InputPath = ResolveObjViewerInputPath(FilePath);
+		const FString               InputPath     = ResolveObjViewerInputPath(FilePath);
 		const std::filesystem::path ObjViewerPath = FindObjViewerExecutable();
 		if (InputPath.empty() || ObjViewerPath.empty())
 		{
@@ -106,14 +109,14 @@ namespace
 		}
 
 		const std::wstring CommandLine =
-			L"\"" + ObjViewerPath.wstring() + L"\""
-			L" --input \"" + FPaths::ToWide(FPaths::ToAbsolutePath(InputPath)) + L"\"";
+				L"\"" + ObjViewerPath.wstring() + L"\""
+				L" --input \"" + FPaths::ToWide(FPaths::ToAbsolutePath(InputPath)) + L"\"";
 		std::wstring MutableCommandLine = CommandLine;
 
-		STARTUPINFOW StartupInfo = {};
-		StartupInfo.cb = sizeof(StartupInfo);
+		STARTUPINFOW StartupInfo        = {};
+		StartupInfo.cb                  = sizeof(StartupInfo);
 		PROCESS_INFORMATION ProcessInfo = {};
-		const BOOL bLaunched = ::CreateProcessW(
+		const BOOL          bLaunched   = ::CreateProcessW(
 			ObjViewerPath.wstring().c_str(),
 			MutableCommandLine.data(),
 			nullptr,
@@ -150,8 +153,8 @@ namespace
 			if (WindowHandle)
 			{
 				::DestroyWindow(WindowHandle);
-				WindowHandle = nullptr;
-				LabelHandle = nullptr;
+				WindowHandle   = nullptr;
+				LabelHandle    = nullptr;
 				ProgressHandle = nullptr;
 			}
 		}
@@ -163,8 +166,8 @@ namespace
 				return;
 			}
 
-			const int32 ProgressPercent = static_cast<int32>(std::clamp(Progress01, 0.0f, 1.0f) * 100.0f + 0.5f);
-			const std::wstring LabelText = FPaths::ToWide(Message.empty() ? "Loading scene..." : Message);
+			const int32        ProgressPercent = static_cast<int32>(std::clamp(Progress01, 0.0f, 1.0f) * 100.0f + 0.5f);
+			const std::wstring LabelText       = FPaths::ToWide(Message.empty() ? "Loading scene..." : Message);
 
 			::SetWindowTextW(LabelHandle, LabelText.c_str());
 			::SendMessageW(ProgressHandle, PBM_SETPOS, static_cast<WPARAM>(ProgressPercent), 0);
@@ -178,7 +181,7 @@ namespace
 		}
 
 	private:
-		static constexpr const wchar_t* OverlayClassName = L"Week7SceneLoadOverlayWindow";
+		static constexpr auto OverlayClassName = L"Week7SceneLoadOverlayWindow";
 
 		static void InitializeCommonControls()
 		{
@@ -189,8 +192,8 @@ namespace
 			}
 
 			INITCOMMONCONTROLSEX ICC = {};
-			ICC.dwSize = sizeof(INITCOMMONCONTROLSEX);
-			ICC.dwICC = ICC_PROGRESS_CLASS;
+			ICC.dwSize               = sizeof(INITCOMMONCONTROLSEX);
+			ICC.dwICC                = ICC_PROGRESS_CLASS;
 			::InitCommonControlsEx(&ICC);
 			bInitialized = true;
 		}
@@ -203,10 +206,10 @@ namespace
 				return;
 			}
 
-			WNDCLASSW WindowClass = {};
-			WindowClass.lpfnWndProc = DefWindowProcW;
-			WindowClass.hInstance = GetModuleHandleW(nullptr);
-			WindowClass.hCursor = ::LoadCursorW(nullptr, IDC_WAIT);
+			WNDCLASSW WindowClass     = {};
+			WindowClass.lpfnWndProc   = DefWindowProcW;
+			WindowClass.hInstance     = GetModuleHandleW(nullptr);
+			WindowClass.hCursor       = ::LoadCursorW(nullptr, IDC_WAIT);
 			WindowClass.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
 			WindowClass.lpszClassName = OverlayClassName;
 			::RegisterClassW(&WindowClass);
@@ -215,7 +218,7 @@ namespace
 
 		void CreateWindowResources()
 		{
-			const int32 Width = 420;
+			const int32 Width  = 420;
 			const int32 Height = 130;
 
 			RECT OwnerRect = {};
@@ -302,863 +305,382 @@ namespace
 			}
 		}
 
-		HWND OwnerWindow = nullptr;
-		HWND WindowHandle = nullptr;
-		HWND LabelHandle = nullptr;
+		HWND OwnerWindow    = nullptr;
+		HWND WindowHandle   = nullptr;
+		HWND LabelHandle    = nullptr;
 		HWND ProgressHandle = nullptr;
 	};
 }
 
 std::string GetFilePathUsingDialog(EFileDialogType Type)
 {
-    wchar_t FileName[MAX_PATH] = L"";
-    const std::filesystem::path SceneDir = FPaths::SceneDir();
+	wchar_t                     FileName[MAX_PATH] = L"";
+	const std::filesystem::path SceneDir           = FPaths::SceneDir();
 
-    OPENFILENAMEW Ofn = {};
-    Ofn.lStructSize = sizeof(OPENFILENAMEW);
-    Ofn.lpstrFilter = L"Scene Files (*.scene)\0*.scene\0JSON Files (*.json)\0*.json\0All Files (*.*)\0*.*\0";
-    Ofn.lpstrFile = FileName;
-    Ofn.nMaxFile = MAX_PATH;
-    Ofn.lpstrDefExt = L"scene";
-    Ofn.lpstrInitialDir = SceneDir.c_str();
+	OPENFILENAMEW Ofn   = {};
+	Ofn.lStructSize     = sizeof(OPENFILENAMEW);
+	Ofn.lpstrFilter     = L"Scene Files (*.scene)\0*.scene\0JSON Files (*.json)\0*.json\0All Files (*.*)\0*.*\0";
+	Ofn.lpstrFile       = FileName;
+	Ofn.nMaxFile        = MAX_PATH;
+	Ofn.lpstrDefExt     = L"scene";
+	Ofn.lpstrInitialDir = SceneDir.c_str();
 
-    if (Type == EFileDialogType::Save)
-    {
-        Ofn.Flags = OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;
+	if (Type == EFileDialogType::Save)
+	{
+		Ofn.Flags = OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;
 
-        if (GetSaveFileNameW(&Ofn))
-            return FPaths::FromWide(FileName);
-    }
-    else // Open
-    {
-        Ofn.Flags = OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+		if (GetSaveFileNameW(&Ofn))
+		{
+			return FPaths::FromWide(FileName);
+		}
+	}
+	else // Open
+	{
+		Ofn.Flags = OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
-        if (GetOpenFileNameW(&Ofn))
-            return FPaths::FromWide(FileName);
-    }
+		if (GetOpenFileNameW(&Ofn))
+		{
+			return FPaths::FromWide(FileName);
+		}
+	}
 
-    return "";
+	return "";
 }
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
 
-void FEditorUI::Initialize(FEditorEngine *InEngine)
+void FEditorUI::Initialize(FEditorEngine* InEngine)
 {
-    Engine = InEngine;
-    Console.SetDebugState(&DebugState);
+	Engine = InEngine;
+	Console.SetDebugState(&DebugState);
 
-    ControlPanel.OnSettingsChanged = [this]() { SaveEditorSettings(); };
+	ControlPanel.OnSettingsChanged = [this]()
+	{
+		SaveEditorSettings();
+	};
 
-    Property.OnChanged = [this](const FVector &Loc, const FVector &Rot, const FVector &Scl) {
-        if (!Engine)
-        {
-            return;
-        }
+	Property.OnChanged = [this](const FVector& Loc, const FVector& Rot, const FVector& Scl)
+	{
+		if (!Engine)
+		{
+			return;
+		}
 
-        AActor *Selected = Engine->GetSelectedActor();
-        if (!Selected)
-        {
-            return;
-        }
+		AActor* Selected = Engine->GetSelectedActor();
+		if (!Selected)
+		{
+			return;
+		}
 
-        if (USceneComponent *Root = Selected->GetRootComponent())
-        {
-            FTransform Transform = Root->GetRelativeTransform();
-            Transform.SetLocation(Loc);
-            Transform.SetRotation(FRotator::MakeFromEuler(Rot));
-            Transform.SetScale3D(Scl);
-            Root->SetRelativeTransform(Transform);
-        }
-    };
+		if (USceneComponent* Root = Selected->GetRootComponent())
+		{
+			FTransform Transform = Root->GetRelativeTransform();
+			Transform.SetLocation(Loc);
+			Transform.SetRotation(FRotator::MakeFromEuler(Rot));
+			Transform.SetScale3D(Scl);
+			Root->SetRelativeTransform(Transform);
+		}
+	};
 
-    ContentBrowser.OnFileDoubleClickCallback = [this](const FString &FilePath) {
-        if (CanOpenInObjViewer(FilePath))
-        {
-            if (!LaunchObjViewer(FilePath))
-            {
-                MessageBoxW(nullptr, L"ObjViewer를 실행할 수 없습니다.", L"Open in ObjViewer", MB_OK | MB_ICONWARNING);
-            }
-            return;
-        }
+	ContentBrowser.OnFileDoubleClickCallback = [this](const FString& FilePath)
+	{
+		if (CanOpenInObjViewer(FilePath))
+		{
+			if (!LaunchObjViewer(FilePath))
+			{
+				MessageBoxW(nullptr, L"ObjViewer를 실행할 수 없습니다.", L"Open in ObjViewer", MB_OK | MB_ICONWARNING);
+			}
+			return;
+		}
 
-        if (Engine)
-        {
-            Engine->GetViewportClient()->HandleFileDoubleClick(FilePath);
-        }
-    };
+		if (Engine)
+		{
+			Engine->GetViewportClient()->HandleFileDoubleClick(FilePath);
+		}
+	};
 
-    ContentBrowser.OnOpenInObjViewerRequested = [](const FString &FilePath) {
-        if (!LaunchObjViewer(FilePath))
-        {
-            MessageBoxW(nullptr, L"ObjViewer 실행에 실패했거나 열 수 있는 파일을 찾을 수 없습니다.", L"Open in ObjViewer", MB_OK | MB_ICONWARNING);
-        }
-    };
+	ContentBrowser.OnOpenInObjViewerRequested = [](const FString& FilePath)
+	{
+		if (!LaunchObjViewer(FilePath))
+		{
+			MessageBoxW(nullptr, L"ObjViewer 실행에 실패했거나 열 수 있는 파일을 찾을 수 없습니다.", L"Open in ObjViewer", MB_OK | MB_ICONWARNING);
+		}
+	};
 
-    ContentBrowser.OnFileDragEnd = [this](const FString &DraggingFilePath, const FString &ReleaseDirectory) {
-        if (ContentBrowser.IsHovered())
-        {
-            if (ContentBrowser.IsMouseOnDirectory())
-            {
-                std::filesystem::path Src = FPaths::ToPath(DraggingFilePath);
-                std::filesystem::path DstDir = FPaths::ToPath(ReleaseDirectory);
+	ContentBrowser.OnFileDragEnd = [this](const FString& DraggingFilePath, const FString& ReleaseDirectory)
+	{
+		if (ContentBrowser.IsHovered())
+		{
+			if (ContentBrowser.IsMouseOnDirectory())
+			{
+				std::filesystem::path Src    = FPaths::ToPath(DraggingFilePath);
+				std::filesystem::path DstDir = FPaths::ToPath(ReleaseDirectory);
 
-                std::filesystem::path Dst = DstDir / Src.filename();
+				std::filesystem::path Dst = DstDir / Src.filename();
 
-                std::error_code ec;
+				std::error_code ec;
 
-                if (std::filesystem::exists(Dst))
-                {
-                    int Result =
-                        MessageBoxW(nullptr, L"A file with the same name already exists.\nDo you want to overwrite it?",
-                                    L"Overwrite", MB_YESNO | MB_ICONWARNING);
+				if (std::filesystem::exists(Dst))
+				{
+					int Result =
+							MessageBoxW(nullptr,
+							            L"A file with the same name already exists.\nDo you want to overwrite it?",
+							            L"Overwrite",
+							            MB_YESNO | MB_ICONWARNING);
 
-                    if (Result != IDYES)
-                    {
-                        return;
-                    }
-                    std::filesystem::remove(Dst, ec);
-                    if (ec)
-                    {
-                        MessageBoxW(nullptr, L"Delete Failed", L"Error", MB_OK | MB_ICONERROR);
-                        return;
-                    }
-                }
+					if (Result != IDYES)
+					{
+						return;
+					}
+					std::filesystem::remove(Dst, ec);
+					if (ec)
+					{
+						MessageBoxW(nullptr, L"Delete Failed", L"Error", MB_OK | MB_ICONERROR);
+						return;
+					}
+				}
 
-                std::filesystem::rename(Src, Dst, ec);
+				std::filesystem::rename(Src, Dst, ec);
 
-                if (ec)
-                {
-                    UE_LOG("Move Failed: %s", ec.message().c_str());
-                }
-                else
-                {
-                    const FString SrcPath = FPaths::FromPath(Src);
-                    const FString DstPath = FPaths::FromPath(Dst);
-                    UE_LOG("Moved: %s -> %s", SrcPath.c_str(), DstPath.c_str());
-                }
-            }
-        }
-        else if (Engine && Engine->GetSlateApplication() &&
-                 Engine->GetSlateApplication()->GetHoveredViewportId() != INVALID_VIEWPORT_ID)
-        {
-            UE_LOG("Drop On Viewport");
-            if (Engine)
-            {
-                Engine->GetViewportClient()->HandleFileDropOnViewport(DraggingFilePath);
-            }
-        }
-    };
+				if (ec)
+				{
+					UE_LOG("Move Failed: %s", ec.message().c_str());
+				}
+				else
+				{
+					const FString SrcPath = FPaths::FromPath(Src);
+					const FString DstPath = FPaths::FromPath(Dst);
+					UE_LOG("Moved: %s -> %s", SrcPath.c_str(), DstPath.c_str());
+				}
+			}
+		}
+		else if (Engine && Engine->GetSlateApplication() &&
+			Engine->GetSlateApplication()->GetHoveredViewportId() != INVALID_VIEWPORT_ID)
+		{
+			UE_LOG("Drop On Viewport");
+			if (Engine)
+			{
+				Engine->GetViewportClient()->HandleFileDropOnViewport(DraggingFilePath);
+			}
+		}
+	};
 }
 
-void FEditorUI::InitializeRendererResources(FRenderer *InRenderer)
+void FEditorUI::SetupWindow(FWindowsWindow* InWindow)
 {
-    if (!Engine || !InRenderer)
-    {
-        return;
-    }
+	MainWindow = InWindow;
+	if (bWindowSetup || MainWindow == nullptr)
+	{
+		return;
+	}
 
-    bViewportClientActive = true;
+	bWindowSetup = true;
 
-    ContentBrowser.SetFolderIcon(InRenderer->GetFolderIconSRV());
-    ContentBrowser.SetFileIcon(InRenderer->GetFileIconSRV());
-    InitializeImGui(InRenderer);
+	MainWindow->AddMessageFilter([this](HWND Hwnd, UINT Msg, WPARAM WParam, LPARAM LParam) -> bool
+	{
+		if (!bViewportClientActive)
+		{
+			return false;
+		}
+
+		const bool bIsImeMessage = Msg == WM_IME_STARTCOMPOSITION || Msg == WM_IME_COMPOSITION ||
+				Msg == WM_IME_ENDCOMPOSITION || Msg == WM_IME_NOTIFY || Msg == WM_IME_SETCONTEXT ||
+				Msg == WM_IME_CHAR;
+
+		const bool bIsCharMessage = Msg == WM_CHAR || Msg == WM_SYSCHAR || Msg == WM_UNICHAR;
+
+		if (bIsImeMessage || bIsCharMessage)
+		{
+			if (ImGui::GetCurrentContext())
+			{
+				const ImGuiIO& IO = ImGui::GetIO();
+				if (!IO.WantTextInput)
+				{
+					return true;
+				}
+			}
+			else
+			{
+				return true;
+			}
+		}
+
+		const bool bHandledByImGui = ImGui_ImplWin32_WndProcHandler(Hwnd, Msg, WParam, LParam) != 0;
+
+		FSlateApplication* Slate = Engine->GetSlateApplication();
+		if (Slate && (Slate->GetMouseCapturedViewportId() != INVALID_VIEWPORT_ID || Slate->IsDraggingSplitter()))
+		{
+			return false;
+		}
+
+		return bHandledByImGui;
+	});
 }
 
-bool FEditorUI::InitializeImGui(FRenderer *InRenderer)
+void FEditorUI::InitializeRendererResources(FRenderer* InRenderer)
 {
-    if (!InRenderer)
-    {
-        return false;
-    }
+	if (!Engine || !InRenderer)
+	{
+		return;
+	}
 
-    if (bImGuiInitialized)
-    {
-        return true;
-    }
+	bViewportClientActive = true;
 
-    const HWND Hwnd = InRenderer->GetHwnd();
-    ID3D11Device *Device = InRenderer->GetDevice();
-    ID3D11DeviceContext *DeviceContext = InRenderer->GetDeviceContext();
-    if (!Hwnd || !Device || !DeviceContext)
-    {
-        return false;
-    }
-
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO &IO = ImGui::GetIO();
-    IO.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    IO.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-    IO.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
-    IO.IniFilename = "imgui_editor.ini";
-
-    std::filesystem::path FontPath = FPaths::ProjectRoot() / "Content" / "Fonts" / "NotoSansKR-Bold.ttf";
-    std::wstring FontPathWString = FontPath.wstring();
-
-    ImFontConfig FontConfig;
-    FontConfig.OversampleH = 1;
-    FontConfig.OversampleV = 1;
-    FontConfig.PixelSnapH = true;
-
-    ImFont *Font = nullptr;
-    FILE *FileHandle = nullptr;
-    _wfopen_s(&FileHandle, FontPath.c_str(), L"rb");
-    if (FileHandle)
-    {
-        fseek(FileHandle, 0, SEEK_END);
-        const size_t FontByteSize = static_cast<size_t>(ftell(FileHandle));
-        fseek(FileHandle, 0, SEEK_SET);
-        void *FontData = IM_ALLOC(FontByteSize);
-        if (FontData)
-        {
-            fread(FontData, 1, FontByteSize, FileHandle);
-            Font = IO.Fonts->AddFontFromMemoryTTF(FontData, static_cast<int32>(FontByteSize), 16.0f, &FontConfig,
-                                                  IO.Fonts->GetGlyphRangesKorean());
-        }
-        fclose(FileHandle);
-    }
-
-    if (!Font)
-    {
-        MessageBoxW(nullptr, FontPathWString.c_str(), L"Failed to load font", MB_OK);
-        IO.Fonts->AddFontDefault();
-    }
-
-    ImGui::StyleColorsDark();
-    ImGuiStyle &Style = ImGui::GetStyle();
-    Style.WindowPadding = ImVec2(0, 0);
-    Style.DisplayWindowPadding = ImVec2(0, 0);
-    Style.DisplaySafeAreaPadding = ImVec2(0, 0);
-    Style.Colors[ImGuiCol_Text] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-    Style.Colors[ImGuiCol_TextDisabled] = ImVec4(0.60f, 0.60f, 0.60f, 1.0f);
-    if (IO.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-    {
-        Style.WindowRounding = 0.0f;
-        Style.Colors[ImGuiCol_WindowBg].w = 1.0f;
-    }
-
-    ImGui_ImplWin32_Init(Hwnd);
-    ImGui_ImplDX11_Init(Device, DeviceContext);
-    bImGuiInitialized = true;
-    return true;
+	ContentBrowser.SetFolderIcon(InRenderer->GetFolderIconSRV());
+	ContentBrowser.SetFileIcon(InRenderer->GetFileIconSRV());
+	InitializeImGui(InRenderer);
 }
 
-void FEditorUI::ShutdownImGui()
+void FEditorUI::ShutdownRendererResources(FRenderer* InRenderer)
 {
-    if (!bImGuiInitialized)
-    {
-        return;
-    }
+	bViewportClientActive = false;
+	(void)InRenderer;
 
-    ImGui_ImplDX11_Shutdown();
-    ImGui_ImplWin32_Shutdown();
-    if (ImGui::GetCurrentContext())
-    {
-        ImGui::DestroyContext();
-    }
-    bImGuiInitialized = false;
+	ShutdownImGui();
 }
 
 void FEditorUI::BeginFrame()
 {
-    if (!bViewportClientActive || !bImGuiInitialized)
-    {
-        return;
-    }
+	if (!bViewportClientActive || !bImGuiInitialized)
+	{
+		return;
+	}
 
-    ImGui_ImplDX11_NewFrame();
-    ImGui_ImplWin32_NewFrame();
-    ImGui::NewFrame();
+	ImGui_ImplDX11_NewFrame();
+	ImGui_ImplWin32_NewFrame();
+	ImGui::NewFrame();
 }
 
 void FEditorUI::EndFrame()
 {
-    if (!bViewportClientActive || !bImGuiInitialized)
-    {
-        return;
-    }
-
-    ImGui::Render();
-    ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-
-    ImGuiIO &IO = ImGui::GetIO();
-    if (IO.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-    {
-        ImGui::UpdatePlatformWindows();
-        ImGui::RenderPlatformWindowsDefault();
-    }
-}
-
-void FEditorUI::OnSlateReady()
-{
-    if (!Engine)
-    {
-        return;
-    }
-
-    FSlateApplication *Slate = Engine->GetSlateApplication();
-    if (!Slate)
-    {
-        return;
-    }
-
-    Slate->OnSplitterDragEnd = [this]() { SaveEditorSettings(); };
-    LoadEditorSettings();
-
-    FViewportId PreferredViewportId = INVALID_VIEWPORT_ID;
-    if (Engine)
-    {
-        for (const FViewportEntry &Entry : Engine->GetViewportRegistry().GetEntries())
-        {
-            if (!Entry.bActive)
-            {
-                continue;
-            }
-
-            if (Entry.LocalState.ProjectionType == EViewportType::Perspective)
-            {
-                PreferredViewportId = Entry.Id;
-                break;
-            }
-
-            if (PreferredViewportId == INVALID_VIEWPORT_ID)
-            {
-                PreferredViewportId = Entry.Id;
-            }
-        }
-    }
-
-    Slate->FocusViewport(PreferredViewportId);
-    bRequestViewportFocusOnNextRender = true;
-}
-
-void FEditorUI::ShutdownRendererResources(FRenderer *InRenderer)
-{
-    bViewportClientActive = false;
-    (void)InRenderer;
-
-    ShutdownImGui();
-}
-
-void FEditorUI::SetupWindow(FWindowsWindow *InWindow)
-{
-    MainWindow = InWindow;
-    if (bWindowSetup || MainWindow == nullptr)
-    {
-        return;
-    }
-
-    bWindowSetup = true;
-
-    MainWindow->AddMessageFilter([this](HWND Hwnd, UINT Msg, WPARAM WParam, LPARAM LParam) -> bool {
-        if (!bViewportClientActive)
-        {
-            return false;
-        }
-
-        const bool bIsImeMessage = Msg == WM_IME_STARTCOMPOSITION || Msg == WM_IME_COMPOSITION ||
-                                   Msg == WM_IME_ENDCOMPOSITION || Msg == WM_IME_NOTIFY || Msg == WM_IME_SETCONTEXT ||
-                                   Msg == WM_IME_CHAR;
-
-        const bool bIsCharMessage = Msg == WM_CHAR || Msg == WM_SYSCHAR || Msg == WM_UNICHAR;
-
-        if (bIsImeMessage || bIsCharMessage)
-        {
-            if (ImGui::GetCurrentContext())
-            {
-                const ImGuiIO &IO = ImGui::GetIO();
-                if (!IO.WantTextInput)
-                {
-                    return true;
-                }
-            }
-            else
-            {
-                return true;
-            }
-        }
-
-        const bool bHandledByImGui = ImGui_ImplWin32_WndProcHandler(Hwnd, Msg, WParam, LParam) != 0;
-
-        FSlateApplication *Slate = Engine->GetSlateApplication();
-        if (Slate && (Slate->GetMouseCapturedViewportId() != INVALID_VIEWPORT_ID || Slate->IsDraggingSplitter()))
-        {
-            return false;
-        }
-
-        return bHandledByImGui;
-    });
-}
-
-void FEditorUI::BuildDefaultLayout(uint32 DockID)
-{
-    ImGui::DockBuilderRemoveNode(DockID);
-    ImGui::DockBuilderAddNode(DockID, ImGuiDockNodeFlags_DockSpace);
-
-    ImGuiViewport *Viewport = ImGui::GetMainViewport();
-    ImGui::DockBuilderSetNodeSize(DockID, Viewport->WorkSize);
-
-    ImGuiID DockBottom = 0;
-    ImGuiID DockUpper = 0;
-    ImGui::DockBuilderSplitNode(DockID, ImGuiDir_Down, 0.25f, &DockBottom, &DockUpper);
-
-    ImGuiID DockLeft = 0;
-    ImGuiID DockCenter = 0;
-    ImGui::DockBuilderSplitNode(DockUpper, ImGuiDir_Left, 0.20f, &DockLeft, &DockCenter);
-
-    ImGuiID DockRight = 0;
-    ImGui::DockBuilderSplitNode(DockCenter, ImGuiDir_Right, 0.25f, &DockRight, &DockCenter);
-
-    ImGuiID DockRightTop = 0;
-    ImGuiID DockRightBottom = 0;
-    ImGui::DockBuilderSplitNode(DockRight, ImGuiDir_Up, 0.50f, &DockRightTop, &DockRightBottom);
-    ImGui::DockBuilderDockWindow("Viewport", DockCenter);
-    ImGui::DockBuilderDockWindow("Viewport", DockCenter);
-    ImGui::DockBuilderDockWindow("Stats", DockLeft);
-    ImGui::DockBuilderDockWindow("Properties", DockRightTop);
-    ImGui::DockBuilderDockWindow("Control Panel", DockRightBottom);
-    ImGui::DockBuilderDockWindow("Level Gameplay", DockRightBottom);
-    ImGui::DockBuilderDockWindow("Console", DockBottom);
-
-    ImGui::DockBuilderFinish(DockID);
-}
-
-void FEditorUI::LoadEditorSettings()
-{
-    std::wstring Path = GetEditorIniPathW();
-    if (!Engine)
-        return;
-    FEditorViewportRegistry &ViewportRegistry = Engine->GetViewportRegistry();
-
-    wchar_t Sec[32];
-    wchar_t Buf[64];
-
-    for (FViewportEntry &Entry : ViewportRegistry.GetEntries())
-    {
-        swprintf(Sec, 32, L"Viewport.%u", Entry.Id);
-        FViewportLocalState &S = Entry.LocalState;
-
-        GetPrivateProfileStringW(Sec, L"GridSize", L"10.0", Buf, 64, Path.c_str());
-        S.GridSize = static_cast<float>(_wtof(Buf));
-
-        GetPrivateProfileStringW(Sec, L"LineThickness", L"1.0", Buf, 64, Path.c_str());
-        S.LineThickness = static_cast<float>(_wtof(Buf));
-
-        GetPrivateProfileStringW(Sec, L"ShowGrid", L"1", Buf, 64, Path.c_str());
-        S.bShowGrid = (_wtoi(Buf) != 0);
-
-        GetPrivateProfileStringW(Sec, L"ViewMode", L"0", Buf, 64, Path.c_str());
-        S.ViewMode = static_cast<ERenderMode>(_wtoi(Buf));
-
-        GetPrivateProfileStringW(Sec, L"SF.Primitives", L"1", Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_Primitives, _wtoi(Buf) != 0);
-
-        GetPrivateProfileStringW(Sec, L"SF.UUID", L"1", Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_UUID, _wtoi(Buf) != 0);
-
-        GetPrivateProfileStringW(Sec, L"SF.DebugDraw", L"0", Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, _wtoi(Buf) != 0);
-
-        const wchar_t *DefaultDebugVolumeValue =
-            S.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw) ? L"1" : L"0";
-        GetPrivateProfileStringW(Sec, L"SF.DebugVolume", DefaultDebugVolumeValue, Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, _wtoi(Buf) != 0);
-
-        GetPrivateProfileStringW(Sec, L"SF.WorldAxis", L"0", Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, _wtoi(Buf) != 0);
-
-        GetPrivateProfileStringW(Sec, L"SF.Collision", L"0", Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_Collision, _wtoi(Buf) != 0);
-
-        GetPrivateProfileStringW(Sec, L"SF.SceneBVH", L"0", Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_SceneBVH, _wtoi(Buf) != 0);
-
-        GetPrivateProfileStringW(Sec, L"SF.MeshBVH", L"0", Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_MeshBVH, _wtoi(Buf) != 0);
-
-        GetPrivateProfileStringW(Sec, L"SF.Decal", L"1", Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_Decal, _wtoi(Buf) != 0);
-
-        GetPrivateProfileStringW(Sec, L"SF.FXAA", L"0", Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_FXAA, _wtoi(Buf) != 0);
-
-        GetPrivateProfileStringW(Sec, L"SF.DecalArrow", L"1", Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_DecalArrow, _wtoi(Buf) != 0);
-
-        GetPrivateProfileStringW(Sec, L"SF.ProjectileArrow", L"1", Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_ProjectileArrow, _wtoi(Buf) != 0);
-
-        GetPrivateProfileStringW(Sec, L"SF.DecalDebug", L"0", Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_DecalDebug, _wtoi(Buf) != 0);
-
-        GetPrivateProfileStringW(Sec, L"SF.Fog", L"1", Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_Fog, _wtoi(Buf) != 0);
-
-        GetPrivateProfileStringW(Sec, L"SF.LocalFogDebug", L"0", Buf, 64, Path.c_str());
-        S.ShowFlags.SetFlag(EEngineShowFlags::SF_LocalFogDebug, _wtoi(Buf) != 0);
-    }
-
-    if (FRenderer* Renderer = Engine->GetRenderer())
-    {
-    	FToneMappingSettings TM = Renderer->GetToneMappingSettings();
-
-    	GetPrivateProfileStringW(L"ToneMapping", L"Mode", L"1", Buf, 64, Path.c_str());
-    	TM.Mode = static_cast<EToneMappingMode>(std::clamp(_wtoi(Buf), 0, 3));
-
-    	GetPrivateProfileStringW(L"ToneMapping", L"Exposure", L"1.0", Buf, 64, Path.c_str());
-    	TM.Exposure = static_cast<float>(_wtof(Buf));
-
-    	GetPrivateProfileStringW(L"ToneMapping", L"ShoulderStrength", L"0.15", Buf, 64, Path.c_str());
-    	TM.ShoulderStrength = static_cast<float>(_wtof(Buf));
-
-    	GetPrivateProfileStringW(L"ToneMapping", L"LinearWhite", L"11.2", Buf, 64, Path.c_str());
-    	TM.LinearWhite = static_cast<float>(_wtof(Buf));
-
-    	GetPrivateProfileStringW(L"ToneMapping", L"HableB", L"0.50", Buf, 64, Path.c_str());
-    	TM.HableB = static_cast<float>(_wtof(Buf));
-    	GetPrivateProfileStringW(L"ToneMapping", L"HableC", L"0.10", Buf, 64, Path.c_str());
-    	TM.HableC = static_cast<float>(_wtof(Buf));
-    	GetPrivateProfileStringW(L"ToneMapping", L"HableD", L"0.20", Buf, 64, Path.c_str());
-    	TM.HableD = static_cast<float>(_wtof(Buf));
-    	GetPrivateProfileStringW(L"ToneMapping", L"HableE", L"0.02", Buf, 64, Path.c_str());
-    	TM.HableE = static_cast<float>(_wtof(Buf));
-    	GetPrivateProfileStringW(L"ToneMapping", L"HableF", L"0.30", Buf, 64, Path.c_str());
-    	TM.HableF = static_cast<float>(_wtof(Buf));
-
-    	GetPrivateProfileStringW(L"ToneMapping", L"AcesA", L"2.51", Buf, 64, Path.c_str());
-    	TM.AcesA = static_cast<float>(_wtof(Buf));
-    	GetPrivateProfileStringW(L"ToneMapping", L"AcesB", L"0.03", Buf, 64, Path.c_str());
-    	TM.AcesB = static_cast<float>(_wtof(Buf));
-    	GetPrivateProfileStringW(L"ToneMapping", L"AcesC", L"2.43", Buf, 64, Path.c_str());
-    	TM.AcesC = static_cast<float>(_wtof(Buf));
-    	GetPrivateProfileStringW(L"ToneMapping", L"AcesD", L"0.59", Buf, 64, Path.c_str());
-    	TM.AcesD = static_cast<float>(_wtof(Buf));
-    	GetPrivateProfileStringW(L"ToneMapping", L"AcesE", L"0.14", Buf, 64, Path.c_str());
-    	TM.AcesE = static_cast<float>(_wtof(Buf));
-
-    	Renderer->SetToneMappingSettings(TM);
-
-        // Bloom
-        if (FBloomRenderFeature* Bloom = Renderer->GetBloomFeature())
-        {
-            GetPrivateProfileStringW(L"Bloom", L"Apply", L"0", Buf, 64, Path.c_str());
-            Bloom->SetApplyBloom(_wtoi(Buf) != 0);
-
-            GetPrivateProfileStringW(L"Bloom", L"BlurIterations", L"1", Buf, 64, Path.c_str());
-            Bloom->SetBlurIterations(_wtoi(Buf));
-
-            GetPrivateProfileStringW(L"Bloom", L"Threshold", L"0.3", Buf, 64, Path.c_str());
-            Bloom->SetThreshold(static_cast<float>(_wtof(Buf)));
-
-            GetPrivateProfileStringW(L"Bloom", L"Intensity", L"3.0", Buf, 64, Path.c_str());
-            Bloom->SetBloomIntensity(static_cast<float>(_wtof(Buf)));
-
-            GetPrivateProfileStringW(L"Bloom", L"Exposure", L"1.0", Buf, 64, Path.c_str());
-            Bloom->SetExposure(static_cast<float>(_wtof(Buf)));
-        }
-
-        // Decal projection mode
-        GetPrivateProfileStringW(L"Renderer", L"DecalProjectionMode", L"1", Buf, 64, Path.c_str());
-        Renderer->SetDecalProjectionMode(static_cast<EDecalProjectionMode>(_wtoi(Buf)));
-    }
-
-    FSlateApplication *Slate = Engine->GetSlateApplication();
-    if (Slate)
-    {
-        GetPrivateProfileStringW(L"Splitter", L"Layout", L"0", Buf, 64, Path.c_str());
-        int32 LayoutValue = _wtoi(Buf);
-        if (LayoutValue < static_cast<int32>(EViewportLayout::Single) ||
-            LayoutValue > static_cast<int32>(EViewportLayout::FourGrid))
-        {
-            LayoutValue = static_cast<int32>(EViewportLayout::Single);
-        }
-
-        Slate->SetLayout(static_cast<EViewportLayout>(LayoutValue));
-        const int32 ActiveViewportCount = Slate->GetActiveViewportCount();
-        int32 EntryIndex = 0;
-        for (FViewportEntry &Entry : ViewportRegistry.GetEntries())
-        {
-            Entry.bActive = (EntryIndex < ActiveViewportCount);
-            ++EntryIndex;
-        }
-
-        for (int i = 0; i < 3; ++i)
-        {
-            swprintf(Sec, 32, L"Splitter%d", i);
-            GetPrivateProfileStringW(Sec, L"Ratio", L"0.5", Buf, 64, Path.c_str());
-
-            float Ratio = static_cast<float>(_wtof(Buf));
-            if (Ratio < 0.05f)
-            {
-                Ratio = 0.05f;
-            }
-            else if (Ratio > 0.95f)
-            {
-                Ratio = 0.95f;
-            }
-            Slate->SetSplitterRatio(i, Ratio);
-        }
-
-        Slate->PerformLayout();
-    }
-}
-
-void FEditorUI::SaveEditorSettings()
-{
-    std::wstring Path = GetEditorIniPathW();
-    if (!Engine)
-        return;
-    const FEditorViewportRegistry &ViewportRegistry = Engine->GetViewportRegistry();
-
-    wchar_t Sec[32];
-    wchar_t Buf[64];
-
-    for (const FViewportEntry &Entry : ViewportRegistry.GetEntries())
-    {
-        swprintf(Sec, 32, L"Viewport.%u", Entry.Id);
-        const FViewportLocalState &S = Entry.LocalState;
-
-        swprintf(Buf, 64, L"%.2f", S.GridSize);
-        WritePrivateProfileStringW(Sec, L"GridSize", Buf, Path.c_str());
-
-        swprintf(Buf, 64, L"%.2f", S.LineThickness);
-        WritePrivateProfileStringW(Sec, L"LineThickness", Buf, Path.c_str());
-
-        WritePrivateProfileStringW(Sec, L"ShowGrid", S.bShowGrid ? L"1" : L"0", Path.c_str());
-        WritePrivateProfileStringW(Sec, L"ViewMode", std::to_wstring(static_cast<int>(S.ViewMode)).c_str(),
-                                   Path.c_str());
-
-        WritePrivateProfileStringW(Sec, L"SF.Primitives",
-                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_Primitives) ? L"1" : L"0", Path.c_str());
-        WritePrivateProfileStringW(Sec, L"SF.UUID", S.ShowFlags.HasFlag(EEngineShowFlags::SF_UUID) ? L"1" : L"0",
-                                   Path.c_str());
-        WritePrivateProfileStringW(Sec, L"SF.DebugDraw",
-                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw) ? L"1" : L"0", Path.c_str());
-        WritePrivateProfileStringW(Sec, L"SF.DebugVolume",
-                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugVolume) ? L"1" : L"0",
-                                   Path.c_str());
-        WritePrivateProfileStringW(Sec, L"SF.WorldAxis",
-                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_WorldAxis) ? L"1" : L"0", Path.c_str());
-        WritePrivateProfileStringW(Sec, L"SF.Collision",
-                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_Collision) ? L"1" : L"0", Path.c_str());
-
-        WritePrivateProfileStringW(Sec, L"SF.SceneBVH",
-                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_SceneBVH) ? L"1" : L"0", Path.c_str());
-
-        WritePrivateProfileStringW(Sec, L"SF.MeshBVH", S.ShowFlags.HasFlag(EEngineShowFlags::SF_MeshBVH) ? L"1" : L"0",
-                                   Path.c_str());
-        WritePrivateProfileStringW(Sec, L"SF.DecalDebug",
-                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalDebug) ? L"1" : L"0", Path.c_str());
-
-        WritePrivateProfileStringW(Sec, L"SF.Decal", S.ShowFlags.HasFlag(EEngineShowFlags::SF_Decal) ? L"1" : L"0",
-                                   Path.c_str());
-        WritePrivateProfileStringW(Sec, L"SF.Fog", S.ShowFlags.HasFlag(EEngineShowFlags::SF_Fog) ? L"1" : L"0",
-                                   Path.c_str());
-        WritePrivateProfileStringW(Sec, L"SF.LocalFogDebug",
-                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_LocalFogDebug) ? L"1" : L"0",
-                                   Path.c_str());
-        WritePrivateProfileStringW(Sec, L"SF.FXAA", S.ShowFlags.HasFlag(EEngineShowFlags::SF_FXAA) ? L"1" : L"0",
-                                   Path.c_str());
-        WritePrivateProfileStringW(Sec, L"SF.DecalArrow",
-                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalArrow) ? L"1" : L"0", Path.c_str());
-        WritePrivateProfileStringW(Sec, L"SF.ProjectileArrow",
-                                   S.ShowFlags.HasFlag(EEngineShowFlags::SF_ProjectileArrow) ? L"1" : L"0",
-                                   Path.c_str());
-    }
-
-    if (FRenderer* Renderer = Engine->GetRenderer())
-    {
-        const FToneMappingSettings TM = Renderer->GetToneMappingSettings();
-
-        WritePrivateProfileStringW(L"ToneMapping", L"Mode",
-            std::to_wstring(static_cast<int>(TM.Mode)).c_str(), Path.c_str());
-
-        swprintf(Buf, 64, L"%.4f", TM.Exposure);
-        WritePrivateProfileStringW(L"ToneMapping", L"Exposure", Buf, Path.c_str());
-
-        swprintf(Buf, 64, L"%.4f", TM.ShoulderStrength);
-        WritePrivateProfileStringW(L"ToneMapping", L"ShoulderStrength", Buf, Path.c_str());
-
-        swprintf(Buf, 64, L"%.4f", TM.LinearWhite);
-        WritePrivateProfileStringW(L"ToneMapping", L"LinearWhite", Buf, Path.c_str());
-
-        swprintf(Buf, 64, L"%.4f", TM.HableB);
-        WritePrivateProfileStringW(L"ToneMapping", L"HableB", Buf, Path.c_str());
-        swprintf(Buf, 64, L"%.4f", TM.HableC);
-        WritePrivateProfileStringW(L"ToneMapping", L"HableC", Buf, Path.c_str());
-        swprintf(Buf, 64, L"%.4f", TM.HableD);
-        WritePrivateProfileStringW(L"ToneMapping", L"HableD", Buf, Path.c_str());
-        swprintf(Buf, 64, L"%.4f", TM.HableE);
-        WritePrivateProfileStringW(L"ToneMapping", L"HableE", Buf, Path.c_str());
-        swprintf(Buf, 64, L"%.4f", TM.HableF);
-        WritePrivateProfileStringW(L"ToneMapping", L"HableF", Buf, Path.c_str());
-
-        swprintf(Buf, 64, L"%.4f", TM.AcesA);
-        WritePrivateProfileStringW(L"ToneMapping", L"AcesA", Buf, Path.c_str());
-        swprintf(Buf, 64, L"%.4f", TM.AcesB);
-        WritePrivateProfileStringW(L"ToneMapping", L"AcesB", Buf, Path.c_str());
-        swprintf(Buf, 64, L"%.4f", TM.AcesC);
-        WritePrivateProfileStringW(L"ToneMapping", L"AcesC", Buf, Path.c_str());
-        swprintf(Buf, 64, L"%.4f", TM.AcesD);
-        WritePrivateProfileStringW(L"ToneMapping", L"AcesD", Buf, Path.c_str());
-        swprintf(Buf, 64, L"%.4f", TM.AcesE);
-        WritePrivateProfileStringW(L"ToneMapping", L"AcesE", Buf, Path.c_str());
-
-        // Bloom
-        if (FBloomRenderFeature* Bloom = Renderer->GetBloomFeature())
-        {
-            WritePrivateProfileStringW(L"Bloom", L"Apply", Bloom->IsBloomApplied() ? L"1" : L"0", Path.c_str());
-
-            WritePrivateProfileStringW(L"Bloom", L"BlurIterations",
-                std::to_wstring(Bloom->GetBlurIterations()).c_str(), Path.c_str());
-
-            swprintf(Buf, 64, L"%.4f", Bloom->GetThreshold());
-            WritePrivateProfileStringW(L"Bloom", L"Threshold", Buf, Path.c_str());
-
-            swprintf(Buf, 64, L"%.4f", Bloom->GetBloomIntensity());
-            WritePrivateProfileStringW(L"Bloom", L"Intensity", Buf, Path.c_str());
-
-            swprintf(Buf, 64, L"%.4f", Bloom->GetExposure());
-            WritePrivateProfileStringW(L"Bloom", L"Exposure", Buf, Path.c_str());
-        }
-
-        // Decal projection mode
-        WritePrivateProfileStringW(L"Renderer", L"DecalProjectionMode",
-            std::to_wstring(static_cast<int>(Renderer->GetDecalProjectionMode())).c_str(), Path.c_str());
-    }
-
-    FSlateApplication *Slate = Engine->GetSlateApplication();
-
-    if (Slate)
-    {
-        WritePrivateProfileStringW(L"Splitter", L"Layout",
-                                   std::to_wstring(static_cast<int>(Slate->GetCurrentLayout())).c_str(), Path.c_str());
-        for (int i = 0; i < 3; i++)
-        {
-            swprintf(Sec, 32, L"Splitter%d", i);
-            swprintf(Buf, 64, L"%.4f", Slate->GetSplitterRatio(i));
-            WritePrivateProfileStringW(Sec, L"Ratio", Buf, Path.c_str());
-        }
-    }
-}
-
-std::wstring FEditorUI::GetEditorIniPathW() const
-{
-    return (FPaths::ProjectRoot() / "Editor.ini").wstring();
+	if (!bViewportClientActive || !bImGuiInitialized)
+	{
+		return;
+	}
+
+	ImGui::Render();
+	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+	ImGuiIO& IO = ImGui::GetIO();
+	if (IO.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+	{
+		ImGui::UpdatePlatformWindows();
+		ImGui::RenderPlatformWindowsDefault();
+	}
 }
 
 void FEditorUI::Render()
 {
-    static bool bOpenAboutPopup = false;
+	static bool bOpenAboutPopup = false;
 
-    if (!bViewportClientActive)
-    {
-        return;
-    }
+	if (!bViewportClientActive)
+	{
+		return;
+	}
 
-    ImGuiViewport *MainViewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(MainViewport->WorkPos);
-    ImGui::SetNextWindowSize(MainViewport->WorkSize);
-    ImGui::SetNextWindowViewport(MainViewport->ID);
+	ImGuiViewport* MainViewport = ImGui::GetMainViewport();
+	ImGui::SetNextWindowPos(MainViewport->WorkPos);
+	ImGui::SetNextWindowSize(MainViewport->WorkSize);
+	ImGui::SetNextWindowViewport(MainViewport->ID);
 
-    ImGuiWindowFlags HostFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
-                                 ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
-                                 ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground;
+	ImGuiWindowFlags HostFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+			ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
+			ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::Begin("##DockSpaceHost", nullptr, HostFlags);
-    ImGui::PopStyleVar(3);
-    ImGuiID DockID = ImGui::GetID("MainDockSpace");
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+	ImGui::Begin("##DockSpaceHost", nullptr, HostFlags);
+	ImGui::PopStyleVar(3);
+	ImGuiID DockID = ImGui::GetID("MainDockSpace");
 
-    if (!bLayoutInitialized)
-    {
-        bLayoutInitialized = true;
+	if (!bLayoutInitialized)
+	{
+		bLayoutInitialized = true;
 
-        ImGuiDockNode *Node = ImGui::DockBuilderGetNode(DockID);
-        if (!Node || Node->IsEmpty())
-        {
-            BuildDefaultLayout(DockID);
-        }
-    }
+		ImGuiDockNode* Node = ImGui::DockBuilderGetNode(DockID);
+		if (!Node || Node->IsEmpty())
+		{
+			BuildDefaultLayout(DockID);
+		}
+	}
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    ImGui::DockSpace(DockID, ImVec2(0, 0), ImGuiDockNodeFlags_PassthruCentralNode);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+	ImGui::DockSpace(DockID, ImVec2(0, 0), ImGuiDockNodeFlags_PassthruCentralNode);
 
-    ImGuiDockNode *CentralNode = ImGui::DockBuilderGetCentralNode(DockID);
-    if (CentralNode && CentralNode->Size.x > 0 && CentralNode->Size.y > 0)
-    {
-        ImGuiViewport *MainVP = ImGui::GetMainViewport();
-        const float WinX = MainVP ? MainVP->Pos.x : 0.0f;
-        const float WinY = MainVP ? MainVP->Pos.y : 0.0f;
+	ImGuiDockNode* CentralNode = ImGui::DockBuilderGetCentralNode(DockID);
+	if (CentralNode && CentralNode->Size.x > 0 && CentralNode->Size.y > 0)
+	{
+		ImGuiViewport* MainVP = ImGui::GetMainViewport();
+		const float    WinX   = MainVP ? MainVP->Pos.x : 0.0f;
+		const float    WinY   = MainVP ? MainVP->Pos.y : 0.0f;
 
-        CentralDockRect.X = static_cast<int32>(CentralNode->Pos.x - WinX);
-        CentralDockRect.Y = static_cast<int32>(CentralNode->Pos.y - WinY);
-        CentralDockRect.Width = static_cast<int32>(CentralNode->Size.x);
-        CentralDockRect.Height = static_cast<int32>(CentralNode->Size.y);
-        bHasCentralDockRect = true;
-    }
+		CentralDockRect.X      = static_cast<int32>(CentralNode->Pos.x - WinX);
+		CentralDockRect.Y      = static_cast<int32>(CentralNode->Pos.y - WinY);
+		CentralDockRect.Width  = static_cast<int32>(CentralNode->Size.x);
+		CentralDockRect.Height = static_cast<int32>(CentralNode->Size.y);
+		bHasCentralDockRect    = true;
+	}
 
-    ImGui::PopStyleVar();
-    ImGui::End();
+	ImGui::PopStyleVar();
+	ImGui::End();
 
-    if (Engine)
-    {
-        const FWorldContext *ActiveWorldContext = Engine->GetActiveWorldContext();
-        AActor *Selected = Engine->GetSelectedActor();
-        if (Selected != CachedSelectedActor || ActiveWorldContext != CachedActiveWorldContext)
-        {
-            SyncSelectedActorProperty();
-        }
-    }
+	if (Engine)
+	{
+		const FWorldContext* ActiveWorldContext = Engine->GetActiveWorldContext();
+		AActor*              Selected           = Engine->GetSelectedActor();
+		if (Selected != CachedSelectedActor || ActiveWorldContext != CachedActiveWorldContext)
+		{
+			SyncSelectedActorProperty();
+		}
+	}
 
-    Stat.SetObjectCount(UObject::TotalAllocationCounts);
-    Stat.SetHeapUsage(UObject::TotalAllocationBytes);
+	Stat.SetObjectCount(UObject::TotalAllocationCounts);
+	Stat.SetHeapUsage(UObject::TotalAllocationBytes);
 
-    if (ImGui::BeginMainMenuBar())
-    {
-        if (ImGui::BeginMenu("File"))
-        {
-            if (ImGui::MenuItem("New Scene"))
-            {
-                if (Engine && Engine->GetEditorScene())
-                {
-                    Engine->SetSelectedActor(nullptr);
+	if (ImGui::BeginMainMenuBar())
+	{
+		if (ImGui::BeginMenu("File"))
+		{
+			if (ImGui::MenuItem("New Scene"))
+			{
+				if (Engine && Engine->GetEditorScene())
+				{
+					Engine->SetSelectedActor(nullptr);
 
-                    if (UCameraComponent *Cam =
-                            Engine->GetEditorWorld() ? Engine->GetEditorWorld()->GetActiveCameraComponent() : nullptr)
-                    {
-                        Cam->GetCamera()->SetPosition({-5.0f, 0.0f, 2.0f});
-                        Cam->GetCamera()->SetRotation(0.f, 0.f);
-                    }
-                    Engine->GetEditorScene()->ClearActors();
-                    Engine->GetEditorScene()->EnsureEssentialActors();
-                    Engine->CollectGarbage();
-                    UE_LOG("New scene created");
-                }
-            }
+					if (UCameraComponent* Cam =
+							Engine->GetEditorWorld() ? Engine->GetEditorWorld()->GetActiveCameraComponent() : nullptr)
+					{
+						Cam->GetCamera()->SetPosition({ -5.0f, 0.0f, 2.0f });
+						Cam->GetCamera()->SetRotation(0.f, 0.f);
+					}
+					Engine->GetEditorScene()->ClearActors();
+					Engine->GetEditorScene()->EnsureEssentialActors();
+					Engine->CollectGarbage();
+					UE_LOG("New scene created");
+				}
+			}
 
-            if (ImGui::MenuItem("Open Scene"))
-            {
-                if (Engine && Engine->GetEditorScene())
-                {
-                    FString Path = GetFilePathUsingDialog(EFileDialogType::Open);
+			if (ImGui::MenuItem("Open Scene"))
+			{
+				if (Engine && Engine->GetEditorScene())
+				{
+					FString Path = GetFilePathUsingDialog(EFileDialogType::Open);
 
-                    if (!Path.empty())
-                    {
-                        Engine->SetSelectedActor(nullptr);
-                        Engine->GetEditorScene()->ClearActors();
-                        Engine->CollectGarbage();
+					if (!Path.empty())
+					{
+						Engine->SetSelectedActor(nullptr);
+						Engine->GetEditorScene()->ClearActors();
+						Engine->CollectGarbage();
 
-                        FCameraSerializeData CameraData;
-                        FScopedSceneLoadOverlay LoadingOverlay(MainWindow ? MainWindow->GetHwnd() : nullptr);
-                        if (LoadingOverlay.IsValid())
-                        {
-                            LoadingOverlay.Update(0.0f, "Preparing scene load...");
-                        }
+						FCameraSerializeData    CameraData;
+						FScopedSceneLoadOverlay LoadingOverlay(MainWindow ? MainWindow->GetHwnd() : nullptr);
+						if (LoadingOverlay.IsValid())
+						{
+							LoadingOverlay.Update(0.0f, "Preparing scene load...");
+						}
 
-                        bool bLoaded = FSceneSerializer::Load(
+						bool bLoaded = FSceneSerializer::Load(
 							Engine->GetEditorScene(),
 							Path,
 							Engine->GetRenderer()->GetDevice(),
@@ -1167,487 +689,529 @@ void FEditorUI::Render()
 							{
 								LoadingOverlay.Update(Progress01, Message);
 							});
-                        if (bLoaded)
-                        {
-                            if (CameraData.bValid)
-                            {
-                                FEditorViewportRegistry &ViewportRegistry = Engine->GetViewportRegistry();
-                                FViewportEntry *PerspEntry = nullptr;
-                                if (FSlateApplication *Slate = Engine->GetSlateApplication())
-                                {
-                                    const FViewportId FocusedId = Slate->GetFocusedViewportId();
-                                    if (FocusedId != INVALID_VIEWPORT_ID)
-                                    {
-                                        FViewportEntry *FocusedEntry =
-                                            ViewportRegistry.FindEntryByViewportID(FocusedId);
-                                        if (FocusedEntry && FocusedEntry->bActive && FocusedEntry->WorldContext &&
-                                            FocusedEntry->WorldContext->WorldType == EWorldType::Editor &&
-                                            FocusedEntry->LocalState.ProjectionType == EViewportType::Perspective)
-                                        {
-                                            PerspEntry = FocusedEntry;
-                                        }
-                                    }
-                                }
-                                if (!PerspEntry)
-                                {
-                                    for (FViewportEntry &Entry : ViewportRegistry.GetEntries())
-                                    {
-                                        if (Entry.bActive && Entry.WorldContext &&
-                                            Entry.WorldContext->WorldType == EWorldType::Editor &&
-                                            Entry.LocalState.ProjectionType == EViewportType::Perspective)
-                                        {
-                                            PerspEntry = &Entry;
-                                            break;
-                                        }
-                                    }
-                                }
-                                if (PerspEntry)
-                                {
-                                    PerspEntry->LocalState.Position = CameraData.Location;
-                                    PerspEntry->LocalState.Rotation = CameraData.Rotation;
-                                    PerspEntry->LocalState.FovY = CameraData.FOV;
-                                    PerspEntry->LocalState.NearPlane = CameraData.NearClip;
-                                    PerspEntry->LocalState.FarPlane = CameraData.FarClip;
-                                }
-                            }
-                            UE_LOG("Scene loaded: %s", Path.c_str());
-                        }
-                        else
-                        {
-                            MessageBoxW(nullptr, L"Failed to load the selected scene file.", L"Error",
-                                        MB_OK | MB_ICONWARNING);
-                        }
-                    }
-                }
-            }
+						if (bLoaded)
+						{
+							if (CameraData.bValid)
+							{
+								FEditorViewportRegistry& ViewportRegistry = Engine->GetViewportRegistry();
+								FViewportEntry*          PerspEntry       = nullptr;
+								if (FSlateApplication* Slate = Engine->GetSlateApplication())
+								{
+									const FViewportId FocusedId = Slate->GetFocusedViewportId();
+									if (FocusedId != INVALID_VIEWPORT_ID)
+									{
+										FViewportEntry* FocusedEntry =
+												ViewportRegistry.FindEntryByViewportID(FocusedId);
+										if (FocusedEntry && FocusedEntry->bActive && FocusedEntry->WorldContext &&
+											FocusedEntry->WorldContext->WorldType == EWorldType::Editor &&
+											FocusedEntry->LocalState.ProjectionType == EViewportType::Perspective)
+										{
+											PerspEntry = FocusedEntry;
+										}
+									}
+								}
+								if (!PerspEntry)
+								{
+									for (FViewportEntry& Entry : ViewportRegistry.GetEntries())
+									{
+										if (Entry.bActive && Entry.WorldContext &&
+											Entry.WorldContext->WorldType == EWorldType::Editor &&
+											Entry.LocalState.ProjectionType == EViewportType::Perspective)
+										{
+											PerspEntry = &Entry;
+											break;
+										}
+									}
+								}
+								if (PerspEntry)
+								{
+									PerspEntry->LocalState.Position  = CameraData.Location;
+									PerspEntry->LocalState.Rotation  = CameraData.Rotation;
+									PerspEntry->LocalState.FovY      = CameraData.FOV;
+									PerspEntry->LocalState.NearPlane = CameraData.NearClip;
+									PerspEntry->LocalState.FarPlane  = CameraData.FarClip;
+								}
+							}
+							UE_LOG("Scene loaded: %s", Path.c_str());
+						}
+						else
+						{
+							MessageBoxW(nullptr,
+							            L"Failed to load the selected scene file.",
+							            L"Error",
+							            MB_OK | MB_ICONWARNING);
+						}
+					}
+				}
+			}
 
-            if (ImGui::MenuItem("Save Scene As..."))
-            {
-                if (Engine && Engine->GetEditorScene())
-                {
-                    FString Path = GetFilePathUsingDialog(EFileDialogType::Save);
+			if (ImGui::MenuItem("Save Scene As..."))
+			{
+				if (Engine && Engine->GetEditorScene())
+				{
+					FString Path = GetFilePathUsingDialog(EFileDialogType::Save);
 
-                    if (!Path.empty())
-                    {
-                        FCameraSerializeData CameraData;
-                        const FEditorViewportRegistry &ViewportRegistry = Engine->GetViewportRegistry();
-                        const FViewportEntry *PerspEntry = nullptr;
-                        if (const FSlateApplication *Slate = Engine->GetSlateApplication())
-                        {
-                            const FViewportId FocusedId = Slate->GetFocusedViewportId();
-                            if (FocusedId != INVALID_VIEWPORT_ID)
-                            {
-                                const FViewportEntry *FocusedEntry = ViewportRegistry.FindEntryByViewportID(FocusedId);
-                                if (FocusedEntry && FocusedEntry->bActive && FocusedEntry->WorldContext &&
-                                    FocusedEntry->WorldContext->WorldType == EWorldType::Editor &&
-                                    FocusedEntry->LocalState.ProjectionType == EViewportType::Perspective)
-                                {
-                                    PerspEntry = FocusedEntry;
-                                }
-                            }
-                        }
-                        if (!PerspEntry)
-                        {
-                            for (const FViewportEntry &Entry : ViewportRegistry.GetEntries())
-                            {
-                                if (Entry.bActive && Entry.WorldContext &&
-                                    Entry.WorldContext->WorldType == EWorldType::Editor &&
-                                    Entry.LocalState.ProjectionType == EViewportType::Perspective)
-                                {
-                                    PerspEntry = &Entry;
-                                    break;
-                                }
-                            }
-                        }
-                        if (PerspEntry)
-                        {
-                            CameraData.Location = PerspEntry->LocalState.Position;
-                            CameraData.Rotation = PerspEntry->LocalState.Rotation;
-                            CameraData.FOV = PerspEntry->LocalState.FovY;
-                            CameraData.NearClip = PerspEntry->LocalState.NearPlane;
-                            CameraData.FarClip = PerspEntry->LocalState.FarPlane;
-                            CameraData.bValid = true;
-                        }
-                        FSceneSerializer::Save(Engine->GetEditorScene(), Path, CameraData);
-                    }
-                }
-            }
+					if (!Path.empty())
+					{
+						FCameraSerializeData           CameraData;
+						const FEditorViewportRegistry& ViewportRegistry = Engine->GetViewportRegistry();
+						const FViewportEntry*          PerspEntry       = nullptr;
+						if (const FSlateApplication* Slate = Engine->GetSlateApplication())
+						{
+							const FViewportId FocusedId = Slate->GetFocusedViewportId();
+							if (FocusedId != INVALID_VIEWPORT_ID)
+							{
+								const FViewportEntry* FocusedEntry = ViewportRegistry.FindEntryByViewportID(FocusedId);
+								if (FocusedEntry && FocusedEntry->bActive && FocusedEntry->WorldContext &&
+									FocusedEntry->WorldContext->WorldType == EWorldType::Editor &&
+									FocusedEntry->LocalState.ProjectionType == EViewportType::Perspective)
+								{
+									PerspEntry = FocusedEntry;
+								}
+							}
+						}
+						if (!PerspEntry)
+						{
+							for (const FViewportEntry& Entry : ViewportRegistry.GetEntries())
+							{
+								if (Entry.bActive && Entry.WorldContext &&
+									Entry.WorldContext->WorldType == EWorldType::Editor &&
+									Entry.LocalState.ProjectionType == EViewportType::Perspective)
+								{
+									PerspEntry = &Entry;
+									break;
+								}
+							}
+						}
+						if (PerspEntry)
+						{
+							CameraData.Location = PerspEntry->LocalState.Position;
+							CameraData.Rotation = PerspEntry->LocalState.Rotation;
+							CameraData.FOV      = PerspEntry->LocalState.FovY;
+							CameraData.NearClip = PerspEntry->LocalState.NearPlane;
+							CameraData.FarClip  = PerspEntry->LocalState.FarPlane;
+							CameraData.bValid   = true;
+						}
+						FSceneSerializer::Save(Engine->GetEditorScene(), Path, CameraData);
+					}
+				}
+			}
 
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Show"))
-        {
-            ImGui::MenuItem("Level Gameplay Panel", nullptr, &bShowLevelGameplayWindow);
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Show"))
+		{
+			ImGui::MenuItem("Level Gameplay Panel", nullptr, &bShowLevelGameplayWindow);
 
-            if (Engine)
-            {
-                FEditorViewportRegistry &ViewportRegistry = Engine->GetViewportRegistry();
-                if (!ViewportRegistry.GetEntries().empty())
-                {
-                    FViewportEntry *TargetEntry = nullptr;
-                    FSlateApplication *Slate = Engine->GetSlateApplication();
-                    FViewportId ViewportID = Slate ? Slate->GetFocusedViewportId() : INVALID_VIEWPORT_ID;
+			if (Engine)
+			{
+				FEditorViewportRegistry& ViewportRegistry = Engine->GetViewportRegistry();
+				if (!ViewportRegistry.GetEntries().empty())
+				{
+					FViewportEntry*    TargetEntry = nullptr;
+					FSlateApplication* Slate       = Engine->GetSlateApplication();
+					FViewportId        ViewportID  = Slate ? Slate->GetFocusedViewportId() : INVALID_VIEWPORT_ID;
 
-                    if (ViewportID == INVALID_VIEWPORT_ID)
-                        TargetEntry = &ViewportRegistry.GetEntries().front();
-                    else
-                        TargetEntry = ViewportRegistry.FindEntryByViewportID(ViewportID);
+					if (ViewportID == INVALID_VIEWPORT_ID)
+					{
+						TargetEntry = &ViewportRegistry.GetEntries().front();
+					}
+					else
+					{
+						TargetEntry = ViewportRegistry.FindEntryByViewportID(ViewportID);
+					}
 
-                    if (!TargetEntry)
-                        TargetEntry = &ViewportRegistry.GetEntries().front();
+					if (!TargetEntry)
+					{
+						TargetEntry = &ViewportRegistry.GetEntries().front();
+					}
 
-                    FShowFlags &ShowFlags = TargetEntry->LocalState.ShowFlags;
-                    auto ShowFlagCheckbox = [&](const char *Label, EEngineShowFlags Flag) {
-                        bool bValue = ShowFlags.HasFlag(Flag);
-                        if (ImGui::Checkbox(Label, &bValue))
-                        {
-                            if (FShowFlags::IsGlobalScoped(Flag))
-                            {
-                                for (FViewportEntry &Entry : ViewportRegistry.GetEntries())
-                                {
-                                    Entry.LocalState.ShowFlags.SetFlag(Flag, bValue);
-                                }
-                            }
-                            else
-                            {
-                                ShowFlags.SetFlag(Flag, bValue);
-                            }
-                            SaveEditorSettings();
-                        }
-                    };
+					FShowFlags& ShowFlags        = TargetEntry->LocalState.ShowFlags;
+					auto        ShowFlagCheckbox = [&](const char* Label, EEngineShowFlags Flag)
+					{
+						bool bValue = ShowFlags.HasFlag(Flag);
+						if (ImGui::Checkbox(Label, &bValue))
+						{
+							if (FShowFlags::IsGlobalScoped(Flag))
+							{
+								for (FViewportEntry& Entry : ViewportRegistry.GetEntries())
+								{
+									Entry.LocalState.ShowFlags.SetFlag(Flag, bValue);
+								}
+							}
+							else
+							{
+								ShowFlags.SetFlag(Flag, bValue);
+							}
+							SaveEditorSettings();
+						}
+					};
 
-                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
-                    ImGui::SeparatorText("Common Show Flags");
-                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+					ImGui::Dummy(ImVec2(0.0f, 5.0f));
+					ImGui::SeparatorText("Common Show Flags");
+					ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
-                    ShowFlagCheckbox("Primitives", EEngineShowFlags::SF_Primitives);
-                    ShowFlagCheckbox("UUID Text", EEngineShowFlags::SF_UUID);
+					ShowFlagCheckbox("Primitives", EEngineShowFlags::SF_Primitives);
+					ShowFlagCheckbox("UUID Text", EEngineShowFlags::SF_UUID);
 
-                    ShowFlagCheckbox("World Axis", EEngineShowFlags::SF_WorldAxis);
+					ShowFlagCheckbox("World Axis", EEngineShowFlags::SF_WorldAxis);
 
-                    bool bShowGrid = TargetEntry->LocalState.bShowGrid;
-                    if (ImGui::Checkbox("Grid", &bShowGrid))
-                    {
-                        TargetEntry->LocalState.bShowGrid = bShowGrid;
-                        SaveEditorSettings();
-                    }
+					bool bShowGrid = TargetEntry->LocalState.bShowGrid;
+					if (ImGui::Checkbox("Grid", &bShowGrid))
+					{
+						TargetEntry->LocalState.bShowGrid = bShowGrid;
+						SaveEditorSettings();
+					}
 
-                    ImGui::BeginDisabled(!TargetEntry->LocalState.bShowGrid);
-                    if (ImGui::SliderFloat("Grid Size", &TargetEntry->LocalState.GridSize, 1.0f, 100.0f, "%.1f"))
-                    {
-                        SaveEditorSettings();
-                    }
+					ImGui::BeginDisabled(!TargetEntry->LocalState.bShowGrid);
+					if (ImGui::SliderFloat("Grid Size", &TargetEntry->LocalState.GridSize, 1.0f, 100.0f, "%.1f"))
+					{
+						SaveEditorSettings();
+					}
 
-                    if (ImGui::SliderFloat("Line Thickness", &TargetEntry->LocalState.LineThickness, 0.1f, 5.0f,
-                                           "%.2f"))
-                    {
-                        SaveEditorSettings();
-                    }
-                    ImGui::EndDisabled();
+					if (ImGui::SliderFloat("Line Thickness",
+					                       &TargetEntry->LocalState.LineThickness,
+					                       0.1f,
+					                       5.0f,
+					                       "%.2f"))
+					{
+						SaveEditorSettings();
+					}
+					ImGui::EndDisabled();
 
-                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
-                    ImGui::SeparatorText("Actor Helpers");
-                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+					ImGui::Dummy(ImVec2(0.0f, 5.0f));
+					ImGui::SeparatorText("Actor Helpers");
+					ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
-                    ShowFlagCheckbox("Decal Arrow", EEngineShowFlags::SF_DecalArrow);
-                    ShowFlagCheckbox("Projectile Arrow", EEngineShowFlags::SF_ProjectileArrow);
+					ShowFlagCheckbox("Decal Arrow", EEngineShowFlags::SF_DecalArrow);
+					ShowFlagCheckbox("Projectile Arrow", EEngineShowFlags::SF_ProjectileArrow);
 
-                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
-                    ImGui::SeparatorText("Debug");
-                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+					ImGui::Dummy(ImVec2(0.0f, 5.0f));
+					ImGui::SeparatorText("Debug");
+					ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
-                    bool bDebugLine = ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw);
-                    if (ImGui::Checkbox("Debug Line", &bDebugLine))
-                    {
-                        ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, bDebugLine);
+					bool bDebugLine = ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw);
+					if (ImGui::Checkbox("Debug Line", &bDebugLine))
+					{
+						ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, bDebugLine);
 
-                        if (!bDebugLine)
-                        {
-                            ShowFlags.SetFlag(EEngineShowFlags::SF_Collision, false);
-                            ShowFlags.SetFlag(EEngineShowFlags::SF_SceneBVH, false);
-                            ShowFlags.SetFlag(EEngineShowFlags::SF_MeshBVH, false);
-                        }
-                        SaveEditorSettings();
-                    }
+						if (!bDebugLine)
+						{
+							ShowFlags.SetFlag(EEngineShowFlags::SF_Collision, false);
+							ShowFlags.SetFlag(EEngineShowFlags::SF_SceneBVH, false);
+							ShowFlags.SetFlag(EEngineShowFlags::SF_MeshBVH, false);
+						}
+						SaveEditorSettings();
+					}
 
-                    ImGui::Indent();
+					ImGui::Indent();
 
-                    if (!bDebugLine)
-                    {
-                        ImGui::BeginDisabled();
-                    }
+					if (!bDebugLine)
+					{
+						ImGui::BeginDisabled();
+					}
 
-                    ShowFlagCheckbox("World Bounds (Magenta)", EEngineShowFlags::SF_Collision);
-                    ShowFlagCheckbox("Scene BVH (Yellow)", EEngineShowFlags::SF_SceneBVH);
-                    ShowFlagCheckbox("Mesh BVH (Cyan)", EEngineShowFlags::SF_MeshBVH);
+					ShowFlagCheckbox("World Bounds (Magenta)", EEngineShowFlags::SF_Collision);
+					ShowFlagCheckbox("Scene BVH (Yellow)", EEngineShowFlags::SF_SceneBVH);
+					ShowFlagCheckbox("Mesh BVH (Cyan)", EEngineShowFlags::SF_MeshBVH);
 
-                    if (!bDebugLine)
-                    {
-                        ImGui::EndDisabled();
-                    }
+					if (!bDebugLine)
+					{
+						ImGui::EndDisabled();
+					}
 
-                    ImGui::Unindent();
+					ImGui::Unindent();
 
-                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+					ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
-                    bool bDebugVolume = ShowFlags.HasFlag(EEngineShowFlags::SF_DebugVolume);
-                    if (ImGui::Checkbox("Debug Volume", &bDebugVolume))
-                    {
-                        ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, bDebugVolume);
+					bool bDebugVolume = ShowFlags.HasFlag(EEngineShowFlags::SF_DebugVolume);
+					if (ImGui::Checkbox("Debug Volume", &bDebugVolume))
+					{
+						ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, bDebugVolume);
 
-                        if (!bDebugVolume)
-                        {
-                            ShowFlags.SetFlag(EEngineShowFlags::SF_DecalDebug, false);
-                            ShowFlags.SetFlag(EEngineShowFlags::SF_LocalFogDebug, false);
-                        }
-                        SaveEditorSettings();
-                    }
+						if (!bDebugVolume)
+						{
+							ShowFlags.SetFlag(EEngineShowFlags::SF_DecalDebug, false);
+							ShowFlags.SetFlag(EEngineShowFlags::SF_LocalFogDebug, false);
+						}
+						SaveEditorSettings();
+					}
 
-                    ImGui::Indent();
+					ImGui::Indent();
 
-                    if (!bDebugVolume)
-                    {
-                        ImGui::BeginDisabled();
-                    }
+					if (!bDebugVolume)
+					{
+						ImGui::BeginDisabled();
+					}
 
-                    ShowFlagCheckbox("Decal Volume (Orange)", EEngineShowFlags::SF_DecalDebug);
-                    ShowFlagCheckbox("Local Fog Volume (Purple)", EEngineShowFlags::SF_LocalFogDebug);
+					ShowFlagCheckbox("Decal Volume (Orange)", EEngineShowFlags::SF_DecalDebug);
+					ShowFlagCheckbox("Local Fog Volume (Purple)", EEngineShowFlags::SF_LocalFogDebug);
 
-                    if (!bDebugVolume)
-                    {
-                        ImGui::EndDisabled();
-                    }
+					if (!bDebugVolume)
+					{
+						ImGui::EndDisabled();
+					}
 
-                    ImGui::Unindent();
+					ImGui::Unindent();
 
-                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
-                    ImGui::SeparatorText("Post-Processing Show Flags");
-                    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+					ImGui::Dummy(ImVec2(0.0f, 5.0f));
+					ImGui::SeparatorText("Post-Processing Show Flags");
+					ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
-                    ShowFlagCheckbox("Anti-Aliasing (FXAA)", EEngineShowFlags::SF_FXAA);
-                    ShowFlagCheckbox("Height Fog", EEngineShowFlags::SF_Fog);
-                    ShowFlagCheckbox("Decal Projection", EEngineShowFlags::SF_Decal);
-                }
-            }
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Tone Mapping"))
-        {
-            FRenderer* Renderer = Engine ? Engine->GetRenderer() : nullptr;
-            if (Renderer)
-            {
-                FToneMappingSettings Settings = Renderer->GetToneMappingSettings();
-                bool bChanged = false;
+					ShowFlagCheckbox("Anti-Aliasing (FXAA)", EEngineShowFlags::SF_FXAA);
+					ShowFlagCheckbox("Height Fog", EEngineShowFlags::SF_Fog);
+					ShowFlagCheckbox("Decal Projection", EEngineShowFlags::SF_Decal);
+				}
+			}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Tone Mapping"))
+		{
+			FRenderer* Renderer = Engine ? Engine->GetRenderer() : nullptr;
+			if (Renderer)
+			{
+				FToneMappingSettings Settings = Renderer->GetToneMappingSettings();
+				bool                 bChanged = false;
 
-                ImGui::SeparatorText("Tone Mapping");
+				ImGui::SeparatorText("Tone Mapping");
 
-                const char* ModeNames[] = { "ACES", "Hable", "Reinhard", "Linear" };
-                int CurrentMode = static_cast<int>(Settings.Mode);
-                if (ImGui::Combo("Mode", &CurrentMode, ModeNames, 4))
-                {
-                    Settings.Mode = static_cast<EToneMappingMode>(CurrentMode);
-                    bChanged = true;
-                }
+				const char* ModeNames[] = { "ACES", "Hable", "Reinhard", "Linear" };
+				int         CurrentMode = static_cast<int>(Settings.Mode);
+				if (ImGui::Combo("Mode", &CurrentMode, ModeNames, 4))
+				{
+					Settings.Mode = static_cast<EToneMappingMode>(CurrentMode);
+					bChanged      = true;
+				}
 
-                ImGui::Dummy(ImVec2(0.0f, 3.0f));
+				ImGui::Dummy(ImVec2(0.0f, 3.0f));
 
-                if (ImGui::DragFloat("Exposure", &Settings.Exposure, 0.01f, 0.01f, 5.0f, "%.3f"))
-                {
-                    bChanged = true;
-                }
+				if (ImGui::DragFloat("Exposure", &Settings.Exposure, 0.01f, 0.01f, 5.0f, "%.3f"))
+				{
+					bChanged = true;
+				}
 
-                if (Settings.Mode == EToneMappingMode::ACES)
-                {
-                    if (ImGui::DragFloat("a", &Settings.AcesA, 0.01f, 0.0f, 5.0f, "%.3f")) bChanged = true;
-                    if (ImGui::DragFloat("b", &Settings.AcesB, 0.001f, 0.0f, 1.0f, "%.4f")) bChanged = true;
-                    if (ImGui::DragFloat("c", &Settings.AcesC, 0.01f, 0.0f, 5.0f, "%.3f")) bChanged = true;
-                    if (ImGui::DragFloat("d", &Settings.AcesD, 0.01f, 0.0f, 2.0f, "%.3f")) bChanged = true;
-                    if (ImGui::DragFloat("e", &Settings.AcesE, 0.001f, 0.0f, 1.0f, "%.4f")) bChanged = true;
-                }
-                else if (Settings.Mode == EToneMappingMode::Hable)
-                {
-                    if (ImGui::DragFloat("Shoulder Strength (A)", &Settings.ShoulderStrength, 0.01f, 0.0f, 1.0f, "%.3f"))
-                    {
-                        bChanged = true;
-                    }
-                    if (ImGui::DragFloat("Linear White (W)", &Settings.LinearWhite, 0.05f, 0.1f, 20.0f, "%.3f"))
-                    {
-                        bChanged = true;
-                    }
-                    ImGui::Dummy(ImVec2(0.0f, 2.0f));
-                    if (ImGui::DragFloat("B", &Settings.HableB, 0.01f, 0.0f, 1.0f, "%.3f")) bChanged = true;
-                    if (ImGui::DragFloat("C", &Settings.HableC, 0.01f, 0.0f, 1.0f, "%.3f")) bChanged = true;
-                    if (ImGui::DragFloat("D", &Settings.HableD, 0.01f, 0.0f, 1.0f, "%.3f")) bChanged = true;
-                    if (ImGui::DragFloat("E", &Settings.HableE, 0.001f, 0.0f, 0.1f, "%.4f")) bChanged = true;
-                    if (ImGui::DragFloat("F", &Settings.HableF, 0.01f, 0.0f, 1.0f, "%.3f")) bChanged = true;
-                }
-                else if (Settings.Mode == EToneMappingMode::Reinhard)
-                {
-                    if (ImGui::DragFloat("Linear White", &Settings.LinearWhite, 0.05f, 0.1f, 20.0f, "%.3f"))
-                    {
-                        bChanged = true;
-                    }
-                }
+				if (Settings.Mode == EToneMappingMode::ACES)
+				{
+					if (ImGui::DragFloat("a", &Settings.AcesA, 0.01f, 0.0f, 5.0f, "%.3f"))
+					{
+						bChanged = true;
+					}
+					if (ImGui::DragFloat("b", &Settings.AcesB, 0.001f, 0.0f, 1.0f, "%.4f"))
+					{
+						bChanged = true;
+					}
+					if (ImGui::DragFloat("c", &Settings.AcesC, 0.01f, 0.0f, 5.0f, "%.3f"))
+					{
+						bChanged = true;
+					}
+					if (ImGui::DragFloat("d", &Settings.AcesD, 0.01f, 0.0f, 2.0f, "%.3f"))
+					{
+						bChanged = true;
+					}
+					if (ImGui::DragFloat("e", &Settings.AcesE, 0.001f, 0.0f, 1.0f, "%.4f"))
+					{
+						bChanged = true;
+					}
+				}
+				else if (Settings.Mode == EToneMappingMode::Hable)
+				{
+					if (ImGui::DragFloat("Shoulder Strength (A)", &Settings.ShoulderStrength, 0.01f, 0.0f, 1.0f, "%.3f"))
+					{
+						bChanged = true;
+					}
+					if (ImGui::DragFloat("Linear White (W)", &Settings.LinearWhite, 0.05f, 0.1f, 20.0f, "%.3f"))
+					{
+						bChanged = true;
+					}
+					ImGui::Dummy(ImVec2(0.0f, 2.0f));
+					if (ImGui::DragFloat("B", &Settings.HableB, 0.01f, 0.0f, 1.0f, "%.3f"))
+					{
+						bChanged = true;
+					}
+					if (ImGui::DragFloat("C", &Settings.HableC, 0.01f, 0.0f, 1.0f, "%.3f"))
+					{
+						bChanged = true;
+					}
+					if (ImGui::DragFloat("D", &Settings.HableD, 0.01f, 0.0f, 1.0f, "%.3f"))
+					{
+						bChanged = true;
+					}
+					if (ImGui::DragFloat("E", &Settings.HableE, 0.001f, 0.0f, 0.1f, "%.4f"))
+					{
+						bChanged = true;
+					}
+					if (ImGui::DragFloat("F", &Settings.HableF, 0.01f, 0.0f, 1.0f, "%.3f"))
+					{
+						bChanged = true;
+					}
+				}
+				else if (Settings.Mode == EToneMappingMode::Reinhard)
+				{
+					if (ImGui::DragFloat("Linear White", &Settings.LinearWhite, 0.05f, 0.1f, 20.0f, "%.3f"))
+					{
+						bChanged = true;
+					}
+				}
 
-                if (bChanged)
-                {
-                    Renderer->SetToneMappingSettings(Settings);
-                    SaveEditorSettings();
-                }
+				if (bChanged)
+				{
+					Renderer->SetToneMappingSettings(Settings);
+					SaveEditorSettings();
+				}
 
-                ImGui::Dummy(ImVec2(0.0f, 3.0f));
-                if (ImGui::Button("Reset to Default"))
-                {
-                    Renderer->SetToneMappingSettings(FToneMappingSettings{});
-                    SaveEditorSettings();
-                }
-            }
-            else
-            {
-                ImGui::TextDisabled("Renderer unavailable.");
-            }
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Stat"))
-        {
-            const bool bStatNone = DebugState.StatDisplayMode == EStatDisplayMode::None && !DebugState.FPS;
-            const bool bStatMemory = DebugState.StatDisplayMode == EStatDisplayMode::Memory;
-            const bool bStatDecal = DebugState.StatDisplayMode == EStatDisplayMode::Decal;
-            const bool bStatFog = DebugState.StatDisplayMode == EStatDisplayMode::Fog;
-            const bool bStatGPU = DebugState.StatDisplayMode == EStatDisplayMode::GPU;
-            const bool bStatLight = DebugState.StatDisplayMode == EStatDisplayMode::Light;
+				ImGui::Dummy(ImVec2(0.0f, 3.0f));
+				if (ImGui::Button("Reset to Default"))
+				{
+					Renderer->SetToneMappingSettings(FToneMappingSettings {});
+					SaveEditorSettings();
+				}
+			}
+			else
+			{
+				ImGui::TextDisabled("Renderer unavailable.");
+			}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Stat"))
+		{
+			const bool bStatNone   = DebugState.StatDisplayMode == EStatDisplayMode::None && !DebugState.FPS;
+			const bool bStatMemory = DebugState.StatDisplayMode == EStatDisplayMode::Memory;
+			const bool bStatDecal  = DebugState.StatDisplayMode == EStatDisplayMode::Decal;
+			const bool bStatFog    = DebugState.StatDisplayMode == EStatDisplayMode::Fog;
+			const bool bStatGPU    = DebugState.StatDisplayMode == EStatDisplayMode::GPU;
+			const bool bStatLight  = DebugState.StatDisplayMode == EStatDisplayMode::Light;
 
-            if (ImGui::MenuItem("None", nullptr, bStatNone))
-            {
-                DebugState.FPS = false;
-                DebugState.StatDisplayMode = EStatDisplayMode::None;
-            }
+			if (ImGui::MenuItem("None", nullptr, bStatNone))
+			{
+				DebugState.FPS             = false;
+				DebugState.StatDisplayMode = EStatDisplayMode::None;
+			}
 
-            if (ImGui::MenuItem("FPS", nullptr, DebugState.FPS))
-            {
-                DebugState.FPS = !DebugState.FPS;
-            }
+			if (ImGui::MenuItem("FPS", nullptr, DebugState.FPS))
+			{
+				DebugState.FPS = !DebugState.FPS;
+			}
 
-            if (ImGui::MenuItem("Memory", nullptr, bStatMemory))
-            {
-                DebugState.StatDisplayMode = EStatDisplayMode::Memory;
-            }
+			if (ImGui::MenuItem("Memory", nullptr, bStatMemory))
+			{
+				DebugState.StatDisplayMode = EStatDisplayMode::Memory;
+			}
 
-            if (ImGui::MenuItem("Decal", nullptr, bStatDecal))
-            {
-                DebugState.StatDisplayMode = EStatDisplayMode::Decal;
-            }
-            if (ImGui::MenuItem("Fog", nullptr, bStatFog))
-            {
-                DebugState.StatDisplayMode = EStatDisplayMode::Fog;
-            }
+			if (ImGui::MenuItem("Decal", nullptr, bStatDecal))
+			{
+				DebugState.StatDisplayMode = EStatDisplayMode::Decal;
+			}
+			if (ImGui::MenuItem("Fog", nullptr, bStatFog))
+			{
+				DebugState.StatDisplayMode = EStatDisplayMode::Fog;
+			}
 
-            if (ImGui::MenuItem("GPU", nullptr, bStatGPU))
-            {
-                DebugState.StatDisplayMode = EStatDisplayMode::GPU;
-            }
-            if (ImGui::MenuItem("Light", nullptr, bStatLight))
-            {
-                DebugState.StatDisplayMode = EStatDisplayMode::Light;
-            }
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Help"))
-        {
-            if (ImGui::MenuItem("About"))
-            {
-                bOpenAboutPopup = true;
-            }
-            ImGui::EndMenu();
-        }
-        ImGui::EndMainMenuBar();
-    }
+			if (ImGui::MenuItem("GPU", nullptr, bStatGPU))
+			{
+				DebugState.StatDisplayMode = EStatDisplayMode::GPU;
+			}
+			if (ImGui::MenuItem("Light", nullptr, bStatLight))
+			{
+				DebugState.StatDisplayMode = EStatDisplayMode::Light;
+			}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Help"))
+		{
+			if (ImGui::MenuItem("About"))
+			{
+				bOpenAboutPopup = true;
+			}
+			ImGui::EndMenu();
+		}
+		ImGui::EndMainMenuBar();
+	}
 
-    if (bOpenAboutPopup)
-    {
-        ImGui::OpenPopup("AboutPopup");
-        ImGui::SetNextWindowSize(ImVec2(420, 320), ImGuiCond_Always);
-        bOpenAboutPopup = false;
-    }
+	if (bOpenAboutPopup)
+	{
+		ImGui::OpenPopup("AboutPopup");
+		ImGui::SetNextWindowSize(ImVec2(420, 320), ImGuiCond_Always);
+		bOpenAboutPopup = false;
+	}
 
-    if (ImGui::BeginPopupModal("AboutPopup", nullptr, ImGuiWindowFlags_NoTitleBar))
-    {
-        ImDrawList *DrawList = ImGui::GetWindowDrawList();
-        ImVec2 WinPos = ImGui::GetWindowPos();
-        ImVec2 WinSize = ImGui::GetWindowSize();
-        DrawList->AddRectFilled(WinPos, ImVec2(WinPos.x + WinSize.x, WinPos.y + 60), IM_COL32(30, 30, 60, 255));
+	if (ImGui::BeginPopupModal("AboutPopup", nullptr, ImGuiWindowFlags_NoTitleBar))
+	{
+		ImDrawList* DrawList = ImGui::GetWindowDrawList();
+		ImVec2      WinPos   = ImGui::GetWindowPos();
+		ImVec2      WinSize  = ImGui::GetWindowSize();
+		DrawList->AddRectFilled(WinPos, ImVec2(WinPos.x + WinSize.x, WinPos.y + 60), IM_COL32(30, 30, 60, 255));
 
-        ImGui::SetCursorPosY(12);
-        ImGui::SetCursorPosX((WinSize.x - ImGui::CalcTextSize("Genesis Engine").x) * 0.5f);
-        ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Genesis Engine");
+		ImGui::SetCursorPosY(12);
+		ImGui::SetCursorPosX((WinSize.x - ImGui::CalcTextSize("Genesis Engine").x) * 0.5f);
+		ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Genesis Engine");
 
-        ImGui::SetCursorPosY(35);
-        ImGui::SetCursorPosX((WinSize.x - ImGui::CalcTextSize("v3.0.0").x) * 0.5f);
-        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "v2.1.0");
+		ImGui::SetCursorPosY(35);
+		ImGui::SetCursorPosX((WinSize.x - ImGui::CalcTextSize("v3.0.0").x) * 0.5f);
+		ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "v2.1.0");
 
-        ImGui::SetCursorPosY(70);
-        ImGui::SetCursorPosX(20);
-        ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "First Contributors (Dino Engine)");
-        ImGui::SameLine();
-        ImGui::SetCursorPosX(20);
-        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.9f, 0.7f, 0.3f, 0.5f));
-        ImGui::Separator();
-        ImGui::PopStyleColor();
+		ImGui::SetCursorPosY(70);
+		ImGui::SetCursorPosX(20);
+		ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "First Contributors (Dino Engine)");
+		ImGui::SameLine();
+		ImGui::SetCursorPosX(20);
+		ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.9f, 0.7f, 0.3f, 0.5f));
+		ImGui::Separator();
+		ImGui::PopStyleColor();
 
-        ImGui::Spacing();
+		ImGui::Spacing();
 
-        const char *First_Contributors[] = {"김지수", "김태현", "박세영", "조상현"};
-        for (const char *Name : First_Contributors)
-        {
-            ImGui::SetCursorPosX(20);
-            ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.6f, 1.0f), "-");
-            ImGui::SameLine();
-            ImGui::Text("%s", Name);
-        }
-
-        ImGui::SetCursorPosX(20);
-
-        ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "Second Contributors (Meteor Engine)");
-        ImGui::SameLine();
-        ImGui::SetCursorPosX(20);
-        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.9f, 0.7f, 0.3f, 0.5f));
-        ImGui::Separator();
-        ImGui::PopStyleColor();
-
-        ImGui::Spacing();
-
-        const char *Second_Contributors[] = {"강명호", "오준혁", "정찬일"};
-        for (const char *Name : Second_Contributors)
-        {
-            ImGui::SetCursorPosX(20);
-            ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.6f, 1.0f), "-");
-            ImGui::SameLine();
-            ImGui::Text("%s", Name);
-        }
-
-        ImGui::SetCursorPosX(20);
-
-        ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "Third Contributors (StoneAge Engine)");
-        ImGui::SameLine();
-        ImGui::SetCursorPosX(20);
-        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.9f, 0.7f, 0.3f, 0.5f));
-        ImGui::Separator();
-        ImGui::PopStyleColor();
-
-        ImGui::Spacing();
-
-        const char *Third_Contributors[] = {"남윤지", "정찬일", "강건우", "장민준"};
-        for (const char *Name : Third_Contributors)
-        {
-            ImGui::SetCursorPosX(20);
-            ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.6f, 1.0f), "-");
-            ImGui::SameLine();
-            ImGui::Text("%s", Name);
-        }
+		const char* First_Contributors[] = { "김지수", "김태현", "박세영", "조상현" };
+		for (const char* Name : First_Contributors)
+		{
+			ImGui::SetCursorPosX(20);
+			ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.6f, 1.0f), "-");
+			ImGui::SameLine();
+			ImGui::Text("%s", Name);
+		}
 
 		ImGui::SetCursorPosX(20);
 
-		ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "Fourth Contributors");
+		ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "Second Contributors (Meteor Engine)");
+		ImGui::SameLine();
+		ImGui::SetCursorPosX(20);
+		ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.9f, 0.7f, 0.3f, 0.5f));
+		ImGui::Separator();
+		ImGui::PopStyleColor();
+
+		ImGui::Spacing();
+
+		const char* Second_Contributors[] = { "강명호", "오준혁", "정찬일" };
+		for (const char* Name : Second_Contributors)
+		{
+			ImGui::SetCursorPosX(20);
+			ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.6f, 1.0f), "-");
+			ImGui::SameLine();
+			ImGui::Text("%s", Name);
+		}
+
+		ImGui::SetCursorPosX(20);
+
+		ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "Third Contributors (StoneAge Engine)");
+		ImGui::SameLine();
+		ImGui::SetCursorPosX(20);
+		ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.9f, 0.7f, 0.3f, 0.5f));
+		ImGui::Separator();
+		ImGui::PopStyleColor();
+
+		ImGui::Spacing();
+
+		const char* Third_Contributors[] = { "남윤지", "정찬일", "강건우", "장민준" };
+		for (const char* Name : Third_Contributors)
+		{
+			ImGui::SetCursorPosX(20);
+			ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.6f, 1.0f), "-");
+			ImGui::SameLine();
+			ImGui::Text("%s", Name);
+		}
+
+		ImGui::SetCursorPosX(20);
+
+		ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "Fourth Contributors (NewAge Engine)");
 		ImGui::SameLine();
 		ImGui::SetCursorPosX(20);
 		ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.9f, 0.7f, 0.3f, 0.5f));
@@ -1664,105 +1228,105 @@ void FEditorUI::Render()
 			ImGui::SameLine();
 			ImGui::Text("%s", Name);
 		}
-    	
-    	ImGui::SetCursorPosX(20);
 
-    	ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "Fifth Contributors");
-    	ImGui::SameLine();
-    	ImGui::SetCursorPosX(20);
-    	ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.9f, 0.7f, 0.3f, 0.5f));
-    	ImGui::Separator();
-    	ImGui::PopStyleColor();
+		ImGui::SetCursorPosX(20);
 
-    	ImGui::Spacing();
-    	
-    	const char* Fifth_Contributors[] = { "김효범", "정찬일", "성원희", "양현석" };
-    	for (const char* Name : Fifth_Contributors)
-    	{
-    		ImGui::SetCursorPosX(20);
-    		ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.6f, 1.0f), "-");
-    		ImGui::SameLine();
-    		ImGui::Text("%s", Name);
-    	}
+		ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "Fifth Contributors");
+		ImGui::SameLine();
+		ImGui::SetCursorPosX(20);
+		ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.9f, 0.7f, 0.3f, 0.5f));
+		ImGui::Separator();
+		ImGui::PopStyleColor();
 
-    	ImGui::Spacing();
-    	ImGui::SetCursorPosX(20);
-    	ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1, 1, 1, 0.1f));
-    	ImGui::Separator();
-    	ImGui::PopStyleColor();
-    	ImGui::Spacing();
+		ImGui::Spacing();
 
-        ImGui::SetCursorPosX(20);
-        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Copyright (c) 2026  |  MIT License");
+		const char* Fifth_Contributors[] = { "김효범", "정찬일", "성원희", "양현석" };
+		for (const char* Name : Fifth_Contributors)
+		{
+			ImGui::SetCursorPosX(20);
+			ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.6f, 1.0f), "-");
+			ImGui::SameLine();
+			ImGui::Text("%s", Name);
+		}
 
-        ImGui::Spacing();
-        ImGui::Spacing();
+		ImGui::Spacing();
+		ImGui::SetCursorPosX(20);
+		ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1, 1, 1, 0.1f));
+		ImGui::Separator();
+		ImGui::PopStyleColor();
+		ImGui::Spacing();
 
-        float ButtonWidth = 100.0f;
-        ImGui::SetCursorPosX((WinSize.x - ButtonWidth) * 0.5f);
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.8f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 1.0f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.3f, 0.7f, 1.0f));
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
-        if (ImGui::Button("Close", ImVec2(ButtonWidth, 28)))
-        {
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::PopStyleVar();
-        ImGui::PopStyleColor(3);
+		ImGui::SetCursorPosX(20);
+		ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Copyright (c) 2026  |  MIT License");
 
-        ImGui::Spacing();
-        ImGui::EndPopup();
-    }
+		ImGui::Spacing();
+		ImGui::Spacing();
 
-    ControlPanel.Render(Engine);
-    if (bShowLevelGameplayWindow)
-    {
-        ControlPanel.RenderLevelGameplay(Engine, &bShowLevelGameplayWindow);
-    }
-    Property.Render(Engine);
-    Console.Render();
-    if (DebugState.StatDisplayMode != EStatDisplayMode::None)
-    {
-        FRect StatArea;
-        if (!GetCentralDockRect(StatArea))
-        {
-            StatArea = {0, 0, 0, 0};
-        }
+		float ButtonWidth = 100.0f;
+		ImGui::SetCursorPosX((WinSize.x - ButtonWidth) * 0.5f);
+		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.8f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 1.0f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.3f, 0.7f, 1.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+		if (ImGui::Button("Close", ImVec2(ButtonWidth, 28)))
+		{
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::PopStyleVar();
+		ImGui::PopStyleColor(3);
 
-        FRenderer *Renderer = Engine ? Engine->GetRenderer() : nullptr;
-        switch (DebugState.StatDisplayMode)
-        {
-        case EStatDisplayMode::Memory:
-            Stat.Render(StatArea, EStatWindowMode::Memory, Renderer);
-            break;
-        case EStatDisplayMode::Decal:
-            Stat.Render(StatArea, EStatWindowMode::Decal, Renderer);
-            break;
-        case EStatDisplayMode::Fog:
-            Stat.Render(StatArea, EStatWindowMode::Fog, Renderer);
-            break;
-        case EStatDisplayMode::GPU:
-            Stat.Render(StatArea, EStatWindowMode::GPU, Renderer);
-            break;
-        case EStatDisplayMode::Light:
-            Stat.Render(StatArea, EStatWindowMode::Light, Renderer);
-            break;
-        default:
-            break;
-        }
-    }
-    SceneManager.Render(Engine);
-    ContentBrowser.Render();
+		ImGui::Spacing();
+		ImGui::EndPopup();
+	}
+
+	ControlPanel.Render(Engine);
+	if (bShowLevelGameplayWindow)
+	{
+		ControlPanel.RenderLevelGameplay(Engine, &bShowLevelGameplayWindow);
+	}
+	Property.Render(Engine);
+	Console.Render();
+	if (DebugState.StatDisplayMode != EStatDisplayMode::None)
+	{
+		FRect StatArea;
+		if (!GetCentralDockRect(StatArea))
+		{
+			StatArea = { 0, 0, 0, 0 };
+		}
+
+		FRenderer* Renderer = Engine ? Engine->GetRenderer() : nullptr;
+		switch (DebugState.StatDisplayMode)
+		{
+		case EStatDisplayMode::Memory:
+			Stat.Render(StatArea, EStatWindowMode::Memory, Renderer);
+			break;
+		case EStatDisplayMode::Decal:
+			Stat.Render(StatArea, EStatWindowMode::Decal, Renderer);
+			break;
+		case EStatDisplayMode::Fog:
+			Stat.Render(StatArea, EStatWindowMode::Fog, Renderer);
+			break;
+		case EStatDisplayMode::GPU:
+			Stat.Render(StatArea, EStatWindowMode::GPU, Renderer);
+			break;
+		case EStatDisplayMode::Light:
+			Stat.Render(StatArea, EStatWindowMode::Light, Renderer);
+			break;
+		default:
+			break;
+		}
+	}
+	SceneManager.Render(Engine);
+	ContentBrowser.Render();
 
 	if (Engine)
 	{
-		if (FEditorViewportClient* ViewportClient = static_cast<FEditorViewportClient*>(Engine->GetViewportClient()))
+		if (auto ViewportClient = static_cast<FEditorViewportClient*>(Engine->GetViewportClient()))
 		{
 			FRect MarqueeRect;
 			if (ViewportClient->GetMarqueeSelectionRect(MarqueeRect))
 			{
-				ImDrawList* ForegroundDrawList = ImGui::GetForegroundDrawList();
+				ImDrawList*  ForegroundDrawList = ImGui::GetForegroundDrawList();
 				const ImVec2 MinPoint(static_cast<float>(MarqueeRect.X), static_cast<float>(MarqueeRect.Y));
 				const ImVec2 MaxPoint(
 					static_cast<float>(MarqueeRect.X + MarqueeRect.Width),
@@ -1773,99 +1337,647 @@ void FEditorUI::Render()
 		}
 	}
 
-    if (bRequestViewportFocusOnNextRender)
-    {
-        if (ImGui::GetCurrentContext())
-        {
-            ImGui::SetWindowFocus(nullptr);
-            ImGui::ClearActiveID();
-        }
-        bRequestViewportFocusOnNextRender = false;
-    }
+	if (bRequestViewportFocusOnNextRender)
+	{
+		if (ImGui::GetCurrentContext())
+		{
+			ImGui::SetWindowFocus(nullptr);
+			ImGui::ClearActiveID();
+		}
+		bRequestViewportFocusOnNextRender = false;
+	}
 }
 
-bool FEditorUI::GetViewportMousePosition(int32 WindowMouseX, int32 WindowMouseY, int32 &OutViewportX,
-                                         int32 &OutViewportY, int32 &OutWidth, int32 &OutHeight) const
+void FEditorUI::OnSlateReady()
 {
-    if (!Engine)
-    {
-        return false;
-    }
+	if (!Engine)
+	{
+		return;
+	}
 
-    FSlateApplication *Slate = Engine->GetSlateApplication();
-    if (!Slate)
-    {
-        return false;
-    }
+	FSlateApplication* Slate = Engine->GetSlateApplication();
+	if (!Slate)
+	{
+		return;
+	}
 
-    const FViewportId HoveredViewportId = Slate->GetHoveredViewportId();
-    if (HoveredViewportId == INVALID_VIEWPORT_ID)
-    {
-        return false;
-    }
+	Slate->OnSplitterDragEnd = [this]()
+	{
+		SaveEditorSettings();
+	};
+	LoadEditorSettings();
 
-    const FEditorViewportRegistry &ViewportRegistry = Engine->GetViewportRegistry();
-    const FViewportEntry *Entry = ViewportRegistry.FindEntryByViewportID(HoveredViewportId);
-    if (!Entry || !Entry->bActive || !Entry->Viewport)
-    {
-        return false;
-    }
+	FViewportId PreferredViewportId = INVALID_VIEWPORT_ID;
+	if (Engine)
+	{
+		for (const FViewportEntry& Entry : Engine->GetViewportRegistry().GetEntries())
+		{
+			if (!Entry.bActive)
+			{
+				continue;
+			}
 
-    const FRect &Rect = Entry->Viewport->GetRect();
-    if (!Rect.IsValid())
-    {
-        return false;
-    }
+			if (Entry.LocalState.ProjectionType == EViewportType::Perspective)
+			{
+				PreferredViewportId = Entry.Id;
+				break;
+			}
 
-    OutViewportX = WindowMouseX - Rect.X;
-    OutViewportY = WindowMouseY - Rect.Y;
-    OutWidth = Rect.Width;
-    OutHeight = Rect.Height;
-    return true;
+			if (PreferredViewportId == INVALID_VIEWPORT_ID)
+			{
+				PreferredViewportId = Entry.Id;
+			}
+		}
+	}
+
+	Slate->FocusViewport(PreferredViewportId);
+	bRequestViewportFocusOnNextRender = true;
 }
 
 void FEditorUI::SyncSelectedActorProperty()
 {
-    if (!Engine)
-    {
-        return;
-    }
+	if (!Engine)
+	{
+		return;
+	}
 
-    const FWorldContext *ActiveWorldContext = Engine->GetActiveWorldContext();
-    AActor *Selected = Engine->GetSelectedActor();
-    if (Selected)
-    {
-        UWorld *SelectedWorld = Selected->GetWorld();
-        UWorld *ActiveWorld = ActiveWorldContext ? ActiveWorldContext->World : nullptr;
-        if (SelectedWorld != ActiveWorld)
-        {
-            Selected = nullptr;
-        }
-    }
-    if (Selected)
-    {
-        if (USceneComponent *Root = Selected->GetRootComponent())
-        {
-            const FTransform Transform = Root->GetRelativeTransform();
-            Property.SetTarget(Transform.GetLocation(), Transform.Rotator().Euler(), Transform.GetScale3D(),
-                               Selected->GetName().c_str());
-        }
-    }
-    else
-    {
-        Property.SetTarget({0, 0, 0}, {0, 0, 0}, {0, 0, 0}, "None");
-    }
+	const FWorldContext* ActiveWorldContext = Engine->GetActiveWorldContext();
+	AActor*              Selected           = Engine->GetSelectedActor();
+	if (Selected)
+	{
+		UWorld* SelectedWorld = Selected->GetWorld();
+		UWorld* ActiveWorld   = ActiveWorldContext ? ActiveWorldContext->World : nullptr;
+		if (SelectedWorld != ActiveWorld)
+		{
+			Selected = nullptr;
+		}
+	}
+	if (Selected)
+	{
+		if (USceneComponent* Root = Selected->GetRootComponent())
+		{
+			const FTransform Transform = Root->GetRelativeTransform();
+			Property.SetTarget(Transform.GetLocation(),
+			                   Transform.Rotator().Euler(),
+			                   Transform.GetScale3D(),
+			                   Selected->GetName().c_str());
+		}
+	}
+	else
+	{
+		Property.SetTarget({ 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, "None");
+	}
 
-    CachedSelectedActor = Selected;
-    CachedActiveWorldContext = ActiveWorldContext;
+	CachedSelectedActor      = Selected;
+	CachedActiveWorldContext = ActiveWorldContext;
 }
 
-bool FEditorUI::GetCentralDockRect(FRect &OutRect) const
+bool FEditorUI::GetViewportMousePosition(int32  WindowMouseX,
+                                         int32  WindowMouseY,
+                                         int32& OutViewportX,
+                                         int32& OutViewportY,
+                                         int32& OutWidth,
+                                         int32& OutHeight) const
 {
-    if (!bHasCentralDockRect)
-    {
-        return false;
-    }
-    OutRect = CentralDockRect;
-    return true;
+	if (!Engine)
+	{
+		return false;
+	}
+
+	FSlateApplication* Slate = Engine->GetSlateApplication();
+	if (!Slate)
+	{
+		return false;
+	}
+
+	const FViewportId HoveredViewportId = Slate->GetHoveredViewportId();
+	if (HoveredViewportId == INVALID_VIEWPORT_ID)
+	{
+		return false;
+	}
+
+	const FEditorViewportRegistry& ViewportRegistry = Engine->GetViewportRegistry();
+	const FViewportEntry*          Entry            = ViewportRegistry.FindEntryByViewportID(HoveredViewportId);
+	if (!Entry || !Entry->bActive || !Entry->Viewport)
+	{
+		return false;
+	}
+
+	const FRect& Rect = Entry->Viewport->GetRect();
+	if (!Rect.IsValid())
+	{
+		return false;
+	}
+
+	OutViewportX = WindowMouseX - Rect.X;
+	OutViewportY = WindowMouseY - Rect.Y;
+	OutWidth     = Rect.Width;
+	OutHeight    = Rect.Height;
+	return true;
+}
+
+bool FEditorUI::GetCentralDockRect(FRect& OutRect) const
+{
+	if (!bHasCentralDockRect)
+	{
+		return false;
+	}
+	OutRect = CentralDockRect;
+	return true;
+}
+
+void FEditorUI::SaveEditorSettings()
+{
+	std::wstring Path = GetEditorIniPathW();
+	if (!Engine)
+	{
+		return;
+	}
+	const FEditorViewportRegistry& ViewportRegistry = Engine->GetViewportRegistry();
+
+	wchar_t Sec[32];
+	wchar_t Buf[64];
+
+	for (const FViewportEntry& Entry : ViewportRegistry.GetEntries())
+	{
+		swprintf(Sec, 32, L"Viewport.%u", Entry.Id);
+		const FViewportLocalState& S = Entry.LocalState;
+
+		swprintf(Buf, 64, L"%.2f", S.GridSize);
+		WritePrivateProfileStringW(Sec, L"GridSize", Buf, Path.c_str());
+
+		swprintf(Buf, 64, L"%.2f", S.LineThickness);
+		WritePrivateProfileStringW(Sec, L"LineThickness", Buf, Path.c_str());
+
+		WritePrivateProfileStringW(Sec, L"ShowGrid", S.bShowGrid ? L"1" : L"0", Path.c_str());
+		WritePrivateProfileStringW(Sec,
+		                           L"ViewMode",
+		                           std::to_wstring(static_cast<int>(S.ViewMode)).c_str(),
+		                           Path.c_str());
+
+		WritePrivateProfileStringW(Sec,
+		                           L"SF.Primitives",
+		                           S.ShowFlags.HasFlag(EEngineShowFlags::SF_Primitives) ? L"1" : L"0",
+		                           Path.c_str());
+		WritePrivateProfileStringW(Sec,
+		                           L"SF.UUID",
+		                           S.ShowFlags.HasFlag(EEngineShowFlags::SF_UUID) ? L"1" : L"0",
+		                           Path.c_str());
+		WritePrivateProfileStringW(Sec,
+		                           L"SF.DebugDraw",
+		                           S.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw) ? L"1" : L"0",
+		                           Path.c_str());
+		WritePrivateProfileStringW(Sec,
+		                           L"SF.DebugVolume",
+		                           S.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugVolume) ? L"1" : L"0",
+		                           Path.c_str());
+		WritePrivateProfileStringW(Sec,
+		                           L"SF.WorldAxis",
+		                           S.ShowFlags.HasFlag(EEngineShowFlags::SF_WorldAxis) ? L"1" : L"0",
+		                           Path.c_str());
+		WritePrivateProfileStringW(Sec,
+		                           L"SF.Collision",
+		                           S.ShowFlags.HasFlag(EEngineShowFlags::SF_Collision) ? L"1" : L"0",
+		                           Path.c_str());
+
+		WritePrivateProfileStringW(Sec,
+		                           L"SF.SceneBVH",
+		                           S.ShowFlags.HasFlag(EEngineShowFlags::SF_SceneBVH) ? L"1" : L"0",
+		                           Path.c_str());
+
+		WritePrivateProfileStringW(Sec,
+		                           L"SF.MeshBVH",
+		                           S.ShowFlags.HasFlag(EEngineShowFlags::SF_MeshBVH) ? L"1" : L"0",
+		                           Path.c_str());
+		WritePrivateProfileStringW(Sec,
+		                           L"SF.DecalDebug",
+		                           S.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalDebug) ? L"1" : L"0",
+		                           Path.c_str());
+
+		WritePrivateProfileStringW(Sec,
+		                           L"SF.Decal",
+		                           S.ShowFlags.HasFlag(EEngineShowFlags::SF_Decal) ? L"1" : L"0",
+		                           Path.c_str());
+		WritePrivateProfileStringW(Sec,
+		                           L"SF.Fog",
+		                           S.ShowFlags.HasFlag(EEngineShowFlags::SF_Fog) ? L"1" : L"0",
+		                           Path.c_str());
+		WritePrivateProfileStringW(Sec,
+		                           L"SF.LocalFogDebug",
+		                           S.ShowFlags.HasFlag(EEngineShowFlags::SF_LocalFogDebug) ? L"1" : L"0",
+		                           Path.c_str());
+		WritePrivateProfileStringW(Sec,
+		                           L"SF.FXAA",
+		                           S.ShowFlags.HasFlag(EEngineShowFlags::SF_FXAA) ? L"1" : L"0",
+		                           Path.c_str());
+		WritePrivateProfileStringW(Sec,
+		                           L"SF.DecalArrow",
+		                           S.ShowFlags.HasFlag(EEngineShowFlags::SF_DecalArrow) ? L"1" : L"0",
+		                           Path.c_str());
+		WritePrivateProfileStringW(Sec,
+		                           L"SF.ProjectileArrow",
+		                           S.ShowFlags.HasFlag(EEngineShowFlags::SF_ProjectileArrow) ? L"1" : L"0",
+		                           Path.c_str());
+	}
+
+	if (FRenderer* Renderer = Engine->GetRenderer())
+	{
+		const FToneMappingSettings TM = Renderer->GetToneMappingSettings();
+
+		WritePrivateProfileStringW(L"ToneMapping",
+		                           L"Mode",
+		                           std::to_wstring(static_cast<int>(TM.Mode)).c_str(),
+		                           Path.c_str());
+
+		swprintf(Buf, 64, L"%.4f", TM.Exposure);
+		WritePrivateProfileStringW(L"ToneMapping", L"Exposure", Buf, Path.c_str());
+
+		swprintf(Buf, 64, L"%.4f", TM.ShoulderStrength);
+		WritePrivateProfileStringW(L"ToneMapping", L"ShoulderStrength", Buf, Path.c_str());
+
+		swprintf(Buf, 64, L"%.4f", TM.LinearWhite);
+		WritePrivateProfileStringW(L"ToneMapping", L"LinearWhite", Buf, Path.c_str());
+
+		swprintf(Buf, 64, L"%.4f", TM.HableB);
+		WritePrivateProfileStringW(L"ToneMapping", L"HableB", Buf, Path.c_str());
+		swprintf(Buf, 64, L"%.4f", TM.HableC);
+		WritePrivateProfileStringW(L"ToneMapping", L"HableC", Buf, Path.c_str());
+		swprintf(Buf, 64, L"%.4f", TM.HableD);
+		WritePrivateProfileStringW(L"ToneMapping", L"HableD", Buf, Path.c_str());
+		swprintf(Buf, 64, L"%.4f", TM.HableE);
+		WritePrivateProfileStringW(L"ToneMapping", L"HableE", Buf, Path.c_str());
+		swprintf(Buf, 64, L"%.4f", TM.HableF);
+		WritePrivateProfileStringW(L"ToneMapping", L"HableF", Buf, Path.c_str());
+
+		swprintf(Buf, 64, L"%.4f", TM.AcesA);
+		WritePrivateProfileStringW(L"ToneMapping", L"AcesA", Buf, Path.c_str());
+		swprintf(Buf, 64, L"%.4f", TM.AcesB);
+		WritePrivateProfileStringW(L"ToneMapping", L"AcesB", Buf, Path.c_str());
+		swprintf(Buf, 64, L"%.4f", TM.AcesC);
+		WritePrivateProfileStringW(L"ToneMapping", L"AcesC", Buf, Path.c_str());
+		swprintf(Buf, 64, L"%.4f", TM.AcesD);
+		WritePrivateProfileStringW(L"ToneMapping", L"AcesD", Buf, Path.c_str());
+		swprintf(Buf, 64, L"%.4f", TM.AcesE);
+		WritePrivateProfileStringW(L"ToneMapping", L"AcesE", Buf, Path.c_str());
+
+		// Bloom
+		if (FBloomRenderFeature* Bloom = Renderer->GetBloomFeature())
+		{
+			WritePrivateProfileStringW(L"Bloom", L"Apply", Bloom->IsBloomApplied() ? L"1" : L"0", Path.c_str());
+
+			WritePrivateProfileStringW(L"Bloom",
+			                           L"BlurIterations",
+			                           std::to_wstring(Bloom->GetBlurIterations()).c_str(),
+			                           Path.c_str());
+
+			swprintf(Buf, 64, L"%.4f", Bloom->GetThreshold());
+			WritePrivateProfileStringW(L"Bloom", L"Threshold", Buf, Path.c_str());
+
+			swprintf(Buf, 64, L"%.4f", Bloom->GetBloomIntensity());
+			WritePrivateProfileStringW(L"Bloom", L"Intensity", Buf, Path.c_str());
+
+			swprintf(Buf, 64, L"%.4f", Bloom->GetExposure());
+			WritePrivateProfileStringW(L"Bloom", L"Exposure", Buf, Path.c_str());
+		}
+
+		// Decal projection mode
+		WritePrivateProfileStringW(L"Renderer",
+		                           L"DecalProjectionMode",
+		                           std::to_wstring(static_cast<int>(Renderer->GetDecalProjectionMode())).c_str(),
+		                           Path.c_str());
+	}
+
+	FSlateApplication* Slate = Engine->GetSlateApplication();
+
+	if (Slate)
+	{
+		WritePrivateProfileStringW(L"Splitter",
+		                           L"Layout",
+		                           std::to_wstring(static_cast<int>(Slate->GetCurrentLayout())).c_str(),
+		                           Path.c_str());
+		for (int i = 0; i < 3; i++)
+		{
+			swprintf(Sec, 32, L"Splitter%d", i);
+			swprintf(Buf, 64, L"%.4f", Slate->GetSplitterRatio(i));
+			WritePrivateProfileStringW(Sec, L"Ratio", Buf, Path.c_str());
+		}
+	}
+}
+
+bool FEditorUI::InitializeImGui(FRenderer* InRenderer)
+{
+	if (!InRenderer)
+	{
+		return false;
+	}
+
+	if (bImGuiInitialized)
+	{
+		return true;
+	}
+
+	const HWND           Hwnd          = InRenderer->GetHwnd();
+	ID3D11Device*        Device        = InRenderer->GetDevice();
+	ID3D11DeviceContext* DeviceContext = InRenderer->GetDeviceContext();
+	if (!Hwnd || !Device || !DeviceContext)
+	{
+		return false;
+	}
+
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& IO    = ImGui::GetIO();
+	IO.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+	IO.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+	IO.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+	IO.IniFilename = "imgui_editor.ini";
+
+	std::filesystem::path FontPath        = FPaths::ProjectRoot() / "Content" / "Fonts" / "NotoSansKR-Bold.ttf";
+	std::wstring          FontPathWString = FontPath.wstring();
+
+	ImFontConfig FontConfig;
+	FontConfig.OversampleH = 1;
+	FontConfig.OversampleV = 1;
+	FontConfig.PixelSnapH  = true;
+
+	ImFont* Font       = nullptr;
+	FILE*   FileHandle = nullptr;
+	_wfopen_s(&FileHandle, FontPath.c_str(), L"rb");
+	if (FileHandle)
+	{
+		fseek(FileHandle, 0, SEEK_END);
+		const size_t FontByteSize = static_cast<size_t>(ftell(FileHandle));
+		fseek(FileHandle, 0, SEEK_SET);
+		void* FontData = IM_ALLOC(FontByteSize);
+		if (FontData)
+		{
+			fread(FontData, 1, FontByteSize, FileHandle);
+			Font = IO.Fonts->AddFontFromMemoryTTF(FontData,
+			                                      static_cast<int32>(FontByteSize),
+			                                      16.0f,
+			                                      &FontConfig,
+			                                      IO.Fonts->GetGlyphRangesKorean());
+		}
+		fclose(FileHandle);
+	}
+
+	if (!Font)
+	{
+		MessageBoxW(nullptr, FontPathWString.c_str(), L"Failed to load font", MB_OK);
+		IO.Fonts->AddFontDefault();
+	}
+
+	ImGui::StyleColorsDark();
+	ImGuiStyle& Style                   = ImGui::GetStyle();
+	Style.WindowPadding                 = ImVec2(0, 0);
+	Style.DisplayWindowPadding          = ImVec2(0, 0);
+	Style.DisplaySafeAreaPadding        = ImVec2(0, 0);
+	Style.Colors[ImGuiCol_Text]         = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+	Style.Colors[ImGuiCol_TextDisabled] = ImVec4(0.60f, 0.60f, 0.60f, 1.0f);
+	if (IO.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+	{
+		Style.WindowRounding              = 0.0f;
+		Style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+	}
+
+	ImGui_ImplWin32_Init(Hwnd);
+	ImGui_ImplDX11_Init(Device, DeviceContext);
+	bImGuiInitialized = true;
+	return true;
+}
+
+void FEditorUI::ShutdownImGui()
+{
+	if (!bImGuiInitialized)
+	{
+		return;
+	}
+
+	ImGui_ImplDX11_Shutdown();
+	ImGui_ImplWin32_Shutdown();
+	if (ImGui::GetCurrentContext())
+	{
+		ImGui::DestroyContext();
+	}
+	bImGuiInitialized = false;
+}
+
+void FEditorUI::BuildDefaultLayout(uint32 DockID)
+{
+	ImGui::DockBuilderRemoveNode(DockID);
+	ImGui::DockBuilderAddNode(DockID, ImGuiDockNodeFlags_DockSpace);
+
+	ImGuiViewport* Viewport = ImGui::GetMainViewport();
+	ImGui::DockBuilderSetNodeSize(DockID, Viewport->WorkSize);
+
+	ImGuiID DockBottom = 0;
+	ImGuiID DockUpper  = 0;
+	ImGui::DockBuilderSplitNode(DockID, ImGuiDir_Down, 0.25f, &DockBottom, &DockUpper);
+
+	ImGuiID DockLeft   = 0;
+	ImGuiID DockCenter = 0;
+	ImGui::DockBuilderSplitNode(DockUpper, ImGuiDir_Left, 0.20f, &DockLeft, &DockCenter);
+
+	ImGuiID DockRight = 0;
+	ImGui::DockBuilderSplitNode(DockCenter, ImGuiDir_Right, 0.25f, &DockRight, &DockCenter);
+
+	ImGuiID DockRightTop    = 0;
+	ImGuiID DockRightBottom = 0;
+	ImGui::DockBuilderSplitNode(DockRight, ImGuiDir_Up, 0.50f, &DockRightTop, &DockRightBottom);
+	ImGui::DockBuilderDockWindow("Viewport", DockCenter);
+	ImGui::DockBuilderDockWindow("Viewport", DockCenter);
+	ImGui::DockBuilderDockWindow("Stats", DockLeft);
+	ImGui::DockBuilderDockWindow("Properties", DockRightTop);
+	ImGui::DockBuilderDockWindow("Control Panel", DockRightBottom);
+	ImGui::DockBuilderDockWindow("Level Gameplay", DockRightBottom);
+	ImGui::DockBuilderDockWindow("Console", DockBottom);
+
+	ImGui::DockBuilderFinish(DockID);
+}
+
+void FEditorUI::LoadEditorSettings()
+{
+	std::wstring Path = GetEditorIniPathW();
+	if (!Engine)
+	{
+		return;
+	}
+	FEditorViewportRegistry& ViewportRegistry = Engine->GetViewportRegistry();
+
+	wchar_t Sec[32];
+	wchar_t Buf[64];
+
+	for (FViewportEntry& Entry : ViewportRegistry.GetEntries())
+	{
+		swprintf(Sec, 32, L"Viewport.%u", Entry.Id);
+		FViewportLocalState& S = Entry.LocalState;
+
+		GetPrivateProfileStringW(Sec, L"GridSize", L"10.0", Buf, 64, Path.c_str());
+		S.GridSize = static_cast<float>(_wtof(Buf));
+
+		GetPrivateProfileStringW(Sec, L"LineThickness", L"1.0", Buf, 64, Path.c_str());
+		S.LineThickness = static_cast<float>(_wtof(Buf));
+
+		GetPrivateProfileStringW(Sec, L"ShowGrid", L"1", Buf, 64, Path.c_str());
+		S.bShowGrid = (_wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"ViewMode", L"0", Buf, 64, Path.c_str());
+		S.ViewMode = static_cast<ERenderMode>(_wtoi(Buf));
+
+		GetPrivateProfileStringW(Sec, L"SF.Primitives", L"1", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_Primitives, _wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"SF.UUID", L"1", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_UUID, _wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"SF.DebugDraw", L"0", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugDraw, _wtoi(Buf) != 0);
+
+		const wchar_t* DefaultDebugVolumeValue =
+				S.ShowFlags.HasFlag(EEngineShowFlags::SF_DebugDraw) ? L"1" : L"0";
+		GetPrivateProfileStringW(Sec, L"SF.DebugVolume", DefaultDebugVolumeValue, Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_DebugVolume, _wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"SF.WorldAxis", L"0", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_WorldAxis, _wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"SF.Collision", L"0", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_Collision, _wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"SF.SceneBVH", L"0", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_SceneBVH, _wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"SF.MeshBVH", L"0", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_MeshBVH, _wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"SF.Decal", L"1", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_Decal, _wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"SF.FXAA", L"0", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_FXAA, _wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"SF.DecalArrow", L"1", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_DecalArrow, _wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"SF.ProjectileArrow", L"1", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_ProjectileArrow, _wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"SF.DecalDebug", L"0", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_DecalDebug, _wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"SF.Fog", L"1", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_Fog, _wtoi(Buf) != 0);
+
+		GetPrivateProfileStringW(Sec, L"SF.LocalFogDebug", L"0", Buf, 64, Path.c_str());
+		S.ShowFlags.SetFlag(EEngineShowFlags::SF_LocalFogDebug, _wtoi(Buf) != 0);
+	}
+
+	if (FRenderer* Renderer = Engine->GetRenderer())
+	{
+		FToneMappingSettings TM = Renderer->GetToneMappingSettings();
+
+		GetPrivateProfileStringW(L"ToneMapping", L"Mode", L"1", Buf, 64, Path.c_str());
+		TM.Mode = static_cast<EToneMappingMode>(std::clamp(_wtoi(Buf), 0, 3));
+
+		GetPrivateProfileStringW(L"ToneMapping", L"Exposure", L"1.0", Buf, 64, Path.c_str());
+		TM.Exposure = static_cast<float>(_wtof(Buf));
+
+		GetPrivateProfileStringW(L"ToneMapping", L"ShoulderStrength", L"0.15", Buf, 64, Path.c_str());
+		TM.ShoulderStrength = static_cast<float>(_wtof(Buf));
+
+		GetPrivateProfileStringW(L"ToneMapping", L"LinearWhite", L"11.2", Buf, 64, Path.c_str());
+		TM.LinearWhite = static_cast<float>(_wtof(Buf));
+
+		GetPrivateProfileStringW(L"ToneMapping", L"HableB", L"0.50", Buf, 64, Path.c_str());
+		TM.HableB = static_cast<float>(_wtof(Buf));
+		GetPrivateProfileStringW(L"ToneMapping", L"HableC", L"0.10", Buf, 64, Path.c_str());
+		TM.HableC = static_cast<float>(_wtof(Buf));
+		GetPrivateProfileStringW(L"ToneMapping", L"HableD", L"0.20", Buf, 64, Path.c_str());
+		TM.HableD = static_cast<float>(_wtof(Buf));
+		GetPrivateProfileStringW(L"ToneMapping", L"HableE", L"0.02", Buf, 64, Path.c_str());
+		TM.HableE = static_cast<float>(_wtof(Buf));
+		GetPrivateProfileStringW(L"ToneMapping", L"HableF", L"0.30", Buf, 64, Path.c_str());
+		TM.HableF = static_cast<float>(_wtof(Buf));
+
+		GetPrivateProfileStringW(L"ToneMapping", L"AcesA", L"2.51", Buf, 64, Path.c_str());
+		TM.AcesA = static_cast<float>(_wtof(Buf));
+		GetPrivateProfileStringW(L"ToneMapping", L"AcesB", L"0.03", Buf, 64, Path.c_str());
+		TM.AcesB = static_cast<float>(_wtof(Buf));
+		GetPrivateProfileStringW(L"ToneMapping", L"AcesC", L"2.43", Buf, 64, Path.c_str());
+		TM.AcesC = static_cast<float>(_wtof(Buf));
+		GetPrivateProfileStringW(L"ToneMapping", L"AcesD", L"0.59", Buf, 64, Path.c_str());
+		TM.AcesD = static_cast<float>(_wtof(Buf));
+		GetPrivateProfileStringW(L"ToneMapping", L"AcesE", L"0.14", Buf, 64, Path.c_str());
+		TM.AcesE = static_cast<float>(_wtof(Buf));
+
+		Renderer->SetToneMappingSettings(TM);
+
+		// Bloom
+		if (FBloomRenderFeature* Bloom = Renderer->GetBloomFeature())
+		{
+			GetPrivateProfileStringW(L"Bloom", L"Apply", L"0", Buf, 64, Path.c_str());
+			Bloom->SetApplyBloom(_wtoi(Buf) != 0);
+
+			GetPrivateProfileStringW(L"Bloom", L"BlurIterations", L"1", Buf, 64, Path.c_str());
+			Bloom->SetBlurIterations(_wtoi(Buf));
+
+			GetPrivateProfileStringW(L"Bloom", L"Threshold", L"0.3", Buf, 64, Path.c_str());
+			Bloom->SetThreshold(static_cast<float>(_wtof(Buf)));
+
+			GetPrivateProfileStringW(L"Bloom", L"Intensity", L"3.0", Buf, 64, Path.c_str());
+			Bloom->SetBloomIntensity(static_cast<float>(_wtof(Buf)));
+
+			GetPrivateProfileStringW(L"Bloom", L"Exposure", L"1.0", Buf, 64, Path.c_str());
+			Bloom->SetExposure(static_cast<float>(_wtof(Buf)));
+		}
+
+		// Decal projection mode
+		GetPrivateProfileStringW(L"Renderer", L"DecalProjectionMode", L"1", Buf, 64, Path.c_str());
+		Renderer->SetDecalProjectionMode(static_cast<EDecalProjectionMode>(_wtoi(Buf)));
+	}
+
+	FSlateApplication* Slate = Engine->GetSlateApplication();
+	if (Slate)
+	{
+		GetPrivateProfileStringW(L"Splitter", L"Layout", L"0", Buf, 64, Path.c_str());
+		int32 LayoutValue = _wtoi(Buf);
+		if (LayoutValue < static_cast<int32>(EViewportLayout::Single) ||
+			LayoutValue > static_cast<int32>(EViewportLayout::FourGrid))
+		{
+			LayoutValue = static_cast<int32>(EViewportLayout::Single);
+		}
+
+		Slate->SetLayout(static_cast<EViewportLayout>(LayoutValue));
+		const int32 ActiveViewportCount = Slate->GetActiveViewportCount();
+		int32       EntryIndex          = 0;
+		for (FViewportEntry& Entry : ViewportRegistry.GetEntries())
+		{
+			Entry.bActive = (EntryIndex < ActiveViewportCount);
+			++EntryIndex;
+		}
+
+		for (int i = 0; i < 3; ++i)
+		{
+			swprintf(Sec, 32, L"Splitter%d", i);
+			GetPrivateProfileStringW(Sec, L"Ratio", L"0.5", Buf, 64, Path.c_str());
+
+			float Ratio = static_cast<float>(_wtof(Buf));
+			if (Ratio < 0.05f)
+			{
+				Ratio = 0.05f;
+			}
+			else if (Ratio > 0.95f)
+			{
+				Ratio = 0.95f;
+			}
+			Slate->SetSplitterRatio(i, Ratio);
+		}
+
+		Slate->PerformLayout();
+	}
+}
+
+std::wstring FEditorUI::GetEditorIniPathW() const
+{
+	return (FPaths::ProjectRoot() / "Editor.ini").wstring();
 }
