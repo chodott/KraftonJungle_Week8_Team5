@@ -1578,11 +1578,11 @@ void FEditorUI::Render()
         DrawList->AddRectFilled(WinPos, ImVec2(WinPos.x + WinSize.x, WinPos.y + 60), IM_COL32(30, 30, 60, 255));
 
         ImGui::SetCursorPosY(12);
-        ImGui::SetCursorPosX((WinSize.x - ImGui::CalcTextSize("NewAge Engine").x) * 0.5f);
-        ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "NewAge Engine");
+        ImGui::SetCursorPosX((WinSize.x - ImGui::CalcTextSize("Genesis Engine").x) * 0.5f);
+        ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Genesis Engine");
 
         ImGui::SetCursorPosY(35);
-        ImGui::SetCursorPosX((WinSize.x - ImGui::CalcTextSize("v2.0.0").x) * 0.5f);
+        ImGui::SetCursorPosX((WinSize.x - ImGui::CalcTextSize("v3.0.0").x) * 0.5f);
         ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "v2.1.0");
 
         ImGui::SetCursorPosY(70);
@@ -1664,13 +1664,33 @@ void FEditorUI::Render()
 			ImGui::SameLine();
 			ImGui::Text("%s", Name);
 		}
+    	
+    	ImGui::SetCursorPosX(20);
 
-		ImGui::Spacing();
-		ImGui::SetCursorPosX(20);
-		ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1, 1, 1, 0.1f));
-		ImGui::Separator();
-		ImGui::PopStyleColor();
-		ImGui::Spacing();
+    	ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "Fifth Contributors");
+    	ImGui::SameLine();
+    	ImGui::SetCursorPosX(20);
+    	ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.9f, 0.7f, 0.3f, 0.5f));
+    	ImGui::Separator();
+    	ImGui::PopStyleColor();
+
+    	ImGui::Spacing();
+    	
+    	const char* Fifth_Contributors[] = { "김효범", "정찬일", "성원희", "양현석" };
+    	for (const char* Name : Fifth_Contributors)
+    	{
+    		ImGui::SetCursorPosX(20);
+    		ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.6f, 1.0f), "-");
+    		ImGui::SameLine();
+    		ImGui::Text("%s", Name);
+    	}
+
+    	ImGui::Spacing();
+    	ImGui::SetCursorPosX(20);
+    	ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1, 1, 1, 0.1f));
+    	ImGui::Separator();
+    	ImGui::PopStyleColor();
+    	ImGui::Spacing();
 
         ImGui::SetCursorPosX(20);
         ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Copyright (c) 2026  |  MIT License");

@@ -1,57 +1,27 @@
 # Blender 5.1.0 MTL File: 'Newyork.blend'
 # www.blender.org
 
-newmtl Material.001
+newmtl Material.010
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Ks 0.500000 0.500000 0.500000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd textures/Image_1.jpg
-map_Ke textures/Image_1.jpg
+map_Kd textures/Image_0.001.jpg
+map_Ke textures/Image_0.001.jpg
 
-newmtl Material.002
+newmtl Material.011
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Ks 0.500000 0.500000 0.500000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd textures/Image_11.jpg
-map_Ke textures/Image_11.jpg
+map_Kd textures/Image_1.001.jpg
+map_Ke textures/Image_1.001.jpg
 
-newmtl Material.003
-Ns 250.000000
-Ka 1.000000 1.000000 1.000000
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
-Ni 1.500000
-d 1.000000
-illum 2
-map_Kd textures/Image_6.jpg
-
-newmtl Material.004
-Ns 250.000000
-Ka 1.000000 1.000000 1.000000
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
-Ni 1.500000
-d 1.000000
-illum 2
-map_Kd textures/Image_8.jpg
-
-newmtl Material.005
-Ns 1000.000000
-Ka 1.000000 1.000000 1.000000
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
-Ni 1.500000
-d 1.000000
-illum 2
-map_Kd textures/Image_10.jpg
-
-newmtl Material.006
+newmtl Material.012
 Ns 1000.000000
 Ka 1.000000 1.000000 1.000000
 Kd 0.356400 0.545724 0.799103
@@ -61,27 +31,7 @@ Ni 1.500000
 d 1.000000
 illum 3
 
-newmtl Material.007
-Ns 250.000000
-Ka 1.000000 1.000000 1.000000
-Ks 0.500000 0.500000 0.500000
-Ni 1.500000
-d 1.000000
-illum 2
-map_Kd textures/Image_0.jpg
-map_Ke textures/Image_0.jpg
-
-newmtl Material.008
-Ns 250.000000
-Ka 1.000000 1.000000 1.000000
-Ks 0.500000 0.500000 0.500000
-Ni 1.500000
-d 1.000000
-illum 2
-map_Kd textures/Image_9.jpg
-map_Ke textures/Image_9.jpg
-
-newmtl Material.009
+newmtl Material.013
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Ks 0.500000 0.500000 0.500000
@@ -89,9 +39,59 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd textures/Image_7.jpg
+map_Kd textures/Image_6.001.jpg
 
-newmtl Material_11
+newmtl Material.014
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd textures/Image_7.001.jpg
+
+newmtl Material.015
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd textures/Image_8.001.jpg
+
+newmtl Material.016
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd textures/Image_9.001.jpg
+map_Ke textures/Image_9.001.jpg
+
+newmtl Material.017
+Ns 1000.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd textures/Image_10.001.jpg
+
+newmtl Material.018
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd textures/Image_11.001.jpg
+map_Ke textures/Image_11.001.jpg
+
+newmtl Material_11.001
 Ns 0.000000
 Ka 1.000000 1.000000 1.000000
 Kd 1.000000 1.000000 1.000000
@@ -101,7 +101,7 @@ Ni 1.500000
 d 1.000000
 illum 3
 
-newmtl advertising_screens_texture_01
+newmtl advertising_screens_texture_01.001
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Ks 0.500000 0.500000 0.500000
@@ -109,10 +109,10 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd textures/Image_3.jpg
-map_Bump -bm 1.000000 textures/Image_4.jpg
+map_Kd textures/Image_3.001.jpg
+map_Bump -bm 1.000000 textures/Image_4.001.jpg
 
-newmtl chrom
+newmtl chrom.001
 Ns 0.000000
 Ka 1.000000 1.000000 1.000000
 Kd 0.296138 0.337164 0.407240
@@ -122,17 +122,7 @@ Ni 1.500000
 d 1.000000
 illum 3
 
-newmtl glass_01
-Ns 0.000000
-Ka 1.000000 1.000000 1.000000
-Kd 0.086500 0.097587 0.155926
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
-Ni 1.500000
-d 1.000000
-illum 3
-
-newmtl metal_black
+newmtl metal_black.001
 Ns 0.000000
 Ka 1.000000 1.000000 1.000000
 Kd 0.008023 0.008023 0.011612
@@ -142,7 +132,7 @@ Ni 1.500000
 d 1.000000
 illum 3
 
-newmtl metal_gray
+newmtl metal_gray.001
 Ns 0.000000
 Ka 1.000000 1.000000 1.000000
 Kd 0.116971 0.138432 0.171441
@@ -152,7 +142,7 @@ Ni 1.500000
 d 1.000000
 illum 3
 
-newmtl white_neon
+newmtl white_neon.001
 Ns 0.000000
 Ka 1.000000 1.000000 1.000000
 Kd 1.000000 0.072272 0.514918
