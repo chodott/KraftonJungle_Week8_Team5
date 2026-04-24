@@ -2,6 +2,8 @@
 
 #include <array>
 
+#include "Renderer/Features/Lighting/LightTypes.h"
+
 namespace
 {
 	void ReleaseCOMResource(IUnknown*& Resource)
@@ -194,6 +196,74 @@ bool FSceneTargetManager::CreateDepthTexture(
 	return true;
 }
 
+bool FSceneTargetManager::CreateShadowDepthTexture(
+	ID3D11Device* Device,
+	uint32 Width,
+	uint32 Height,
+	FGPUTexture2D& OutTexture)
+{
+	if (!Device || Width == 0 || Height == 0) return false;
+
+	ReleaseTexture(OutTexture);
+
+	OutTexture.Desc = {};
+	OutTexture.Desc.Width = Width;
+	OutTexture.Desc.Height = Height;
+	OutTexture.Desc.TextureFormat = DXGI_FORMAT_R32_TYPELESS;
+	OutTexture.Desc.SRVFormat = DXGI_FORMAT_R32_FLOAT;
+	OutTexture.Desc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+	OutTexture.Desc.BindFlags = ETextureBindFlags::SRV | ETextureBindFlags::DSV;
+
+	D3D11_TEXTURE2D_DESC Desc = {};
+	Desc.Width = Width;
+	Desc.Height = Height;
+	Desc.MipLevels = 1;
+	Desc.ArraySize = LightListConfig::MaxShadowCastingLights;
+	Desc.Format = DXGI_FORMAT_R32_TYPELESS;
+	Desc.SampleDesc.Count = 1;
+	Desc.Usage = D3D11_USAGE_DEFAULT;
+	Desc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+
+	if (FAILED(Device->CreateTexture2D(&Desc, nullptr, &OutTexture.Texture)) || !OutTexture.Texture)
+	{
+		ReleaseTexture(OutTexture);
+		return false;
+	}
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
+	SRVDesc.Format = OutTexture.Desc.SRVFormat;
+	SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
+	SRVDesc.Texture2DArray.MostDetailedMip = 0;
+	SRVDesc.Texture2DArray.MipLevels = 1;
+	SRVDesc.Texture2DArray.FirstArraySlice = 0;
+	SRVDesc.Texture2DArray.ArraySize = LightListConfig::MaxShadowCastingLights;
+	if (FAILED(Device->CreateShaderResourceView(OutTexture.Texture, &SRVDesc, &OutTexture.SRV)) || !OutTexture.SRV)
+	{
+		ReleaseTexture(OutTexture);
+		return false;
+	}
+
+	OutTexture.ArrayDSVs.resize(LightListConfig::MaxShadowCastingLights);
+	for (uint32 i = 0; i < LightListConfig::MaxShadowCastingLights; i++)
+	{
+		D3D11_DEPTH_STENCIL_VIEW_DESC DSVDesc = {};
+		DSVDesc.Format = OutTexture.Desc.DSVFormat;
+		DSVDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DARRAY;
+		DSVDesc.Texture2DArray.MipSlice = 0;
+		DSVDesc.Texture2DArray.FirstArraySlice = i;
+		DSVDesc.Texture2DArray.ArraySize = 1;
+		if (FAILED(Device->CreateDepthStencilView(OutTexture.Texture, &DSVDesc, &OutTexture.ArrayDSVs[i])) || !OutTexture.ArrayDSVs[i])
+		{
+			ReleaseTexture(OutTexture);
+			return false;
+		}
+	}
+
+	OutTexture.DSV = OutTexture.ArrayDSVs[0];
+
+	return true;
+}
+
 void FSceneTargetManager::WrapExternalColorTarget(
 	uint32 Width,
 	uint32 Height,
@@ -241,6 +311,16 @@ void FSceneTargetManager::ReleaseTexture(FGPUTexture2D& Texture)
 		ReleaseCOM(reinterpret_cast<IUnknown*&>(MipUAV));
 	}
 	Texture.MipUAVs.clear();
+
+	for (ID3D11DepthStencilView*& ArrayDSV : Texture.ArrayDSVs)
+	{
+		if (Texture.DSV == ArrayDSV)
+		{
+			Texture.DSV = nullptr;
+		}
+		ReleaseCOM(reinterpret_cast<IUnknown*&>(ArrayDSV));
+	}
+	Texture.ArrayDSVs.clear();
 
 	if (!Texture.IsExternal())
 	{
@@ -337,6 +417,7 @@ void FSceneTargetManager::ReleaseSupplementalTargets()
 {
 	ReleaseTexture(InternalSceneColorA);
 	ReleaseTexture(InternalSceneColorB);
+	ReleaseTexture(ShadowMapSurface);
 	ReleaseTexture(GBufferASurface);
 	ReleaseTexture(GBufferBSurface);
 	ReleaseTexture(GBufferCSurface);
@@ -382,6 +463,7 @@ bool FSceneTargetManager::EnsureSupplementalTargets(ID3D11Device* Device, uint32
 
 	if (InternalSceneColorA.RTV
 		&& InternalSceneColorB.RTV
+		&& ShadowMapSurface.DSV
 		&& GBufferASurface.RTV
 		&& GBufferBSurface.RTV
 		&& GBufferCSurface.RTV
@@ -395,13 +477,16 @@ bool FSceneTargetManager::EnsureSupplementalTargets(ID3D11Device* Device, uint32
 
 	ReleaseSupplementalTargets();
 
+	constexpr uint32 ShadowMapResolution = 2048;
+
 	if (!CreateColorTexture(Device, Width, Height, DXGI_FORMAT_R16G16B16A16_FLOAT, InternalSceneColorA, true)
 		|| !CreateColorTexture(Device, Width, Height, DXGI_FORMAT_R16G16B16A16_FLOAT, InternalSceneColorB, true)
 		|| !CreateColorTexture(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, GBufferASurface, true)
 		|| !CreateColorTexture(Device, Width, Height, DXGI_FORMAT_R16G16B16A16_FLOAT, GBufferBSurface, true)
 		|| !CreateColorTexture(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, GBufferCSurface, true)
 		|| !CreateColorTexture(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, OverlayColorSurface, true)
-		|| !CreateColorTexture(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, OutlineMaskSurface, true))
+		|| !CreateColorTexture(Device, Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, OutlineMaskSurface, true)
+		|| !CreateShadowDepthTexture(Device, ShadowMapResolution, ShadowMapResolution, ShadowMapSurface))
 	{
 		Release();
 		return false;
@@ -427,6 +512,7 @@ bool FSceneTargetManager::AcquireGameSceneTargets(ID3D11Device* Device, const D3
 	OutTargets.SceneColorWrite = &InternalSceneColorB;
 	OutTargets.OverlayColor = &OverlayColorSurface;
 	OutTargets.SceneDepth = &GameSceneDepth;
+	OutTargets.ShadowMap = &ShadowMapSurface;
 	OutTargets.GBufferA = &GBufferASurface;
 	OutTargets.GBufferB = &GBufferBSurface;
 	OutTargets.GBufferC = &GBufferCSurface;
@@ -475,6 +561,7 @@ bool FSceneTargetManager::WrapExternalSceneTargets(
 	OutTargets.SceneColorWrite = &InternalSceneColorB;
 	OutTargets.OverlayColor = &ExternalOverlayTargets->OverlayColor;
 	OutTargets.SceneDepth = &WrappedSceneDepth;
+	OutTargets.ShadowMap = &ShadowMapSurface;
 	OutTargets.GBufferA = &GBufferASurface;
 	OutTargets.GBufferB = &GBufferBSurface;
 	OutTargets.GBufferC = &GBufferCSurface;

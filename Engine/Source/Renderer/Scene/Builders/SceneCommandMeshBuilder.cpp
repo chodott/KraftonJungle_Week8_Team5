@@ -121,7 +121,8 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 				{
 					Batch.Domain   = EMaterialDomain::Opaque;
 					Batch.PassMask =
-							static_cast<uint32>(EMeshPassMask::DepthPrepass) |
+						static_cast<uint32>(EMeshPassMask::DepthPrepass) |
+						static_cast<uint32>(EMeshPassMask::ShadowDepthPrepass) |
 							static_cast<uint32>(EMeshPassMask::GBuffer) |
 							static_cast<uint32>(EMeshPassMask::ForwardOpaque);
 					if (bCanPick)
@@ -201,7 +202,8 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 				{
 					Batch.Domain   = EMaterialDomain::Opaque;
 					Batch.PassMask =
-							static_cast<uint32>(EMeshPassMask::DepthPrepass) |
+						static_cast<uint32>(EMeshPassMask::DepthPrepass) |
+						static_cast<uint32>(EMeshPassMask::ShadowDepthPrepass) |
 							static_cast<uint32>(EMeshPassMask::GBuffer) |
 							static_cast<uint32>(EMeshPassMask::ForwardOpaque);
 					if (bCanPick)

@@ -57,6 +57,10 @@ struct ENGINE_API FLocalLightRenderItem
 	uint32 ShadowIndex = UINT32_MAX;
 	uint32 CookieIndex = UINT32_MAX;
 	uint32 IESIndex    = UINT32_MAX;
+
+	FMatrix ShadowView = FMatrix::Identity;
+	FMatrix ShadowProj = FMatrix::Identity;
+	FMatrix ShadowViewProj = FMatrix::Identity;
 };
 
 struct ENGINE_API FDirectionalLightRenderItem

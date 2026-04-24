@@ -55,6 +55,8 @@ struct ENGINE_API FGPUTexture2D
 	ID3D11ShaderResourceView*               SRV     = nullptr;
 	ID3D11DepthStencilView*                 DSV     = nullptr;
 	ID3D11UnorderedAccessView*              UAV     = nullptr;
+
+	TArray<ID3D11DepthStencilView*> ArrayDSVs;
 	std::vector<ID3D11ShaderResourceView*>  MipSRVs;
 	std::vector<ID3D11UnorderedAccessView*> MipUAVs;
 
@@ -79,6 +81,7 @@ struct ENGINE_API FSceneRenderTargets
 	FGPUTexture2D* SceneColorWrite = nullptr;
 	FGPUTexture2D* OverlayColor    = nullptr;
 	FGPUTexture2D* SceneDepth      = nullptr;
+	FGPUTexture2D* ShadowMap		= nullptr;
 	FGPUTexture2D* GBufferA        = nullptr;
 	FGPUTexture2D* GBufferB        = nullptr;
 	FGPUTexture2D* GBufferC        = nullptr;
@@ -102,6 +105,10 @@ struct ENGINE_API FSceneRenderTargets
 	ID3D11Texture2D*          SceneDepthTexture = nullptr;
 	ID3D11DepthStencilView*   SceneDepthDSV     = nullptr;
 	ID3D11ShaderResourceView* SceneDepthSRV     = nullptr;
+
+	ID3D11Texture2D*					ShadowMapTexture	= nullptr;
+	ID3D11ShaderResourceView*			ShadowMapSRV		= nullptr;
+	TArray<ID3D11DepthStencilView*>		ShadowMapDSVs;
 
 	ID3D11Texture2D*           GBufferATexture = nullptr;
 	ID3D11RenderTargetView*    GBufferARTV     = nullptr;
@@ -143,6 +150,17 @@ struct ENGINE_API FSceneRenderTargets
 		SceneDepthTexture = SceneDepth ? SceneDepth->Texture : nullptr;
 		SceneDepthDSV     = SceneDepth ? SceneDepth->DSV : nullptr;
 		SceneDepthSRV     = SceneDepth ? SceneDepth->SRV : nullptr;
+
+		ShadowMapTexture = ShadowMap ? ShadowMap->Texture : nullptr;
+		if (ShadowMap)
+		{
+			ShadowMapDSVs = ShadowMap->ArrayDSVs;
+		}
+		else
+		{
+			ShadowMapDSVs.clear();
+		}
+		ShadowMapSRV = ShadowMap ? ShadowMap->SRV : nullptr;
 
 		GBufferATexture = GBufferA ? GBufferA->Texture : nullptr;
 		GBufferARTV     = GBufferA ? GBufferA->RTV : nullptr;

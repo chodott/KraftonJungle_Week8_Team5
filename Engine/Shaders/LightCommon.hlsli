@@ -164,6 +164,31 @@ StructuredBuffer<uint>                ClusterLightIndices : register(t11);
 StructuredBuffer<FLocalLightGPU>      LocalLights         : register(t12);
 StructuredBuffer<uint>                ObjectLightIndices  : register(t13);
 
+StructuredBuffer<float4x4>				ShadowMatrices		: register(t14);
+Texture2DArray							ShadowMap			: register(t15);
+SamplerComparisonState					ShadowSampler		: register(s1);
+
+float CalculateShadowFactor(float3 worldPos, uint shadowIndex)
+{
+    if (shadowIndex == 0xFFFFFFFF)
+        return 1.0f;
+
+    float4x4 lightVP = ShadowMatrices[shadowIndex];
+    float4 shadowPos = mul(float4(worldPos, 1.0f), lightVP);
+    float3 projCoords = shadowPos.xyz / shadowPos.w;
+	
+    if (projCoords.z > 1.0f || projCoords.z < 0.0f)
+        return 1.0f;
+
+	// NDC를 UV로 변환
+    float2 shadowUV = projCoords.xy * 0.5f + 0.5f;
+    shadowUV.y = 1.0f - shadowUV.y;
+	
+    float currentDepth = projCoords.z - 0.0005f;
+	
+    return ShadowMap.SampleCmpLevelZero(ShadowSampler, float3(shadowUV, shadowIndex), currentDepth).r;
+}
+
 float CalculateAttenuation(float distance, float range)
 {
 	float safeRange = max(range, 1.0e-4f);
@@ -365,6 +390,10 @@ void ComputeLocalLightContributions(
 	float spec = pow(max(dot(N, H), 0.0f), 32.0f);
 	float3 specularLighting = light.ColorIntensity.xyz * light.ColorIntensity.w * spec * attenuation * intensity;
 
+    float shadowFactor = CalculateShadowFactor(worldPos, light.ShadowIndex);
+    diffuseLighting *= shadowFactor;
+    specularLighting *= shadowFactor;
+	
 	totalLighting = diffuseLighting + specularLighting;
 }
 

@@ -122,6 +122,10 @@ private:
 	ID3D11ShaderResourceView*  TileDepthBoundsSRV    = nullptr;
 	ID3D11UnorderedAccessView* TileDepthBoundsUAV    = nullptr;
 
+	ID3D11Buffer*				ShadowMatricesBuffer = nullptr;
+	ID3D11ShaderResourceView*	ShadowMatricesSRV	= nullptr;
+	ID3D11SamplerState*			ShadowSampler		= nullptr;
+
 	std::shared_ptr<FComputeShaderHandle> TileDepthBoundsCS = nullptr;
 	std::shared_ptr<FComputeShaderHandle> LightCullingCS = nullptr;
 	ID3D11SamplerState* DepthSampler     = nullptr;

@@ -36,6 +36,11 @@ private:
 		uint32         Width,
 		uint32         Height,
 		FGPUTexture2D& OutTexture);
+	static bool CreateShadowDepthTexture(
+		ID3D11Device* Device,
+		uint32         Width,
+		uint32         Height,
+		FGPUTexture2D& OutTexture);
 	static void WrapExternalColorTarget(
 		uint32                    Width,
 		uint32                    Height,
@@ -75,6 +80,7 @@ private:
 	FGPUTexture2D InternalSceneColorA;
 	FGPUTexture2D InternalSceneColorB;
 	FGPUTexture2D GameSceneDepth;
+	FGPUTexture2D ShadowMapSurface;
 	FGPUTexture2D GBufferASurface;
 	FGPUTexture2D GBufferBSurface;
 	FGPUTexture2D GBufferCSurface;

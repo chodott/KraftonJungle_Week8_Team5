@@ -20,6 +20,7 @@ enum class EMaterialDomain
 enum class EMeshPassType : uint32
 {
 	DepthPrepass = 0,
+	ShadowDepthPrepass,
 	GBuffer,
 	ForwardOpaque,
 	ForwardMeshDecal,
@@ -34,13 +35,14 @@ enum class EMeshPassMask : uint32
 {
 	None               = 0,
 	DepthPrepass       = 1u << 0,
-	GBuffer            = 1u << 1,
-	ForwardOpaque      = 1u << 2,
-	ForwardMeshDecal   = 1u << 3,
-	ForwardTransparent = 1u << 4,
-	EditorPicking      = 1u << 5,
-	EditorGrid         = 1u << 6,
-	EditorPrimitive    = 1u << 7,
+	ShadowDepthPrepass = 1u << 1,
+	GBuffer            = 1u << 2,
+	ForwardOpaque      = 1u << 3,
+	ForwardMeshDecal   = 1u << 4,
+	ForwardTransparent = 1u << 5,
+	EditorPicking      = 1u << 6,
+	EditorGrid         = 1u << 7,
+	EditorPrimitive    = 1u << 8,
 };
 
 inline uint32 operator|(EMeshPassMask A, EMeshPassMask B)

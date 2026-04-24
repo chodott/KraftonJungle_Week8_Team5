@@ -325,6 +325,21 @@ bool FLightRenderFeature::Render(
 		DeviceContext->PSSetShaderResources(LightClusterSlots::ClusterLightIndexSRV, 1, &ClusterLightIndexSRV);
 	}
 
+	if (ShadowMatricesSRV)
+	{
+		DeviceContext->PSSetShaderResources(14, 1, &ShadowMatricesSRV);
+	}
+
+	if (Targets.ShadowMapSRV)
+	{
+		DeviceContext->PSSetShaderResources(15, 1, &Targets.ShadowMapSRV);
+	}
+
+	if (ShadowSampler)
+	{
+		DeviceContext->PSSetSamplers(1, 1, &ShadowSampler);
+	}
+
 	return true;
 }
 
@@ -353,6 +368,10 @@ void FLightRenderFeature::Release()
 	SafeRelease(TileDepthBoundsUAV);
 	SafeRelease(TileDepthBoundsSRV);
 	SafeRelease(TileDepthBoundsBuffer);
+
+	SafeRelease(ShadowMatricesBuffer);
+	SafeRelease(ShadowMatricesSRV);
+	SafeRelease(ShadowSampler);
 
 	for (FLightTimingQuerySet& TimingQuerySet : TimingQuerySets)
 	{
@@ -486,6 +505,18 @@ bool FLightRenderFeature::Initialize(FRenderer& Renderer)
 		{
 			return false;
 		}
+	}
+
+	if (!ShadowSampler)
+	{
+		D3D11_SAMPLER_DESC Desc = {};
+		Desc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+		Desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+		Desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+		Desc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+		Desc.ComparisonFunc = D3D11_COMPARISON_LESS_EQUAL;
+
+		if (FAILED(Device->CreateSamplerState(&Desc, &ShadowSampler))) return false;
 	}
 
 	return LightCullingCS != nullptr && TileDepthBoundsCS != nullptr;
@@ -765,6 +796,30 @@ void FLightRenderFeature::UploadLocalLightBuffers(
 		ObjectLightIndexBuffer,
 		ObjectLightIndicesGPU.data(),
 		sizeof(uint32) * ObjectLightIndicesGPU.size());
+
+	TArray<FMatrix> ShadowMatricesGPU;
+	ShadowMatricesGPU.resize(LightListConfig::MaxShadowCastingLights, FMatrix::Identity);
+	for (const FLocalLightRenderItem& Src : SceneViewData.LightingInputs.LocalLights)
+	{
+		if (Src.ShadowIndex != UINT32_MAX && Src.ShadowIndex < LightListConfig::MaxShadowCastingLights)
+		{
+			ShadowMatricesGPU[Src.ShadowIndex] = Src.ShadowViewProj.GetTransposed();
+		}
+	}
+
+	EnsureDynamicStructuredBufferSRV(
+		Renderer,
+		sizeof(FMatrix),
+		static_cast<uint32>(ShadowMatricesGPU.size()),
+		ShadowMatricesBuffer,
+		ShadowMatricesSRV);
+
+	UploadDynamicBuffer(
+		Renderer.GetDeviceContext(),
+		ShadowMatricesBuffer,
+		ShadowMatricesGPU.data(),
+		sizeof(FMatrix) * ShadowMatricesGPU.size());
+
 
 	const uint32 SceneLightCount  = static_cast<uint32>(SceneViewData.LightingInputs.LocalLights.size());
 	const uint32 ActualLightCount = (std::min)(SceneLightCount, LightListConfig::MaxLocalLights);

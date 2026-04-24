@@ -14,6 +14,8 @@ namespace LightListConfig
 	static constexpr uint32 MaxLocalLights          = 1024;
 	static constexpr uint32 MaxLightsPerCluster     = 1024;
 	static constexpr uint32 HeatmapVisualizationMax = 16;
+
+	static constexpr uint32 MaxShadowCastingLights	= 8;
 }
 
 namespace LightClusterSlots

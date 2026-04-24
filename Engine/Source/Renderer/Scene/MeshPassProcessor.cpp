@@ -73,7 +73,8 @@ void FMeshPassProcessor::ExecutePass(
 			continue;
 		}
 
-		if (PassType == EMeshPassType::DepthPrepass && Batch.Material->GetPassShaders(EMaterialPassType::DepthOnly) == nullptr)
+		if ((PassType == EMeshPassType::DepthPrepass || PassType == EMeshPassType::ShadowDepthPrepass)
+			&& Batch.Material->GetPassShaders(EMaterialPassType::DepthOnly) == nullptr)
 		{
 			continue;
 		}
@@ -123,6 +124,7 @@ void FMeshPassProcessor::ExecutePass(
 		break;
 
 	case EMeshPassType::DepthPrepass:
+	case EMeshPassType::ShadowDepthPrepass:
 	case EMeshPassType::GBuffer:
 	case EMeshPassType::ForwardOpaque:
 	case EMeshPassType::ForwardMeshDecal:
@@ -219,7 +221,7 @@ void FMeshPassProcessor::ExecutePass(
 		}
 
 		FDepthStencilStateOption DepthOpt = Batch->Material->GetDepthStencilOption();
-		if (PassType == EMeshPassType::DepthPrepass)
+		if (PassType == EMeshPassType::DepthPrepass || PassType == EMeshPassType::ShadowDepthPrepass)
 		{
 			DepthOpt.DepthEnable    = !Batch->bDisableDepthTest;
 			DepthOpt.DepthWriteMask = Batch->bDisableDepthWrite ? D3D11_DEPTH_WRITE_MASK_ZERO : D3D11_DEPTH_WRITE_MASK_ALL;
@@ -257,6 +259,7 @@ void FMeshPassProcessor::ExecutePass(
 		}
 
 		if (PassType == EMeshPassType::DepthPrepass ||
+			PassType == EMeshPassType::ShadowDepthPrepass||
 			PassType == EMeshPassType::GBuffer ||
 			PassType == EMeshPassType::ForwardOpaque ||
 			PassType == EMeshPassType::EditorPicking ||
@@ -317,6 +320,8 @@ EMaterialPassType FMeshPassProcessor::ToMaterialPassType(EMeshPassType PassType)
 	{
 	case EMeshPassType::DepthPrepass:
 		return EMaterialPassType::DepthOnly;
+	case EMeshPassType::ShadowDepthPrepass:
+		return EMaterialPassType::DepthOnly;
 	case EMeshPassType::GBuffer:
 		return EMaterialPassType::GBuffer;
 	case EMeshPassType::ForwardTransparent:
@@ -341,6 +346,8 @@ bool FMeshPassProcessor::ShouldDrawInPass(const FMeshBatch& Batch, EMeshPassType
 	{
 	case EMeshPassType::DepthPrepass:
 		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::DepthPrepass);
+	case EMeshPassType::ShadowDepthPrepass:
+		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ShadowDepthPrepass);
 	case EMeshPassType::GBuffer:
 		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::GBuffer);
 	case EMeshPassType::ForwardOpaque:

@@ -69,6 +69,26 @@ namespace
 		L.CullCenterWS = L.PositionWS + L.DirectionWS * (L.Range * 0.5f);
 		L.CullRadius   = L.Range;
 
+		FVector UpVector = FVector(0.0f, 1.0f, 0.0f);
+		if (std::abs(L.DirectionWS.Y) > 0.999f)
+		{
+			UpVector = FVector(0.0f, 0.0f, 1.0f);
+		}
+
+		L.ShadowView = FMatrix::MakeViewLookAtLH(L.PositionWS, L.PositionWS + L.DirectionWS, UpVector);
+
+		const float FovAngle = OuterAngleRad * 2.0f;
+		const float AspectRatio = 1.0f;
+
+		float SafeRange = std::max(L.Range, 1.0f);
+		const float NearZ = std::max(0.1f, SafeRange * 0.02f);
+
+		const float FarZ = std::max(SafeRange, NearZ + 0.1f);
+
+		L.ShadowProj = FMatrix::MakePerspectiveFovLH(FovAngle, AspectRatio, NearZ, FarZ);
+		L.ShadowViewProj = L.ShadowView * L.ShadowProj;
+
+
 		return L;
 	}
 
@@ -112,6 +132,8 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 	const TArray<AActor*> Actors = BuildContext.World->GetAllActors();
 	LightingInputs.LocalLights.reserve(Actors.size());
+
+	uint32 AllocatedShadowCount = 0;
 
 	for (AActor* Actor : Actors)
 	{
@@ -173,7 +195,14 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 					continue;
 				}
 
-				LightingInputs.LocalLights.push_back(BuildSpotLight(Spot));
+				FLocalLightRenderItem SpotLightItem = BuildSpotLight(Spot);
+				if (AllocatedShadowCount < LightListConfig::MaxShadowCastingLights)
+				{
+					SpotLightItem.ShadowIndex = AllocatedShadowCount;
+					AllocatedShadowCount++;
+				}
+
+				LightingInputs.LocalLights.push_back(SpotLightItem);
 				continue;
 			}
 

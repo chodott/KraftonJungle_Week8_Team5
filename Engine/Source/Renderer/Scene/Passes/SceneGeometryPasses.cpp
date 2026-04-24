@@ -154,21 +154,63 @@ bool FShadowMapPass::Execute(FPassContext& Context)
 	{
 		return false;
 	}
-	//BeginPass(
-	//	Context.Renderer,
-	//	0,
-	//	nullptr,
-	//	Context.Targets.SceneDepthDSV,
-	//	Context.SceneViewData.View.Viewport,
-	//	Context.SceneViewData.Frame,
-	//	Context.SceneViewData.View);
-	//Processor.ExecutePass(Context.Renderer, Context.Targets, Context.SceneViewData, EMeshPassType::DepthPrepass);
-	//EndPass(
-	//	Context.Renderer,
-	//	Context.Targets.SceneColorRTV,
-	//	Context.Targets.SceneDepthDSV,
-	//	Context.SceneViewData.View.Viewport,
-	//	Context.SceneViewData.Frame,
-	//	Context.SceneViewData.View);
+
+	if (Context.Targets.ShadowMapTexture)
+	{
+		Context.Renderer.GetRenderStateManager()->UnbindResourceEverywhere(Context.Targets.ShadowMapTexture);
+	}
+
+	if (Context.SceneViewData.LightingInputs.LocalLights.empty())
+	{
+		return true;
+	}
+
+	FViewContext OriginView = Context.SceneViewData.View;
+	D3D11_VIEWPORT ShadowViewPort = { 0.0f, 0.0f, 2048.0f, 2048.0f, 0.0f, 1.0f };
+	
+	for (const FLocalLightRenderItem& Light : Context.SceneViewData.LightingInputs.LocalLights)
+	{
+		if (Light.ShadowIndex == UINT32_MAX || Light.ShadowIndex >= Context.Targets.ShadowMapDSVs.size())
+		{
+			continue;
+		}
+
+		ID3D11DepthStencilView* CurrentDSV = Context.Targets.ShadowMapDSVs[Light.ShadowIndex];
+
+		DeviceContext->ClearDepthStencilView(CurrentDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+		Context.SceneViewData.View.CameraPosition = Light.PositionWS;
+		Context.SceneViewData.View.View = Light.ShadowView;
+		Context.SceneViewData.View.Projection = Light.ShadowProj;
+		Context.SceneViewData.View.InverseView = Light.ShadowView.GetInverse();
+		Context.SceneViewData.View.InverseProjection = Light.ShadowProj.GetInverse();
+
+		float SafeRange = std::max(Light.Range, 1.0f);
+		Context.SceneViewData.View.NearZ = std::max(0.1f, SafeRange * 0.02f);
+		Context.SceneViewData.View.FarZ = std::max(SafeRange, Context.SceneViewData.View.NearZ + 0.1f);
+		Context.SceneViewData.View.Viewport = ShadowViewPort;
+
+		BeginPass(
+			Context.Renderer,
+			0,
+			nullptr,
+			CurrentDSV,
+			ShadowViewPort,
+			Context.SceneViewData.Frame,
+			Context.SceneViewData.View);
+
+		Processor.ExecutePass(Context.Renderer, Context.Targets, Context.SceneViewData, EMeshPassType::ShadowDepthPrepass);
+	}
+
+	Context.SceneViewData.View = OriginView;
+
+	EndPass(
+		Context.Renderer,
+		Context.Targets.SceneColorRTV,
+		Context.Targets.SceneDepthDSV,
+		Context.SceneViewData.View.Viewport,
+		Context.SceneViewData.Frame,
+		Context.SceneViewData.View);
+
 	return true;
 }
