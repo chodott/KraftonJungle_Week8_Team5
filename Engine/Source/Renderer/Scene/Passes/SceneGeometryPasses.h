@@ -65,3 +65,17 @@ public:
 private:
 	const FMeshPassProcessor& Processor;
 };
+
+class ENGINE_API FShadowMapPass : public IRenderPass
+{
+public:
+	explicit FShadowMapPass(const FMeshPassProcessor& InProcessor)
+		: Processor(InProcessor)
+	{
+	}
+	bool Execute(FPassContext& Context) override;
+
+private:
+	const FMeshPassProcessor& Processor;
+
+};

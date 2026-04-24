@@ -146,3 +146,29 @@ bool FForwardTransparentPass::Execute(FPassContext& Context)
 		Processor,
 		EMeshPassType::ForwardTransparent);
 }
+
+bool FShadowMapPass::Execute(FPassContext& Context)
+{
+	ID3D11DeviceContext* DeviceContext = Context.Renderer.GetDeviceContext();
+	if (!DeviceContext)
+	{
+		return false;
+	}
+	//BeginPass(
+	//	Context.Renderer,
+	//	0,
+	//	nullptr,
+	//	Context.Targets.SceneDepthDSV,
+	//	Context.SceneViewData.View.Viewport,
+	//	Context.SceneViewData.Frame,
+	//	Context.SceneViewData.View);
+	//Processor.ExecutePass(Context.Renderer, Context.Targets, Context.SceneViewData, EMeshPassType::DepthPrepass);
+	//EndPass(
+	//	Context.Renderer,
+	//	Context.Targets.SceneColorRTV,
+	//	Context.Targets.SceneDepthDSV,
+	//	Context.SceneViewData.View.Viewport,
+	//	Context.SceneViewData.Frame,
+	//	Context.SceneViewData.View);
+	return true;
+}

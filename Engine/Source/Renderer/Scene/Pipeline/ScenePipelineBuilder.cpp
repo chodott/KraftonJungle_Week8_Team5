@@ -22,6 +22,7 @@ void BuildDefaultSceneRenderPipeline(FRenderPipeline& OutPipeline, const FMeshPa
 	OutPipeline.AddPass(std::make_unique<FLightCullingComputePass>());
 	// Inactive for the current forward-focused renderer. Keep the pass code and shaders, but do not execute it.
 	// OutPipeline.AddPass(std::make_unique<FGBufferPass>(MeshPassProcessor));
+	OutPipeline.AddPass(std::make_unique<FShadowMapPass>(MeshPassProcessor));
 	OutPipeline.AddPass(std::make_unique<FForwardOpaquePass>(MeshPassProcessor));
 
 	// Scene Effects
