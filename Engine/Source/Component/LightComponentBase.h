@@ -8,8 +8,15 @@ public:
 
 	FVector GetEmissionDirectionWS() const;
 	FVector GetDirectionToLightWS() const;
-	bool IsCastingShadows() const { return bCastShadows; }
+
+	bool IsCastingShadows() const
+	{
+		return bCastShadows;
+	}
+
 	void SetCastingShadows(bool bNewCastShadows);
+	void Serialize(FArchive& Ar) override;
+	void DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
 
 protected:
 	void MarkTransformDirty() override;

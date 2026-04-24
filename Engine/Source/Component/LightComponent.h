@@ -53,7 +53,7 @@ public:
 
 	float GetShadowResolutionScale() const
 	{
-		return ShadowResoultionScale;
+		return ShadowResolutionScale;
 	}
 
 	float GetShadowBias() const
@@ -86,8 +86,8 @@ protected:
 	bool         bVisible       = true;
 
 	//Shadow
-	float ShadowResoultionScale;
-	float ShadowBias;
-	float ShadowSlopeBias;
-	float ShadowSharpen;
+	float ShadowResolutionScale = 1.0f;
+	float ShadowBias            = 0.0001f;
+	float ShadowSlopeBias       = 0.0f;
+	float ShadowSharpen         = 0.0f;
 };

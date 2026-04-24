@@ -3,6 +3,7 @@
 #include "Actor/Actor.h"
 #include "Level/Level.h"
 #include "Object/Class.h"
+#include "Serializer/Archive.h"
 
 IMPLEMENT_RTTI(ULightComponentBase, USceneComponent)
 
@@ -46,4 +47,20 @@ void ULightComponentBase::SetCastingShadows(bool bNewCastShadows)
 			Level->MarkSpatialDirty();
 		}
 	}
+}
+
+void ULightComponentBase::DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const
+{
+	USceneComponent::DuplicateShallow(DuplicatedObject, Context);
+
+	auto DuplicatedLightComponent =
+			static_cast<ULightComponentBase*>(DuplicatedObject);
+
+	DuplicatedLightComponent->bCastShadows = bCastShadows;
+}
+
+void ULightComponentBase::Serialize(FArchive& Ar)
+{
+	USceneComponent::Serialize(Ar);
+	Ar.Serialize("bCastShadows", bCastShadows);
 }

@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "Actor/Actor.h"
+#include "Math/MathUtility.h"
 #include "Object/Class.h"
 #include "Serializer/Archive.h"
 
@@ -12,11 +13,15 @@ void ULightComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateCont
 {
 	ULightComponentBase::DuplicateShallow(DuplicatedObject, Context);
 
-	auto DuplicatedLightComponent            = static_cast<ULightComponent*>(DuplicatedObject);
-	DuplicatedLightComponent->LightColor     = LightColor;
-	DuplicatedLightComponent->Intensity      = Intensity;
-	DuplicatedLightComponent->IntensityUnits = IntensityUnits;
-	DuplicatedLightComponent->bVisible       = bVisible;
+	auto DuplicatedLightComponent                   = static_cast<ULightComponent*>(DuplicatedObject);
+	DuplicatedLightComponent->LightColor            = LightColor;
+	DuplicatedLightComponent->Intensity             = Intensity;
+	DuplicatedLightComponent->IntensityUnits        = IntensityUnits;
+	DuplicatedLightComponent->bVisible              = bVisible;
+	DuplicatedLightComponent->ShadowResolutionScale = ShadowResolutionScale;
+	DuplicatedLightComponent->ShadowBias            = ShadowBias;
+	DuplicatedLightComponent->ShadowSlopeBias       = ShadowSlopeBias;
+	DuplicatedLightComponent->ShadowSharpen         = ShadowSharpen;
 }
 
 void ULightComponent::SetIntensity(float NewIntensity)
@@ -84,11 +89,11 @@ void ULightComponent::SetVisible(bool bNewVisible)
 
 void ULightComponent::SetShadowResolutionScale(float NewScale)
 {
-	if (ShadowResoultionScale == NewScale)
+	if (ShadowResolutionScale == NewScale)
 	{
 		return;
 	}
-	ShadowResoultionScale = NewScale;
+	ShadowResolutionScale = NewScale;
 	NotifyOwnerLightPropertyChanged();
 }
 
@@ -146,11 +151,20 @@ void ULightComponent::Serialize(FArchive& Ar)
 	Ar.Serialize("LightColor", Color);
 	Ar.Serialize("IntensityUnits", Units);
 	Ar.Serialize("bVisible", bVisible);
+	Ar.Serialize("ShadowResolutionScale", ShadowResolutionScale);
+	Ar.Serialize("ShadowBias", ShadowBias);
+	Ar.Serialize("ShadowSlopeBias", ShadowSlopeBias);
+	Ar.Serialize("ShadowSharpen", ShadowSharpen);
 	if (Ar.IsLoading())
 	{
-		Intensity = (std::max)(0.0f, Intensity);
-		LightColor = FLinearColor(Color.X, Color.Y, Color.Z, Color.W);
+		Intensity      = (std::max)(0.0f, Intensity);
+		LightColor     = FLinearColor(Color.X, Color.Y, Color.Z, Color.W);
 		IntensityUnits = static_cast<ELightUnits>(Units);
+
+		ShadowResolutionScale = (std::max)(0.0f, ShadowResolutionScale);
+		ShadowBias            = (std::max)(0.0f, ShadowBias);
+		ShadowSlopeBias       = (std::max)(0.0f, ShadowSlopeBias);
+		ShadowSharpen         = FMath::Clamp(ShadowSharpen, 0.0f, 1.0f);
 	}
 }
 
