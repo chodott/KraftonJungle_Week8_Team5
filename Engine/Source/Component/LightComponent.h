@@ -20,6 +20,12 @@ public:
 	void SetColor(FLinearColor NewColor);
 	void SetVisible(bool bNewVisible);
 
+	void SetShadowResolutionScale(float NewScale);
+	void SetShadowBias(float NewBias);
+	void SetShadowSlopeBias(float NewSlopeBias);
+	void SetShadowSharpen(float NewSharpen);
+
+
 	float GetIntensity() const
 	{
 		return Intensity;
@@ -45,6 +51,26 @@ public:
 		return bVisible;
 	}
 
+	float GetShadowResolutionScale() const
+	{
+		return ShadowResoultionScale;
+	}
+
+	float GetShadowBias() const
+	{
+		return ShadowBias;
+	}
+
+	float GetShadowSlopeBias() const
+	{
+		return ShadowSlopeBias;
+	}
+
+	float GetShadowSharpen() const
+	{
+		return ShadowSharpen;
+	}
+
 	void         DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
 	virtual bool SupportsIntensityUnit(ELightUnits UnitType) const;
 	void         Serialize(FArchive& Ar) override;
@@ -58,4 +84,10 @@ protected:
 	float        Intensity      = 0.0f;
 	ELightUnits  IntensityUnits = ELightUnits::Unitless;
 	bool         bVisible       = true;
+
+	//Shadow
+	float ShadowResoultionScale;
+	float ShadowBias;
+	float ShadowSlopeBias;
+	float ShadowSharpen;
 };

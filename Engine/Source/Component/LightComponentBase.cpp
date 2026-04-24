@@ -30,3 +30,20 @@ void ULightComponentBase::MarkTransformDirty()
 		}
 	}
 }
+
+
+void ULightComponentBase::SetCastingShadows(bool bNewCastShadows)
+{
+	if (bCastShadows == bNewCastShadows)
+	{
+		return;
+	}
+	bCastShadows = bNewCastShadows;
+	if (AActor* Owner = GetOwner())
+	{
+		if (ULevel* Level = Owner->GetLevel())
+		{
+			Level->MarkSpatialDirty();
+		}
+	}
+}

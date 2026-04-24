@@ -82,6 +82,46 @@ void ULightComponent::SetVisible(bool bNewVisible)
 	NotifyOwnerLightPropertyChanged();
 }
 
+void ULightComponent::SetShadowResolutionScale(float NewScale)
+{
+	if (ShadowResoultionScale == NewScale)
+	{
+		return;
+	}
+	ShadowResoultionScale = NewScale;
+	NotifyOwnerLightPropertyChanged();
+}
+
+void ULightComponent::SetShadowBias(float NewBias)
+{
+	if (ShadowBias == NewBias)
+	{
+		return;
+	}
+	ShadowBias = NewBias;
+	NotifyOwnerLightPropertyChanged();
+}
+
+void ULightComponent::SetShadowSlopeBias(float NewSlopeBias)
+{
+	if (ShadowSlopeBias == NewSlopeBias)
+	{
+		return;
+	}
+	ShadowSlopeBias = NewSlopeBias;
+	NotifyOwnerLightPropertyChanged();
+}
+
+void ULightComponent::SetShadowSharpen(float NewSharpen)
+{
+	if (ShadowSharpen == NewSharpen)
+	{
+		return;
+	}
+	ShadowSharpen = NewSharpen;
+	NotifyOwnerLightPropertyChanged();
+}
+
 bool ULightComponent::SupportsIntensityUnit(ELightUnits UnitType) const
 {
 	switch (UnitType)

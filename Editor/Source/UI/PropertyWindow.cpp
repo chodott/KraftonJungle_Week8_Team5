@@ -2068,12 +2068,52 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent)
 		LightComponent->SetVisible(bVisible);
 	}
 
+	bool bCastShadows = LightComponent->IsCastingShadows();
+	ImGui::Text("Cast Shadows");
+	ImGui::NextColumn();
+	if (ImGui::Checkbox("bCastShadows", &bCastShadows))
+	{
+		LightComponent->SetCastingShadows(bCastShadows);
+	}
+
 	float Intensity = LightComponent->GetIntensity();
 	ImGui::Text("Intensity");
 	ImGui::NextColumn();
 	if (ImGui::DragFloat("Intensity", &Intensity, 1.0f, 0.0f, 1000000.0f, "%.3f"))
 	{
 		LightComponent->SetIntensity(Intensity);
+	}
+
+	float ShadowResolutionScale = LightComponent->GetShadowResolutionScale();
+	ImGui::Text("Shadow Resolution Scale");
+	ImGui::NextColumn();
+	if (ImGui::DragFloat("Shadow Resolution Scale", &ShadowResolutionScale, 0.01f, 0.0f, 10.0f, "%.2f"))
+	{
+		LightComponent->SetShadowResolutionScale(ShadowResolutionScale);
+	}
+
+	float ShadowBias = LightComponent->GetShadowBias();
+	ImGui::Text("Shadow Bias");
+	ImGui::NextColumn();
+	if (ImGui::DragFloat("Shadow Bias", &ShadowBias, 0.001f, 0.0f, 10.0f, "%.3f"))
+	{
+		LightComponent->SetShadowBias(ShadowBias);
+	}
+
+	float ShadowSlopeBias = LightComponent->GetShadowSlopeBias();
+	ImGui::Text("Shadow Slope Bias");
+	ImGui::NextColumn();
+	if (ImGui::DragFloat("Shadow Slope Bias", &ShadowSlopeBias, 0.001f, 0.0f, 10.0f, "%.3f"))
+	{
+		LightComponent->SetShadowSlopeBias(ShadowSlopeBias);
+	}
+
+	float ShadowSharpeness = LightComponent->GetShadowSharpen();
+	ImGui::Text("Shadow Sharpeness");
+	ImGui::NextColumn();
+	if (ImGui::DragFloat("Shadow Sharpeness", &ShadowSharpeness, 0.01f, 0.0f, 10.0f, "%.2f"))
+	{
+		LightComponent->SetShadowSharpen(ShadowSharpeness);
 	}
 
 	const ELightUnits CurrentUnit = LightComponent->GetIntensityUnits();
