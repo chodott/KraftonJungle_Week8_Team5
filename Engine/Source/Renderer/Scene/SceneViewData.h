@@ -12,6 +12,7 @@
 #include "Renderer/Common/RenderFrameContext.h"
 #include "Renderer/Common/RenderMode.h"
 #include "Renderer/Features/Lighting/LightTypes.h"
+#include "Renderer/Features/Shadow/ShadowTypes.h"
 
 #include <d3d11.h>
 
@@ -34,9 +35,9 @@ struct ENGINE_API FLocalLightRenderItem
 	FVector PositionWS = FVector::ZeroVector;
 	float   Range      = 0.0f;
 
-	FVector DirectionWS   = FVector(0.0f, 0.0f, -1.0f);
-	float   InnerAngleCos = 1.0f;
-	float   OuterAngleCos = 1.0f;
+	FVector DirectionWS     = FVector(0.0f, 0.0f, -1.0f);
+	float   InnerAngleCos   = 1.0f;
+	float   OuterAngleCos   = 1.0f;
 	float   FalloffExponent = 0.0f;
 
 	uint32 Flags = 0;
@@ -75,13 +76,19 @@ struct ENGINE_API FSceneLightingInputs
 	FAmbientLightRenderItem             Ambient;
 	TArray<FLocalLightRenderItem>       LocalLights;
 	TArray<FDirectionalLightRenderItem> DirectionalLights;
-	TArray<uint32>                      ObjectLightIndices;
+
+	TArray<FShadowLightRenderItem> ShadowLights;
+	TArray<FShadowViewRenderItem>  ShadowViews;
+
+	TArray<uint32> ObjectLightIndices;
 
 	void Clear()
 	{
 		Ambient = {};
 		LocalLights.clear();
 		DirectionalLights.clear();
+		ShadowLights.clear();
+		ShadowViews.clear();
 		ObjectLightIndices.clear();
 	}
 };
@@ -98,16 +105,16 @@ struct ENGINE_API FSceneMeshInputs
 
 struct ENGINE_API FScenePostProcessInputs
 {
-	TArray<FFogRenderItem>      FogItems;
-	TArray<FDecalRenderItem>    DecalItems;
-	TArray<FMeshDecalRenderItem> MeshDecalItems;
+	TArray<FFogRenderItem>              FogItems;
+	TArray<FDecalRenderItem>            DecalItems;
+	TArray<FMeshDecalRenderItem>        MeshDecalItems;
 	TArray<FMeshDecalReceiverCandidate> MeshDecalReceiverCandidates;
-	FMeshDecalBuildStats        MeshDecalStats;
-	ID3D11ShaderResourceView*   DecalBaseColorTextureArraySRV = nullptr;
-	TArray<FOutlineRenderItem>  OutlineItems;
-	TArray<FFireBallRenderItem> FireBallItems;
-	bool                        bOutlineEnabled = false;
-	bool                        bApplyFXAA      = false;
+	FMeshDecalBuildStats                MeshDecalStats;
+	ID3D11ShaderResourceView*           DecalBaseColorTextureArraySRV = nullptr;
+	TArray<FOutlineRenderItem>          OutlineItems;
+	TArray<FFireBallRenderItem>         FireBallItems;
+	bool                                bOutlineEnabled = false;
+	bool                                bApplyFXAA      = false;
 
 	void Clear()
 	{
@@ -115,7 +122,7 @@ struct ENGINE_API FScenePostProcessInputs
 		DecalItems.clear();
 		MeshDecalItems.clear();
 		MeshDecalReceiverCandidates.clear();
-		MeshDecalStats = {};
+		MeshDecalStats                = {};
 		DecalBaseColorTextureArraySRV = nullptr;
 		OutlineItems.clear();
 		FireBallItems.clear();
@@ -126,7 +133,7 @@ struct ENGINE_API FScenePostProcessInputs
 
 struct ENGINE_API FSceneDebugInputs
 {
-	UWorld* World = nullptr;
+	UWorld*               World = nullptr;
 	FEditorLinePassInputs LinePass;
 
 	void Clear()

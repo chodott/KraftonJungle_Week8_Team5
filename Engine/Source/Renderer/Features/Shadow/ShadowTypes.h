@@ -1,0 +1,104 @@
+﻿#pragma once
+
+#include <d3d11.h>
+
+#include "CoreMinimal.h"
+
+namespace ShadowConfig
+{
+	static constexpr uint32 MaxShadowLights = 64;
+
+	static constexpr uint32 MaxShadowViews      = 256;
+	static constexpr uint32 ShadowMapResolution = 1024;
+	static constexpr float  DefaultNearZ        = 0.05f;
+}
+
+namespace ShadowSlots
+{
+	static constexpr uint32 ShadowLightSRV = 20;
+	static constexpr uint32 ShadowViewSRV  = 21;
+	static constexpr uint32 ShadowMapSRV   = 22;
+	static constexpr uint32 ShadowSampler  = 8;
+}
+
+enum class EShadowLightType : uint32
+{
+	Directional = 0,
+	Spot        = 1,
+	Point       = 2,
+	Count
+};
+
+enum class EShadowProjectionType : uint32
+{
+	Orthographic = 0,
+	Perspective  = 1,
+};
+
+struct FShadowLightRenderItem
+{
+	EShadowLightType LightType        = EShadowLightType::Spot;
+	uint32           SourceLightIndex = UINT32_MAX;
+
+	uint32 ShadowIndex = UINT32_MAX;
+
+	uint32 FirstViewIndex = UINT32_MAX;
+	uint32 ViewCount      = 0;
+
+	float Bias       = 0.001f;
+	float SlopeBias  = 0.001f;
+	float NormalBias = 0.0f;
+
+	FVector PositionWS  = FVector::ZeroVector;
+	FVector DirectionWS = FVector(1.0f, 0.0f, 0.0f);
+
+	FVector4 Params0 = FVector4(0, 0, 0, 0);
+	FVector4 Params1 = FVector4(0, 0, 0, 0);
+};
+
+struct FShadowViewRenderItem
+{
+	uint32 ShadowLightIndex = UINT32_MAX;
+	uint32 ArraySlice       = UINT32_MAX;
+
+	EShadowProjectionType ProjectionType = EShadowProjectionType::Perspective;
+
+	FMatrix View           = FMatrix::Identity;
+	FMatrix Projection     = FMatrix::Identity;
+	FMatrix ViewProjection = FMatrix::Identity;
+
+	FVector PositionWS = FVector::ZeroVector;
+
+	float NearZ = ShadowConfig::DefaultNearZ;
+	float FarZ  = 1000.0f;
+
+	D3D11_VIEWPORT Viewport = {};
+};
+
+
+struct FShadowLightGPU
+{
+	uint32 LightType;
+	uint32 FirstViewIndex;
+	uint32 ViewCount;
+	uint32 Flags;
+
+	FVector4 PositionType;
+
+	FVector4 DirectionBias;
+
+	FVector4 Params0;
+};
+
+
+struct FShadowViewGPU
+{
+	FMatrix LightViewProjection;
+
+	uint32 ArraySlice;
+	uint32 ProjectionType;
+	uint32 Pad0;
+	uint32 Pad1;
+
+	FVector4 ViewParams;
+};

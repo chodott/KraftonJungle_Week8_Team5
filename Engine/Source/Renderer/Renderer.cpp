@@ -18,6 +18,7 @@
 #include "Renderer/Features/Text/TextRenderFeature.h"
 #include "Renderer/Features/Lighting/LightRenderFeature.h"
 #include "Renderer/Features/Lighting/BloomRenderFeature.h"
+#include  "Renderer/Features/Shadow/ShadowRenderFeature.h"
 #include "Renderer/Frame/EditorFrameRenderer.h"
 #include "Renderer/Frame/GameFrameRenderer.h"
 #include "Renderer/Frame/RendererResourceBootstrap.h"
@@ -409,7 +410,7 @@ void FRenderer::ConfigureMaterialPasses(FMaterial& Material, bool bTexturedMater
 				FShaderMap::Get().GetOrCreatePixelShader(Device, (ShaderDir + L"SelectionHighlight/OutlineMaskPixelShader.hlsl").c_str());
 		PickingPass.VS = GBufferPass.VS;
 		PickingPass.PS =
-			FShaderMap::Get().GetOrCreatePixelShader(Device, (ShaderDir + L"SelectionHighlight/PickingPixelShader.hlsl").c_str());
+				FShaderMap::Get().GetOrCreatePixelShader(Device, (ShaderDir + L"SelectionHighlight/PickingPixelShader.hlsl").c_str());
 	}
 
 	Material.SetPassShaders(EMaterialPassType::DepthOnly, DepthPass);
@@ -516,6 +517,11 @@ FFXAARenderFeature* FRenderer::GetFXAAFeature() const
 FLightRenderFeature* FRenderer::GetLightFeature() const
 {
 	return LightFeature.get();
+}
+
+FShadowRenderFeature* FRenderer::GetShadowFeature() const
+{
+	return ShadowFeature.get();
 }
 
 FBloomRenderFeature* FRenderer::GetBloomFeature() const
@@ -736,13 +742,13 @@ void FRenderer::UpdateObjectConstantBuffer(const FMeshBatch& Batch)
 	CBData.LocalLightListOffset = Batch.LocalLightListOffset;
 	CBData.LocalLightListCount  = Batch.LocalLightListCount;
 	CBData.ObjectFlags          = 0;
-	CBData.ObjectUUID = (Batch.SourceComponent && Batch.SourceComponent->GetOwner())
-		? Batch.SourceComponent->GetOwner()->UUID
-		: 0u;
-	CBData.Pad0                 = 0;
-	CBData.Pad1                 = 0;
-	CBData.Pad2                 = 0;
-	CBData.Pad3                 = 0;
+	CBData.ObjectUUID           = (Batch.SourceComponent && Batch.SourceComponent->GetOwner())
+		                    ? Batch.SourceComponent->GetOwner()->UUID
+		                    : 0u;
+	CBData.Pad0 = 0;
+	CBData.Pad1 = 0;
+	CBData.Pad2 = 0;
+	CBData.Pad3 = 0;
 
 	D3D11_MAPPED_SUBRESOURCE Mapped;
 	if (SUCCEEDED(DeviceContext->Map(ObjectConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))

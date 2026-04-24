@@ -26,6 +26,8 @@
 #include <memory>
 #include <string>
 
+class FShadowRenderFeature;
+
 enum class EToneMappingMode : uint8
 {
 	ACES     = 0,
@@ -38,22 +40,22 @@ struct FToneMappingSettings
 {
 	EToneMappingMode Mode             = EToneMappingMode::Hable;
 	float            Exposure         = 0.8f;
-	float            ShoulderStrength = 0.22f;  // Hable A
-	float            LinearWhite      = 11.2f;  // Hable W / Reinhard white point
+	float            ShoulderStrength = 0.22f; // Hable A
+	float            LinearWhite      = 11.2f; // Hable W / Reinhard white point
 
 	// Hable B~F
-	float            HableB           = 0.22f;
-	float            HableC           = 0.10f;
-	float            HableD           = 0.20f;
-	float            HableE           = 0.01f;
-	float            HableF           = 0.30f;
+	float HableB = 0.22f;
+	float HableC = 0.10f;
+	float HableD = 0.20f;
+	float HableE = 0.01f;
+	float HableF = 0.30f;
 
 	// ACES a~e
-	float            AcesA            = 2.51f;
-	float            AcesB            = 0.03f;
-	float            AcesC            = 2.43f;
-	float            AcesD            = 0.59f;
-	float            AcesE            = 0.14f;
+	float AcesA = 2.51f;
+	float AcesB = 0.03f;
+	float AcesC = 2.43f;
+	float AcesD = 0.59f;
+	float AcesE = 0.14f;
 };
 
 struct FVertex;
@@ -207,7 +209,8 @@ public:
 	FFireBallRenderFeature*    GetFireBallFeature() const;
 	FFXAARenderFeature*        GetFXAAFeature() const;
 	FLightRenderFeature*       GetLightFeature() const;
-	FBloomRenderFeature*	   GetBloomFeature() const;
+	FShadowRenderFeature*      GetShadowFeature() const;
+	FBloomRenderFeature*       GetBloomFeature() const;
 
 	FSceneRenderer& GetSceneRenderer()
 	{
@@ -247,9 +250,9 @@ public:
 	{
 		if (memcmp(&ToneMappingSettings, &InSettings, sizeof(FToneMappingSettings)) != 0)
 		{
-			ToneMappingSettings  = InSettings;
-			ToneMappingMode      = InSettings.Mode;
-			bToneMappingDirty    = true;
+			ToneMappingSettings = InSettings;
+			ToneMappingMode     = InSettings.Mode;
+			bToneMappingDirty   = true;
 		}
 	}
 
@@ -300,6 +303,7 @@ private:
 	friend class FRendererResourceBootstrap;
 	friend class FGameFrameRenderer;
 	friend class FEditorFrameRenderer;
+	friend class FShadowRenderFeature;
 	bool CreateConstantBuffers();
 	bool CreateSamplers();
 	bool EnsureFinalImageResources();
@@ -328,6 +332,7 @@ private:
 	std::unique_ptr<FVolumeDecalRenderFeature> VolumeDecalFeature;
 	std::unique_ptr<FFireBallRenderFeature>    FireBallFeature;
 	std::unique_ptr<FLightRenderFeature>       LightFeature;
+	std::unique_ptr<FShadowRenderFeature>      ShadowFeature;
 	std::unique_ptr<FBloomRenderFeature>       BloomFeature;
 	std::unique_ptr<FFXAARenderFeature>        FXAAFeature;
 	EDecalProjectionMode                       DecalProjectionMode = EDecalProjectionMode::ClusteredLookup;
@@ -342,10 +347,10 @@ private:
 	std::shared_ptr<FPixelShaderHandle>  ToneMappingPixelShaders[4] = {}; // [ACES, Hable, Reinhard, Linear]
 	EToneMappingMode                     ToneMappingMode            = EToneMappingMode::Hable;
 	FToneMappingSettings                 ToneMappingSettings;
-	bool                                 bToneMappingDirty          = true;
-	ID3D11Buffer*                        ToneMappingConstantBuffer  = nullptr;
-	ID3D11RasterizerState*               FullscreenRasterizerState  = nullptr;
-	ID3D11DepthStencilState*             FullscreenNoDepthState     = nullptr;
-	ID3D11SamplerState*                  FullscreenPointSampler     = nullptr;
+	bool                                 bToneMappingDirty         = true;
+	ID3D11Buffer*                        ToneMappingConstantBuffer = nullptr;
+	ID3D11RasterizerState*               FullscreenRasterizerState = nullptr;
+	ID3D11DepthStencilState*             FullscreenNoDepthState    = nullptr;
+	ID3D11SamplerState*                  FullscreenPointSampler    = nullptr;
 	FShaderHotReloadService              ShaderHotReloadService;
 };

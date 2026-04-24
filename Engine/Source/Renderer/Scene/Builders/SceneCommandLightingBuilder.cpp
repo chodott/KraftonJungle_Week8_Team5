@@ -81,6 +81,107 @@ namespace
 		L.Flags       = 0;
 		return L;
 	}
+
+	uint32 AllocalteShadowLight(FSceneLightingInputs& Inputs, EShadowLightType LightType, uint32 SourceLightIndex)
+	{
+		if (Inputs.ShadowLights.size() >= ShadowConfig::MaxShadowLights)
+		{
+			return UINT32_MAX;
+		}
+
+		FShadowLightRenderItem Item = {};
+		Item.LightType              = LightType;
+		Item.SourceLightIndex       = SourceLightIndex;
+		Item.ShadowIndex            = static_cast<uint32>(Inputs.ShadowLights.size());
+		Inputs.ShadowLights.push_back(Item);
+
+		return Item.ShadowIndex;
+	}
+
+	uint32 AddShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, const FShadowViewRenderItem& InView)
+	{
+		if (Inputs.ShadowViews.size() >= ShadowConfig::MaxShadowViews)
+		{
+			return UINT32_MAX;
+		}
+
+		FShadowViewRenderItem View = InView;
+		View.ShadowLightIndex      = ShadowLightIndex;
+		View.ArraySlice            = static_cast<uint32>(Inputs.ShadowViews.size());
+
+		const uint32 ViewIndex = static_cast<uint32>(Inputs.ShadowViews.size());
+		Inputs.ShadowViews.push_back(std::move(View));
+
+		FShadowLightRenderItem& ShadowLight = Inputs.ShadowLights[ShadowLightIndex];
+
+		if (ShadowLight.ViewCount == 0)
+		{
+			ShadowLight.FirstViewIndex = ViewIndex;
+		}
+
+		++ShadowLight.ViewCount;
+
+		return ViewIndex;
+	}
+
+	void BuildSpotShadowViews(
+		FSceneLightingInputs&        Inputs,
+		const USpotLightComponent*   Spot,
+		const FLocalLightRenderItem& LightItem,
+		uint32                       LocalLightIndex,
+		uint32                       ShadowLightIndex)
+	{
+		FShadowLightRenderItem& ShadowLight = Inputs.ShadowLights[ShadowLightIndex];
+
+		ShadowLight.LightType   = EShadowLightType::Spot;
+		ShadowLight.PositionWS  = LightItem.PositionWS;
+		ShadowLight.DirectionWS = LightItem.DirectionWS;
+		ShadowLight.Bias        = Spot->GetShadowBias();
+		ShadowLight.SlopeBias   = Spot->GetShadowSlopeBias();
+		ShadowLight.NormalBias  = 0.0f;
+
+		const FVector DirectionWS = LightItem.DirectionWS.GetSafeNormal();
+
+		FVector UpWS = FVector::UpVector;
+		if (std::abs(FVector::DotProduct(DirectionWS, UpWS)) > 0.98f)
+		{
+			UpWS = FVector::RightVector;
+		}
+
+		const float NearZ = ShadowConfig::DefaultNearZ;
+		const float FarZ  = (std::max)(LightItem.Range, NearZ + 0.001f);
+
+		const float OuterHalfAngleDeg = FMath::Clamp(Spot->GetOuterConeAngle(), 1.0f, 80.0f);
+		const float FullFovRad        = FMath::DegreesToRadians(OuterHalfAngleDeg * 2.0f);
+
+		FShadowViewRenderItem View;
+		View.ProjectionType = EShadowProjectionType::Perspective;
+		View.PositionWS     = LightItem.PositionWS;
+		View.NearZ          = NearZ;
+		View.FarZ           = FarZ;
+
+		View.View = FMatrix::MakeViewLookAtLH(
+			LightItem.PositionWS,
+			LightItem.PositionWS + DirectionWS,
+			UpWS);
+
+		View.Projection = FMatrix::MakePerspectiveFovLH(
+			FullFovRad,
+			1.0f,
+			NearZ,
+			FarZ);
+
+		View.ViewProjection = View.View * View.Projection;
+
+		View.Viewport.TopLeftX = 0.0f;
+		View.Viewport.TopLeftY = 0.0f;
+		View.Viewport.Width    = static_cast<float>(ShadowConfig::ShadowMapResolution);
+		View.Viewport.Height   = static_cast<float>(ShadowConfig::ShadowMapResolution);
+		View.Viewport.MinDepth = 0.0f;
+		View.Viewport.MaxDepth = 1.0f;
+
+		AddShadowView(Inputs, ShadowLightIndex, View);
+	}
 }
 
 void FSceneCommandLightingBuilder::BuildLightingInputs(
@@ -103,11 +204,11 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 		return;
 	}
 
-	FVector AmbientRadiance        = FVector::ZeroVector;
-	float   AmbientIntensitySum    = 0.0f;
-	bool    bHasAmbientLight       = false;
-	bool    bHasDirectionalLight   = false;
-	float   StrongestDirectional   = -1.0f;
+	FVector                     AmbientRadiance      = FVector::ZeroVector;
+	float                       AmbientIntensitySum  = 0.0f;
+	bool                        bHasAmbientLight     = false;
+	bool                        bHasDirectionalLight = false;
+	float                       StrongestDirectional = -1.0f;
 	FDirectionalLightRenderItem DirectionalLightItem;
 
 	const TArray<AActor*> Actors = BuildContext.World->GetAllActors();
@@ -141,9 +242,9 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 					continue;
 				}
 
-				AmbientRadiance += ToLightRGB(Ambient->GetColor()) * EffectiveIntensity;
+				AmbientRadiance     += ToLightRGB(Ambient->GetColor()) * EffectiveIntensity;
 				AmbientIntensitySum += EffectiveIntensity;
-				bHasAmbientLight = true;
+				bHasAmbientLight    = true;
 				continue;
 			}
 
@@ -173,7 +274,24 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 					continue;
 				}
 
-				LightingInputs.LocalLights.push_back(BuildSpotLight(Spot));
+				FLocalLightRenderItem LightItem       = BuildSpotLight(Spot);
+				const uint32          LocalLightIndex = static_cast<uint32>(LightingInputs.LocalLights.size());
+
+				if (Spot->IsCastingShadows())
+				{
+					const uint32 ShadowLightIndex = AllocalteShadowLight(LightingInputs, EShadowLightType::Spot, LocalLightIndex);
+
+					if (ShadowLightIndex != UINT32_MAX)
+					{
+						BuildSpotShadowViews(LightingInputs, Spot, LightItem, LocalLightIndex, ShadowLightIndex);
+						if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount > 0)
+						{
+							LightItem.ShadowIndex = ShadowLightIndex;
+						}
+					}
+				}
+
+				LightingInputs.LocalLights.push_back(LightItem);
 				continue;
 			}
 
@@ -192,7 +310,7 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 	if (bHasAmbientLight && AmbientIntensitySum > 0.0f)
 	{
-		LightingInputs.Ambient.Color = AmbientRadiance / AmbientIntensitySum;
+		LightingInputs.Ambient.Color     = AmbientRadiance / AmbientIntensitySum;
 		LightingInputs.Ambient.Intensity = AmbientIntensitySum;
 	}
 

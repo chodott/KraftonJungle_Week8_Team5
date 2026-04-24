@@ -1,6 +1,7 @@
 #include "Renderer/Scene/Passes/ScenePasses.h"
 
 #include "Renderer/Renderer.h"
+#include "Renderer/Features/Shadow/ShadowRenderFeature.h"
 #include "Renderer/Scene/Passes/ScenePassExecutionUtils.h"
 
 bool FClearSceneTargetsPass::Execute(FPassContext& Context)
@@ -21,13 +22,31 @@ bool FClearSceneTargetsPass::Execute(FPassContext& Context)
 	constexpr float ZeroColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	DeviceContext->ClearRenderTargetView(Context.Targets.SceneColorRTV, ClearColor);
-	if (Context.Targets.SceneColorScratchRTV) DeviceContext->ClearRenderTargetView(Context.Targets.SceneColorScratchRTV, ClearColor);
+	if (Context.Targets.SceneColorScratchRTV)
+	{
+		DeviceContext->ClearRenderTargetView(Context.Targets.SceneColorScratchRTV, ClearColor);
+	}
 	DeviceContext->ClearDepthStencilView(Context.Targets.SceneDepthDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
-	if (Context.Targets.GBufferARTV) DeviceContext->ClearRenderTargetView(Context.Targets.GBufferARTV, ZeroColor);
-	if (Context.Targets.GBufferBRTV) DeviceContext->ClearRenderTargetView(Context.Targets.GBufferBRTV, ZeroColor);
-	if (Context.Targets.GBufferCRTV) DeviceContext->ClearRenderTargetView(Context.Targets.GBufferCRTV, ZeroColor);
-	if (Context.Targets.OverlayColorRTV) DeviceContext->ClearRenderTargetView(Context.Targets.OverlayColorRTV, ZeroColor);
-	if (Context.Targets.OutlineMaskRTV) DeviceContext->ClearRenderTargetView(Context.Targets.OutlineMaskRTV, ZeroColor);
+	if (Context.Targets.GBufferARTV)
+	{
+		DeviceContext->ClearRenderTargetView(Context.Targets.GBufferARTV, ZeroColor);
+	}
+	if (Context.Targets.GBufferBRTV)
+	{
+		DeviceContext->ClearRenderTargetView(Context.Targets.GBufferBRTV, ZeroColor);
+	}
+	if (Context.Targets.GBufferCRTV)
+	{
+		DeviceContext->ClearRenderTargetView(Context.Targets.GBufferCRTV, ZeroColor);
+	}
+	if (Context.Targets.OverlayColorRTV)
+	{
+		DeviceContext->ClearRenderTargetView(Context.Targets.OverlayColorRTV, ZeroColor);
+	}
+	if (Context.Targets.OutlineMaskRTV)
+	{
+		DeviceContext->ClearRenderTargetView(Context.Targets.OutlineMaskRTV, ZeroColor);
+	}
 
 	BeginPass(
 		Context.Renderer,
@@ -149,26 +168,11 @@ bool FForwardTransparentPass::Execute(FPassContext& Context)
 
 bool FShadowMapPass::Execute(FPassContext& Context)
 {
-	ID3D11DeviceContext* DeviceContext = Context.Renderer.GetDeviceContext();
-	if (!DeviceContext)
+	FShadowRenderFeature* Feature = Context.Renderer.GetShadowFeature();
+	if (!Feature)
 	{
-		return false;
+		return true;
 	}
-	//BeginPass(
-	//	Context.Renderer,
-	//	0,
-	//	nullptr,
-	//	Context.Targets.SceneDepthDSV,
-	//	Context.SceneViewData.View.Viewport,
-	//	Context.SceneViewData.Frame,
-	//	Context.SceneViewData.View);
-	//Processor.ExecutePass(Context.Renderer, Context.Targets, Context.SceneViewData, EMeshPassType::DepthPrepass);
-	//EndPass(
-	//	Context.Renderer,
-	//	Context.Targets.SceneColorRTV,
-	//	Context.Targets.SceneDepthDSV,
-	//	Context.SceneViewData.View.Viewport,
-	//	Context.SceneViewData.Frame,
-	//	Context.SceneViewData.View);
-	return true;
+
+	return Feature->RenderShadows(Context.Renderer, Processor, Context.Targets, Context.SceneViewData);
 }
