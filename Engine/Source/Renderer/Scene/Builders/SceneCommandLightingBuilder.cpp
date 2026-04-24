@@ -112,7 +112,7 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 	const TArray<AActor*> Actors = BuildContext.World->GetAllActors();
 	LightingInputs.LocalLights.reserve(Actors.size());
-
+	uint32 CurrentShadowIndex = 0;
 	for (AActor* Actor : Actors)
 	{
 		if (!Actor || Actor->IsPendingDestroy() || !Actor->IsVisible())
@@ -173,7 +173,16 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 					continue;
 				}
 
-				LightingInputs.LocalLights.push_back(BuildSpotLight(Spot));
+				FLocalLightRenderItem L = BuildSpotLight(Spot);
+
+		
+				if (Spot->IsCastingShadows())
+				{
+					L.Flags |= 1;
+					L.ShadowIndex = CurrentShadowIndex++;
+				}
+
+				LightingInputs.LocalLights.push_back(L);
 				continue;
 			}
 

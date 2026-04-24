@@ -163,7 +163,38 @@ StructuredBuffer<FLightClusterHeader> ClusterLightHeaders : register(t10);
 StructuredBuffer<uint>                ClusterLightIndices : register(t11);
 StructuredBuffer<FLocalLightGPU>      LocalLights         : register(t12);
 StructuredBuffer<uint>                ObjectLightIndices  : register(t13);
+StructuredBuffer<float4x4>			  ShadowMatrices	  : register(t14);
+Texture2D							  ShadowMapTexture    : register(t15);
+SamplerComparisonState				  ShadowSampler       : register(s1);
 
+
+float ComputeShadowFactor(uint shadowIndex, float3 worldPos)
+{
+	if (shadowIndex == 0xFFFFFFFF)
+		return 1.0f;
+
+	float4x4 lightViewProj = ShadowMatrices[shadowIndex];
+	float4 shadowPos = mul(float4(worldPos, 1.0f), lightViewProj);
+
+	shadowPos.xyz /= shadowPos.w;
+
+	if (shadowPos.w <= 0.0f || shadowPos.z < 0.0f || shadowPos.z > 1.0f)
+		return 1.0f;
+
+	float2 shadowUV;
+	shadowUV.x = shadowPos.x * 0.5f + 0.5f;
+	shadowUV.y = shadowPos.y * -0.5f + 0.5f;
+
+
+	if (shadowUV.x < 0.0f || shadowUV.x > 1.0f || shadowUV.y < 0.0f || shadowUV.y > 1.0f)
+		return 1.0f;
+
+	float currentDepth = shadowPos.z;
+	float bias = 0.005f; 
+
+
+	return ShadowMapTexture.SampleCmpLevelZero(ShadowSampler, shadowUV, currentDepth - bias);
+}
 float CalculateAttenuation(float distance, float range)
 {
 	float safeRange = max(range, 1.0e-4f);
@@ -300,11 +331,12 @@ float4 CalculateSpotLight(FLocalLightGPU info,
 	float diff = max(0.0f, dot(N, L));
 	float spec = pow(max(0.0f, dot(N, H)), Shininess);
 	float attenuation = CalculateAttenuation(distance, info.PositionRange.w);
+	//shadow facotr
+	float shadowFactor = ComputeShadowFactor(info.ShadowIndex, worldPos);
+	float3 diffuse = info.ColorIntensity.xyz * info.ColorIntensity.w * diff * attenuation * intensity * shadowFactor;
+	float3 specular = info.ColorIntensity.xyz * info.ColorIntensity.w * spec * attenuation * intensity * shadowFactor;
 
-    float3 diffuse = info.ColorIntensity.xyz * info.ColorIntensity.w * diff * attenuation * intensity;
-    float3 specular = info.ColorIntensity.xyz * info.ColorIntensity.w * spec * attenuation * intensity;
-
-    return float4(diffuse + specular, 1.0f);
+	return float4(diffuse + specular, 1.0f);
 }
 
 float4 ComputeLocalLight(FLocalLightGPU light, float3 worldPos, float3 N, float3 V)
@@ -341,7 +373,8 @@ void ComputeLocalLightContributions(
 	float attenuation = CalculateAttenuation(distance, light.PositionRange.w);
 	float intensity = 1.0f;
 
-	const uint lightClass = (uint)light.DirectionType.w;
+	const uint lightClass = (uint) light.DirectionType.w;
+	float shadowFactor = 1.0f;
 	if (lightClass == LIGHT_CLASS_SPOT)
 	{
 		float theta = dot(L, normalize(-light.DirectionType.xyz));
@@ -352,6 +385,7 @@ void ComputeLocalLightContributions(
 		{
 			return;
 		}
+		shadowFactor = ComputeShadowFactor(light.ShadowIndex, worldPos);
 	}
 	else if (lightClass != LIGHT_CLASS_POINT)
 	{
@@ -359,11 +393,13 @@ void ComputeLocalLightContributions(
 	}
 
 	float diff = max(dot(N, L), 0.0f);
-	diffuseLighting = light.ColorIntensity.xyz * light.ColorIntensity.w * diff * attenuation * intensity;
+
+	diffuseLighting = light.ColorIntensity.xyz * light.ColorIntensity.w * diff * attenuation * intensity * shadowFactor;//add factor
 
 	float3 H = normalize(L + V);
 	float spec = pow(max(dot(N, H), 0.0f), 32.0f);
-	float3 specularLighting = light.ColorIntensity.xyz * light.ColorIntensity.w * spec * attenuation * intensity;
+
+	float3 specularLighting = light.ColorIntensity.xyz * light.ColorIntensity.w * spec * attenuation * intensity * shadowFactor;//
 
 	totalLighting = diffuseLighting + specularLighting;
 }

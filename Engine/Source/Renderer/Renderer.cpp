@@ -37,6 +37,7 @@
 #include "Renderer/Scene/Passes/PassContext.h"
 #include "Renderer/Scene/SceneRenderer.h"
 #include "Renderer/UI/Screen/ScreenUIRenderer.h"
+#include "Renderer/Features/Shadow/ShadowRenderFeature.h"
 #include "World/World.h"
 #include <algorithm>
 #include <cassert>
@@ -518,6 +519,10 @@ FLightRenderFeature* FRenderer::GetLightFeature() const
 	return LightFeature.get();
 }
 
+FShadowRenderFeature* FRenderer::GetShadowFeature() const
+{
+	return ShadowFeature.get();
+}
 FBloomRenderFeature* FRenderer::GetBloomFeature() const
 {
 	return BloomFeature.get();

@@ -133,6 +133,9 @@ private:
 
 	ELightingModel CurrentLightingModel = ELightingModel::Phong;
 
+
+	ID3D11SamplerState* ShadowSamplerState = nullptr;
+
 	ID3D11Buffer* ClusterHeaderStagingBuffer  = nullptr;
 	uint32        PendingReadbackClusterCount  = 0;
 	bool          bHasPendingReadback          = false;

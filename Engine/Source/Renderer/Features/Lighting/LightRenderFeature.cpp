@@ -7,6 +7,7 @@
 #include "Renderer/Renderer.h"
 #include "Renderer/Resources/Shader/ShaderRegistry.h"
 #include "Renderer/Scene/SceneViewData.h"
+#include <Renderer/Features/Shadow/ShadowRenderFeature.h>
 
 namespace
 {
@@ -324,7 +325,22 @@ bool FLightRenderFeature::Render(
 	{
 		DeviceContext->PSSetShaderResources(LightClusterSlots::ClusterLightIndexSRV, 1, &ClusterLightIndexSRV);
 	}
+	if (ShadowSamplerState)
+	{
+		DeviceContext->PSSetSamplers(1, 1, &ShadowSamplerState);
+	}
 
+	FShadowRenderFeature* ShadowFeature = Renderer.GetShadowFeature();
+	if (ShadowFeature)
+	{
+		// 섀도우 맵 텍스처 (t15) 바인딩
+		ID3D11ShaderResourceView* ShadowMapSRV = ShadowFeature->GetShadowSRV();
+		DeviceContext->PSSetShaderResources(15, 1, &ShadowMapSRV);
+
+		// 섀도우 행렬 버퍼 (t14) 바인딩
+		ID3D11ShaderResourceView* MatricesSRV = ShadowFeature->GetShadowMatricesSRV();
+		DeviceContext->PSSetShaderResources(14, 1, &MatricesSRV);
+	}
 	return true;
 }
 
@@ -378,6 +394,7 @@ void FLightRenderFeature::Release()
 		WorldNormalVariants[VariantIndex] = {};
 	}
 	SafeRelease(DepthSampler);
+	SafeRelease(ShadowSamplerState);
 }
 
 std::shared_ptr<FVertexShaderHandle> FLightRenderFeature::GetCurrentVSHandle(bool bHasNormalMap, ERenderMode RenderMode) const
@@ -487,7 +504,24 @@ bool FLightRenderFeature::Initialize(FRenderer& Renderer)
 			return false;
 		}
 	}
+	if (!ShadowSamplerState)
+	{
+		D3D11_SAMPLER_DESC SamplerDesc = {};
+		SamplerDesc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT; // 그림자 비교용 필터
+		SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER; // 범위 밖은 그림자가 지지 않도록 설정
+		SamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+		SamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+		SamplerDesc.BorderColor[0] = 1.0f;
+		SamplerDesc.BorderColor[1] = 1.0f;
+		SamplerDesc.BorderColor[2] = 1.0f;
+		SamplerDesc.BorderColor[3] = 1.0f;
+		SamplerDesc.ComparisonFunc = D3D11_COMPARISON_LESS_EQUAL;
 
+		if (FAILED(Device->CreateSamplerState(&SamplerDesc, &ShadowSamplerState)))
+		{
+			return false;
+		}
+	}
 	return LightCullingCS != nullptr && TileDepthBoundsCS != nullptr;
 }
 

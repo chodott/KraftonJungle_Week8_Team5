@@ -11,7 +11,7 @@
 #include "Renderer/Scene/SceneViewData.h"
 #include "Renderer/Common/SceneRenderTargets.h"
 #include "Renderer/Features/Lighting/LightRenderFeature.h"
-
+#include "Renderer/Features/Shadow/ShadowRenderFeature.h"
 FSceneRenderer::FSceneRenderer()
 	: SceneCommandBuilder(std::make_unique<FSceneCommandBuilder>())
 	  , SceneCommandResourceCache(std::make_unique<FSceneCommandResourceCache>())
@@ -96,7 +96,13 @@ bool FSceneRenderer::RenderSceneView(
 	{
 		ApplyWireframeOverrideToSceneView(SceneViewData, WireframeMaterial);
 	}
-
+	if (FShadowRenderFeature* ShadowFeature = Renderer.GetShadowFeature())
+	{
+		// 1. 투영 행렬 계산 및 버퍼 업로드
+		ShadowFeature->PrepareShadowViews(SceneViewData);
+		// 2. 뎁스 맵에 메쉬 그리기
+		ShadowFeature->RenderDepthPass(Renderer, SceneViewData);
+	}
 	FPassContext PassContext
 	{
 		Renderer,

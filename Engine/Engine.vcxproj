@@ -127,6 +127,9 @@
     <ClInclude Include="Source\Primitive\PrimitiveGizmo.h" />
     <ClInclude Include="Source\Primitive\UnrealEditorStyledGizmo.h" />
     <ClInclude Include="Source\Renderer\Features\Lighting\BloomRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Features\Shadow\ShadowRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Features\Shadow\ShadowStats.h" />
+    <ClInclude Include="Source\Renderer\Features\Shadow\ShadowTypes.h" />
     <ClInclude Include="Source\Renderer\GPUStats.h" />
     <ClInclude Include="Source\Renderer\Renderer.h" />
     <ClInclude Include="Source\Renderer\Common\RenderFeatureInterfaces.h" />
@@ -423,6 +426,7 @@
     <ClCompile Include="Source\Primitive\PrimitiveGizmo.cpp" />
     <ClCompile Include="Source\Primitive\UnrealEditorStyledGizmo.cpp" />
     <ClCompile Include="Source\Renderer\Features\Lighting\BloomRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Features\Shadow\ShadowRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Renderer.cpp" />
     <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderFeature.cpp" />
     <ClCompile Include="Source\Renderer\Features\Billboard\BillboardRenderer.cpp" />

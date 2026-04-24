@@ -81,6 +81,7 @@ class FFireBallRenderFeature;
 class FFXAARenderFeature;
 class FDebugLineRenderFeature;
 class FLightRenderFeature;
+class FShadowRenderFeature;
 class FBloomRenderFeature;
 class FBillboardRenderer;
 class FDebugDrawManager;
@@ -207,6 +208,7 @@ public:
 	FFireBallRenderFeature*    GetFireBallFeature() const;
 	FFXAARenderFeature*        GetFXAAFeature() const;
 	FLightRenderFeature*       GetLightFeature() const;
+	FShadowRenderFeature*      GetShadowFeature() const;
 	FBloomRenderFeature*	   GetBloomFeature() const;
 
 	FSceneRenderer& GetSceneRenderer()
@@ -328,6 +330,7 @@ private:
 	std::unique_ptr<FVolumeDecalRenderFeature> VolumeDecalFeature;
 	std::unique_ptr<FFireBallRenderFeature>    FireBallFeature;
 	std::unique_ptr<FLightRenderFeature>       LightFeature;
+	std::unique_ptr<FShadowRenderFeature>	   ShadowFeature;
 	std::unique_ptr<FBloomRenderFeature>       BloomFeature;
 	std::unique_ptr<FFXAARenderFeature>        FXAAFeature;
 	EDecalProjectionMode                       DecalProjectionMode = EDecalProjectionMode::ClusteredLookup;
