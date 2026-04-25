@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "Core/Paths.h"
+#include "Math/MathUtility.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/Resources/Shader/ShaderRegistry.h"
 #include "Renderer/Scene/SceneViewData.h"
@@ -120,8 +121,8 @@ bool FLightRenderFeature::PrepareClusteredLightResources(
 			Stats.OverflowCulledSlots          = OverflowDropped;
 			Stats.ActiveClusters               = ActiveClusters;
 			Stats.AvgLightsPerActiveCluster    = ActiveClusters > 0u
-				? static_cast<double>(TotalAssignments) / static_cast<double>(ActiveClusters)
-				: 0.0;
+				                                  ? static_cast<double>(TotalAssignments) / static_cast<double>(ActiveClusters)
+				                                  : 0.0;
 			DC->Unmap(ClusterHeaderStagingBuffer, 0);
 		}
 		bHasPendingReadback = false;
@@ -372,9 +373,9 @@ void FLightRenderFeature::Release()
 
 	for (uint32 VariantIndex = 0; VariantIndex < ShaderVariantCount; ++VariantIndex)
 	{
-		GouraudVariants[VariantIndex] = {};
-		LambertVariants[VariantIndex] = {};
-		PhongVariants[VariantIndex] = {};
+		GouraudVariants[VariantIndex]     = {};
+		LambertVariants[VariantIndex]     = {};
+		PhongVariants[VariantIndex]       = {};
 		WorldNormalVariants[VariantIndex] = {};
 	}
 	SafeRelease(DepthSampler);
@@ -454,21 +455,21 @@ bool FLightRenderFeature::Initialize(FRenderer& Renderer)
 	if (!LightCullingCS)
 	{
 		FShaderRecipe Recipe = {};
-		Recipe.Stage = EShaderStage::Compute;
-		Recipe.SourcePath = FPaths::ShaderDir().wstring() + L"SceneLighting/LightCullingCS.hlsl";
-		Recipe.EntryPoint = "main";
-		Recipe.Target = "cs_5_0";
-		LightCullingCS = FShaderRegistry::Get().GetOrCreateComputeShaderHandle(Device, Recipe);
+		Recipe.Stage         = EShaderStage::Compute;
+		Recipe.SourcePath    = FPaths::ShaderDir().wstring() + L"SceneLighting/LightCullingCS.hlsl";
+		Recipe.EntryPoint    = "main";
+		Recipe.Target        = "cs_5_0";
+		LightCullingCS       = FShaderRegistry::Get().GetOrCreateComputeShaderHandle(Device, Recipe);
 	}
 
 	if (!TileDepthBoundsCS)
 	{
 		FShaderRecipe Recipe = {};
-		Recipe.Stage = EShaderStage::Compute;
-		Recipe.SourcePath = FPaths::ShaderDir().wstring() + L"SceneLighting/TileDepthBoundsCS.hlsl";
-		Recipe.EntryPoint = "main";
-		Recipe.Target = "cs_5_0";
-		TileDepthBoundsCS = FShaderRegistry::Get().GetOrCreateComputeShaderHandle(Device, Recipe);
+		Recipe.Stage         = EShaderStage::Compute;
+		Recipe.SourcePath    = FPaths::ShaderDir().wstring() + L"SceneLighting/TileDepthBoundsCS.hlsl";
+		Recipe.EntryPoint    = "main";
+		Recipe.Target        = "cs_5_0";
+		TileDepthBoundsCS    = FShaderRegistry::Get().GetOrCreateComputeShaderHandle(Device, Recipe);
 	}
 
 	if (!DepthSampler)
@@ -505,23 +506,23 @@ bool FLightRenderFeature::CompileShaderVariants(FRenderer& Renderer)
 	auto BuildVertexRecipe = [&](const std::wstring& Path, const std::vector<FShaderMacroDesc>& Macros) -> FShaderRecipe
 	{
 		FShaderRecipe Recipe = {};
-		Recipe.Stage = EShaderStage::Vertex;
-		Recipe.SourcePath = Path;
-		Recipe.EntryPoint = "main";
-		Recipe.Target = "vs_5_0";
-		Recipe.LayoutType = EVertexLayoutType::MeshVertex;
-		Recipe.Macros = Macros;
+		Recipe.Stage         = EShaderStage::Vertex;
+		Recipe.SourcePath    = Path;
+		Recipe.EntryPoint    = "main";
+		Recipe.Target        = "vs_5_0";
+		Recipe.LayoutType    = EVertexLayoutType::MeshVertex;
+		Recipe.Macros        = Macros;
 		return Recipe;
 	};
 
 	auto BuildPixelRecipe = [&](const std::wstring& Path, const std::vector<FShaderMacroDesc>& Macros) -> FShaderRecipe
 	{
 		FShaderRecipe Recipe = {};
-		Recipe.Stage = EShaderStage::Pixel;
-		Recipe.SourcePath = Path;
-		Recipe.EntryPoint = "main";
-		Recipe.Target = "ps_5_0";
-		Recipe.Macros = Macros;
+		Recipe.Stage         = EShaderStage::Pixel;
+		Recipe.SourcePath    = Path;
+		Recipe.EntryPoint    = "main";
+		Recipe.Target        = "ps_5_0";
+		Recipe.Macros        = Macros;
 		return Recipe;
 	};
 
@@ -641,10 +642,10 @@ void FLightRenderFeature::UpdateClusterGlobalConstantBuffer(
 	CB.ClusterCountZ   = LightCullingConfig::ClusterCountZ;
 	CB.LocalLightCount = (std::min)(static_cast<uint32>(SceneViewData.LightingInputs.LocalLights.size()), LightListConfig::MaxLocalLights);
 
-	CB.bOrthographic         = SceneViewData.View.bOrthographic ? 1u : 0u;
-	CB.MaxLightsPerCluster   = LightListConfig::MaxLightsPerCluster;
-	CB.LightingEnabled       = SceneViewData.RenderMode != ERenderMode::Unlit ? 1u : 0u;
-	CB.VisualizationMode     = SceneViewData.RenderMode == ERenderMode::LightCullingHeatmap ? 1u : 0u;
+	CB.bOrthographic       = SceneViewData.View.bOrthographic ? 1u : 0u;
+	CB.MaxLightsPerCluster = LightListConfig::MaxLightsPerCluster;
+	CB.LightingEnabled     = SceneViewData.RenderMode != ERenderMode::Unlit ? 1u : 0u;
+	CB.VisualizationMode   = SceneViewData.RenderMode == ERenderMode::LightCullingHeatmap ? 1u : 0u;
 
 	CB.NearZ = (std::max)(SceneViewData.View.NearZ, 1e-4f);
 	CB.FarZ  = (std::max)(SceneViewData.View.FarZ, CB.NearZ + 1e-3f);

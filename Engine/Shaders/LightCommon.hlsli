@@ -238,12 +238,13 @@ float SampleShadowViewPCF(
 
 	float compareDepth = saturate(ndc.z - bias);
 
-	uint width;
-	uint height;
-	uint slices;
-	ShadowDepthArray.GetDimensions(width, height, slices);
+	float viewportScale = max(shadowView.ViewParams.z, 1.0e-6f);
+	float2 texelSize    = shadowView.ViewParams.w.xx;
 
-	float2 texelSize = 1.0f / float2(max(width, 1u), max(height, 1u));
+	float2 scaledUV = uv * viewportScale;
+
+	float2 minUV = texelSize * 0.5f;
+	float2 maxUV = viewportScale.xx - texelSize * 0.5f;
 
 	float visibility = 0.0f;
 
@@ -253,7 +254,7 @@ float SampleShadowViewPCF(
 		[unroll]
 		for (int x = -1; x <= 1; ++x)
 		{
-			float2 tapUV = uv + float2(x, y) * texelSize;
+			float2 tapUV = clamp(scaledUV + float2(x, y) * texelSize, minUV, maxUV);
 
 			visibility += ShadowDepthArray.SampleCmpLevelZero(
 				ShadowSampler,

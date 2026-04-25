@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "ShadowTypes.h"
@@ -13,6 +13,13 @@ class FShadowRenderFeature
 {
 public:
 	~FShadowRenderFeature();
+
+	void SetDefaultShadowMapResolution(uint32 Resolution);
+
+	uint32 GetDefaultShadowMapResolution() const
+	{
+		return DefaultShadowMapResolution;
+	}
 
 	void BindShadowResources(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 
@@ -30,7 +37,7 @@ public:
 private:
 	bool EnsureResources(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 
-	bool EnsureShadowDepthArray(FRenderer& Renderer);
+	bool EnsureShadowDepthArray(FRenderer& Renderer, uint32 RequiredResolution);
 
 	bool EnsureShadowBuffers(FRenderer& Renderer, uint32 ShadowLightCount, uint32 ShadowViewCount);
 
@@ -47,6 +54,11 @@ private:
 
 	void RenderShadowViews(FRenderer& Renderer, const FMeshPassProcessor& Processor, FSceneRenderTargets& Targets, FSceneViewData& SceneViewData);
 
+	uint32         ResolveShadowViewResolution(uint32 RequestedResolution) const;
+	uint32         ComputeRequiredShadowDepthArrayResolution(const FSceneViewData& SceneViewData) const;
+	D3D11_VIEWPORT BuildShadowViewport(uint32 RequestedResolution) const;
+	float          GetShadowViewportScale(uint32 RequestedResolution) const;
+
 	ID3D11Texture2D*          ShadowDepthArray                             = nullptr;
 	ID3D11ShaderResourceView* ShadowDepthArraySRV                          = nullptr;
 	ID3D11DepthStencilView*   ShadowViewDSVs[ShadowConfig::MaxShadowViews] = {};
@@ -57,5 +69,8 @@ private:
 	ID3D11Buffer*             ShadowViewBuffer    = nullptr;
 	ID3D11ShaderResourceView* ShadowViewBufferSRV = nullptr;
 
-	ID3D11SamplerState* ShadowComparisonSampler = nullptr;
+	ID3D11SamplerState* ShadowComparisonSampler   = nullptr;
+	uint32              DefaultShadowMapResolution = ShadowConfig::DefaultShadowMapResolution;
+	uint32              ShadowDepthArrayResolution = ShadowConfig::DefaultShadowMapResolution;
+	bool                bShadowDepthArrayDirty     = true;
 };

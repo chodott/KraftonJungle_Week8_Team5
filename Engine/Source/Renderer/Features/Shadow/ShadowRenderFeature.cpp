@@ -1,4 +1,4 @@
-﻿#include "Renderer/Features/Shadow/ShadowRenderFeature.h"
+#include "Renderer/Features/Shadow/ShadowRenderFeature.h"
 
 #include "Renderer/Renderer.h"
 #include "Renderer/Scene/MeshPassProcessor.h"
@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <cstring>
 #include <vector>
+
+#include "Math/MathUtility.h"
 
 namespace
 {
@@ -26,6 +28,22 @@ namespace
 FShadowRenderFeature::~FShadowRenderFeature()
 {
 	Release();
+}
+
+void FShadowRenderFeature::SetDefaultShadowMapResolution(uint32 Resolution)
+{
+	const uint32 NewResolution = FMath::Clamp(
+		Resolution,
+		ShadowConfig::MinShadowMapResolution,
+		ShadowConfig::MaxShadowMapResolution);
+
+	if (DefaultShadowMapResolution == NewResolution)
+	{
+		return;
+	}
+
+	DefaultShadowMapResolution = NewResolution;
+	bShadowDepthArrayDirty     = true;
 }
 
 void FShadowRenderFeature::BindShadowResources(
@@ -99,6 +117,7 @@ void FShadowRenderFeature::Release()
 	}
 
 	SafeRelease(ShadowDepthArray);
+	bShadowDepthArrayDirty = true;
 }
 
 bool FShadowRenderFeature::RenderShadows(
@@ -119,14 +138,13 @@ bool FShadowRenderFeature::RenderShadows(
 		return true;
 	}
 
+	UnbindShadowResources(Renderer);
+
 	if (!EnsureResources(Renderer, SceneViewData))
 	{
 		UnbindShadowResources(Renderer);
 		return false;
 	}
-
-	// 같은 depth array를 DSV로 쓰기 전에 shader SRV 바인딩을 해제합니다.
-	UnbindShadowResources(Renderer);
 
 	RenderShadowViews(Renderer, Processor, Targets, SceneViewData);
 	UploadShadowBuffers(Renderer, SceneViewData);
@@ -147,12 +165,14 @@ bool FShadowRenderFeature::EnsureResources(
 		static_cast<uint32>(SceneViewData.LightingInputs.ShadowViews.size()),
 		ShadowConfig::MaxShadowViews);
 
-	return EnsureShadowDepthArray(Renderer)
+	const uint32 RequiredResolution = ComputeRequiredShadowDepthArrayResolution(SceneViewData);
+
+	return EnsureShadowDepthArray(Renderer, RequiredResolution)
 			&& EnsureShadowBuffers(Renderer, ShadowLightCount, ShadowViewCount)
 			&& EnsureComparisonSampler(Renderer);
 }
 
-bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer)
+bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer, uint32 RequiredResolution)
 {
 	ID3D11Device* Device = Renderer.GetDevice();
 	if (!Device)
@@ -160,10 +180,47 @@ bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer)
 		return false;
 	}
 
-	if (ShadowDepthArray && ShadowDepthArraySRV && ShadowViewDSVs[0])
+	RequiredResolution = FMath::Clamp(
+		RequiredResolution,
+		ShadowConfig::MinShadowMapResolution,
+		ShadowConfig::MaxShadowMapResolution);
+
+	bool bAllDSVsValid = true;
+	for (ID3D11DepthStencilView* DSV : ShadowViewDSVs)
+	{
+		if (!DSV)
+		{
+			bAllDSVsValid = false;
+			break;
+		}
+	}
+
+	bool bRecreate =
+			bShadowDepthArrayDirty ||
+			!ShadowDepthArray ||
+			!ShadowDepthArraySRV ||
+			!bAllDSVsValid ||
+			ShadowDepthArrayResolution != RequiredResolution;
+
+	if (!bRecreate)
+	{
+		D3D11_TEXTURE2D_DESC ExistingDesc = {};
+		ShadowDepthArray->GetDesc(&ExistingDesc);
+
+		if (ExistingDesc.Width != RequiredResolution ||
+			ExistingDesc.Height != RequiredResolution ||
+			ExistingDesc.ArraySize != ShadowConfig::MaxShadowViews)
+		{
+			bRecreate = true;
+		}
+	}
+
+	if (!bRecreate)
 	{
 		return true;
 	}
+
+	UnbindShadowResources(Renderer);
 
 	SafeRelease(ShadowDepthArraySRV);
 
@@ -174,9 +231,11 @@ bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer)
 
 	SafeRelease(ShadowDepthArray);
 
+	ShadowDepthArrayResolution = RequiredResolution;
+
 	D3D11_TEXTURE2D_DESC TextureDesc = {};
-	TextureDesc.Width                = ShadowConfig::ShadowMapResolution;
-	TextureDesc.Height               = ShadowConfig::ShadowMapResolution;
+	TextureDesc.Width                = ShadowDepthArrayResolution;
+	TextureDesc.Height               = ShadowDepthArrayResolution;
 	TextureDesc.MipLevels            = 1;
 	TextureDesc.ArraySize            = ShadowConfig::MaxShadowViews;
 	TextureDesc.Format               = DXGI_FORMAT_R32_TYPELESS;
@@ -187,7 +246,7 @@ bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer)
 
 	if (FAILED(Device->CreateTexture2D(&TextureDesc, nullptr, &ShadowDepthArray)) || !ShadowDepthArray)
 	{
-		Release();
+		bShadowDepthArrayDirty = true;
 		return false;
 	}
 
@@ -201,7 +260,8 @@ bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer)
 
 	if (FAILED(Device->CreateShaderResourceView(ShadowDepthArray, &SRVDesc, &ShadowDepthArraySRV)) || !ShadowDepthArraySRV)
 	{
-		Release();
+		SafeRelease(ShadowDepthArray);
+		bShadowDepthArrayDirty = true;
 		return false;
 	}
 
@@ -216,11 +276,20 @@ bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer)
 
 		if (FAILED(Device->CreateDepthStencilView(ShadowDepthArray, &DSVDesc, &ShadowViewDSVs[Slice])) || !ShadowViewDSVs[Slice])
 		{
-			Release();
+			SafeRelease(ShadowDepthArraySRV);
+
+			for (ID3D11DepthStencilView*& DSV : ShadowViewDSVs)
+			{
+				SafeRelease(DSV);
+			}
+
+			SafeRelease(ShadowDepthArray);
+			bShadowDepthArrayDirty = true;
 			return false;
 		}
 	}
 
+	bShadowDepthArrayDirty = false;
 	return true;
 }
 
@@ -388,13 +457,18 @@ void FShadowRenderFeature::UploadShadowBuffers(
 		{
 			const FShadowViewRenderItem& Src = SceneViewData.LightingInputs.ShadowViews[Index];
 
+			const float ViewportScale = GetShadowViewportScale(Src.RequestedResolution);
+			const float TexelSize     = ShadowDepthArrayResolution > 0
+				                        ? 1.0f / static_cast<float>(ShadowDepthArrayResolution)
+				                        : 1.0f;
+
 			FShadowViewGPU& Dst     = GPUData[Index];
 			Dst.LightViewProjection = Src.ViewProjection.GetTransposed();
 			Dst.ArraySlice          = Src.ArraySlice;
 			Dst.ProjectionType      = static_cast<uint32>(Src.ProjectionType);
 			Dst.Pad0                = 0;
 			Dst.Pad1                = 0;
-			Dst.ViewParams          = FVector4(Src.NearZ, Src.FarZ, 0.0f, 0.0f);
+			Dst.ViewParams          = FVector4(Src.NearZ, Src.FarZ, ViewportScale, TexelSize);
 		}
 
 		D3D11_MAPPED_SUBRESOURCE Mapped = {};
@@ -445,6 +519,7 @@ void FShadowRenderFeature::RenderShadowViews(
 		}
 
 		DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+		const D3D11_VIEWPORT ShadowViewport = BuildShadowViewport(ShadowView.RequestedResolution);
 
 		SceneViewData.View.View                  = ShadowView.View;
 		SceneViewData.View.Projection            = ShadowView.Projection;
@@ -456,14 +531,14 @@ void FShadowRenderFeature::RenderShadowViews(
 		SceneViewData.View.NearZ                 = ShadowView.NearZ;
 		SceneViewData.View.FarZ                  = ShadowView.FarZ;
 		SceneViewData.View.bOrthographic         = ShadowView.ProjectionType == EShadowProjectionType::Orthographic;
-		SceneViewData.View.Viewport              = ShadowView.Viewport;
+		SceneViewData.View.Viewport              = ShadowViewport;
 
 		BeginPass(
 			Renderer,
 			0,
 			nullptr,
 			ShadowDSV,
-			ShadowView.Viewport,
+			ShadowViewport,
 			SceneViewData.Frame,
 			SceneViewData.View);
 
@@ -483,4 +558,64 @@ void FShadowRenderFeature::RenderShadowViews(
 		OriginalView.Viewport,
 		SceneViewData.Frame,
 		SceneViewData.View);
+}
+
+uint32 FShadowRenderFeature::ResolveShadowViewResolution(uint32 RequestedResolution) const
+{
+	const uint32 Resolution = RequestedResolution > 0
+		? RequestedResolution
+		: DefaultShadowMapResolution;
+
+	return FMath::Clamp(
+		Resolution,
+		ShadowConfig::MinShadowMapResolution,
+		ShadowConfig::MaxShadowMapResolution);
+}
+
+uint32 FShadowRenderFeature::ComputeRequiredShadowDepthArrayResolution(
+	const FSceneViewData& SceneViewData) const
+{
+	uint32 RequiredResolution = DefaultShadowMapResolution;
+
+	const uint32 ShadowViewCount = (std::min)(
+		static_cast<uint32>(SceneViewData.LightingInputs.ShadowViews.size()),
+		ShadowConfig::MaxShadowViews);
+
+	for (uint32 Index = 0; Index < ShadowViewCount; ++Index)
+	{
+		const FShadowViewRenderItem& View = SceneViewData.LightingInputs.ShadowViews[Index];
+		RequiredResolution = (std::max)(RequiredResolution, ResolveShadowViewResolution(View.RequestedResolution));
+	}
+
+	return FMath::Clamp(
+		RequiredResolution,
+		ShadowConfig::MinShadowMapResolution,
+		ShadowConfig::MaxShadowMapResolution);
+}
+
+D3D11_VIEWPORT FShadowRenderFeature::BuildShadowViewport(uint32 RequestedResolution) const
+{
+	const uint32 ResolvedResolution = ResolveShadowViewResolution(RequestedResolution);
+	const float  EffectiveSize      = static_cast<float>((std::min)(ResolvedResolution, ShadowDepthArrayResolution));
+
+	D3D11_VIEWPORT Viewport = {};
+	Viewport.TopLeftX       = 0.0f;
+	Viewport.TopLeftY       = 0.0f;
+	Viewport.Width          = EffectiveSize;
+	Viewport.Height         = EffectiveSize;
+	Viewport.MinDepth       = 0.0f;
+	Viewport.MaxDepth       = 1.0f;
+
+	return Viewport;
+}
+
+float FShadowRenderFeature::GetShadowViewportScale(uint32 RequestedResolution) const
+{
+	if (ShadowDepthArrayResolution == 0)
+	{
+		return 1.0f;
+	}
+
+	const D3D11_VIEWPORT Viewport = BuildShadowViewport(RequestedResolution);
+	return Viewport.Width / static_cast<float>(ShadowDepthArrayResolution);
 }

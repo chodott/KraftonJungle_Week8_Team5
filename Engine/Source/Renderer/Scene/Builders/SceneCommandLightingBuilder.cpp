@@ -155,10 +155,11 @@ namespace
 		const float FullFovRad        = FMath::DegreesToRadians(OuterHalfAngleDeg * 2.0f);
 
 		FShadowViewRenderItem View;
-		View.ProjectionType = EShadowProjectionType::Perspective;
-		View.PositionWS     = LightItem.PositionWS;
-		View.NearZ          = NearZ;
-		View.FarZ           = FarZ;
+		View.ProjectionType  = EShadowProjectionType::Perspective;
+		View.PositionWS      = LightItem.PositionWS;
+		View.NearZ           = NearZ;
+		View.FarZ            = FarZ;
+		View.RequestedResolution = Spot->GetShadowMapResolution();
 
 		View.View = FMatrix::MakeViewLookAtLH(
 			LightItem.PositionWS,
@@ -173,12 +174,7 @@ namespace
 
 		View.ViewProjection = View.View * View.Projection;
 
-		View.Viewport.TopLeftX = 0.0f;
-		View.Viewport.TopLeftY = 0.0f;
-		View.Viewport.Width    = static_cast<float>(ShadowConfig::ShadowMapResolution);
-		View.Viewport.Height   = static_cast<float>(ShadowConfig::ShadowMapResolution);
-		View.Viewport.MinDepth = 0.0f;
-		View.Viewport.MaxDepth = 1.0f;
+		View.Viewport = {};
 
 		AddShadowView(Inputs, ShadowLightIndex, View);
 	}

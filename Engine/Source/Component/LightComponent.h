@@ -20,7 +20,7 @@ public:
 	void SetColor(FLinearColor NewColor);
 	void SetVisible(bool bNewVisible);
 
-	void SetShadowResolutionScale(float NewScale);
+	void SetShadowMapResolution(uint32 NewResolution);
 	void SetShadowBias(float NewBias);
 	void SetShadowSlopeBias(float NewSlopeBias);
 	void SetShadowSharpen(float NewSharpen);
@@ -51,9 +51,9 @@ public:
 		return bVisible;
 	}
 
-	float GetShadowResolutionScale() const
+	uint32 GetShadowMapResolution() const
 	{
-		return ShadowResolutionScale;
+		return ShadowMapResolution;
 	}
 
 	float GetShadowBias() const
@@ -85,8 +85,7 @@ protected:
 	ELightUnits  IntensityUnits = ELightUnits::Unitless;
 	bool         bVisible       = true;
 
-	//Shadow
-	float ShadowResolutionScale = 1.0f;
+	uint32 ShadowMapResolution = 0;
 	float ShadowBias            = 0.0001f;
 	float ShadowSlopeBias       = 0.0f;
 	float ShadowSharpen         = 0.0f;

@@ -21,6 +21,7 @@
 #include "Component/MeshDecalComponent.h"
 #include "Component/FireBallComponent.h"
 #include "Component/LightComponent.h"
+#include "Renderer/Features/Shadow/ShadowTypes.h"
 #include "Component/PointLightComponent.h"
 #include "Component/SpotLightComponent.h"
 #include "Component/DirectionalLightComponent.h"
@@ -2084,12 +2085,12 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent)
 		LightComponent->SetIntensity(Intensity);
 	}
 
-	float ShadowResolutionScale = LightComponent->GetShadowResolutionScale();
-	ImGui::Text("Shadow Resolution Scale");
+	int ShadowMapResolution = (int)LightComponent->GetShadowMapResolution();
+	ImGui::Text("Shadow Map Resolution");
 	ImGui::NextColumn();
-	if (ImGui::DragFloat("Shadow Resolution Scale", &ShadowResolutionScale, 0.01f, 0.0f, 10.0f, "%.2f"))
+	if (ImGui::DragInt("Shadow Map Resolution", &ShadowMapResolution, 16.0f, 0, (int)ShadowConfig::MaxShadowMapResolution))
 	{
-		LightComponent->SetShadowResolutionScale(ShadowResolutionScale);
+		LightComponent->SetShadowMapResolution((uint32)(std::max)(0, ShadowMapResolution));
 	}
 
 	float ShadowBias = LightComponent->GetShadowBias();

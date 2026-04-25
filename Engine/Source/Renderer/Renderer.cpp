@@ -464,6 +464,19 @@ size_t FRenderer::GetPrevCommandCount() const
 	return SceneRenderer ? SceneRenderer->GetPrevCommandCount() : 0;
 }
 
+void FRenderer::SetDefaultShadowMapResolution(uint32 InShadowMapResolution)
+{
+	if (ShadowFeature)
+	{
+		ShadowFeature->SetDefaultShadowMapResolution(InShadowMapResolution);
+	}
+}
+
+uint32 FRenderer::GetDefaultShadowMapResolution() const
+{
+	return ShadowFeature ? ShadowFeature->GetDefaultShadowMapResolution() : ShadowConfig::DefaultShadowMapResolution;
+}
+
 ISceneTextFeature* FRenderer::GetSceneTextFeature() const
 {
 	return TextFeature.get();

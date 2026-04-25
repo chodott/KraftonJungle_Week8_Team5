@@ -198,6 +198,9 @@ public:
 		return RenderDevice.GetViewport();
 	}
 
+	void   SetDefaultShadowMapResolution(uint32 InShadowMapResolution);
+	uint32 GetDefaultShadowMapResolution() const;
+
 	ISceneTextFeature*         GetSceneTextFeature() const;
 	ISceneSubUVFeature*        GetSceneSubUVFeature() const;
 	ISceneBillboardFeature*    GetSceneBillboardFeature() const;

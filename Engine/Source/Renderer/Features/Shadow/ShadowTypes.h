@@ -8,9 +8,11 @@ namespace ShadowConfig
 {
 	static constexpr uint32 MaxShadowLights = 16;
 
-	static constexpr uint32 MaxShadowViews      = 8;
-	static constexpr uint32 ShadowMapResolution = 512;
-	static constexpr float  DefaultNearZ        = 0.05f;
+	static constexpr uint32 MaxShadowViews             = 8;
+	static constexpr uint32 DefaultShadowMapResolution = 512;
+	static constexpr uint32 MinShadowMapResolution     = 64;
+	static constexpr uint32 MaxShadowMapResolution     = 4096;
+	static constexpr float  DefaultNearZ               = 0.05f;
 }
 
 namespace ShadowSlots
@@ -71,6 +73,8 @@ struct FShadowViewRenderItem
 
 	float NearZ = ShadowConfig::DefaultNearZ;
 	float FarZ  = 1000.0f;
+
+	uint32 RequestedResolution = 0;
 
 	D3D11_VIEWPORT Viewport = {};
 };
