@@ -5,14 +5,15 @@
 class ENGINE_API FLightCullingComputePass : public IRenderPass
 {
 public:
-	const char* GetName() const override
+	FPassDesc Describe() const override
 	{
-		return "Light Culling Compute Pass";
-	}
-
-	EPassDomain GetDomain() const override
-	{
-		return EPassDomain::Compute;
+		return {
+			.Name     = "Light Culling Compute Pass",
+			.Domain   = EPassDomain::Compute,
+			.Category = EPassCategory::Lighting,
+			.Reads    = PassTarget(ESceneTarget::SceneDepth),
+			.Writes   = 0,
+		};
 	}
 
 	bool Execute(FPassContext& Context) override;

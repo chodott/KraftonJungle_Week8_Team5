@@ -101,6 +101,40 @@ void FShadowRenderFeature::Release()
 	SafeRelease(ShadowDepthArray);
 }
 
+bool FShadowRenderFeature::RenderShadows(
+	FRenderer&                Renderer,
+	const FMeshPassProcessor& Processor,
+	FSceneRenderTargets&      Targets,
+	FSceneViewData&           SceneViewData)
+{
+	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
+	if (!DeviceContext)
+	{
+		return false;
+	}
+
+	if (SceneViewData.LightingInputs.ShadowLights.empty() || SceneViewData.LightingInputs.ShadowViews.empty())
+	{
+		UnbindShadowResources(Renderer);
+		return true;
+	}
+
+	if (!EnsureResources(Renderer, SceneViewData))
+	{
+		UnbindShadowResources(Renderer);
+		return false;
+	}
+
+	// 같은 depth array를 DSV로 쓰기 전에 shader SRV 바인딩을 해제합니다.
+	UnbindShadowResources(Renderer);
+
+	RenderShadowViews(Renderer, Processor, Targets, SceneViewData);
+	UploadShadowBuffers(Renderer, SceneViewData);
+	BindShadowResources(Renderer, SceneViewData);
+
+	return true;
+}
+
 bool FShadowRenderFeature::EnsureResources(
 	FRenderer&            Renderer,
 	const FSceneViewData& SceneViewData)
@@ -449,38 +483,4 @@ void FShadowRenderFeature::RenderShadowViews(
 		OriginalView.Viewport,
 		SceneViewData.Frame,
 		SceneViewData.View);
-}
-
-bool FShadowRenderFeature::RenderShadows(
-	FRenderer&                Renderer,
-	const FMeshPassProcessor& Processor,
-	FSceneRenderTargets&      Targets,
-	FSceneViewData&           SceneViewData)
-{
-	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
-	if (!DeviceContext)
-	{
-		return false;
-	}
-
-	if (SceneViewData.LightingInputs.ShadowLights.empty() || SceneViewData.LightingInputs.ShadowViews.empty())
-	{
-		UnbindShadowResources(Renderer);
-		return true;
-	}
-
-	if (!EnsureResources(Renderer, SceneViewData))
-	{
-		UnbindShadowResources(Renderer);
-		return false;
-	}
-
-	// 같은 depth array를 DSV로 쓰기 전에 shader SRV 바인딩을 해제합니다.
-	UnbindShadowResources(Renderer);
-
-	RenderShadowViews(Renderer, Processor, Targets, SceneViewData);
-	UploadShadowBuffers(Renderer, SceneViewData);
-	BindShadowResources(Renderer, SceneViewData);
-
-	return true;
 }

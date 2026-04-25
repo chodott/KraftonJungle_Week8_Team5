@@ -12,6 +12,17 @@ public:
 	{
 	}
 
+	FPassDesc Describe() const override
+	{
+		return {
+			.Name     = "Editor Grid Pass",
+			.Domain   = EPassDomain::Graphics,
+			.Category = EPassCategory::EditorOverlay,
+			.Reads    = PassTarget(ESceneTarget::SceneDepth),
+			.Writes   = PassTarget(ESceneTarget::SceneColor),
+		};
+	}
+
 	bool Execute(FPassContext& Context) override;
 
 private:

@@ -6,10 +6,10 @@
 
 namespace ShadowConfig
 {
-	static constexpr uint32 MaxShadowLights = 64;
+	static constexpr uint32 MaxShadowLights = 16;
 
-	static constexpr uint32 MaxShadowViews      = 256;
-	static constexpr uint32 ShadowMapResolution = 1024;
+	static constexpr uint32 MaxShadowViews      = 8;
+	static constexpr uint32 ShadowMapResolution = 512;
 	static constexpr float  DefaultNearZ        = 0.05f;
 }
 

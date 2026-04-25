@@ -174,5 +174,6 @@ bool FShadowMapPass::Execute(FPassContext& Context)
 		return true;
 	}
 
-	return Feature->RenderShadows(Context.Renderer, Processor, Context.Targets, Context.SceneViewData);
+	Feature->RenderShadows(Context.Renderer, Processor, Context.Targets, Context.SceneViewData);
+	return true;
 }
