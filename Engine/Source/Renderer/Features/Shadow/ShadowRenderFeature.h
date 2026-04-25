@@ -4,10 +4,20 @@
 #include "ShadowTypes.h"
 #include <d3d11.h>
 
+#include "Renderer/Resources/Shader/ShaderHandles.h"
+
 struct FSceneViewData;
 struct FSceneRenderTargets;
 class FMeshPassProcessor;
 class FRenderer;
+
+enum class EShadowDebugViewMode : uint32
+{
+	None        = 0,
+	Depth       = 1,
+	VSMMean     = 2,
+	VSMVariance = 3
+};
 
 class FShadowRenderFeature
 {
@@ -21,8 +31,15 @@ public:
 		return DefaultShadowMapResolution;
 	}
 
-	void SetGlobalFilterMode(EShadowFilterMode InMode) { GlobalFilterMode = InMode; }
-	EShadowFilterMode GetGlobalFilterMode() const { return GlobalFilterMode; }
+	void SetGlobalFilterMode(EShadowFilterMode InMode)
+	{
+		GlobalFilterMode = InMode;
+	}
+
+	EShadowFilterMode GetGlobalFilterMode() const
+	{
+		return GlobalFilterMode;
+	}
 
 	void BindShadowResources(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 
@@ -36,6 +53,46 @@ public:
 	}
 
 	bool RenderShadows(FRenderer& Renderer, const FMeshPassProcessor& Processor, FSceneRenderTargets& Targets, FSceneViewData& SceneViewData);
+
+	void SetDebugViewMode(EShadowDebugViewMode InMode)
+	{
+		DebugViewMode = InMode;
+	}
+
+	void SetDebugViewSlice(uint32 InSlice)
+	{
+		DebugViewSlice = InSlice;
+	}
+
+	EShadowDebugViewMode GetDebugViewMode() const
+	{
+		return DebugViewMode;
+	}
+
+	uint32 GetDebugViewSlice() const
+	{
+		return DebugViewSlice;
+	}
+
+	ID3D11ShaderResourceView* GetShadowDebugPreviewSRV() const
+	{
+		return ShadowDebugPreviewSRV;
+	}
+
+	const TArray<uint32>& GetDebugAvailableSlices() const
+	{
+		return DebugAvailableSlices;
+	}
+
+	void SetDebugViewportOverlayEnabled(bool bEnabled)
+	{
+		bDebugViewportOverlayEnabled = bEnabled;
+	}
+
+	bool IsDebugViewportOverlayEnabled() const
+	{
+		return bDebugViewportOverlayEnabled;
+	}
 
 private:
 	bool EnsureLinearSampler(const FRenderer& Renderer);
@@ -63,6 +120,18 @@ private:
 	uint32         ComputeRequiredShadowDepthArrayResolution(const FSceneViewData& SceneViewData) const;
 	D3D11_VIEWPORT BuildShadowViewport(uint32 RequestedResolution) const;
 	float          GetShadowViewportScale(uint32 RequestedResolution) const;
+	bool           EnsureDebugPreviewResources(FRenderer& Renderer);
+	bool           RenderDebugPreview(FRenderer& Renderer, FSceneRenderTargets& Targets, const FSceneViewData& SceneViewData);
+
+	ID3D11Texture2D*          ShadowDebugPreviewTexture = nullptr;
+	ID3D11RenderTargetView*   ShadowDebugPreviewRTV     = nullptr;
+	ID3D11ShaderResourceView* ShadowDebugPreviewSRV     = nullptr;
+
+	ID3D11SamplerState* ShadowDebugSampler = nullptr;
+	ID3D11Buffer*       ShadowDebugCB      = nullptr;
+
+	std::shared_ptr<FVertexShaderHandle> ShadowDebugVS = nullptr;
+	std::shared_ptr<FPixelShaderHandle>  ShadowDebugPS = nullptr;;
 
 	ID3D11Texture2D*          ShadowDepthArray                             = nullptr;
 	ID3D11ShaderResourceView* ShadowDepthArraySRV                          = nullptr;
@@ -82,11 +151,16 @@ private:
 	ID3D11Buffer*             ShadowViewBuffer    = nullptr;
 	ID3D11ShaderResourceView* ShadowViewBufferSRV = nullptr;
 
-	ID3D11SamplerState* ShadowComparisonSampler    = nullptr;
-	ID3D11SamplerState* ShadowLinearSampler        = nullptr;
-	uint32              DefaultShadowMapResolution = ShadowConfig::DefaultShadowMapResolution;
-	uint32              ShadowDepthArrayResolution = ShadowConfig::DefaultShadowMapResolution;
-	bool                bShadowDepthArrayDirty     = true;
-	bool                bMomentsBlurValid          = false;
-	EShadowFilterMode   GlobalFilterMode           = EShadowFilterMode::VSM;
+	ID3D11SamplerState*  ShadowComparisonSampler    = nullptr;
+	ID3D11SamplerState*  ShadowLinearSampler        = nullptr;
+	uint32               DefaultShadowMapResolution = ShadowConfig::DefaultShadowMapResolution;
+	uint32               ShadowDepthArrayResolution = ShadowConfig::DefaultShadowMapResolution;
+	bool                 bShadowDepthArrayDirty     = true;
+	bool                 bMomentsBlurValid          = false;
+	EShadowFilterMode    GlobalFilterMode           = EShadowFilterMode::VSM;
+	EShadowDebugViewMode DebugViewMode              = EShadowDebugViewMode::None;
+	uint32               DebugViewSlice             = 0;
+	float                DebugVarianceExposure      = 5000.0f;;
+	TArray<uint32>       DebugAvailableSlices;
+	bool                 bDebugViewportOverlayEnabled = false;
 };

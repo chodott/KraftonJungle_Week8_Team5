@@ -20,29 +20,32 @@ enum class EViewportCompositeMode : uint8
 
 struct ENGINE_API FViewportCompositeRect
 {
-	int32 X = 0;
-	int32 Y = 0;
-	int32 Width = 0;
+	int32 X      = 0;
+	int32 Y      = 0;
+	int32 Width  = 0;
 	int32 Height = 0;
 
 	// 실제로 그릴 수 있는 크기면 true를 반환한다.
-	bool IsValid() const { return Width > 0 && Height > 0; }
+	bool IsValid() const
+	{
+		return Width > 0 && Height > 0;
+	}
 };
 
 struct ENGINE_API FViewportVisualizationParams
 {
-	float NearZ = 0.1f;
-	float FarZ = 1000.0f;
+	float  NearZ         = 0.1f;
+	float  FarZ          = 1000.0f;
 	uint32 bOrthographic = 0;
-	float Padding = 0.0f;
+	float  Padding       = 0.0f;
 };
 
 struct ENGINE_API FViewportCompositeItem
 {
 	EViewportCompositeMode Mode = EViewportCompositeMode::SceneColor;
 
-	ID3D11ShaderResourceView* SceneColorSRV = nullptr;
-	ID3D11ShaderResourceView* SceneDepthSRV = nullptr;
+	ID3D11ShaderResourceView* SceneColorSRV   = nullptr;
+	ID3D11ShaderResourceView* SceneDepthSRV   = nullptr;
 	ID3D11ShaderResourceView* OverlayColorSRV = nullptr;
 
 	FViewportVisualizationParams VisualizationParams = {};
@@ -68,7 +71,7 @@ public:
 	FViewportCompositor() = default;
 	~FViewportCompositor();
 
-	FViewportCompositor(const FViewportCompositor&) = delete;
+	FViewportCompositor(const FViewportCompositor&)            = delete;
 	FViewportCompositor& operator=(const FViewportCompositor&) = delete;
 
 	// 뷰포트 합성에 필요한 셰이더와 고정 기능 상태를 생성한다.
@@ -77,24 +80,25 @@ public:
 	void Release();
 	// 전달받은 뷰포트 장면 텍스처를 현재 백버퍼에 배치해 그린다.
 	bool Compose(
-		FRenderer& Renderer,
-		const FFrameContext& Frame,
-		const FViewContext& View,
-		ID3D11RenderTargetView* RenderTargetView,
-		ID3D11DepthStencilView* DepthStencilView,
+		FRenderer&                          Renderer,
+		const FFrameContext&                Frame,
+		const FViewContext&                 View,
+		ID3D11RenderTargetView*             RenderTargetView,
+		ID3D11DepthStencilView*             DepthStencilView,
 		const FViewportCompositePassInputs& Inputs) const;
 
 private:
 	std::shared_ptr<FPixelShaderHandle> ResolvePixelShader(const FViewportCompositeItem& Item) const;
-	ID3D11ShaderResourceView* ResolveSourceSRV(const FViewportCompositeItem& Item) const;
+	ID3D11ShaderResourceView*           ResolveSourceSRV(const FViewportCompositeItem& Item) const;
+
 private:
-	std::shared_ptr<FVertexShaderHandle> BlitVertexShader = nullptr;
-	std::shared_ptr<FPixelShaderHandle> BlitPixelShader = nullptr;
-	std::shared_ptr<FPixelShaderHandle> DepthViewPixelShader = nullptr;
-	ID3D11SamplerState* PointSampler = nullptr;
-	ID3D11BlendState* AlphaBlendState = nullptr;
-	ID3D11DepthStencilState* NoDepthState = nullptr;
-	ID3D11RasterizerState* ScissorRasterizerState = nullptr;
-	ID3D11Buffer* VisualizationConstantBuffer = nullptr;
-	bool bInitialized = false;
+	std::shared_ptr<FVertexShaderHandle> BlitVertexShader            = nullptr;
+	std::shared_ptr<FPixelShaderHandle>  BlitPixelShader             = nullptr;
+	std::shared_ptr<FPixelShaderHandle>  DepthViewPixelShader        = nullptr;
+	ID3D11SamplerState*                  PointSampler                = nullptr;
+	ID3D11BlendState*                    AlphaBlendState             = nullptr;
+	ID3D11DepthStencilState*             NoDepthState                = nullptr;
+	ID3D11RasterizerState*               ScissorRasterizerState      = nullptr;
+	ID3D11Buffer*                        VisualizationConstantBuffer = nullptr;
+	bool                                 bInitialized                = false;
 };

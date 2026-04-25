@@ -57,6 +57,7 @@
 
 #include "imgui_internal.h"
 #include "Renderer/Features/Billboard/BillboardRenderer.h"
+#include "Renderer/Features/Shadow/ShadowRenderFeature.h"
 
 namespace
 {
@@ -865,7 +866,8 @@ void FPropertyWindow::Render(FEditorEngine* Engine)
 	ImGui::SameLine();
 	ImGui::TextColored(ImVec4(0.9f, 0.9f, 0.4f, 1.0f), "%s", ActorNameBuf);
 
-	AActor* SelectedActor = Engine ? Engine->GetSelectedActor() : nullptr;
+	AActor* EditorSelectedActor = Engine ? Engine->GetSelectedActor() : nullptr;
+	AActor* SelectedActor = ResolvePropertyActorForLightDebug(Engine, EditorSelectedActor);
 	if (SelectedActor != LastSelectedActor)
 	{
 		ImGui::ClearActiveID();
@@ -1564,7 +1566,7 @@ void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngi
 
 	if (Component->IsA(ULightComponent::StaticClass()))
 	{
-		DrawLightComponentDetails(static_cast<ULightComponent*>(Component));
+		DrawLightComponentDetails(static_cast<ULightComponent*>(Component), Engine);
 	}
 
 	if (Component->IsA(USpotLightComponent::StaticClass()))
@@ -1844,8 +1846,8 @@ void FPropertyWindow::DrawStaticMeshComponentDetails(UStaticMeshComponent* MeshC
 
 	const bool      bShowTextureMaterials = SelectedMaterialSource.empty();
 	TArray<FString> MaterialNames         = bShowTextureMaterials
-		                                        ? AllMaterialNames
-		                                        : BuildMaterialPickerNames(MaterialManager.GetMaterialNamesBySource(SelectedMaterialSource), TexturePaths);
+		                                ? AllMaterialNames
+		                                : BuildMaterialPickerNames(MaterialManager.GetMaterialNamesBySource(SelectedMaterialSource), TexturePaths);
 	std::sort(MaterialNames.begin(), MaterialNames.end());
 
 	if (MaterialNames.empty() && !bShowTextureMaterials)
@@ -2620,7 +2622,7 @@ void FPropertyWindow::DrawFireBallComponentDetails(UFireBallComponent* FireBallC
 	}
 }
 
-void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent)
+void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent, FEditorEngine* Engine)
 {
 	if (!LightComponent)
 	{
@@ -2686,6 +2688,137 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent)
 	if (ImGui::DragFloat("Shadow Sharpeness", &ShadowSharpeness, 0.01f, 0.0f, 1.0f, "%.2f"))
 	{
 		LightComponent->SetShadowSharpen(ShadowSharpeness);
+	}
+
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::TextDisabled("Shadow Map Debug");
+
+	FRenderer*            Renderer      = Engine ? Engine->GetRenderer() : nullptr;
+	FShadowRenderFeature* ShadowFeature = Renderer ? Renderer->GetShadowFeature() : nullptr;
+
+	if (!ShadowFeature)
+	{
+		ImGui::TextDisabled("Shadow feature unavailable.");
+	}
+	else
+	{
+		int DebugMode  = static_cast<int>(ShadowFeature->GetDebugViewMode());
+		int DebugSlice = static_cast<int>(ShadowFeature->GetDebugViewSlice());
+
+		const char* DebugModeNames[] =
+		{
+			"None",
+			"Depth",
+			"VSM Mean",
+			"VSM Variance"
+		};
+
+		ImGui::Text("Debug View");
+		ImGui::NextColumn();
+		if (ImGui::Combo("Shadow Debug View", &DebugMode, DebugModeNames, IM_ARRAYSIZE(DebugModeNames)))
+		{
+			const EShadowDebugViewMode NewDebugMode = static_cast<EShadowDebugViewMode>(DebugMode);
+			ShadowFeature->SetDebugViewMode(NewDebugMode);
+
+			if (NewDebugMode != EShadowDebugViewMode::None)
+			{
+				LightDebugPinnedLightComponent = LightComponent;
+				LightDebugPinnedActor = LightComponent ? LightComponent->GetOwner() : nullptr;
+				SelectedComponent = LightComponent;
+			}
+			else
+			{
+				ClearLightDebugPin();
+			}
+		}
+
+
+		bool bShowInEditorViewport = ShadowFeature->IsDebugViewportOverlayEnabled();
+
+		ImGui::Text("Editor Viewport");
+		ImGui::NextColumn();
+		ImGui::BeginDisabled(ShadowFeature->GetDebugViewMode() == EShadowDebugViewMode::None);
+		if (ImGui::Checkbox("Show Shadow Debug In Editor Viewport", &bShowInEditorViewport))
+		{
+			ShadowFeature->SetDebugViewportOverlayEnabled(bShowInEditorViewport);
+		}
+		ImGui::EndDisabled();
+
+
+		ImGui::Text("Debug Slice");
+		ImGui::NextColumn();
+
+		const TArray<uint32>& AvailableSlices = ShadowFeature->GetDebugAvailableSlices();
+
+		if (AvailableSlices.empty())
+		{
+			ImGui::TextDisabled("No rendered shadow slices.");
+		}
+		else
+		{
+			uint32 CurrentSlice = ShadowFeature->GetDebugViewSlice();
+
+			bool bCurrentValid = false;
+			for (uint32 Slice : AvailableSlices)
+			{
+				if (Slice == CurrentSlice)
+				{
+					bCurrentValid = true;
+					break;
+				}
+			}
+
+			if (!bCurrentValid)
+			{
+				CurrentSlice = AvailableSlices[0];
+				ShadowFeature->SetDebugViewSlice(CurrentSlice);
+			}
+
+			char CurrentLabel[64];
+			snprintf(CurrentLabel, sizeof(CurrentLabel), "Slice %u", CurrentSlice);
+
+			if (ImGui::BeginCombo("Shadow Debug Slice", CurrentLabel))
+			{
+				for (uint32 Slice : AvailableSlices)
+				{
+					char Label[64];
+					snprintf(Label, sizeof(Label), "Slice %u", Slice);
+
+					const bool bSelected = (Slice == CurrentSlice);
+					if (ImGui::Selectable(Label, bSelected))
+					{
+						ShadowFeature->SetDebugViewSlice(Slice);
+					}
+
+					if (bSelected)
+					{
+						ImGui::SetItemDefaultFocus();
+					}
+				}
+
+				ImGui::EndCombo();
+			}
+		}
+
+		ID3D11ShaderResourceView* ShadowPreviewSRV = ShadowFeature->GetShadowDebugPreviewSRV();
+		if (ShadowPreviewSRV && ShadowFeature->GetDebugViewMode() != EShadowDebugViewMode::None)
+		{
+			const float  PreviewWidth = (std::min)(ImGui::GetContentRegionAvail().x, 256.0f);
+			const ImVec2 PreviewSize(PreviewWidth, PreviewWidth);
+
+			ImGui::Spacing();
+			ImGui::TextDisabled("Preview");
+			ImGui::Image(
+				reinterpret_cast<ImTextureID>(ShadowPreviewSRV),
+				PreviewSize,
+				ImVec2(0.0f, 0.0f),
+				ImVec2(1.0f, 1.0f));
+		}
+		else
+		{
+			ImGui::TextDisabled("Preview unavailable.");
+		}
 	}
 
 	const ELightUnits CurrentUnit      = LightComponent->GetIntensityUnits();
@@ -3321,4 +3454,32 @@ USceneComponent* FPropertyWindow::GetSelectedSceneComponent(AActor* SelectedActo
 	}
 
 	return static_cast<USceneComponent*>(SelectedComponent);
+}
+
+void FPropertyWindow::ClearLightDebugPin()
+{
+	LightDebugPinnedActor = nullptr;
+	LightDebugPinnedLightComponent = nullptr;
+}
+
+AActor* FPropertyWindow::ResolvePropertyActorForLightDebug(FEditorEngine* Engine, AActor* EditorSelectedActor)
+{
+	FRenderer* Renderer = Engine ? Engine->GetRenderer() : nullptr;
+	FShadowRenderFeature* ShadowFeature = Renderer ? Renderer->GetShadowFeature() : nullptr;
+
+	if (!ShadowFeature || ShadowFeature->GetDebugViewMode() == EShadowDebugViewMode::None)
+	{
+		ClearLightDebugPin();
+		return EditorSelectedActor;
+	}
+
+	if (LightDebugPinnedActor &&
+		LightDebugPinnedLightComponent &&
+		IsComponentOwnedByActor(LightDebugPinnedActor, LightDebugPinnedLightComponent))
+	{
+		return LightDebugPinnedActor;
+	}
+
+	ClearLightDebugPin();
+	return EditorSelectedActor;
 }

@@ -10,7 +10,10 @@
 #include <cstring>
 #include <vector>
 
+#include "Core/Paths.h"
 #include "Math/MathUtility.h"
+#include "Renderer/GraphicsCore/FullscreenPass.h"
+#include "Renderer/Resources/Shader/ShaderRegistry.h"
 
 namespace
 {
@@ -136,6 +139,15 @@ void FShadowRenderFeature::UnbindShadowResources(FRenderer& Renderer)
 
 void FShadowRenderFeature::Release()
 {
+	SafeRelease(ShadowDebugPreviewSRV);
+	SafeRelease(ShadowDebugPreviewRTV);
+	SafeRelease(ShadowDebugPreviewTexture);
+	SafeRelease(ShadowDebugSampler);
+	SafeRelease(ShadowDebugCB);
+
+	ShadowDebugVS.reset();
+	ShadowDebugPS.reset();
+
 	SafeRelease(ShadowLinearSampler);
 	SafeRelease(ShadowComparisonSampler);
 
@@ -197,6 +209,11 @@ bool FShadowRenderFeature::RenderShadows(
 	}
 
 	RenderShadowViews(Renderer, Processor, Targets, SceneViewData);
+
+	if (DebugViewMode != EShadowDebugViewMode::None)
+	{
+		RenderDebugPreview(Renderer, Targets, SceneViewData);
+	}
 	UploadShadowBuffers(Renderer, SceneViewData);
 	BindShadowResources(Renderer, SceneViewData);
 
@@ -277,7 +294,7 @@ bool FShadowRenderFeature::EnsureMomentsArray(const FRenderer& Renderer, uint32 
 		return true;
 	}
 
-	SafeRelease(ShadowMomentsArray);
+	SafeRelease(ShadowMomentsArraySRV);
 	SafeRelease(ShadowMomentsBlurSRV);
 
 	for (uint32 Slice = 0; Slice < ShadowConfig::MaxShadowViews; ++Slice)
@@ -286,12 +303,12 @@ bool FShadowRenderFeature::EnsureMomentsArray(const FRenderer& Renderer, uint32 
 		SafeRelease(ShadowMomentsBlurRTV[Slice]);
 	}
 
-	SafeRelease(ShadowMomentsArraySRV);
+	SafeRelease(ShadowMomentsArray);
 	SafeRelease(ShadowMomentsBlur);
 
 	D3D11_TEXTURE2D_DESC TextureDesc = {};
-	TextureDesc.Width                = ShadowDepthArrayResolution;
-	TextureDesc.Height               = ShadowDepthArrayResolution;
+	TextureDesc.Width                = RequiredResolution;
+	TextureDesc.Height               = RequiredResolution;
 	TextureDesc.MipLevels            = 1;
 	TextureDesc.ArraySize            = ShadowConfig::MaxShadowViews;
 	TextureDesc.Format               = DXGI_FORMAT_R32G32_FLOAT;
@@ -873,4 +890,334 @@ float FShadowRenderFeature::GetShadowViewportScale(uint32 RequestedResolution) c
 
 	const D3D11_VIEWPORT Viewport = BuildShadowViewport(RequestedResolution);
 	return Viewport.Width / static_cast<float>(ShadowDepthArrayResolution);
+}
+
+bool FShadowRenderFeature::EnsureDebugPreviewResources(FRenderer& Renderer)
+{
+	ID3D11Device* Device = Renderer.GetDevice();
+	if (!Device)
+	{
+		return false;
+	}
+
+	const uint32 Size = ShadowDepthArrayResolution > 0
+		                    ? ShadowDepthArrayResolution
+		                    : DefaultShadowMapResolution;
+
+	bool bRecreate =
+			!ShadowDebugPreviewTexture ||
+			!ShadowDebugPreviewRTV ||
+			!ShadowDebugPreviewSRV;
+
+	if (!bRecreate)
+	{
+		D3D11_TEXTURE2D_DESC ExistingDesc = {};
+		ShadowDebugPreviewTexture->GetDesc(&ExistingDesc);
+
+		if (ExistingDesc.Width != Size ||
+			ExistingDesc.Height != Size ||
+			ExistingDesc.Format != DXGI_FORMAT_R8G8B8A8_UNORM)
+		{
+			bRecreate = true;
+		}
+	}
+
+	if (bRecreate)
+	{
+		SafeRelease(ShadowDebugPreviewSRV);
+		SafeRelease(ShadowDebugPreviewRTV);
+		SafeRelease(ShadowDebugPreviewTexture);
+
+		D3D11_TEXTURE2D_DESC Desc = {};
+		Desc.Width                = Size;
+		Desc.Height               = Size;
+		Desc.MipLevels            = 1;
+		Desc.ArraySize            = 1;
+		Desc.Format               = DXGI_FORMAT_R8G8B8A8_UNORM;
+		Desc.SampleDesc.Count     = 1;
+		Desc.SampleDesc.Quality   = 0;
+		Desc.Usage                = D3D11_USAGE_DEFAULT;
+		Desc.BindFlags            = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+
+		if (FAILED(Device->CreateTexture2D(&Desc, nullptr, &ShadowDebugPreviewTexture)) ||
+			!ShadowDebugPreviewTexture)
+		{
+			return false;
+		}
+
+		if (FAILED(Device->CreateRenderTargetView(ShadowDebugPreviewTexture, nullptr, &ShadowDebugPreviewRTV)) ||
+			!ShadowDebugPreviewRTV)
+		{
+			SafeRelease(ShadowDebugPreviewTexture);
+			return false;
+		}
+
+		if (FAILED(Device->CreateShaderResourceView(ShadowDebugPreviewTexture, nullptr, &ShadowDebugPreviewSRV)) ||
+			!ShadowDebugPreviewSRV)
+		{
+			SafeRelease(ShadowDebugPreviewRTV);
+			SafeRelease(ShadowDebugPreviewTexture);
+			return false;
+		}
+	}
+
+	if (!ShadowDebugSampler)
+	{
+		D3D11_SAMPLER_DESC SamplerDesc = {};
+		SamplerDesc.Filter             = D3D11_FILTER_MIN_MAG_MIP_POINT;
+		SamplerDesc.AddressU           = D3D11_TEXTURE_ADDRESS_CLAMP;
+		SamplerDesc.AddressV           = D3D11_TEXTURE_ADDRESS_CLAMP;
+		SamplerDesc.AddressW           = D3D11_TEXTURE_ADDRESS_CLAMP;
+		SamplerDesc.MinLOD             = 0.0f;
+		SamplerDesc.MaxLOD             = D3D11_FLOAT32_MAX;
+
+		if (FAILED(Device->CreateSamplerState(&SamplerDesc, &ShadowDebugSampler)) ||
+			!ShadowDebugSampler)
+		{
+			return false;
+		}
+	}
+
+	if (!ShadowDebugCB)
+	{
+		struct FShadowDebugCBData
+		{
+			uint32 DebugMode;
+			uint32 SliceIndex;
+			float  NearZ;
+			float  FarZ;
+
+			uint32 bOrthographic;
+			float  Exposure;
+			float  Padding0;
+			float  Padding1;
+		};
+
+		D3D11_BUFFER_DESC CBDesc = {};
+		CBDesc.ByteWidth         = sizeof(FShadowDebugCBData);
+		CBDesc.Usage             = D3D11_USAGE_DYNAMIC;
+		CBDesc.BindFlags         = D3D11_BIND_CONSTANT_BUFFER;
+		CBDesc.CPUAccessFlags    = D3D11_CPU_ACCESS_WRITE;
+
+		if (FAILED(Device->CreateBuffer(&CBDesc, nullptr, &ShadowDebugCB)) ||
+			!ShadowDebugCB)
+		{
+			return false;
+		}
+	}
+
+	const std::wstring ShaderDir = FPaths::ShaderDir().wstring();
+
+	if (!ShadowDebugVS)
+	{
+		FShaderRecipe Recipe = {};
+		Recipe.Stage         = EShaderStage::Vertex;
+		Recipe.SourcePath    = ShaderDir + L"FinalImagePostProcess/BlitVertexShader.hlsl";
+		Recipe.EntryPoint    = "main";
+		Recipe.Target        = "vs_5_0";
+		Recipe.LayoutType    = EVertexLayoutType::FullscreenNone;
+
+		ShadowDebugVS = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(Device, Recipe);
+	}
+
+	if (!ShadowDebugPS)
+	{
+		FShaderRecipe Recipe = {};
+		Recipe.Stage         = EShaderStage::Pixel;
+		Recipe.SourcePath    = ShaderDir + L"Shadow/ShadowDebugPreviewPixelShader.hlsl";
+		Recipe.EntryPoint    = "main";
+		Recipe.Target        = "ps_5_0";
+
+		ShadowDebugPS = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
+	}
+
+	return ShadowDebugVS != nullptr && ShadowDebugPS != nullptr;
+}
+
+bool FShadowRenderFeature::RenderDebugPreview(
+	FRenderer&            Renderer,
+	FSceneRenderTargets&  Targets,
+	const FSceneViewData& SceneViewData)
+{
+	if (DebugViewMode == EShadowDebugViewMode::None)
+	{
+		return true;
+	}
+
+	if (!ShadowDepthArraySRV)
+	{
+		return false;
+	}
+
+	if ((DebugViewMode == EShadowDebugViewMode::VSMMean ||
+			DebugViewMode == EShadowDebugViewMode::VSMVariance) &&
+		!ShadowMomentsArraySRV)
+	{
+		return false;
+	}
+
+	if (!EnsureDebugPreviewResources(Renderer))
+	{
+		return false;
+	}
+
+	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
+	if (!Context || !ShadowDebugPreviewRTV || !ShadowDebugCB)
+	{
+		return false;
+	}
+
+	const uint32 ShadowViewCount = static_cast<uint32>(SceneViewData.LightingInputs.ShadowViews.size());
+	if (ShadowViewCount == 0)
+	{
+		return false;
+	}
+
+	DebugAvailableSlices.clear();
+
+	for (const FShadowViewRenderItem& View : SceneViewData.LightingInputs.ShadowViews)
+	{
+		if (View.ArraySlice < ShadowConfig::MaxShadowViews)
+		{
+			if (std::find(DebugAvailableSlices.begin(), DebugAvailableSlices.end(), View.ArraySlice) == DebugAvailableSlices.end())
+			{
+				DebugAvailableSlices.push_back(View.ArraySlice);
+			}
+		}
+	}
+
+	std::sort(DebugAvailableSlices.begin(), DebugAvailableSlices.end());
+
+	if (DebugAvailableSlices.empty())
+	{
+		return false;
+	}
+
+	const uint32 RequestedSlice = (std::min)(DebugViewSlice, ShadowConfig::MaxShadowViews - 1u);
+
+	const FShadowViewRenderItem* SelectedView = nullptr;
+	for (const FShadowViewRenderItem& View : SceneViewData.LightingInputs.ShadowViews)
+	{
+		if (View.ArraySlice == RequestedSlice)
+		{
+			SelectedView = &View;
+			break;
+		}
+	}
+
+	if (!SelectedView)
+	{
+		DebugViewSlice = DebugAvailableSlices[0];
+
+		for (const FShadowViewRenderItem& View : SceneViewData.LightingInputs.ShadowViews)
+		{
+			if (View.ArraySlice == DebugViewSlice)
+			{
+				SelectedView = &View;
+				break;
+			}
+		}
+	}
+
+	if (!SelectedView)
+	{
+		return false;
+	}
+
+	struct FShadowDebugCBData
+	{
+		uint32 DebugMode;
+		uint32 SliceIndex;
+		float  NearZ;
+		float  FarZ;
+
+		uint32 bOrthographic;
+		float  Exposure;
+		float  Padding0;
+		float  Padding1;
+	};
+
+	FShadowDebugCBData CBData = {};
+	CBData.DebugMode          = static_cast<uint32>(DebugViewMode);
+	CBData.SliceIndex         = SelectedView->ArraySlice;
+	CBData.NearZ              = SelectedView->NearZ;
+	CBData.FarZ               = SelectedView->FarZ;
+	CBData.bOrthographic      = SelectedView->ProjectionType == EShadowProjectionType::Orthographic ? 1u : 0u;
+	CBData.Exposure           = DebugVarianceExposure;
+
+	D3D11_MAPPED_SUBRESOURCE Mapped = {};
+	if (FAILED(Context->Map(ShadowDebugCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
+	{
+		return false;
+	}
+
+	std::memcpy(Mapped.pData, &CBData, sizeof(CBData));
+	Context->Unmap(ShadowDebugCB, 0);
+
+	const float ClearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	Context->ClearRenderTargetView(ShadowDebugPreviewRTV, ClearColor);
+
+	const float Size = static_cast<float>(
+		ShadowDepthArrayResolution > 0
+			? ShadowDepthArrayResolution
+			: DefaultShadowMapResolution);
+
+	D3D11_VIEWPORT PreviewViewport = {};
+	PreviewViewport.TopLeftX       = 0.0f;
+	PreviewViewport.TopLeftY       = 0.0f;
+	PreviewViewport.Width          = Size;
+	PreviewViewport.Height         = Size;
+	PreviewViewport.MinDepth       = 0.0f;
+	PreviewViewport.MaxDepth       = 1.0f;
+
+	const FFullscreenPassConstantBufferBinding ConstantBuffers[] =
+	{
+		{ 0, ShadowDebugCB },
+	};
+
+	const FFullscreenPassShaderResourceBinding ShaderResources[] =
+	{
+		{ 0, ShadowDepthArraySRV },
+		{ 1, ShadowMomentsArraySRV },
+	};
+
+	const FFullscreenPassSamplerBinding Samplers[] =
+	{
+		{ 0, ShadowDebugSampler },
+	};
+
+	const FFullscreenPassBindings Bindings
+	{
+		ConstantBuffers,
+		static_cast<uint32>(sizeof(ConstantBuffers) / sizeof(ConstantBuffers[0])),
+		ShaderResources,
+		static_cast<uint32>(sizeof(ShaderResources) / sizeof(ShaderResources[0])),
+		Samplers,
+		static_cast<uint32>(sizeof(Samplers) / sizeof(Samplers[0]))
+	};
+
+	const bool bRendered = ExecuteFullscreenPass(
+		Renderer,
+		SceneViewData.Frame,
+		SceneViewData.View,
+		ShadowDebugPreviewRTV,
+		nullptr,
+		PreviewViewport,
+		{ ShadowDebugVS, ShadowDebugPS },
+		{},
+		Bindings,
+		[](ID3D11DeviceContext& DrawContext)
+		{
+			DrawContext.Draw(3, 0);
+		});
+
+	BeginPass(
+		Renderer,
+		Targets.SceneColorRTV,
+		Targets.SceneDepthDSV,
+		SceneViewData.View.Viewport,
+		SceneViewData.Frame,
+		SceneViewData.View);
+
+	return bRendered;
 }

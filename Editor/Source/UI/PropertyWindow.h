@@ -15,9 +15,9 @@ class USceneComponent;
 class UBillboardComponent;
 class UMeshDecalComponent;
 class UStaticMeshComponent;
-class UStaticMeshComponent;
 class UStaticMesh;
 class FMaterial;
+class ULightComponent;
 using FPropertyChangedCallback = std::function<void(const FVector&, const FVector&, const FVector&)>;
 
 class FPropertyWindow
@@ -25,17 +25,38 @@ class FPropertyWindow
 public:
 	~FPropertyWindow();
 	void Render(FEditorEngine* Engine);
-	void SetTarget(const FVector& Location, const FVector& Rotation, const FVector& Scale,
-		const char* ActorName = nullptr);
+	void SetTarget(const FVector& Location,
+	               const FVector& Rotation,
+	               const FVector& Scale,
+	               const char*    ActorName = nullptr);
 
-	bool    IsModified()    const { return bModified; }
-	FVector GetLocation()   const { return EditLocation; }
-	FVector GetRotation()   const { return EditRotation; }
-	FVector GetScale()      const { return EditScale; }
+	bool IsModified() const
+	{
+		return bModified;
+	}
 
-	void SetOnChanged(FPropertyChangedCallback Callback) { OnChanged = Callback; }
+	FVector GetLocation() const
+	{
+		return EditLocation;
+	}
+
+	FVector GetRotation() const
+	{
+		return EditRotation;
+	}
+
+	FVector GetScale() const
+	{
+		return EditScale;
+	}
+
+	void SetOnChanged(FPropertyChangedCallback Callback)
+	{
+		OnChanged = Callback;
+	}
 
 	FPropertyChangedCallback OnChanged;
+
 private:
 	void DrawTransformSection();
 	void DrawComponentSection(AActor* SelectedActor);
@@ -57,37 +78,41 @@ private:
 	void DrawDecalComponentDetails(class UDecalComponent* DecalComponent, FEditorEngine* Engine);
 	void DrawMeshDecalComponentDetails(class UMeshDecalComponent* MeshDecalComponent, FEditorEngine* Engine);
 	void DrawFireBallComponentDetails(class UFireBallComponent* FireBallComponent);
-	void DrawLightComponentDetails(class ULightComponent* LightComponent);
+	void DrawLightComponentDetails(class ULightComponent* LightComponent, FEditorEngine* Engine);
 	void DrawPointLightComponentDetails(class UPointLightComponent* PointLightComponent, bool bShowHeader = true);
 	void DrawSpotLightComponentDetails(class USpotLightComponent* SpotLightComponent);
 	void DrawMaterialPreviewSection(class UStaticMeshComponent* MeshComponent, FEditorEngine* Engine);
 	bool RenderMaterialPreview(
 		class UStaticMeshComponent* MeshComponent,
-		class FMaterial* PreviewMaterial,
-		FEditorEngine* Engine,
-		const ImVec2& PreviewSize);
-	bool EnsureMaterialPreviewScene(FEditorEngine* Engine);
-	bool DrawVector3Control(const char* Label, const FVector& Value, FVector& OutValue, float Speed, const char* Format);
-	bool DrawAddComponentButton(AActor* SelectedActor);
-	bool AddComponentToActor(AActor* SelectedActor, class UClass* ComponentClass, const char* BaseName);
-	bool IsComponentOwnedByActor(AActor* SelectedActor, UActorComponent* Component) const;
+		class FMaterial*            PreviewMaterial,
+		FEditorEngine*              Engine,
+		const ImVec2&               PreviewSize);
+	bool             EnsureMaterialPreviewScene(FEditorEngine* Engine);
+	bool             DrawVector3Control(const char* Label, const FVector& Value, FVector& OutValue, float Speed, const char* Format);
+	bool             DrawAddComponentButton(AActor* SelectedActor);
+	bool             AddComponentToActor(AActor* SelectedActor, class UClass* ComponentClass, const char* BaseName);
+	bool             IsComponentOwnedByActor(AActor* SelectedActor, UActorComponent* Component) const;
 	USceneComponent* GetSelectedSceneComponent(AActor* SelectedActor) const;
+	void             ClearLightDebugPin();
+	AActor*          ResolvePropertyActorForLightDebug(FEditorEngine* Engine, AActor* EditorSelectedActor);
 
-	FVector EditLocation = { 0.0f, 0.0f, 0.0f };
-	FVector EditRotation = { 0.0f, 0.0f, 0.0f };
-	FVector EditScale = { 1.0f, 1.0f, 1.0f };
-	char    ActorNameBuf[128] = "None";
-	bool    bModified = false;
-	UActorComponent* SelectedComponent = nullptr;
-	UStaticMeshComponent* PreviewedMeshComponent = nullptr;
-	class UStaticMesh* PreviewSphereMesh = nullptr;
-	int32 PreviewMaterialSectionIndex = 0;
-	float PreviewOrbitYaw = 45.0f;
-	float PreviewOrbitPitch = -20.0f;
-	float PreviewOrbitDistance = 3.5f;
-	std::unique_ptr<FViewport> MaterialPreviewViewport;
+	FVector                              EditLocation                = { 0.0f, 0.0f, 0.0f };
+	FVector                              EditRotation                = { 0.0f, 0.0f, 0.0f };
+	FVector                              EditScale                   = { 1.0f, 1.0f, 1.0f };
+	char                                 ActorNameBuf[128]           = "None";
+	bool                                 bModified                   = false;
+	UActorComponent*                     SelectedComponent           = nullptr;
+	UStaticMeshComponent*                PreviewedMeshComponent      = nullptr;
+	class UStaticMesh*                   PreviewSphereMesh           = nullptr;
+	int32                                PreviewMaterialSectionIndex = 0;
+	float                                PreviewOrbitYaw             = 45.0f;
+	float                                PreviewOrbitPitch           = -20.0f;
+	float                                PreviewOrbitDistance        = 3.5f;
+	std::unique_ptr<FViewport>           MaterialPreviewViewport;
 	std::unique_ptr<FSceneTargetManager> MaterialPreviewTargetManager;
 	TMap<UStaticMeshComponent*, FString> MaterialSourceSelectionCache;
-	AActor* LastSelectedActor = nullptr;
-	UActorComponent* LastSelectedComponent = nullptr;
+	AActor*                              LastSelectedActor              = nullptr;
+	UActorComponent*                     LastSelectedComponent          = nullptr;
+	AActor*                              LightDebugPinnedActor          = nullptr;
+	ULightComponent*                     LightDebugPinnedLightComponent = nullptr;
 };
