@@ -191,30 +191,46 @@ struct FShadowViewGPU
 
 	uint ArraySlice;
 	uint ProjectionType;
+	uint FilterMode;
 	uint Pad0;
-	uint Pad1;
 
 	float4 ViewParams;
 };
 
-StructuredBuffer<FShadowLightGPU> ShadowLights     : register(t20);
-StructuredBuffer<FShadowViewGPU>  ShadowViews      : register(t21);
-Texture2DArray<float>             ShadowDepthArray : register(t22);
-SamplerComparisonState            ShadowSampler    : register(s8);
+StructuredBuffer<FShadowLightGPU> ShadowLights       : register(t20);
+StructuredBuffer<FShadowViewGPU>  ShadowViews        : register(t21);
 
+Texture2DArray<float>             ShadowDepthArray   : register(t22); // PCF
+Texture2DArray<float2>            ShadowMomentsArray : register(t23); // VSM
 
-float SampleShadowViewPCF(
+SamplerComparisonState            ShadowSampler      : register(s8); // PCF
+SamplerState                      LinearClampSampler : register(s9); // VSM
+
+float ComputeShadowBias(
 	FShadowLightGPU shadowLight,
-	FShadowViewGPU shadowView,
-	float3 worldPos,
 	float3 N,
 	float3 L)
+{
+	float baseBias  = shadowLight.DirectionBias.w;
+	float slopeBias = shadowLight.Params0.x;
+
+	float ndotl = saturate(dot(N, L));
+	return baseBias + slopeBias * (1.0f - ndotl);
+}
+
+bool ComputeShadowCoords(
+	FShadowViewGPU shadowView,
+	float3 worldPos,
+	out float2 uv,
+	out float compareDepth)
 {
 	float4 clip = mul(float4(worldPos, 1.0f), shadowView.LightViewProjection);
 
 	if (clip.w <= 0.0f)
 	{
-		return 1.0f;
+		uv = 0.0f.xx;
+		compareDepth = 0.0f;
+		return false;
 	}
 
 	float3 ndc = clip.xyz / clip.w;
@@ -223,29 +239,42 @@ float SampleShadowViewPCF(
 		ndc.y < -1.0f || ndc.y > 1.0f ||
 		ndc.z <  0.0f || ndc.z > 1.0f)
 	{
-		return 1.0f;
+		uv = 0.0f.xx;
+		compareDepth = 0.0f;
+		return false;
 	}
 
-	float2 uv;
 	uv.x = ndc.x * 0.5f + 0.5f;
 	uv.y = -ndc.y * 0.5f + 0.5f;
 
-	float baseBias  = shadowLight.DirectionBias.w;
-	float slopeBias = shadowLight.Params0.x;
+	compareDepth = saturate(ndc.z);
+	return true;
+}
 
-	float ndotl = saturate(dot(N, L));
-	float bias = baseBias + slopeBias * (1.0f - ndotl);
-
-	float compareDepth = saturate(ndc.z - bias);
-
+float SampleShadowViewPCF(
+	FShadowLightGPU shadowLight,
+	FShadowViewGPU shadowView,
+	float3 worldPos,
+	float3 N,
+	float3 L)
+{
+	float2 uv;
+	float compareDepth;
+	if (!ComputeShadowCoords(shadowView, worldPos, uv, compareDepth))
+	{
+		return 1.0f;
+	}
+	
+	float bias = ComputeShadowBias(shadowLight, N, L);
+	compareDepth = saturate(compareDepth - bias);
+	
 	float viewportScale = max(shadowView.ViewParams.z, 1.0e-6f);
-	float2 texelSize    = shadowView.ViewParams.w.xx;
-
+	float2 texelSize = shadowView.ViewParams.w.xx;
+	
 	float2 scaledUV = uv * viewportScale;
-
 	float2 minUV = texelSize * 0.5f;
 	float2 maxUV = viewportScale.xx - texelSize * 0.5f;
-
+	
 	float visibility = 0.0f;
 
 	[unroll]
@@ -266,6 +295,56 @@ float SampleShadowViewPCF(
 	return visibility / 9.0f;
 }
 
+float ReduceLightBleeding(float pMax, float amount)
+{
+	return saturate((pMax - amount) / max(1.0f - amount, 1.0e-5f));
+}
+
+float SampleShadowViewVSM(
+	FShadowLightGPU shadowLight,
+	FShadowViewGPU shadowView,
+	float3 worldPos,
+	float3 N,
+	float3 L)
+{
+	float2 uv;
+	float compareDepth;
+	if (!ComputeShadowCoords(shadowView, worldPos, uv, compareDepth))
+	{
+		return 1.0f;
+	}
+
+	float bias = ComputeShadowBias(shadowLight, N, L);
+	compareDepth = saturate(compareDepth - bias);
+
+	float viewportScale = max(shadowView.ViewParams.z, 1.0e-6f);
+	float2 texelSize    = shadowView.ViewParams.w.xx;
+
+	float2 scaledUV = uv * viewportScale;
+	float2 minUV    = texelSize * 0.5f;
+	float2 maxUV    = viewportScale.xx - texelSize * 0.5f;
+	scaledUV        = clamp(scaledUV, minUV, maxUV);
+
+	float2 moments = ShadowMomentsArray.SampleLevel(
+		LinearClampSampler,
+		float3(scaledUV, (float)shadowView.ArraySlice),
+		0.0f
+	).rg;
+
+	float mean     = moments.x;
+	float variance = moments.y - mean * mean;
+	variance       = max(variance, 2.0e-5f);
+	if (compareDepth <= mean)
+	{
+		return 1.0f;
+	}
+
+	float d    = compareDepth - mean;
+	float pMax = variance / (variance + d * d);
+	pMax       = ReduceLightBleeding(pMax, 0.2f);
+	return saturate(pMax);
+}
+
 float EvaluateSpotShadow(
 	FShadowLightGPU shadowLight,
 	float3 worldPos,
@@ -278,7 +357,14 @@ float EvaluateSpotShadow(
 	}
 
 	FShadowViewGPU view = ShadowViews[shadowLight.FirstViewIndex];
-	return SampleShadowViewPCF(shadowLight, view, worldPos, N, L);
+	if (view.FilterMode == 0u) // PCF
+	{
+		return SampleShadowViewPCF(shadowLight, view, worldPos, N, L);
+	}
+	else // VSM
+	{
+		return SampleShadowViewVSM(shadowLight, view, worldPos, N, L);
+	}
 }
 
 float EvaluateShadow(

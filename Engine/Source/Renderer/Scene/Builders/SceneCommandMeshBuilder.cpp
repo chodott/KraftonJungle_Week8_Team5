@@ -43,9 +43,9 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 		}
 
 		UMeshComponent* MeshComponent =
-			PrimitiveComponent->IsA(UMeshComponent::StaticClass())
-				? static_cast<UMeshComponent*>(PrimitiveComponent)
-				: nullptr;
+				PrimitiveComponent->IsA(UMeshComponent::StaticClass())
+					? static_cast<UMeshComponent*>(PrimitiveComponent)
+					: nullptr;
 
 		const FMatrix               WorldTransform = PrimitiveComponent->GetRenderWorldTransform();
 		const FBoxSphereBounds      WorldBounds    = PrimitiveComponent->GetWorldBounds();
@@ -63,10 +63,10 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 		if (SectionCount <= 0)
 		{
 			FMeshBatch Batch;
-			Batch.Mesh              = TargetMesh;
-			Batch.World             = WorldTransform;
-			Batch.WorldBounds       = WorldBounds;
-			Batch.SourceComponent   = PrimitiveComponent;
+			Batch.Mesh               = TargetMesh;
+			Batch.World              = WorldTransform;
+			Batch.WorldBounds        = WorldBounds;
+			Batch.SourceComponent    = PrimitiveComponent;
 			Batch.DistanceSqToCamera = (WorldBounds.Center - OutSceneViewData.View.CameraPosition).SizeSquared();
 			if (MeshComponent)
 			{
@@ -90,8 +90,8 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			}
 			if (PrimitiveComponent->IsEditorVisualization())
 			{
-				Batch.Domain             = EMaterialDomain::EditorPrimitive;
-				Batch.PassMask           = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
+				Batch.Domain   = EMaterialDomain::EditorPrimitive;
+				Batch.PassMask = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
 				if (PrimitiveComponent->IsPickable())
 				{
 					Batch.PassMask |= static_cast<uint32>(EMeshPassMask::EditorPicking);
@@ -101,15 +101,15 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			}
 			else
 			{
-				const bool bCanPick = PrimitiveComponent->IsPickable();
-				FVector4 BaseColor = Batch.Material
-					? Batch.Material->GetVectorParameter("BaseColor")
-					: FVector4(1.0f, 1.0f, 1.0f, 1.0f);
+				const bool bCanPick  = PrimitiveComponent->IsPickable();
+				FVector4   BaseColor = Batch.Material
+					                     ? Batch.Material->GetVectorParameter("BaseColor")
+					                     : FVector4(1.0f, 1.0f, 1.0f, 1.0f);
 				const bool bIsTransparent = BaseColor.W < 1.0f;
 
 				if (bIsTransparent)
 				{
-					Batch.Domain             = EMaterialDomain::Transparent;
+					Batch.Domain   = EMaterialDomain::Transparent;
 					Batch.PassMask = static_cast<uint32>(EMeshPassMask::ForwardTransparent);
 					if (bCanPick)
 					{
@@ -123,7 +123,8 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 					Batch.PassMask =
 							static_cast<uint32>(EMeshPassMask::DepthPrepass) |
 							static_cast<uint32>(EMeshPassMask::GBuffer) |
-							static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+							static_cast<uint32>(EMeshPassMask::ForwardOpaque) |
+							static_cast<uint32>(EMeshPassMask::ShadowVSM);
 					if (bCanPick)
 					{
 						Batch.PassMask |= static_cast<uint32>(EMeshPassMask::EditorPicking);
@@ -170,8 +171,8 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			}
 			if (PrimitiveComponent->IsEditorVisualization())
 			{
-				Batch.Domain             = EMaterialDomain::EditorPrimitive;
-				Batch.PassMask           = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
+				Batch.Domain   = EMaterialDomain::EditorPrimitive;
+				Batch.PassMask = static_cast<uint32>(EMeshPassMask::EditorPrimitive);
 				if (PrimitiveComponent->IsPickable())
 				{
 					Batch.PassMask |= static_cast<uint32>(EMeshPassMask::EditorPicking);
@@ -181,15 +182,15 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			}
 			else
 			{
-				const bool bCanPick = PrimitiveComponent->IsPickable();
-				FVector4 BaseColor = Batch.Material
-					? Batch.Material->GetVectorParameter("BaseColor")
-					: FVector4(1.0f, 1.0f, 1.0f, 1.0f);
+				const bool bCanPick  = PrimitiveComponent->IsPickable();
+				FVector4   BaseColor = Batch.Material
+					                     ? Batch.Material->GetVectorParameter("BaseColor")
+					                     : FVector4(1.0f, 1.0f, 1.0f, 1.0f);
 				const bool bIsTransparent = BaseColor.W < 1.0f;
 
 				if (bIsTransparent)
 				{
-					Batch.Domain             = EMaterialDomain::Transparent;
+					Batch.Domain   = EMaterialDomain::Transparent;
 					Batch.PassMask = static_cast<uint32>(EMeshPassMask::ForwardTransparent);
 					if (bCanPick)
 					{
@@ -203,7 +204,8 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 					Batch.PassMask =
 							static_cast<uint32>(EMeshPassMask::DepthPrepass) |
 							static_cast<uint32>(EMeshPassMask::GBuffer) |
-							static_cast<uint32>(EMeshPassMask::ForwardOpaque);
+							static_cast<uint32>(EMeshPassMask::ForwardOpaque) |
+							static_cast<uint32>(EMeshPassMask::ShadowVSM);
 					if (bCanPick)
 					{
 						Batch.PassMask |= static_cast<uint32>(EMeshPassMask::EditorPicking);

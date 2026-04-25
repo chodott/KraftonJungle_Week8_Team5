@@ -56,31 +56,73 @@ void FShadowRenderFeature::BindShadowResources(
 		return;
 	}
 
-	const bool bHasShadowData =
-			!SceneViewData.LightingInputs.ShadowLights.empty()
-			&& !SceneViewData.LightingInputs.ShadowViews.empty()
-			&& ShadowLightBufferSRV
-			&& ShadowViewBufferSRV
-			&& ShadowDepthArraySRV
-			&& ShadowComparisonSampler;
+	const uint32 ShadowViewCount = (std::min)(
+		static_cast<uint32>(SceneViewData.LightingInputs.ShadowViews.size()),
+		ShadowConfig::MaxShadowViews);
 
-	if (!bHasShadowData)
+	bool bNeedVSM = false;
+	for (uint32 ViewIndex = 0; ViewIndex < ShadowViewCount; ++ViewIndex)
+	{
+		const FShadowViewRenderItem& ShadowView = SceneViewData.LightingInputs.ShadowViews[ViewIndex];
+		if (ShadowView.FilterMode == EShadowFilterMode::VSM)
+		{
+			bNeedVSM = true;
+			break;
+		}
+	}
+
+	const bool bHasCommonShadowData =
+			!SceneViewData.LightingInputs.ShadowLights.empty() &&
+			!SceneViewData.LightingInputs.ShadowViews.empty() &&
+			ShadowLightBufferSRV &&
+			ShadowViewBufferSRV &&
+			ShadowDepthArraySRV &&
+			ShadowComparisonSampler;
+
+	const bool bHasVSMData =
+			!bNeedVSM ||
+			(ShadowMomentsArraySRV && ShadowLinearSampler);
+
+	if (!(bHasCommonShadowData && bHasVSMData))
 	{
 		UnbindShadowResources(Renderer);
 		return;
 	}
 
-	ID3D11ShaderResourceView* SRVs[3] =
+	ID3D11ShaderResourceView* MomentsSRV = nullptr;
+	if (bNeedVSM)
+	{
+		MomentsSRV =
+				(bMomentsBlurValid && ShadowMomentsBlurSRV)
+					? ShadowMomentsBlurSRV
+					: ShadowMomentsArraySRV;
+	}
+
+	ID3D11ShaderResourceView* SRVs[4] =
 	{
 		ShadowLightBufferSRV,
 		ShadowViewBufferSRV,
-		ShadowDepthArraySRV
+		ShadowDepthArraySRV,
+		MomentsSRV
 	};
 
-	DeviceContext->VSSetShaderResources(ShadowSlots::ShadowLightSRV, 3, SRVs);
-	DeviceContext->PSSetShaderResources(ShadowSlots::ShadowLightSRV, 3, SRVs);
+	DeviceContext->VSSetShaderResources(ShadowSlots::ShadowLightSRV, 4, SRVs);
+	DeviceContext->PSSetShaderResources(ShadowSlots::ShadowLightSRV, 4, SRVs);
+
 	DeviceContext->VSSetSamplers(ShadowSlots::ShadowSampler, 1, &ShadowComparisonSampler);
 	DeviceContext->PSSetSamplers(ShadowSlots::ShadowSampler, 1, &ShadowComparisonSampler);
+
+	if (bNeedVSM)
+	{
+		DeviceContext->VSSetSamplers(ShadowSlots::ShadowLinearSampler, 1, &ShadowLinearSampler);
+		DeviceContext->PSSetSamplers(ShadowSlots::ShadowLinearSampler, 1, &ShadowLinearSampler);
+	}
+	else
+	{
+		ID3D11SamplerState* NullSampler = nullptr;
+		DeviceContext->VSSetSamplers(ShadowSlots::ShadowLinearSampler, 1, &NullSampler);
+		DeviceContext->PSSetSamplers(ShadowSlots::ShadowLinearSampler, 1, &NullSampler);
+	}
 }
 
 void FShadowRenderFeature::UnbindShadowResources(FRenderer& Renderer)
@@ -91,16 +133,19 @@ void FShadowRenderFeature::UnbindShadowResources(FRenderer& Renderer)
 		return;
 	}
 
-	ID3D11ShaderResourceView* NullSRVs[3] = { nullptr, nullptr, nullptr };
+	ID3D11ShaderResourceView* NullSRVs[4] = { nullptr, nullptr, nullptr, nullptr };
 	ID3D11SamplerState*       NullSampler = nullptr;
-	DeviceContext->VSSetShaderResources(ShadowSlots::ShadowLightSRV, 3, NullSRVs);
-	DeviceContext->PSSetShaderResources(ShadowSlots::ShadowLightSRV, 3, NullSRVs);
+	DeviceContext->VSSetShaderResources(ShadowSlots::ShadowLightSRV, 4, NullSRVs);
+	DeviceContext->PSSetShaderResources(ShadowSlots::ShadowLightSRV, 4, NullSRVs);
 	DeviceContext->VSSetSamplers(ShadowSlots::ShadowSampler, 1, &NullSampler);
 	DeviceContext->PSSetSamplers(ShadowSlots::ShadowSampler, 1, &NullSampler);
+	DeviceContext->VSSetSamplers(ShadowSlots::ShadowLinearSampler, 1, &NullSampler);
+	DeviceContext->PSSetSamplers(ShadowSlots::ShadowLinearSampler, 1, &NullSampler);
 }
 
 void FShadowRenderFeature::Release()
 {
+	SafeRelease(ShadowLinearSampler);
 	SafeRelease(ShadowComparisonSampler);
 
 	SafeRelease(ShadowViewBufferSRV);
@@ -109,14 +154,28 @@ void FShadowRenderFeature::Release()
 	SafeRelease(ShadowLightBufferSRV);
 	SafeRelease(ShadowLightBuffer);
 
-	SafeRelease(ShadowDepthArraySRV);
+	SafeRelease(ShadowMomentsBlurSRV);
+	for (ID3D11RenderTargetView*& RTV : ShadowMomentsBlurRTV)
+	{
+		SafeRelease(RTV);
+	}
+	SafeRelease(ShadowMomentsBlur);
 
+	SafeRelease(ShadowMomentsArraySRV);
+	for (ID3D11RenderTargetView*& RTV : ShadowMomentsRTV)
+	{
+		SafeRelease(RTV);
+	}
+	SafeRelease(ShadowMomentsArray);
+
+	SafeRelease(ShadowDepthArraySRV);
 	for (ID3D11DepthStencilView*& DSV : ShadowViewDSVs)
 	{
 		SafeRelease(DSV);
 	}
-
 	SafeRelease(ShadowDepthArray);
+
+	bMomentsBlurValid      = false;
 	bShadowDepthArrayDirty = true;
 }
 
@@ -153,6 +212,159 @@ bool FShadowRenderFeature::RenderShadows(
 	return true;
 }
 
+bool FShadowRenderFeature::EnsureLinearSampler(const FRenderer& Renderer)
+{
+	ID3D11Device* Device = Renderer.GetDevice();
+	if (!Device)
+	{
+		return false;
+	}
+
+	if (ShadowLinearSampler)
+	{
+		return true;
+	}
+
+	D3D11_SAMPLER_DESC Desc = {};
+	Desc.Filter             = D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+	Desc.AddressU           = D3D11_TEXTURE_ADDRESS_CLAMP;
+	Desc.AddressV           = D3D11_TEXTURE_ADDRESS_CLAMP;
+	Desc.AddressW           = D3D11_TEXTURE_ADDRESS_CLAMP;
+	Desc.MinLOD             = 0.0f;
+	Desc.MaxLOD             = D3D11_FLOAT32_MAX;
+
+	return SUCCEEDED(Device->CreateSamplerState(&Desc, &ShadowLinearSampler)) && ShadowLinearSampler;
+}
+
+bool FShadowRenderFeature::EnsureMomentsArray(const FRenderer& Renderer, uint32 RequiredResolution)
+{
+	ID3D11Device* Device = Renderer.GetDevice();
+	if (!Device)
+	{
+		return false;
+	}
+
+	RequiredResolution = FMath::Clamp(
+		RequiredResolution,
+		ShadowConfig::MinShadowMapResolution,
+		ShadowConfig::MaxShadowMapResolution);
+
+	bool bAllRTVsValid = true;
+	for (uint32 Slice = 0; Slice < ShadowConfig::MaxShadowViews; ++Slice)
+	{
+		if (!ShadowMomentsRTV[Slice] || !ShadowMomentsBlurRTV[Slice])
+		{
+			bAllRTVsValid = false;
+			break;
+		}
+	}
+
+	bool bRecreate =
+			bShadowDepthArrayDirty ||
+			!ShadowMomentsArray ||
+			!ShadowMomentsArraySRV ||
+			!ShadowMomentsBlur ||
+			!ShadowMomentsBlurSRV ||
+			!bAllRTVsValid;
+
+	if (!bRecreate)
+	{
+		D3D11_TEXTURE2D_DESC ExistingDesc = {};
+		ShadowMomentsArray->GetDesc(&ExistingDesc);
+
+		if (ExistingDesc.Width != RequiredResolution ||
+			ExistingDesc.Height != RequiredResolution ||
+			ExistingDesc.ArraySize != ShadowConfig::MaxShadowViews ||
+			ExistingDesc.Format != DXGI_FORMAT_R32G32_FLOAT)
+		{
+			bRecreate = true;
+		}
+	}
+
+	if (!bRecreate)
+	{
+		return true;
+	}
+
+	SafeRelease(ShadowMomentsArray);
+	SafeRelease(ShadowMomentsBlurSRV);
+
+	for (uint32 Slice = 0; Slice < ShadowConfig::MaxShadowViews; ++Slice)
+	{
+		SafeRelease(ShadowMomentsRTV[Slice]);
+		SafeRelease(ShadowMomentsBlurRTV[Slice]);
+	}
+
+	SafeRelease(ShadowMomentsArraySRV);
+	SafeRelease(ShadowMomentsBlur);
+
+	D3D11_TEXTURE2D_DESC TextureDesc = {};
+	TextureDesc.Width                = ShadowDepthArrayResolution;
+	TextureDesc.Height               = ShadowDepthArrayResolution;
+	TextureDesc.MipLevels            = 1;
+	TextureDesc.ArraySize            = ShadowConfig::MaxShadowViews;
+	TextureDesc.Format               = DXGI_FORMAT_R32G32_FLOAT;
+	TextureDesc.SampleDesc.Count     = 1;
+	TextureDesc.SampleDesc.Quality   = 0;
+	TextureDesc.Usage                = D3D11_USAGE_DEFAULT;
+	TextureDesc.BindFlags            = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+	if (FAILED(Device->CreateTexture2D(&TextureDesc, nullptr, &ShadowMomentsArray)) || !ShadowMomentsArray)
+	{
+		return false;
+	}
+
+	if (FAILED(Device->CreateTexture2D(&TextureDesc, nullptr, &ShadowMomentsBlur)) || !ShadowMomentsBlur)
+	{
+		SafeRelease(ShadowMomentsArray);
+		return false;
+	}
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
+	SRVDesc.Format                          = TextureDesc.Format;
+	SRVDesc.ViewDimension                   = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
+	SRVDesc.Texture2DArray.MostDetailedMip  = 0;
+	SRVDesc.Texture2DArray.MipLevels        = 1;
+	SRVDesc.Texture2DArray.FirstArraySlice  = 0;
+	SRVDesc.Texture2DArray.ArraySize        = ShadowConfig::MaxShadowViews;
+
+	if (FAILED(Device->CreateShaderResourceView(ShadowMomentsArray, &SRVDesc, &ShadowMomentsArraySRV)) || !ShadowMomentsArraySRV)
+	{
+		SafeRelease(ShadowMomentsArray);
+		SafeRelease(ShadowMomentsBlur);
+		return false;
+	}
+
+	if (FAILED(Device->CreateShaderResourceView(ShadowMomentsBlur, &SRVDesc, &ShadowMomentsBlurSRV)) || !ShadowMomentsBlurSRV)
+	{
+		SafeRelease(ShadowMomentsArray);
+		SafeRelease(ShadowMomentsBlur);
+		return false;
+	}
+
+	for (uint32 Slice = 0; Slice < ShadowConfig::MaxShadowViews; ++Slice)
+	{
+		D3D11_RENDER_TARGET_VIEW_DESC RTVDesc  = {};
+		RTVDesc.Format                         = DXGI_FORMAT_R32G32_FLOAT;
+		RTVDesc.ViewDimension                  = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
+		RTVDesc.Texture2DArray.MipSlice        = 0;
+		RTVDesc.Texture2DArray.FirstArraySlice = Slice;
+		RTVDesc.Texture2DArray.ArraySize       = 1;
+
+		if (FAILED(Device->CreateRenderTargetView(ShadowMomentsArray, &RTVDesc, &ShadowMomentsRTV[Slice])) || !ShadowMomentsRTV[Slice])
+		{
+			return false;
+		}
+
+		if (FAILED(Device->CreateRenderTargetView(ShadowMomentsBlur, &RTVDesc, &ShadowMomentsBlurRTV[Slice])) || !ShadowMomentsBlurRTV[Slice])
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 bool FShadowRenderFeature::EnsureResources(
 	FRenderer&            Renderer,
 	const FSceneViewData& SceneViewData)
@@ -167,9 +379,40 @@ bool FShadowRenderFeature::EnsureResources(
 
 	const uint32 RequiredResolution = ComputeRequiredShadowDepthArrayResolution(SceneViewData);
 
-	return EnsureShadowDepthArray(Renderer, RequiredResolution)
-			&& EnsureShadowBuffers(Renderer, ShadowLightCount, ShadowViewCount)
-			&& EnsureComparisonSampler(Renderer);
+	bool bNeedVSM = false;
+	for (uint32 ViewIndex = 0; ViewIndex < ShadowViewCount; ++ViewIndex)
+	{
+		const FShadowViewRenderItem& ShadowView = SceneViewData.LightingInputs.ShadowViews[ViewIndex];
+		if (ShadowView.FilterMode == EShadowFilterMode::VSM)
+		{
+			bNeedVSM = true;
+			break;
+		}
+	}
+
+	bool bOk =
+			EnsureShadowDepthArray(Renderer, RequiredResolution) &&
+			EnsureShadowBuffers(Renderer, ShadowLightCount, ShadowViewCount) &&
+			EnsureComparisonSampler(Renderer);
+
+	if (!bOk)
+	{
+		return false;
+	}
+
+	if (bNeedVSM)
+	{
+		bOk =
+				EnsureLinearSampler(Renderer) &&
+				EnsureMomentsArray(Renderer, RequiredResolution);
+
+		if (!bOk)
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer, uint32 RequiredResolution)
@@ -466,8 +709,8 @@ void FShadowRenderFeature::UploadShadowBuffers(
 			Dst.LightViewProjection = Src.ViewProjection.GetTransposed();
 			Dst.ArraySlice          = Src.ArraySlice;
 			Dst.ProjectionType      = static_cast<uint32>(Src.ProjectionType);
+			Dst.FilterMode          = static_cast<uint32>(Src.FilterMode);
 			Dst.Pad0                = 0;
-			Dst.Pad1                = 0;
 			Dst.ViewParams          = FVector4(Src.NearZ, Src.FarZ, ViewportScale, TexelSize);
 		}
 
@@ -501,7 +744,8 @@ void FShadowRenderFeature::RenderShadowViews(
 		return;
 	}
 
-	const FViewContext OriginalView = SceneViewData.View;
+	const FViewContext OriginalView    = SceneViewData.View;
+	static const float ClearMoments[4] = { 1.0f, 1.0f, 0.0f, 0.0f };
 
 	for (uint32 ViewIndex = 0; ViewIndex < ShadowViewCount; ++ViewIndex)
 	{
@@ -518,7 +762,6 @@ void FShadowRenderFeature::RenderShadowViews(
 			continue;
 		}
 
-		DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 		const D3D11_VIEWPORT ShadowViewport = BuildShadowViewport(ShadowView.RequestedResolution);
 
 		SceneViewData.View.View                  = ShadowView.View;
@@ -533,20 +776,49 @@ void FShadowRenderFeature::RenderShadowViews(
 		SceneViewData.View.bOrthographic         = ShadowView.ProjectionType == EShadowProjectionType::Orthographic;
 		SceneViewData.View.Viewport              = ShadowViewport;
 
-		BeginPass(
-			Renderer,
-			0,
-			nullptr,
-			ShadowDSV,
-			ShadowViewport,
-			SceneViewData.Frame,
-			SceneViewData.View);
+		if (ShadowView.FilterMode == EShadowFilterMode::PCF)
+		{
+			DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
-		Processor.ExecutePass(
-			Renderer,
-			Targets,
-			SceneViewData,
-			EMeshPassType::DepthPrepass);
+			BeginPass(
+				Renderer,
+				0,
+				nullptr,
+				ShadowDSV,
+				ShadowViewport,
+				SceneViewData.Frame,
+				SceneViewData.View);
+
+			Processor.ExecutePass(
+				Renderer,
+				Targets,
+				SceneViewData,
+				EMeshPassType::DepthPrepass);
+		}
+		else
+		{
+			ID3D11RenderTargetView* MomentsRTV = ShadowMomentsRTV[ShadowView.ArraySlice];
+			if (!MomentsRTV)
+			{
+				continue;
+			}
+			DeviceContext->ClearRenderTargetView(MomentsRTV, ClearMoments);
+			DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+			BeginPass(
+				Renderer,
+				MomentsRTV,
+				ShadowDSV,
+				ShadowViewport,
+				SceneViewData.Frame,
+				SceneViewData.View);
+
+			Processor.ExecutePass(
+				Renderer,
+				Targets,
+				SceneViewData,
+				EMeshPassType::ShadowVSM);
+		}
 	}
 
 	SceneViewData.View = OriginalView;
@@ -563,8 +835,8 @@ void FShadowRenderFeature::RenderShadowViews(
 uint32 FShadowRenderFeature::ResolveShadowViewResolution(uint32 RequestedResolution) const
 {
 	const uint32 Resolution = RequestedResolution > 0
-		? RequestedResolution
-		: DefaultShadowMapResolution;
+		                          ? RequestedResolution
+		                          : DefaultShadowMapResolution;
 
 	return FMath::Clamp(
 		Resolution,
@@ -584,7 +856,7 @@ uint32 FShadowRenderFeature::ComputeRequiredShadowDepthArrayResolution(
 	for (uint32 Index = 0; Index < ShadowViewCount; ++Index)
 	{
 		const FShadowViewRenderItem& View = SceneViewData.LightingInputs.ShadowViews[Index];
-		RequiredResolution = (std::max)(RequiredResolution, ResolveShadowViewResolution(View.RequestedResolution));
+		RequiredResolution                = (std::max)(RequiredResolution, ResolveShadowViewResolution(View.RequestedResolution));
 	}
 
 	return FMath::Clamp(

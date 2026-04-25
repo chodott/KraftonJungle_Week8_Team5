@@ -17,11 +17,19 @@ namespace ShadowConfig
 
 namespace ShadowSlots
 {
-	static constexpr uint32 ShadowLightSRV = 20;
-	static constexpr uint32 ShadowViewSRV  = 21;
-	static constexpr uint32 ShadowMapSRV   = 22;
-	static constexpr uint32 ShadowSampler  = 8;
+	static constexpr uint32 ShadowLightSRV      = 20;
+	static constexpr uint32 ShadowViewSRV       = 21;
+	static constexpr uint32 ShadowMapSRV        = 22;
+	static constexpr uint32 ShadowMomentsSRV    = 23;
+	static constexpr uint32 ShadowSampler       = 8;
+	static constexpr uint32 ShadowLinearSampler = 9;
 }
+
+enum class EShadowFilterMode : uint32
+{
+	PCF = 0u,
+	VSM = 1u,
+};
 
 enum class EShadowLightType : uint32
 {
@@ -74,7 +82,8 @@ struct FShadowViewRenderItem
 	float NearZ = ShadowConfig::DefaultNearZ;
 	float FarZ  = 1000.0f;
 
-	uint32 RequestedResolution = 0;
+	uint32            RequestedResolution = 0;
+	EShadowFilterMode FilterMode          = EShadowFilterMode::VSM;
 
 	D3D11_VIEWPORT Viewport = {};
 };
@@ -101,8 +110,8 @@ struct FShadowViewGPU
 
 	uint32 ArraySlice;
 	uint32 ProjectionType;
+	uint32 FilterMode;
 	uint32 Pad0;
-	uint32 Pad1;
 
 	FVector4 ViewParams;
 };

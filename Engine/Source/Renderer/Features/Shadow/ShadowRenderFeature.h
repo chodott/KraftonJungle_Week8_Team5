@@ -35,6 +35,8 @@ public:
 	bool RenderShadows(FRenderer& Renderer, const FMeshPassProcessor& Processor, FSceneRenderTargets& Targets, FSceneViewData& SceneViewData);
 
 private:
+	bool EnsureLinearSampler(const FRenderer& Renderer);
+	bool EnsureMomentsArray(const FRenderer& Renderer, uint32 RequiredResolution);
 	bool EnsureResources(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 
 	bool EnsureShadowDepthArray(FRenderer& Renderer, uint32 RequiredResolution);
@@ -63,14 +65,24 @@ private:
 	ID3D11ShaderResourceView* ShadowDepthArraySRV                          = nullptr;
 	ID3D11DepthStencilView*   ShadowViewDSVs[ShadowConfig::MaxShadowViews] = {};
 
+	ID3D11Texture2D*          ShadowMomentsArray                             = nullptr;
+	ID3D11RenderTargetView*   ShadowMomentsRTV[ShadowConfig::MaxShadowViews] = {};
+	ID3D11ShaderResourceView* ShadowMomentsArraySRV                          = nullptr;
+
+	ID3D11Texture2D*          ShadowMomentsBlur                                  = nullptr;
+	ID3D11RenderTargetView*   ShadowMomentsBlurRTV[ShadowConfig::MaxShadowViews] = {};
+	ID3D11ShaderResourceView* ShadowMomentsBlurSRV                               = nullptr;
+
 	ID3D11Buffer*             ShadowLightBuffer    = nullptr;
 	ID3D11ShaderResourceView* ShadowLightBufferSRV = nullptr;
 
 	ID3D11Buffer*             ShadowViewBuffer    = nullptr;
 	ID3D11ShaderResourceView* ShadowViewBufferSRV = nullptr;
 
-	ID3D11SamplerState* ShadowComparisonSampler   = nullptr;
+	ID3D11SamplerState* ShadowComparisonSampler    = nullptr;
+	ID3D11SamplerState* ShadowLinearSampler        = nullptr;
 	uint32              DefaultShadowMapResolution = ShadowConfig::DefaultShadowMapResolution;
 	uint32              ShadowDepthArrayResolution = ShadowConfig::DefaultShadowMapResolution;
 	bool                bShadowDepthArrayDirty     = true;
+	bool                bMomentsBlurValid          = false;
 };

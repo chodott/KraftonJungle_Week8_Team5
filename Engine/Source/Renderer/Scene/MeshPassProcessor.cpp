@@ -275,7 +275,7 @@ void FMeshPassProcessor::ExecutePass(
 		{
 			// ID buffer is R32_UINT; force opaque blend state for deterministic integer writes.
 			FBlendStateOption BlendOpt = Batch->Material->GetBlendOption();
-			BlendOpt.BlendEnable = false;
+			BlendOpt.BlendEnable       = false;
 			Renderer.GetRenderStateManager()->BindState(Renderer.GetRenderStateManager()->GetOrCreateBlendState(BlendOpt));
 		}
 
@@ -355,6 +355,8 @@ bool FMeshPassProcessor::ShouldDrawInPass(const FMeshBatch& Batch, EMeshPassType
 		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::EditorGrid);
 	case EMeshPassType::EditorPrimitive:
 		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::EditorPrimitive);
+	case EMeshPassType::ShadowVSM:
+		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ShadowVSM);
 	default:
 		return false;
 	}

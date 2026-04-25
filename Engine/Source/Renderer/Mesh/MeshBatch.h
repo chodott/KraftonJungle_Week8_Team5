@@ -27,6 +27,7 @@ enum class EMeshPassType : uint32
 	EditorPicking,
 	EditorGrid,
 	EditorPrimitive,
+	ShadowVSM,
 	Count,
 };
 
@@ -41,6 +42,7 @@ enum class EMeshPassMask : uint32
 	EditorPicking      = 1u << 5,
 	EditorGrid         = 1u << 6,
 	EditorPrimitive    = 1u << 7,
+	ShadowVSM          = 1u << 8,
 };
 
 inline uint32 operator|(EMeshPassMask A, EMeshPassMask B)
@@ -58,9 +60,9 @@ struct ENGINE_API FMeshBatch
 	FRenderMesh*                 Mesh      = nullptr;
 	std::shared_ptr<FRenderMesh> MeshOwner = nullptr;
 
-	FMaterial*       Material = nullptr;
-	FMatrix          World    = FMatrix::Identity;
-	FBoxSphereBounds WorldBounds;
+	FMaterial*           Material = nullptr;
+	FMatrix              World    = FMatrix::Identity;
+	FBoxSphereBounds     WorldBounds;
 	UPrimitiveComponent* SourceComponent = nullptr;
 
 	uint32 SectionIndex = 0;
