@@ -15,6 +15,8 @@
 
 #include <d3d11.h>
 
+#include "Math/Cascade.h"
+
 class UWorld;
 
 struct ENGINE_API FAmbientLightRenderItem
@@ -72,6 +74,10 @@ struct ENGINE_API FDirectionalLightRenderItem
 	uint32  Flags = 0;
 
 	uint32 ShadowIndex = UINT32_MAX;
+
+	uint32 CasCadeCount = 0;
+	FCasCadeMatrix CascadeMatrices[4];
+	float CascadeSplits[4];
 };
 
 struct ENGINE_API FSceneLightingInputs

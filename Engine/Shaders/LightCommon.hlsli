@@ -27,6 +27,9 @@ struct FDirectionalLightInfo
 {
 	float4 ColorIntensity;
 	float4 DirectionEtc;
+	
+    float4x4 ShadowMatrices[4];
+    float4 CascadeSplits;
 };
 
 cbuffer MaterialData : register(b2)
@@ -166,6 +169,7 @@ StructuredBuffer<uint>                ClusterLightIndices : register(t11);
 StructuredBuffer<FLocalLightGPU>      LocalLights         : register(t12);
 StructuredBuffer<uint>                ObjectLightIndices  : register(t13);
 
+Texture2DArray							DirectionalShadowMap : register(t14);
 Texture2DArray							ShadowMap			: register(t15);
 SamplerComparisonState					ShadowSampler		: register(s1);
 
@@ -189,6 +193,37 @@ float CalculateShadowFactor(float3 worldPos, uint shadowIndex)
 	
     return ShadowMap.SampleCmpLevelZero(ShadowSampler, float3(shadowUV, shadowIndex), currentDepth).r;
 }
+
+float CalculateDirectionalShadowFactor(float3 worldPos, float viewDepth, FDirectionalLightInfo dirLight)
+{
+    uint cascadeIndex = 0;
+	
+    if (viewDepth < dirLight.CascadeSplits.x) { cascadeIndex = 0; }
+    else if (viewDepth < dirLight.CascadeSplits.y) { cascadeIndex = 1; }
+    else if (viewDepth < dirLight.CascadeSplits.z) { cascadeIndex = 2; }
+    else if (viewDepth < dirLight.CascadeSplits.w) { cascadeIndex = 3; }
+    else { return 1.0f; }
+	
+    float4x4 lightViewProj = dirLight.ShadowMatrices[cascadeIndex];
+    float4 shadowPos = mul(float4(worldPos, 1.0f), lightViewProj);
+    float3 projCoords = shadowPos.xyz / shadowPos.w;
+	
+    if (projCoords.z > 1.0f || projCoords.z < 0.0f ||
+        projCoords.x < -1.0f || projCoords.x > 1.0f ||
+        projCoords.y < -1.0f || projCoords.y > 1.0f)
+    {
+        return 1.0f;
+    }
+	
+    float2 shadowUV = projCoords.xy * 0.5f + 0.5f;
+    shadowUV.y = 1.0f - shadowUV.y;
+	
+    float bias = 0.0005f * (cascadeIndex + 1.0f);
+    float currentDepth = projCoords.z - bias;
+	
+    return DirectionalShadowMap.SampleCmpLevelZero(ShadowSampler, float3(shadowUV, cascadeIndex), currentDepth).r;
+}
+
 
 float CalculateAttenuation(float distance, float range)
 {
@@ -266,8 +301,7 @@ float4 CalculateAmbientLight(FAmbientLightInfo info)
 	return float4(info.ColorIntensity.xyz * info.ColorIntensity.w, 1.0f);
 }
 
-float4 CalculateDirectionalLight(FDirectionalLightInfo info,
-                                 float3 worldPos, float3 N, float3 V)
+float4 CalculateDirectionalLight(FDirectionalLightInfo info, float3 worldPos, float3 N, float3 V, float viewDepth)
 {
 	float3 L = normalize(-info.DirectionEtc.xyz);
 	float3 H = normalize(L + V);
@@ -277,6 +311,11 @@ float4 CalculateDirectionalLight(FDirectionalLightInfo info,
 
     float3 diffuse = info.ColorIntensity.xyz * info.ColorIntensity.w * diff;
     float3 specular = info.ColorIntensity.xyz * info.ColorIntensity.w * spec;
+	
+    float shadowFactor = CalculateDirectionalShadowFactor(worldPos, viewDepth, info);
+    
+    diffuse *= shadowFactor;
+    specular *= shadowFactor;
 
     return float4(diffuse + specular, 1.0f);
 }

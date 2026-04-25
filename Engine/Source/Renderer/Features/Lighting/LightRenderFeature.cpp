@@ -325,9 +325,9 @@ bool FLightRenderFeature::Render(
 		DeviceContext->PSSetShaderResources(LightClusterSlots::ClusterLightIndexSRV, 1, &ClusterLightIndexSRV);
 	}
 
-	if (ShadowMatricesSRV)
+	if (Targets.DirectionalShadowMapSRV)
 	{
-		DeviceContext->PSSetShaderResources(14, 1, &ShadowMatricesSRV);
+		DeviceContext->PSSetShaderResources(14, 1, &Targets.DirectionalShadowMapSRV);
 	}
 
 	if (Targets.ShadowMapSRV)
@@ -338,6 +338,7 @@ bool FLightRenderFeature::Render(
 	if (ShadowSampler)
 	{
 		DeviceContext->PSSetSamplers(1, 1, &ShadowSampler);
+		DeviceContext->VSSetSamplers(1, 1, &ShadowSampler);
 	}
 
 	return true;
@@ -369,8 +370,6 @@ void FLightRenderFeature::Release()
 	SafeRelease(TileDepthBoundsSRV);
 	SafeRelease(TileDepthBoundsBuffer);
 
-	SafeRelease(ShadowMatricesBuffer);
-	SafeRelease(ShadowMatricesSRV);
 	SafeRelease(ShadowSampler);
 
 	for (FLightTimingQuerySet& TimingQuerySet : TimingQuerySets)
@@ -626,6 +625,17 @@ void FLightRenderFeature::UpdateGlobalLightConstantBuffer(
 		CB.Directional.ColorIntensity = FVector4(Dir.Color.X, Dir.Color.Y, Dir.Color.Z, Dir.Intensity);
 		CB.Directional.DirectionEtc   = FVector4(SafeDir.X, SafeDir.Y, SafeDir.Z, 0.0f);
 		CB.DirectionalLightCount      = 1;
+
+		for (uint32 i = 0; i < 4; i++)
+		{
+			CB.Directional.ShadowViewProj[i] = Dir.CascadeMatrices[i].ViewProjMatrix.GetTransposed();
+		}
+		CB.Directional.CascadeSplits = FVector4(
+			Dir.CascadeSplits[0],
+			Dir.CascadeSplits[1],
+			Dir.CascadeSplits[2],
+			Dir.CascadeSplits[3]
+		);
 	}
 	else
 	{

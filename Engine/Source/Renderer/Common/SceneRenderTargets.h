@@ -56,7 +56,7 @@ struct ENGINE_API FGPUTexture2D
 	ID3D11DepthStencilView*                 DSV     = nullptr;
 	ID3D11UnorderedAccessView*              UAV     = nullptr;
 
-	TArray<ID3D11DepthStencilView*> ArrayDSVs;
+	TArray<ID3D11DepthStencilView*>			ArrayDSVs;
 	std::vector<ID3D11ShaderResourceView*>  MipSRVs;
 	std::vector<ID3D11UnorderedAccessView*> MipUAVs;
 
@@ -81,6 +81,7 @@ struct ENGINE_API FSceneRenderTargets
 	FGPUTexture2D* SceneColorWrite = nullptr;
 	FGPUTexture2D* OverlayColor    = nullptr;
 	FGPUTexture2D* SceneDepth      = nullptr;
+	FGPUTexture2D* DirectionalShadowMap = nullptr;
 	FGPUTexture2D* ShadowMap		= nullptr;
 	FGPUTexture2D* GBufferA        = nullptr;
 	FGPUTexture2D* GBufferB        = nullptr;
@@ -109,6 +110,10 @@ struct ENGINE_API FSceneRenderTargets
 	ID3D11Texture2D*					ShadowMapTexture	= nullptr;
 	ID3D11ShaderResourceView*			ShadowMapSRV		= nullptr;
 	TArray<ID3D11DepthStencilView*>		ShadowMapDSVs;
+
+	ID3D11Texture2D*					DirectionalShadowMapTexture = nullptr;
+	ID3D11ShaderResourceView*			DirectionalShadowMapSRV		= nullptr;
+	TArray<ID3D11DepthStencilView*>		DirectionalShadowMapDSVs;
 
 	ID3D11Texture2D*           GBufferATexture = nullptr;
 	ID3D11RenderTargetView*    GBufferARTV     = nullptr;
@@ -152,6 +157,7 @@ struct ENGINE_API FSceneRenderTargets
 		SceneDepthSRV     = SceneDepth ? SceneDepth->SRV : nullptr;
 
 		ShadowMapTexture = ShadowMap ? ShadowMap->Texture : nullptr;
+		ShadowMapSRV = ShadowMap ? ShadowMap->SRV : nullptr;
 		if (ShadowMap)
 		{
 			ShadowMapDSVs = ShadowMap->ArrayDSVs;
@@ -160,7 +166,17 @@ struct ENGINE_API FSceneRenderTargets
 		{
 			ShadowMapDSVs.clear();
 		}
-		ShadowMapSRV = ShadowMap ? ShadowMap->SRV : nullptr;
+
+		DirectionalShadowMapTexture = DirectionalShadowMap ? DirectionalShadowMap->Texture : nullptr;
+		DirectionalShadowMapSRV = DirectionalShadowMap ? DirectionalShadowMap->SRV : nullptr;
+		if (DirectionalShadowMap)
+		{
+			DirectionalShadowMapDSVs = DirectionalShadowMap->ArrayDSVs;
+		}
+		else
+		{
+			DirectionalShadowMapDSVs.clear();
+		}
 
 		GBufferATexture = GBufferA ? GBufferA->Texture : nullptr;
 		GBufferARTV     = GBufferA ? GBufferA->RTV : nullptr;

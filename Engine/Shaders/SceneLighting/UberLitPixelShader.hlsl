@@ -67,7 +67,10 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
     {
 		float3 L_dir = normalize(-Directional.DirectionEtc.xyz);
 		float diff = max(0.0f, dot(N, L_dir));
-		lighting += Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff;
+		
+		float viewDepth = length(CameraPosition.xyz - Input.WorldPosition);
+		float shadowFactor = CalculateDirectionalShadowFactor(Input.WorldPosition, viewDepth, Directional);
+		lighting += Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff * shadowFactor;
     }
     
 	lighting += ComputeClusteredLocalLightingLambert(Input.Position, Input.WorldPosition, N).rgb;
@@ -94,10 +97,18 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 	if (DirectionalLightCount > 0)
 	{
 		float3 L_dir = normalize(-Directional.DirectionEtc.xyz);
+		float3 H = normalize(L_dir + V);
 		float diff = max(0.0f, dot(N, L_dir));
+		float spec = pow(max(0.0f, dot(N, H)), Shininess);
+		
 		float3 dirDiffuse = Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff;
-		diffuseLighting += dirDiffuse;
-		totalLighting += CalculateDirectionalLight(Directional, Input.WorldPosition, N, V).rgb;
+		float3 dirSpecular = Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * spec;
+		
+		float viewDepth = length(CameraPosition.xyz - Input.WorldPosition);
+		float shadowFactor = CalculateDirectionalShadowFactor(Input.WorldPosition, viewDepth, Directional);
+		
+		diffuseLighting += dirDiffuse * shadowFactor;
+		totalLighting += (dirDiffuse + dirSpecular) * shadowFactor;
 	}
 	
 	ComputeClusteredLocalLightingContributions(

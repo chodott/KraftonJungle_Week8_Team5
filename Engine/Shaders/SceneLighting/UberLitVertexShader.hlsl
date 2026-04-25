@@ -70,7 +70,8 @@ VS_OUTPUT main(VS_INPUT Input)
 		float diff = max(0.0f, dot(N, L_dir));
 		float3 dirDiffuse = Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff;
 		diffuseLighting += dirDiffuse;
-		totalLighting += CalculateDirectionalLight(Directional, Output.WorldPosition, N, V).rgb;
+		float viewDepth = length(CameraPosition.xyz - Output.WorldPosition);
+		totalLighting += CalculateDirectionalLight(Directional, Output.WorldPosition, N, V, viewDepth).rgb;
 	}
 	
 	ComputeObjectLocalLightingContributions(

@@ -844,3 +844,13 @@ inline FMatrix operator*(float Scalar, const FMatrix& Matrix) noexcept
 {
 	return Matrix * Scalar;
 }
+
+inline FVector4 operator*(const FVector4& V, const FMatrix& M) noexcept
+{
+	return M.TransformVector4(V);
+}
+
+inline FVector operator*(const FVector& V, const FMatrix& M) noexcept
+{
+	return M.TransformPosition(V);
+}

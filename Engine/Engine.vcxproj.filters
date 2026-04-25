@@ -1576,6 +1576,7 @@
       <Filter>ThirdParty\nlohmann</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Lighting\BloomRenderFeature.h" />
+    <ClInclude Include="Source\Math\Cascade.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

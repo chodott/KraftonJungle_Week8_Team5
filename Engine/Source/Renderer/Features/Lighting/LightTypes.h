@@ -15,7 +15,8 @@ namespace LightListConfig
 	static constexpr uint32 MaxLightsPerCluster     = 1024;
 	static constexpr uint32 HeatmapVisualizationMax = 16;
 
-	static constexpr uint32 MaxShadowCastingLights	= 8;
+	static constexpr uint32 MaxShadowCastingLights = 8;
+	static constexpr uint32 MaxDirectionalLightsCasCade	= 4;
 }
 
 namespace LightClusterSlots
@@ -56,6 +57,9 @@ struct FDirectionalLightInfo
 {
 	FVector4 ColorIntensity; // xyz=color, w=intensity
 	FVector4 DirectionEtc;   // xyz=direction, w=reserved
+
+	FMatrix ShadowViewProj[4];
+	FVector4 CascadeSplits;
 };
 
 struct FGlobalLightConstantBuffer

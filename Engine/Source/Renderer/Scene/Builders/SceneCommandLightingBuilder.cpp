@@ -65,7 +65,6 @@ namespace
 			std::swap(L.InnerAngleCos, L.OuterAngleCos);
 		}
 
-		// conservative sphere
 		L.CullCenterWS = L.PositionWS + L.DirectionWS * (L.Range * 0.5f);
 		L.CullRadius   = L.Range;
 
@@ -92,13 +91,96 @@ namespace
 		return L;
 	}
 
-	FDirectionalLightRenderItem BuildDirectionalLight(const UDirectionalLightComponent* C)
+	FDirectionalLightRenderItem BuildDirectionalLight(const UDirectionalLightComponent* C, FViewContext View)
 	{
 		FDirectionalLightRenderItem L;
 		L.DirectionWS = C->GetEmissionDirectionWS().GetSafeNormal();
 		L.Color       = ToLightRGB(C->GetColor());
 		L.Intensity   = C->GetEffectiveIntensity();
 		L.Flags       = 0;
+		L.CasCadeCount = C->GetCascadeCount();
+
+		TArray<float> FrustumSplits = FCasCade::CalculateCascadeSplits(C->GetCascadeCount(), View.NearZ, View.FarZ);
+		FVector UpVector = (std::abs(L.DirectionWS.Z) > 0.999f) ? FVector::YAxisVector : FVector::ZAxisVector;
+
+		FMatrix InvView = View.InverseView;
+		FMatrix InvProj = View.InverseProjection;
+
+		// NDC좌표상 각 꼭짓점
+		FVector4 NDC_Corners[4] = {
+			FVector4(-1.0f, 1.0f, 1.0f, 1.0f), FVector4(1.0f, 1.0f, 1.0f, 1.0f),
+			FVector4(1.0f, -1.0f, 1.0f, 1.0f), FVector4(-1.0f, -1.0f, 1.0f, 1.0f)
+		};
+
+		// 절두체 4개의 변
+		FVector ViewRays[4];
+		for (int j = 0; j < 4; j++)
+		{
+			FVector4 ViewCorner = NDC_Corners[j] * InvProj;
+
+			float InvW = 1.0f / ViewCorner.W;
+			FVector Ray = FVector(ViewCorner.X * InvW, ViewCorner.Y * InvW, ViewCorner.Z * InvW);
+
+			ViewRays[j] = Ray * (1.0f / Ray.X);
+		}
+
+		// Cascade개수만큼
+		for (uint32 i = 0; i < L.CasCadeCount; i++)
+		{
+			float NearSplit = FrustumSplits[i];
+			float FarSplit = FrustumSplits[i + 1];
+
+			// 절두체의 각 꼭짓점
+			FVector FrustumCornersWS[8];
+			for (int j = 0; j < 4; j++)
+			{
+				FVector NearVS = ViewRays[j] * NearSplit;
+				FVector FarVS = ViewRays[j] * FarSplit;
+
+				FrustumCornersWS[j] = InvView.TransformPosition(NearVS);
+				FrustumCornersWS[j + 4] = InvView.TransformPosition(FarVS);
+			}
+
+			// 절두체 8개의 꼭짓점 기반 중심점 계산
+			FVector FrustumCenter = FVector::ZeroVector;
+			for (int j = 0; j < 8; j++) { FrustumCenter += FrustumCornersWS[j]; }
+			FrustumCenter /= 8.0f;
+
+			// 자른 절두체 기준 view 행렬 생성
+			FVector LightPosition = FrustumCenter - (L.DirectionWS * 1000.0f);
+			FMatrix TempShadowView = FMatrix::MakeViewLookAtLH(LightPosition, FrustumCenter, UpVector);
+
+			// 여기서부터 각 절두체의 Light위치 기준 AABB 계산
+			float MinX = FLT_MAX; float MaxX = -FLT_MAX;
+			float MinY = FLT_MAX; float MaxY = -FLT_MAX;
+			float MinZ = FLT_MAX; float MaxZ = -FLT_MAX;
+
+			// Light위치 기준 Min, Max구해주는 중
+			for (int j = 0; j < 8; j++)
+			{
+				FVector CornerLS = TempShadowView.TransformPosition(FrustumCornersWS[j]);
+
+				MinX = std::min(MinX, CornerLS.X); MaxX = std::max(MaxX, CornerLS.X);
+				MinY = std::min(MinY, CornerLS.Y); MaxY = std::max(MaxY, CornerLS.Y);
+				MinZ = std::min(MinZ, CornerLS.Z); MaxZ = std::max(MaxZ, CornerLS.Z);
+			}
+
+			float MaxRadiusY = std::max(std::abs(MinY), std::abs(MaxY));
+			float MaxRadiusZ = std::max(std::abs(MinZ), std::abs(MaxZ));
+
+			float BoxWidth = MaxRadiusY * 2.0f;
+			float BoxHeight = MaxRadiusZ * 2.0f;
+
+			float BoxNear = MinX - 2000.0f;
+			float BoxFar = MaxX + 500.0f;
+
+			L.CascadeMatrices[i].ViewMatrix = TempShadowView;
+			L.CascadeMatrices[i].ProjectionMatrix = FMatrix::MakeOrthographicLH(BoxWidth, BoxHeight, BoxNear, BoxFar);
+			L.CascadeMatrices[i].ViewProjMatrix = L.CascadeMatrices[i].ViewMatrix * L.CascadeMatrices[i].ProjectionMatrix;
+
+			L.CascadeSplits[i] = FarSplit;
+		}
+
 		return L;
 	}
 }
@@ -177,7 +259,7 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 					continue;
 				}
 
-				const FDirectionalLightRenderItem Candidate = BuildDirectionalLight(Directional);
+				const FDirectionalLightRenderItem Candidate = BuildDirectionalLight(Directional, View);
 				if (!bHasDirectionalLight || Candidate.Intensity > StrongestDirectional)
 				{
 					DirectionalLightItem = Candidate;

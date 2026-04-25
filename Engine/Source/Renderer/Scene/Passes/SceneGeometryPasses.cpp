@@ -159,15 +159,55 @@ bool FShadowMapPass::Execute(FPassContext& Context)
 	{
 		Context.Renderer.GetRenderStateManager()->UnbindResourceEverywhere(Context.Targets.ShadowMapTexture);
 	}
-
-	if (Context.SceneViewData.LightingInputs.LocalLights.empty())
+	if (Context.Targets.DirectionalShadowMapTexture)
 	{
-		return true;
+		Context.Renderer.GetRenderStateManager()->UnbindResourceEverywhere(Context.Targets.DirectionalShadowMapTexture);
 	}
 
 	FViewContext OriginView = Context.SceneViewData.View;
 	D3D11_VIEWPORT ShadowViewPort = { 0.0f, 0.0f, 2048.0f, 2048.0f, 0.0f, 1.0f };
 	
+	// Global
+	if (!Context.SceneViewData.LightingInputs.DirectionalLights.empty() &&
+		!Context.Targets.DirectionalShadowMapDSVs.empty())
+	{
+		FDirectionalLightRenderItem& DirectionalLight = Context.SceneViewData.LightingInputs.DirectionalLights[0];
+
+		uint32 CascadeCount = std::min(DirectionalLight.CasCadeCount, (uint32)Context.Targets.DirectionalShadowMapDSVs.size());
+
+		for (uint32 i = 0; i < CascadeCount; i++)
+		{
+			ID3D11DepthStencilView* CurrentDSV = Context.Targets.DirectionalShadowMapDSVs[i];
+
+			DeviceContext->ClearDepthStencilView(CurrentDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+			const FCasCadeMatrix& CurrentCascadeMatrix = DirectionalLight.CascadeMatrices[i];
+
+			Context.SceneViewData.View.CameraPosition = CurrentCascadeMatrix.ViewMatrix.GetInverse().GetTranslation();
+			Context.SceneViewData.View.View = CurrentCascadeMatrix.ViewMatrix;
+			Context.SceneViewData.View.Projection = CurrentCascadeMatrix.ProjectionMatrix;
+			Context.SceneViewData.View.InverseView = CurrentCascadeMatrix.ViewMatrix.GetInverse();
+			Context.SceneViewData.View.InverseProjection = CurrentCascadeMatrix.ProjectionMatrix.GetInverse();
+
+			Context.SceneViewData.View.NearZ = 0.1f;
+			Context.SceneViewData.View.FarZ = 100.0f;
+			Context.SceneViewData.View.Viewport = ShadowViewPort;
+			Context.SceneViewData.View.bOrthographic = true;
+
+			BeginPass(
+				Context.Renderer,
+				0,
+				nullptr,
+				CurrentDSV,
+				ShadowViewPort,
+				Context.SceneViewData.Frame,
+				Context.SceneViewData.View);
+
+			Processor.ExecutePass(Context.Renderer, Context.Targets, Context.SceneViewData, EMeshPassType::ShadowDepthPrepass);
+		}
+	}
+
+	// Local
 	for (const FLocalLightRenderItem& Light : Context.SceneViewData.LightingInputs.LocalLights)
 	{
 		if (Light.ShadowIndex == UINT32_MAX || Light.ShadowIndex >= Context.Targets.ShadowMapDSVs.size())

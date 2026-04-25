@@ -96,6 +96,7 @@
     <ClInclude Include="Source\Level\ScenePacketBuilder.h" />
     <ClInclude Include="Source\Level\SceneRenderPacket.h" />
     <ClInclude Include="Source\Level\WorldTypes.h" />
+    <ClInclude Include="Source\Math\Cascade.h" />
     <ClInclude Include="Source\Math\Collapse.h" />
     <ClInclude Include="Source\Math\CollapseQueue.h" />
     <ClInclude Include="Source\Math\Edge.h" />
