@@ -726,6 +726,7 @@ void FLightRenderFeature::UploadLocalLightBuffers(
 		L.ShadowIndex    = Src.ShadowIndex;
 		L.CookieIndex    = Src.CookieIndex;
 		L.IESIndex       = Src.IESIndex;
+		L.ShadowViewProj = Src.ShadowViewProj.GetTransposed();
 
 		const uint32 LightIndex = static_cast<uint32>(LocalLightsGPU.size());
 		LocalLightsGPU.push_back(L);
@@ -796,30 +797,6 @@ void FLightRenderFeature::UploadLocalLightBuffers(
 		ObjectLightIndexBuffer,
 		ObjectLightIndicesGPU.data(),
 		sizeof(uint32) * ObjectLightIndicesGPU.size());
-
-	TArray<FMatrix> ShadowMatricesGPU;
-	ShadowMatricesGPU.resize(LightListConfig::MaxShadowCastingLights, FMatrix::Identity);
-	for (const FLocalLightRenderItem& Src : SceneViewData.LightingInputs.LocalLights)
-	{
-		if (Src.ShadowIndex != UINT32_MAX && Src.ShadowIndex < LightListConfig::MaxShadowCastingLights)
-		{
-			ShadowMatricesGPU[Src.ShadowIndex] = Src.ShadowViewProj.GetTransposed();
-		}
-	}
-
-	EnsureDynamicStructuredBufferSRV(
-		Renderer,
-		sizeof(FMatrix),
-		static_cast<uint32>(ShadowMatricesGPU.size()),
-		ShadowMatricesBuffer,
-		ShadowMatricesSRV);
-
-	UploadDynamicBuffer(
-		Renderer.GetDeviceContext(),
-		ShadowMatricesBuffer,
-		ShadowMatricesGPU.data(),
-		sizeof(FMatrix) * ShadowMatricesGPU.size());
-
 
 	const uint32 SceneLightCount  = static_cast<uint32>(SceneViewData.LightingInputs.LocalLights.size());
 	const uint32 ActualLightCount = (std::min)(SceneLightCount, LightListConfig::MaxLocalLights);

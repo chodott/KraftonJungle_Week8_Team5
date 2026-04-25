@@ -84,6 +84,8 @@ struct FLocalLightGPU
 	uint32 ShadowIndex = UINT32_MAX;
 	uint32 CookieIndex = UINT32_MAX;
 	uint32 IESIndex    = UINT32_MAX;
+
+	FMatrix ShadowViewProj = FMatrix::Identity;
 };
 
 struct FLightCullProxyGPU

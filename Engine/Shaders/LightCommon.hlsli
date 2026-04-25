@@ -64,6 +64,8 @@ struct FLocalLightGPU
 	uint ShadowIndex;
 	uint CookieIndex;
 	uint IESIndex;
+	
+    float4x4 ShadowMatrices;
 };
 
 struct FLightCullProxyGPU
@@ -164,7 +166,6 @@ StructuredBuffer<uint>                ClusterLightIndices : register(t11);
 StructuredBuffer<FLocalLightGPU>      LocalLights         : register(t12);
 StructuredBuffer<uint>                ObjectLightIndices  : register(t13);
 
-StructuredBuffer<float4x4>				ShadowMatrices		: register(t14);
 Texture2DArray							ShadowMap			: register(t15);
 SamplerComparisonState					ShadowSampler		: register(s1);
 
@@ -173,7 +174,7 @@ float CalculateShadowFactor(float3 worldPos, uint shadowIndex)
     if (shadowIndex == 0xFFFFFFFF)
         return 1.0f;
 
-    float4x4 lightVP = ShadowMatrices[shadowIndex];
+    float4x4 lightVP = LocalLights[shadowIndex].ShadowMatrices;
     float4 shadowPos = mul(float4(worldPos, 1.0f), lightVP);
     float3 projCoords = shadowPos.xyz / shadowPos.w;
 	
