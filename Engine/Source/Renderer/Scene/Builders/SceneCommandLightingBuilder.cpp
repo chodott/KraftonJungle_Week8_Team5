@@ -170,34 +170,34 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 			{
 				const USpotLightComponent* Spot = static_cast<USpotLightComponent*>(Component);
 				if (!Spot->GetVisible() || Spot->GetEffectiveIntensity() <= 0.0f || Spot->GetAttenuationRadius() <= 0.0f)
-				{
 					continue;
-				}
 
 				FLocalLightRenderItem L = BuildSpotLight(Spot);
 
-		
 				if (Spot->IsCastingShadows())
 				{
 					L.Flags |= 1;
 					L.ShadowIndex = CurrentSpotShadowIndex++;
 				}
-				if (Component->IsA(UPointLightComponent::StaticClass()))
+
+				LightingInputs.LocalLights.push_back(L);
+				continue;
+			}
+
+			if (Component->IsA(UPointLightComponent::StaticClass())) 
+			{
+				const UPointLightComponent* Point = static_cast<UPointLightComponent*>(Component);
+				if (!Point->GetVisible() || Point->GetEffectiveIntensity() <= 0.0f || Point->GetAttenuationRadius() <= 0.0f)
+					continue;
+
+				FLocalLightRenderItem L = BuildPointLight(Point);
+
+				if (Point->IsCastingShadows())
 				{
-					const UPointLightComponent* Point = static_cast<UPointLightComponent*>(Component);
-					if (!Point->GetVisible() || Point->GetEffectiveIntensity() <= 0.0f || Point->GetAttenuationRadius() <= 0.0f)
-						continue;
-
-					FLocalLightRenderItem L = BuildPointLight(Point);
-
-					if (Point->IsCastingShadows()) 
-					{
-						L.Flags |= 1;
-						L.ShadowIndex = CurrentPointShadowIndex++;
-					}
-
-					LightingInputs.LocalLights.push_back(L);
+					L.Flags |= 1;
+					L.ShadowIndex = CurrentPointShadowIndex++;
 				}
+
 				LightingInputs.LocalLights.push_back(L);
 				continue;
 			}

@@ -424,10 +424,10 @@ void ComputeLocalLightContributions(
 		}
 		shadowFactor = ComputeShadowFactor(light.ShadowIndex, worldPos);
 	}
-	else if (lightClass != LIGHT_CLASS_POINT)
+	else if (lightClass == LIGHT_CLASS_POINT)
 	{
 		shadowFactor = ComputePointShadowFactor(
-        light.ShadowIndex, worldPos, light.PositionRange.xyz);
+			light.ShadowIndex, worldPos, light.PositionRange.xyz);
 	}
 
 	float diff = max(dot(N, L), 0.0f);

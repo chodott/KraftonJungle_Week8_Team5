@@ -342,17 +342,6 @@ bool FShadowRenderFeature::RenderDepthPass(FRenderer& Renderer, const FSceneView
 	}
 	DeviceContext->RSSetState(ShadowRasterizerState);
 
-	// Viewport setup shadow map resolution
-	D3D11_VIEWPORT Viewport = {};
-	Viewport.Width = static_cast<float>(ShadowItems[0].Resolution);
-	Viewport.Height = static_cast<float>(ShadowItems[0].Resolution);
-	Viewport.MinDepth = 0.0f;
-	Viewport.MaxDepth = 1.0f;
-	Viewport.TopLeftX = 0;
-	Viewport.TopLeftY = 0;
-	DeviceContext->RSSetViewports(1, &Viewport);
-
-
 	// state leak cause crupt Shadow Map rendering, so reset states to default
 	DeviceContext->OMSetDepthStencilState(nullptr, 0); // Reset to default (depth enabled, less, write all)
 	DeviceContext->OMSetBlendState(nullptr, nullptr, 0xFFFFFFFF); // Reset to default
@@ -367,6 +356,19 @@ bool FShadowRenderFeature::RenderDepthPass(FRenderer& Renderer, const FSceneView
 	DeviceContext->GSSetShader(nullptr, nullptr, 0);
 	DeviceContext->HSSetShader(nullptr, nullptr, 0);
 	DeviceContext->DSSetShader(nullptr, nullptr, 0);
+
+	if (!ShadowItems.empty())
+	{
+		D3D11_VIEWPORT Viewport = {};
+		Viewport.Width = static_cast<float>(ShadowItems[0].Resolution);
+		Viewport.Height = static_cast<float>(ShadowItems[0].Resolution);
+		Viewport.MinDepth = 0.0f;
+		Viewport.MaxDepth = 1.0f;
+		Viewport.TopLeftX = 0;
+		Viewport.TopLeftY = 0;
+		DeviceContext->RSSetViewports(1, &Viewport);
+	}
+
 	for (uint32 i = 0; i < ShadowItems.size(); ++i)
 	{
 		const auto& ShadowItem = ShadowItems[i];
