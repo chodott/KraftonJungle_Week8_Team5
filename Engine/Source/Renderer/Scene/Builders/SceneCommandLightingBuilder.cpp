@@ -139,6 +139,7 @@ namespace
 		ShadowLight.Bias        = Spot->GetShadowBias();
 		ShadowLight.SlopeBias   = Spot->GetShadowSlopeBias();
 		ShadowLight.NormalBias  = 0.0f;
+		ShadowLight.Sharpen     = Spot->GetShadowSharpen();
 
 		const FVector DirectionWS = LightItem.DirectionWS.GetSafeNormal();
 
@@ -155,10 +156,10 @@ namespace
 		const float FullFovRad        = FMath::DegreesToRadians(OuterHalfAngleDeg * 2.0f);
 
 		FShadowViewRenderItem View;
-		View.ProjectionType  = EShadowProjectionType::Perspective;
-		View.PositionWS      = LightItem.PositionWS;
-		View.NearZ           = NearZ;
-		View.FarZ            = FarZ;
+		View.ProjectionType      = EShadowProjectionType::Perspective;
+		View.PositionWS          = LightItem.PositionWS;
+		View.NearZ               = NearZ;
+		View.FarZ                = FarZ;
 		View.RequestedResolution = Spot->GetShadowMapResolution();
 
 		View.View = FMatrix::MakeViewLookAtLH(

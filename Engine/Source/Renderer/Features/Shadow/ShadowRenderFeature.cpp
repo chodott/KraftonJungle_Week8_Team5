@@ -663,7 +663,7 @@ void FShadowRenderFeature::UploadShadowBuffers(
 			Dst.Flags            = 0;
 			Dst.PositionType     = FVector4(Src.PositionWS.X, Src.PositionWS.Y, Src.PositionWS.Z, 0.0f);
 			Dst.DirectionBias    = FVector4(Src.DirectionWS.X, Src.DirectionWS.Y, Src.DirectionWS.Z, Src.Bias);
-			Dst.Params0          = FVector4(Src.SlopeBias, Src.NormalBias, 0.0f, 0.0f);
+			Dst.Params0          = FVector4(Src.SlopeBias, Src.NormalBias, Src.Sharpen, 0.0f);
 		}
 
 		D3D11_MAPPED_SUBRESOURCE Mapped = {};

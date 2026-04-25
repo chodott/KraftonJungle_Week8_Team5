@@ -59,6 +59,7 @@ struct FShadowLightRenderItem
 	float Bias       = 0.001f;
 	float SlopeBias  = 0.001f;
 	float NormalBias = 0.0f;
+	float Sharpen    = 0.0f;
 
 	FVector PositionWS  = FVector::ZeroVector;
 	FVector DirectionWS = FVector(1.0f, 0.0f, 0.0f);
