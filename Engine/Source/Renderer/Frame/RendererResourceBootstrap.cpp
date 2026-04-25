@@ -16,6 +16,7 @@
 #include "Renderer/Features/Text/TextRenderFeature.h"
 #include "Renderer/Features/Lighting/LightRenderFeature.h"
 #include "Renderer/Features/Lighting/BloomRenderFeature.h"
+#include "Renderer/Features/Shadow/ShadowRenderFeature.h"
 #include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Resources/Material/MaterialManager.h"
 #include "Renderer/Resources/Shader/Shader.h"
@@ -175,11 +176,16 @@ bool FRendererResourceBootstrap::Initialize(FRenderer& Renderer)
 	Renderer.FireBallFeature = std::make_unique<FFireBallRenderFeature>();
 	Renderer.LightFeature = std::make_unique<FLightRenderFeature>();
 	Renderer.BloomFeature = std::make_unique<FBloomRenderFeature>();
+	Renderer.ShadowFeature = std::make_unique<FShadowRenderFeature>();
 	if (!Renderer.LightFeature)
 	{
 		return false;
 	}
 	if (!Renderer.BloomFeature)
+	{
+		return false;
+	}
+	if (!Renderer.ShadowFeature || !Renderer.ShadowFeature->Initialize(Renderer))
 	{
 		return false;
 	}
@@ -220,6 +226,8 @@ void FRendererResourceBootstrap::Release(FRenderer& Renderer)
 	if (Renderer.FireBallFeature) Renderer.FireBallFeature->Release();
 	if (Renderer.FXAAFeature) Renderer.FXAAFeature->Release();
 	if (Renderer.LightFeature) Renderer.LightFeature->Release();
+	if (Renderer.ShadowFeature) Renderer.ShadowFeature->Release();
+	Renderer.ShadowFeature.reset();
 	Renderer.OutlineFeature.reset();
 	Renderer.DebugLineFeature.reset();
 	Renderer.FogFeature.reset();

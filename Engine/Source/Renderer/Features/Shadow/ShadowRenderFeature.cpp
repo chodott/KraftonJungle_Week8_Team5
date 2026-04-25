@@ -61,7 +61,7 @@ bool FShadowRenderFeature::Initialize(FRenderer& Renderer)
 	{
 		FShaderRecipe Recipe = {};
 		Recipe.Stage = EShaderStage::Vertex;
-		Recipe.SourcePath = FPaths::ShaderDir().wstring() + L"SceneLighting/ShadowDepthVS.hlsl";
+		Recipe.SourcePath = FPaths::ShaderDir().wstring() + L"SceneShadow/ShadowDepthVS.hlsl";
 		Recipe.EntryPoint = "main";
 		Recipe.Target = "vs_5_0";
 		Recipe.LayoutType = EVertexLayoutType::MeshVertex; 
@@ -140,7 +140,7 @@ void FShadowRenderFeature::PrepareShadowViews(const FSceneViewData& SceneViewDat
 			UpVector = FVector(0.0f, 0.0f, 1.0f);
 		}
 
-		Item.ViewMatrix = FMatrix::MakeLookAt(
+		Item.ViewMatrix = FMatrix::MakeViewLookAtLH(
 			Item.LightPositionWS,
 			Item.LightPositionWS + Item.LightDirectionWS,
 			UpVector
@@ -149,7 +149,7 @@ void FShadowRenderFeature::PrepareShadowViews(const FSceneViewData& SceneViewDat
 		float OuterAngleRad = std::acos(Light.OuterAngleCos);
 		float FOV = OuterAngleRad * 2.0f;
 		float AspectRatio = 1.0f;
-		float NearZ = 10.f;
+		float NearZ = 1.f;
 		Item.ProjectionMatrix = FMatrix::MakePerspectiveFovLH(FOV, AspectRatio, NearZ, Item.FarZ);
 
 		Item.ViewProjectionMatrix = Item.ViewMatrix * Item.ProjectionMatrix;
@@ -233,7 +233,7 @@ bool FShadowRenderFeature::RenderDepthPass(FRenderer& Renderer, const FSceneView
 			memcpy(Mapped.pData, &CBData, sizeof(FShadowPassConstantsGPU));
 			DeviceContext->Unmap(ShadowPassCB, 0);
 		}
-		DeviceContext->VSSetConstantBuffers(1, 1, &ShadowPassCB);
+		DeviceContext->VSSetConstantBuffers(2, 1, &ShadowPassCB);
 
 		for (const FMeshBatch& Batch : SceneViewData.MeshInputs.Batches)
 		{
