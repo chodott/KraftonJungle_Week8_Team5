@@ -21,6 +21,9 @@ public:
 		return DefaultShadowMapResolution;
 	}
 
+	void SetGlobalFilterMode(EShadowFilterMode InMode) { GlobalFilterMode = InMode; }
+	EShadowFilterMode GetGlobalFilterMode() const { return GlobalFilterMode; }
+
 	void BindShadowResources(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 
 	void UnbindShadowResources(FRenderer& Renderer);
@@ -85,4 +88,5 @@ private:
 	uint32              ShadowDepthArrayResolution = ShadowConfig::DefaultShadowMapResolution;
 	bool                bShadowDepthArrayDirty     = true;
 	bool                bMomentsBlurValid          = false;
+	EShadowFilterMode   GlobalFilterMode           = EShadowFilterMode::VSM;
 };

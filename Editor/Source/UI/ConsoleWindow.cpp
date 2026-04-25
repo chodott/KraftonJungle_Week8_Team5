@@ -45,6 +45,9 @@ FConsoleWindow::FConsoleWindow()
 	Commands.push_back("stat fog");
 	Commands.push_back("stat gpu");
 	Commands.push_back("stat none");
+	Commands.push_back("shadow_filter Raw");
+	Commands.push_back("shadow_filter PCF");
+	Commands.push_back("shadow_filter VSM");
 
 	AddLog("Welcome to Console.");
 }

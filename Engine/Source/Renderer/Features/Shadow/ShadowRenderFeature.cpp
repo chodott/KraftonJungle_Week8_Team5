@@ -60,16 +60,7 @@ void FShadowRenderFeature::BindShadowResources(
 		static_cast<uint32>(SceneViewData.LightingInputs.ShadowViews.size()),
 		ShadowConfig::MaxShadowViews);
 
-	bool bNeedVSM = false;
-	for (uint32 ViewIndex = 0; ViewIndex < ShadowViewCount; ++ViewIndex)
-	{
-		const FShadowViewRenderItem& ShadowView = SceneViewData.LightingInputs.ShadowViews[ViewIndex];
-		if (ShadowView.FilterMode == EShadowFilterMode::VSM)
-		{
-			bNeedVSM = true;
-			break;
-		}
-	}
+	const bool bNeedVSM = (GlobalFilterMode == EShadowFilterMode::VSM);
 
 	const bool bHasCommonShadowData =
 			!SceneViewData.LightingInputs.ShadowLights.empty() &&
@@ -379,16 +370,7 @@ bool FShadowRenderFeature::EnsureResources(
 
 	const uint32 RequiredResolution = ComputeRequiredShadowDepthArrayResolution(SceneViewData);
 
-	bool bNeedVSM = false;
-	for (uint32 ViewIndex = 0; ViewIndex < ShadowViewCount; ++ViewIndex)
-	{
-		const FShadowViewRenderItem& ShadowView = SceneViewData.LightingInputs.ShadowViews[ViewIndex];
-		if (ShadowView.FilterMode == EShadowFilterMode::VSM)
-		{
-			bNeedVSM = true;
-			break;
-		}
-	}
+	const bool bNeedVSM = (GlobalFilterMode == EShadowFilterMode::VSM);
 
 	bool bOk =
 			EnsureShadowDepthArray(Renderer, RequiredResolution) &&
@@ -709,7 +691,7 @@ void FShadowRenderFeature::UploadShadowBuffers(
 			Dst.LightViewProjection = Src.ViewProjection.GetTransposed();
 			Dst.ArraySlice          = Src.ArraySlice;
 			Dst.ProjectionType      = static_cast<uint32>(Src.ProjectionType);
-			Dst.FilterMode          = static_cast<uint32>(Src.FilterMode);
+			Dst.FilterMode          = static_cast<uint32>(GlobalFilterMode);
 			Dst.Pad0                = 0;
 			Dst.ViewParams          = FVector4(Src.NearZ, Src.FarZ, ViewportScale, TexelSize);
 		}
@@ -776,7 +758,8 @@ void FShadowRenderFeature::RenderShadowViews(
 		SceneViewData.View.bOrthographic         = ShadowView.ProjectionType == EShadowProjectionType::Orthographic;
 		SceneViewData.View.Viewport              = ShadowViewport;
 
-		if (ShadowView.FilterMode == EShadowFilterMode::PCF)
+		if (GlobalFilterMode == EShadowFilterMode::Raw ||
+			GlobalFilterMode == EShadowFilterMode::PCF)
 		{
 			DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 

@@ -86,6 +86,10 @@ void FMeshPassProcessor::ExecutePass(
 		{
 			continue;
 		}
+		if (PassType == EMeshPassType::ShadowVSM && Batch.Material->GetPassShaders(EMaterialPassType::ShadowVSM) == nullptr)
+		{
+			continue;
+		}
 
 		Batches.push_back(&Batch);
 	}
@@ -219,10 +223,9 @@ void FMeshPassProcessor::ExecutePass(
 		}
 
 		FDepthStencilStateOption DepthOpt = Batch->Material->GetDepthStencilOption();
-		if (PassType == EMeshPassType::DepthPrepass)
+		if (PassType == EMeshPassType::ShadowVSM)
 		{
-			DepthOpt.DepthEnable    = !Batch->bDisableDepthTest;
-			DepthOpt.DepthWriteMask = Batch->bDisableDepthWrite ? D3D11_DEPTH_WRITE_MASK_ZERO : D3D11_DEPTH_WRITE_MASK_ALL;
+			const FMaterialPassShaders* ShadowVSMPass = Batch->Material->GetPassShaders(EMaterialPassType::ShadowVSM);
 		}
 		else if (PassType == EMeshPassType::GBuffer
 			|| PassType == EMeshPassType::ForwardOpaque
@@ -257,6 +260,7 @@ void FMeshPassProcessor::ExecutePass(
 		}
 
 		if (PassType == EMeshPassType::DepthPrepass ||
+			PassType == EMeshPassType::ShadowVSM ||
 			PassType == EMeshPassType::GBuffer ||
 			PassType == EMeshPassType::ForwardOpaque ||
 			PassType == EMeshPassType::EditorPicking ||
@@ -271,12 +275,14 @@ void FMeshPassProcessor::ExecutePass(
 			Renderer.GetRenderStateManager()->BindState(Batch->Material->GetDepthStencilState());
 		}
 
-		if (PassType == EMeshPassType::EditorPicking)
+		if (PassType == EMeshPassType::EditorPicking ||
+			PassType == EMeshPassType::ShadowVSM)
 		{
-			// ID buffer is R32_UINT; force opaque blend state for deterministic integer writes.
 			FBlendStateOption BlendOpt = Batch->Material->GetBlendOption();
 			BlendOpt.BlendEnable       = false;
-			Renderer.GetRenderStateManager()->BindState(Renderer.GetRenderStateManager()->GetOrCreateBlendState(BlendOpt));
+
+			Renderer.GetRenderStateManager()->BindState(
+				Renderer.GetRenderStateManager()->GetOrCreateBlendState(BlendOpt));
 		}
 
 		if (Batch->Mesh != CurrentMesh)
@@ -329,6 +335,8 @@ EMaterialPassType FMeshPassProcessor::ToMaterialPassType(EMeshPassType PassType)
 		return EMaterialPassType::EditorGrid;
 	case EMeshPassType::EditorPrimitive:
 		return EMaterialPassType::EditorPrimitive;
+	case EMeshPassType::ShadowVSM:
+		return EMaterialPassType::ShadowVSM;
 	case EMeshPassType::ForwardOpaque:
 	default:
 		return EMaterialPassType::ForwardOpaque;

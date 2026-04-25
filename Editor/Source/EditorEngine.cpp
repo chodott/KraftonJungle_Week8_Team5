@@ -15,6 +15,8 @@
 #include "Renderer/Features/Decal/DecalProjectionMode.h"
 #include "Renderer/Features/Decal/DecalStats.h"
 #include "Renderer/Features/Fog/FogStats.h"
+#include "Renderer/Features/Shadow/ShadowRenderFeature.h"
+#include "Renderer/Features/Shadow/ShadowTypes.h"
 #include "Renderer/GPUStats.h"
 #include "Camera/Camera.h"
 #include "Component/CameraComponent.h"
@@ -1224,6 +1226,26 @@ void FEditorEngine::InitEditorConsole()
 				FEngineLog::Get().Log("Decal-Cell Registrations: %u", Stats.ClusteredLookup.DecalCellRegistrations);
 				FEngineLog::Get().Log("Avg Decals Per Cell: %.1f", Stats.ClusteredLookup.AvgDecalsPerCell);
 				FEngineLog::Get().Log("Max Decals Per Cell: %u", Stats.ClusteredLookup.MaxDecalsPerCell);
+			}
+			return;
+		}
+
+		if (std::strcmp(CommandLine, "shadow_filter Raw") == 0 ||
+		    std::strcmp(CommandLine, "shadow_filter PCF") == 0 ||
+		    std::strcmp(CommandLine, "shadow_filter VSM") == 0)
+		{
+			FRenderer* Renderer = GetRenderer();
+			if (Renderer)
+			{
+				if (FShadowRenderFeature* Shadow = Renderer->GetShadowFeature())
+				{
+					const char* ModeStr = CommandLine + 14; // "shadow_filter " = 14 chars
+					EShadowFilterMode Mode = EShadowFilterMode::VSM;
+					if (std::strcmp(ModeStr, "Raw") == 0) Mode = EShadowFilterMode::Raw;
+					else if (std::strcmp(ModeStr, "PCF") == 0) Mode = EShadowFilterMode::PCF;
+					Shadow->SetGlobalFilterMode(Mode);
+					FEngineLog::Get().Log("Shadow filter mode: %s", ModeStr);
+				}
 			}
 			return;
 		}

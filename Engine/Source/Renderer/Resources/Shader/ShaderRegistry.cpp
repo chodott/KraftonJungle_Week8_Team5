@@ -66,7 +66,7 @@ bool FShaderRegistry::BuildTransactionForChangedFiles(
 	}
 
 	std::unordered_set<FShaderRecipeKey, FShaderRecipeKeyHasher> AffectedKeys;
-	std::vector<std::wstring> UnresolvedIncludeFiles;
+	std::vector<std::wstring>                                    UnresolvedIncludeFiles;
 	GatherAffectedHandles(ChangedFiles, AffectedKeys, OutTransaction.bRequiresFullFallback, UnresolvedIncludeFiles);
 
 	if (!UnresolvedIncludeFiles.empty())
@@ -172,6 +172,13 @@ std::shared_ptr<THandle> FShaderRegistry::BuildHandleInternal(ID3D11Device* Devi
 	FShaderCompileArtifact Artifact = FShaderCompiler::Compile(Recipe, true);
 	if (!Artifact.bSuccess)
 	{
+		UE_LOG(
+			(std::string("[ShaderRegistry] Shader compile failed: ")
+				+ NarrowPathForLog(Recipe.SourcePath)
+				+ "\n"
+				+ Artifact.ErrorText
+				+ "\n").c_str());
+
 		return nullptr;
 	}
 
@@ -180,12 +187,19 @@ std::shared_ptr<THandle> FShaderRegistry::BuildHandleInternal(ID3D11Device* Devi
 	std::string              Error;
 	if (!Handle->PrepareRebuildFromArtifact(Device, Artifact, CommitStep, Error))
 	{
+		UE_LOG(
+			(std::string("[ShaderRegistry] Shader object creation failed: ")
+				+ NarrowPathForLog(Recipe.SourcePath)
+				+ "\n"
+				+ Error
+				+ "\n").c_str());
+
 		return nullptr;
 	}
 
 	{
 		std::unique_lock<std::shared_mutex> WriteLock(Mutex);
-		auto Existing = Handles.find(Key);
+		auto                                Existing = Handles.find(Key);
 		if (Existing != Handles.end())
 		{
 			return std::static_pointer_cast<THandle>(Existing->second);

@@ -27,8 +27,9 @@ namespace ShadowSlots
 
 enum class EShadowFilterMode : uint32
 {
-	PCF = 0u,
-	VSM = 1u,
+	Raw = 0u,
+	PCF = 1u,
+	VSM = 2u,
 };
 
 enum class EShadowLightType : uint32

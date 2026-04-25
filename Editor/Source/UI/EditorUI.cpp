@@ -8,6 +8,8 @@
 #include "Platform/Windows/WindowsWindow.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/Features/Lighting/BloomRenderFeature.h"
+#include "Renderer/Features/Shadow/ShadowRenderFeature.h"
+#include "Renderer/Features/Shadow/ShadowTypes.h"
 
 #include "imgui.h"
 #include "imgui_impl_dx11.h"
@@ -961,6 +963,31 @@ void FEditorUI::Render()
 					ShowFlagCheckbox("Anti-Aliasing (FXAA)", EEngineShowFlags::SF_FXAA);
 					ShowFlagCheckbox("Height Fog", EEngineShowFlags::SF_Fog);
 					ShowFlagCheckbox("Decal Projection", EEngineShowFlags::SF_Decal);
+
+					ImGui::Dummy(ImVec2(0.0f, 5.0f));
+					ImGui::SeparatorText("Shadow Filter Mode");
+					ImGui::Dummy(ImVec2(0.0f, 5.0f));
+
+					FRenderer* Renderer = Engine ? Engine->GetRenderer() : nullptr;
+					FShadowRenderFeature* Shadow = Renderer ? Renderer->GetShadowFeature() : nullptr;
+					if (Shadow)
+					{
+						const EShadowFilterMode CurrentFilterMode = Shadow->GetGlobalFilterMode();
+						if (ImGui::RadioButton("Raw", CurrentFilterMode == EShadowFilterMode::Raw))
+						{
+							Shadow->SetGlobalFilterMode(EShadowFilterMode::Raw);
+						}
+						ImGui::SameLine();
+						if (ImGui::RadioButton("PCF", CurrentFilterMode == EShadowFilterMode::PCF))
+						{
+							Shadow->SetGlobalFilterMode(EShadowFilterMode::PCF);
+						}
+						ImGui::SameLine();
+						if (ImGui::RadioButton("VSM", CurrentFilterMode == EShadowFilterMode::VSM))
+						{
+							Shadow->SetGlobalFilterMode(EShadowFilterMode::VSM);
+						}
+					}
 				}
 			}
 			ImGui::EndMenu();
