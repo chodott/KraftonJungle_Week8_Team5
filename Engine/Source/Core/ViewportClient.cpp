@@ -15,8 +15,10 @@
 #include "Math/Frustum.h"
 #include "Component/PrimitiveComponent.h"
 #include "Component/FireBallComponent.h"
+#include "Component/SpotLightComponent.h"
 #include "Core/ShowFlags.h"
-
+#include <unordered_set>
+#include <Math/MathUtility.h>
 
 namespace
 {
@@ -94,38 +96,6 @@ void IViewportClient::Detach(FEngine* Engine, FRenderer* Renderer)
 
 void IViewportClient::Tick(FEngine* Engine, float DeltaTime)
 {
-	// 예전 직접 카메라 입력 경로는 Enhanced Input 전환 이후 보류 상태다.
-	//if (!Core)
-	//{
-	//	return;
-	//}
-
-	//FInputManager* InputManager = Core->GetInputManager();
-	//UScene* Scene = ResolveScene(Core);
-	//if (!InputManager || !Scene)
-	//{
-	//	return;
-	//}
-
-	//FCamera* Camera = Scene->GetCamera();
-	//if (!Camera)
-	//{
-	//	return;
-	//}
-
-	//if (InputManager->IsKeyDown('W')) Camera->MoveForward(DeltaTime);
-	//if (InputManager->IsKeyDown('S')) Camera->MoveForward(-DeltaTime);
-	//if (InputManager->IsKeyDown('D')) Camera->MoveRight(DeltaTime);
-	//if (InputManager->IsKeyDown('A')) Camera->MoveRight(-DeltaTime);
-	//if (InputManager->IsKeyDown('E')) Camera->MoveUp(DeltaTime);
-	//if (InputManager->IsKeyDown('Q')) Camera->MoveUp(-DeltaTime);
-
-	//if (InputManager->IsMouseButtonDown(FInputManager::MOUSE_RIGHT))
-	//{
-	//	const float DeltaX = InputManager->GetMouseDeltaX();
-	//	const float DeltaY = InputManager->GetMouseDeltaY();
-	//	Camera->Rotate(DeltaX * 0.2f, -DeltaY * 0.2f);
-	//}
 }
 
 void IViewportClient::HandleMessage(FEngine* Engine, HWND Hwnd, UINT Msg, WPARAM WParam, LPARAM LParam)
@@ -149,7 +119,6 @@ void IViewportClient::BuildSceneRenderPacket(
 	const FShowFlags& Flags,
 	FSceneRenderPacket& OutPacket)
 {
-	// ViewportClient는 렌더 커맨드를 만들지 않고, 월드를 씬 패킷으로만 변환한다.
 	if (!World)
 	{
 		return;
@@ -164,7 +133,52 @@ void IViewportClient::BuildSceneRenderPacket(
 
 	TArray<UPrimitiveComponent*> VisiblePrimitives;
 	Level->QueryPrimitivesByFrustum(Frustum, VisiblePrimitives);
-	ScenePacketBuilder.BuildScenePacket(VisiblePrimitives, Flags, OutPacket);
+
+	for (AActor* Actor : Level->GetActors())
+	{
+		if (!Actor || !Actor->IsVisible() || Actor->IsPendingDestroy())
+			continue;
+
+		for (UActorComponent* Component : Actor->GetComponents())
+		{
+			if (USpotLightComponent* Spot = dynamic_cast<USpotLightComponent*>(Component))
+			{
+				if (Spot->GetVisible() && Spot->IsCastingShadows() && Spot->GetEffectiveIntensity() > 0.0f)
+				{
+					float OuterAngleRad = FMath::DegreesToRadians(Spot->GetOuterConeAngle());
+					float FOV = OuterAngleRad * 2.0f;
+					float NearZ = 0.1f;
+					float FarZ = Spot->GetAttenuationRadius();
+					if (FarZ > NearZ)
+					{
+						FMatrix Proj = FMatrix::MakePerspectiveFovLH(FOV, 1.0f, NearZ, FarZ);
+						FVector Pos = Spot->GetWorldLocation();
+						FVector Dir = Spot->GetEmissionDirectionWS().GetSafeNormal();
+						FVector Up = FVector(0.0f, 1.0f, 0.0f);
+						if (std::abs(Dir.Y) > 0.999f) Up = FVector(0.0f, 0.0f, 1.0f);
+						FMatrix View = FMatrix::MakeViewLookAtLH(Pos, Pos + Dir, Up);
+						
+						FFrustum SpotFrustum;
+						SpotFrustum.ExtractFromVP(View * Proj);
+						Level->QueryPrimitivesByFrustum(SpotFrustum, VisiblePrimitives);
+					}
+				}
+			}
+		}
+	}
+
+	std::unordered_set<UPrimitiveComponent*> UniquePrimitives;
+	TArray<UPrimitiveComponent*> DeduplicatedPrimitives;
+	DeduplicatedPrimitives.reserve(VisiblePrimitives.size());
+	for (UPrimitiveComponent* Prim : VisiblePrimitives)
+	{
+		if (UniquePrimitives.insert(Prim).second)
+		{
+			DeduplicatedPrimitives.push_back(Prim);
+		}
+	}
+
+	ScenePacketBuilder.BuildScenePacket(DeduplicatedPrimitives, Flags, OutPacket);
 	AppendHeightFogPrimitives(Level, Flags, OutPacket);
 	AppendFireBallPrimitives(Level, OutPacket);
 	OutPacket.bApplyFXAA = Flags.HasFlag(EEngineShowFlags::SF_FXAA);

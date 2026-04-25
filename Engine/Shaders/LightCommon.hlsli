@@ -190,7 +190,7 @@ float ComputeShadowFactor(uint shadowIndex, float3 worldPos)
 		return 1.0f;
 
 	float currentDepth = shadowPos.z;
-	float bias = 0.005f; 
+	float bias = 0.005f;
 
 
 	return ShadowMapTexture.SampleCmpLevelZero(ShadowSampler, shadowUV, currentDepth - bias);
@@ -473,7 +473,8 @@ float4 ComputeObjectLocalLightingLambert(uint localLightListOffset, uint localLi
 					float innerCutoff = light.AngleParams.x;
 					float outerCutoff = light.AngleParams.y;
 					float cone = saturate((theta - outerCutoff) / max(innerCutoff - outerCutoff, 1.0e-5f));
-					lighting += float4(light.ColorIntensity.xyz * light.ColorIntensity.w * diff * atten * cone, 1.0f);
+					float shadowFactor = ComputeShadowFactor(light.ShadowIndex, worldPos);
+					lighting += float4(light.ColorIntensity.xyz * light.ColorIntensity.w * diff * atten * cone * shadowFactor, 1.0f);
 				}
 			}
 		}
@@ -606,8 +607,9 @@ float4 ComputeClusteredLocalLightingLambert(float4 svPosition, float3 worldPos, 
                     float innerCutoff = light.AngleParams.x;
                     float outerCutoff = light.AngleParams.y;
                     float cone = saturate((theta - outerCutoff) / max(innerCutoff - outerCutoff, 1.0e-5f));
+                    float shadowFactor = ComputeShadowFactor(light.ShadowIndex, worldPos);
 
-                    lighting += float4(light.ColorIntensity.xyz * light.ColorIntensity.w * diff * atten * cone, 1.0f);
+                    lighting += float4(light.ColorIntensity.xyz * light.ColorIntensity.w * diff * atten * cone * shadowFactor, 1.0f);
                 }
             }
         }

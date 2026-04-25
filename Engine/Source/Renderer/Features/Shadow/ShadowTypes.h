@@ -42,10 +42,10 @@ struct FShadowRenderItem
 	uint32 FaceIndex = 0;
 	uint32 CascadeIndex = 0;
 
-	uint8 bIsDirectionalLight : 1;
-	uint8 bIsPointLight : 1;
-	uint8 bIsSpotLight : 1;
-	uint8 bUseAtlas : 1;
+	uint8 bIsDirectionalLight : 1 = 0;
+	uint8 bIsPointLight : 1 = 0;
+	uint8 bIsSpotLight : 1 = 0;
+	uint8 bUseAtlas : 1 = 0;
 };
 
 struct FShadowPassConstantsGPU

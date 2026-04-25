@@ -194,7 +194,7 @@ bool FShadowRenderFeature::RenderDepthPass(FRenderer& Renderer, const FSceneView
 	{
 		D3D11_RASTERIZER_DESC RSDesc = {};
 		RSDesc.FillMode = D3D11_FILL_SOLID;
-		RSDesc.CullMode = D3D11_CULL_FRONT; 
+		RSDesc.CullMode = D3D11_CULL_FRONT;
 		RSDesc.DepthClipEnable = true;
 		Renderer.GetDevice()->CreateRasterizerState(&RSDesc, &ShadowRasterizerState);
 	}
@@ -213,6 +213,9 @@ bool FShadowRenderFeature::RenderDepthPass(FRenderer& Renderer, const FSceneView
 	DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 	ID3D11RenderTargetView* NullRTV = nullptr;
 	DeviceContext->OMSetRenderTargets(1, &NullRTV, ShadowDSV);
+	// state leak cause crupt Shadow Map rendering, so reset states to default
+	DeviceContext->OMSetDepthStencilState(nullptr, 0); // Reset to default (depth enabled, less, write all)
+	DeviceContext->OMSetBlendState(nullptr, nullptr, 0xFFFFFFFF); // Reset to default
 
 	if (ShadowDepthVS)
 	{

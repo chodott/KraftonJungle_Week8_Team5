@@ -515,7 +515,7 @@ bool FLightRenderFeature::Initialize(FRenderer& Renderer)
 		SamplerDesc.BorderColor[1] = 1.0f;
 		SamplerDesc.BorderColor[2] = 1.0f;
 		SamplerDesc.BorderColor[3] = 1.0f;
-		SamplerDesc.ComparisonFunc = D3D11_COMPARISON_GREATER_EQUAL;
+		SamplerDesc.ComparisonFunc = D3D11_COMPARISON_LESS_EQUAL;
 
 		if (FAILED(Device->CreateSamplerState(&SamplerDesc, &ShadowSamplerState)))
 		{

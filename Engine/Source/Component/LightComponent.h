@@ -86,8 +86,8 @@ protected:
 	bool         bVisible       = true;
 
 	//Shadow
-	float ShadowResoultionScale;
-	float ShadowBias;
-	float ShadowSlopeBias;
-	float ShadowSharpen;
+	float ShadowResoultionScale = 1.0f;
+	float ShadowBias = 0.0f;
+	float ShadowSlopeBias = 0.0f;
+	float ShadowSharpen = 0.0f;
 };
