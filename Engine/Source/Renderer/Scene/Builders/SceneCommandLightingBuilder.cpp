@@ -112,7 +112,8 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 	const TArray<AActor*> Actors = BuildContext.World->GetAllActors();
 	LightingInputs.LocalLights.reserve(Actors.size());
-	uint32 CurrentShadowIndex = 0;
+	uint32 CurrentSpotShadowIndex = 0;
+	uint32 CurrentPointShadowIndex = 0;
 	for (AActor* Actor : Actors)
 	{
 		if (!Actor || Actor->IsPendingDestroy() || !Actor->IsVisible())
@@ -179,9 +180,24 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 				if (Spot->IsCastingShadows())
 				{
 					L.Flags |= 1;
-					L.ShadowIndex = CurrentShadowIndex++;
+					L.ShadowIndex = CurrentSpotShadowIndex++;
 				}
+				if (Component->IsA(UPointLightComponent::StaticClass()))
+				{
+					const UPointLightComponent* Point = static_cast<UPointLightComponent*>(Component);
+					if (!Point->GetVisible() || Point->GetEffectiveIntensity() <= 0.0f || Point->GetAttenuationRadius() <= 0.0f)
+						continue;
 
+					FLocalLightRenderItem L = BuildPointLight(Point);
+
+					if (Point->IsCastingShadows()) 
+					{
+						L.Flags |= 1;
+						L.ShadowIndex = CurrentPointShadowIndex++;
+					}
+
+					LightingInputs.LocalLights.push_back(L);
+				}
 				LightingInputs.LocalLights.push_back(L);
 				continue;
 			}

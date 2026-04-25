@@ -163,17 +163,55 @@ StructuredBuffer<FLightClusterHeader> ClusterLightHeaders : register(t10);
 StructuredBuffer<uint>                ClusterLightIndices : register(t11);
 StructuredBuffer<FLocalLightGPU>      LocalLights         : register(t12);
 StructuredBuffer<uint>                ObjectLightIndices  : register(t13);
-StructuredBuffer<float4x4>			  ShadowMatrices	  : register(t14);
-Texture2D							  ShadowMapTexture    : register(t15);
-SamplerComparisonState				  ShadowSampler       : register(s1);
+struct FShadowData
+{
+	float4x4 ViewProj;
+	float    DepthBias;
+	float    Pad0;
+	float    Pad1;
+	float    Pad2;
+};
+StructuredBuffer<FShadowData> ShadowMatrices      : register(t14);
+Texture2DArray                ShadowMapTexture    : register(t15);
+TextureCubeArray              PointShadowCubes    : register(t16);
+StructuredBuffer<FShadowData> PointShadowMatrices : register(t17);
+SamplerComparisonState        ShadowSampler       : register(s1);
+uint GetCubeFaceIndex(float3 dir)
+{
+	float3 absDir = abs(dir);
+	if (absDir.x >= absDir.y && absDir.x >= absDir.z)
+		return (dir.x > 0.0f) ? 0 : 1;
+	if (absDir.y >= absDir.z)
+		return (dir.y > 0.0f) ? 2 : 3;
+	return (dir.z > 0.0f) ? 4 : 5;
+}
+float ComputePointShadowFactor(uint shadowIndex, float3 worldPos, float3 lightPos)
+{
+	if (shadowIndex == 0xFFFFFFFF)
+		return 1.0f;
 
+	float3 lightToSurface = worldPos - lightPos;
+	uint faceIndex = GetCubeFaceIndex(lightToSurface);
+	FShadowData data = PointShadowMatrices[shadowIndex * 6 + faceIndex];
 
+	float4 shadowPos = mul(float4(worldPos, 1.0f), data.ViewProj);
+	shadowPos.xyz /= shadowPos.w;
+
+	if (shadowPos.w <= 0.0f || shadowPos.z < 0.0f || shadowPos.z > 1.0f)
+		return 1.0f;
+
+	return PointShadowCubes.SampleCmpLevelZero(
+        ShadowSampler,
+        float4(lightToSurface, (float) shadowIndex),
+        shadowPos.z - data.DepthBias);
+}
 float ComputeShadowFactor(uint shadowIndex, float3 worldPos)
 {
 	if (shadowIndex == 0xFFFFFFFF)
 		return 1.0f;
 
-	float4x4 lightViewProj = ShadowMatrices[shadowIndex];
+	FShadowData shadowData  = ShadowMatrices[shadowIndex];
+	float4x4    lightViewProj = shadowData.ViewProj;
 	float4 shadowPos = mul(float4(worldPos, 1.0f), lightViewProj);
 
 	shadowPos.xyz /= shadowPos.w;
@@ -185,15 +223,14 @@ float ComputeShadowFactor(uint shadowIndex, float3 worldPos)
 	shadowUV.x = shadowPos.x * 0.5f + 0.5f;
 	shadowUV.y = shadowPos.y * -0.5f + 0.5f;
 
-
 	if (shadowUV.x < 0.0f || shadowUV.x > 1.0f || shadowUV.y < 0.0f || shadowUV.y > 1.0f)
 		return 1.0f;
 
 	float currentDepth = shadowPos.z;
-	float bias = 0.005f;
+	float bias = shadowData.DepthBias;
 
-
-	return ShadowMapTexture.SampleCmpLevelZero(ShadowSampler, shadowUV, currentDepth - bias);
+	// Texture2DArray 샘플링: float3(u, v, sliceIndex) — sliceIndex = shadowIndex
+	return ShadowMapTexture.SampleCmpLevelZero(ShadowSampler, float3(shadowUV, (float)shadowIndex), currentDepth );
 }
 float CalculateAttenuation(float distance, float range)
 {
@@ -389,7 +426,8 @@ void ComputeLocalLightContributions(
 	}
 	else if (lightClass != LIGHT_CLASS_POINT)
 	{
-		return;
+		shadowFactor = ComputePointShadowFactor(
+        light.ShadowIndex, worldPos, light.PositionRange.xyz);
 	}
 
 	float diff = max(dot(N, L), 0.0f);

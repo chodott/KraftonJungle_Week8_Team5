@@ -6,7 +6,7 @@ struct ENGINE_API FShadowStats
 
 	uint32 TotalShadowCastingLights = 0;
 	uint32 ActiveSpotShadows = 0;
-
+	
 	uint32 ActivePointShadowFaces = 0;
 	uint32 ActiveCSMCascades = 0;
 

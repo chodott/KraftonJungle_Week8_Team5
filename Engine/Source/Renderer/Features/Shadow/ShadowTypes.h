@@ -8,8 +8,6 @@ enum class EShadowType : uint8
 	VSM,
 	CSM
 };
-#pragma once
-#include "CoreMinimal.h"
 
 
 struct FShadowRenderItem
@@ -52,4 +50,13 @@ struct FShadowPassConstantsGPU
 {
 	FMatrix LightViewProj;
 	FVector4 ShadowParams; // X: DepthBias, Y: SlopeBias, Z: FarZ, W: 예약
+};
+
+struct FShadowDataGPU
+{
+	FMatrix ViewProj;
+	float DepthBias;
+	float Pad0;
+	float Pad1;
+	float Pad2;
 };

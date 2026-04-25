@@ -18,21 +18,42 @@ public:
 	bool RenderDepthPass(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 	ID3D11ShaderResourceView* GetShadowSRV() const { return ShadowSRV; }
 	ID3D11ShaderResourceView* GetShadowMatricesSRV() const { return ShadowMatricesSRV; }
+	ID3D11ShaderResourceView* GetPointShadowSRV() const { return PointShadowSRV; }
+	ID3D11ShaderResourceView* GetPointShadowMatricesSRV() const { return PointShadowMatricesSRV; }
 	FShadowStats GetStats() const { return Stats; }
 private:
 	bool EnsureShadowMapResources(FRenderer& Renderer, uint32 Resolution);
-
+	bool EnsurePointShadowMapResources(FRenderer& Renderer, uint32 Resolution);
+	void BuildSpotShadowItem(const FLocalLightRenderItem& InLight);
+	void BuildPointShadowItems(const FLocalLightRenderItem& InLight);
+	void UploadSpotShadowMatrices();
+	void UploadPointShadowMatrices();
 private:
 
-	ID3D11Texture2D* ShadowDepthTexture = nullptr;
-	ID3D11DepthStencilView* ShadowDSV = nullptr;
-	ID3D11ShaderResourceView* ShadowSRV = nullptr;
-	ID3D11Buffer* ShadowPassCB = nullptr;
-	std::shared_ptr<FVertexShaderHandle> ShadowDepthVS = nullptr;
 
+
+	ID3D11ShaderResourceView* ShadowSRV = nullptr;
 	ID3D11RasterizerState* ShadowRasterizerState = nullptr;
-	ID3D11Buffer* ShadowMatricesBuffer = nullptr;
-	ID3D11ShaderResourceView* ShadowMatricesSRV = nullptr;
-	TArray<FShadowRenderItem> ShadowItems;
+	std::shared_ptr<FVertexShaderHandle> ShadowDepthVS = nullptr;
 	FShadowStats Stats;
+
+
+	static constexpr uint32 MaxPointShadows = 4;
+	ID3D11Texture2D* PointShadowCubeArray = nullptr;
+	TArray<ID3D11DepthStencilView*> PointShadowDSVs;
+	ID3D11ShaderResourceView* PointShadowSRV = nullptr;
+	TArray<FShadowRenderItem> PointShadowItems;
+	ID3D11Buffer* ShadowPassCB = nullptr;
+
+
+	static constexpr uint32 MaxShadowedLights = 8;
+	ID3D11Texture2D* ShadowDepthTexture = nullptr;
+	ID3D11Buffer* ShadowMatricesBuffer = nullptr;
+
+	ID3D11Buffer* PointShadowMatricesBuffer = nullptr;
+	TArray<ID3D11DepthStencilView*> ShadowDSVs;
+
+	ID3D11ShaderResourceView* ShadowMatricesSRV = nullptr;
+	ID3D11ShaderResourceView* PointShadowMatricesSRV = nullptr;
+	TArray<FShadowRenderItem> ShadowItems;
 };

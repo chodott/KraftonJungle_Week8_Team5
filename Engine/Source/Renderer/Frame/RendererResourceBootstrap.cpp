@@ -78,24 +78,12 @@ bool FRendererResourceBootstrap::Initialize(FRenderer& Renderer)
 		// MaterialData in LightCommon.hlsli (b2) is 64 bytes:
 		// float4 ColorTint (16) + float2 UVScrollSpeed+pad (16) + float4 EmissiveColor (16) + float Shininess+pad (16)
 		// DefaultMaterial must match this layout to avoid DEVICE_DRAW_CONSTANT_BUFFER_TOO_SMALL
-		int32 SlotIndex = Renderer.DefaultMaterial->CreateConstantBuffer(Device, 64);
+		int32 SlotIndex = Renderer.DefaultMaterial->CreateConstantBuffer(Device, 16);
 		if (SlotIndex >= 0)
 		{
 			Renderer.DefaultMaterial->RegisterParameter("BaseColor", SlotIndex, 0, 16);
 			constexpr float White[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 			Renderer.DefaultMaterial->GetConstantBuffer(SlotIndex)->SetData(White, sizeof(White));
-
-			Renderer.DefaultMaterial->RegisterParameter("UVScrollSpeed", SlotIndex, 16, 16);
-			constexpr float DefaultScroll[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-			Renderer.DefaultMaterial->GetConstantBuffer(SlotIndex)->SetData(DefaultScroll, sizeof(DefaultScroll), 16);
-
-			Renderer.DefaultMaterial->RegisterParameter("EmissiveColor", SlotIndex, 32, 16);
-			constexpr float DefaultEmissive[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-			Renderer.DefaultMaterial->GetConstantBuffer(SlotIndex)->SetData(DefaultEmissive, sizeof(DefaultEmissive), 32);
-
-			Renderer.DefaultMaterial->RegisterParameter("Shininess", SlotIndex, 48, 16);
-			constexpr float DefaultShininess[4] = { 32.0f, 0.0f, 0.0f, 0.0f };
-			Renderer.DefaultMaterial->GetConstantBuffer(SlotIndex)->SetData(DefaultShininess, sizeof(DefaultShininess), 48);
 		}
 
 		Renderer.ConfigureMaterialPasses(*Renderer.DefaultMaterial, false);

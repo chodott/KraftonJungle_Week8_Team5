@@ -340,6 +340,12 @@ bool FLightRenderFeature::Render(
 		// 섀도우 행렬 버퍼 (t14) 바인딩
 		ID3D11ShaderResourceView* MatricesSRV = ShadowFeature->GetShadowMatricesSRV();
 		DeviceContext->PSSetShaderResources(14, 1, &MatricesSRV);
+
+		ID3D11ShaderResourceView* PointSRV = ShadowFeature->GetPointShadowSRV();
+		DeviceContext->PSSetShaderResources(16, 1, &PointSRV);
+
+		ID3D11ShaderResourceView* PointMatricesSRV = ShadowFeature->GetPointShadowMatricesSRV();
+		DeviceContext->PSSetShaderResources(17, 1, &PointMatricesSRV);
 	}
 	return true;
 }
