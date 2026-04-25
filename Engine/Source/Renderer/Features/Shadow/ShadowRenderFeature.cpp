@@ -211,8 +211,9 @@ bool FShadowRenderFeature::RenderDepthPass(FRenderer& Renderer, const FSceneView
 	DeviceContext->RSSetViewports(1, &Viewport);
 
 	DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
-	ID3D11RenderTargetView* NullRTV = nullptr;
-	DeviceContext->OMSetRenderTargets(1, &NullRTV, ShadowDSV);
+	// NumViews=0 with nullptr -> D3D11 unbinds ALL RTVs, only DSV remains bound.
+	// This avoids DEVICE_DRAW_RENDERTARGETVIEW_NOT_SET from the debug layer.
+	DeviceContext->OMSetRenderTargets(0, nullptr, ShadowDSV);
 	// state leak cause crupt Shadow Map rendering, so reset states to default
 	DeviceContext->OMSetDepthStencilState(nullptr, 0); // Reset to default (depth enabled, less, write all)
 	DeviceContext->OMSetBlendState(nullptr, nullptr, 0xFFFFFFFF); // Reset to default
@@ -222,7 +223,11 @@ bool FShadowRenderFeature::RenderDepthPass(FRenderer& Renderer, const FSceneView
 		ShadowDepthVS->Bind(DeviceContext);
 	}
 
-	DeviceContext->PSSetShader(nullptr, nullptr, 0);// need only depth, so no pixel shader
+	// DepthOnly pass no pixel shader, no GS/HS/DS
+	DeviceContext->PSSetShader(nullptr, nullptr, 0);
+	DeviceContext->GSSetShader(nullptr, nullptr, 0);
+	DeviceContext->HSSetShader(nullptr, nullptr, 0);
+	DeviceContext->DSSetShader(nullptr, nullptr, 0);
 	for (const auto& ShadowItem : ShadowItems)
 	{
 	
