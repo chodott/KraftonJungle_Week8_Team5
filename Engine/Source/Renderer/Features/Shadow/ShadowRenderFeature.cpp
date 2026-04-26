@@ -206,7 +206,7 @@ void FShadowRenderFeature::BuildSpotShadowItem(const FLocalLightRenderItem& Ligh
 
 	Item.ViewProjectionMatrix = Item.ViewMatrix * Item.ProjectionMatrix;
 	Item.Resolution = 1024;
-	Item.DepthBias = 0.005f;
+	Item.DepthBias = 0.00f;
 	Item.SlopeScaleDepthBias = 1.5f;
 
 	ShadowItems.push_back(Item);
@@ -239,7 +239,7 @@ void FShadowRenderFeature::BuildPointShadowItems(const FLocalLightRenderItem& In
 		Item.FaceIndex = F;
 		Item.bIsPointLight = 1;
 		Item.Resolution = 512;
-		Item.DepthBias = 0.001f; 
+		Item.DepthBias = 0.000f; 
 		Item.SlopeScaleDepthBias = 1.0f;
 
 		Item.ViewMatrix = FMatrix::MakeViewLookAtLH(
@@ -338,6 +338,9 @@ bool FShadowRenderFeature::RenderDepthPass(FRenderer& Renderer, const FSceneView
 		RSDesc.FillMode = D3D11_FILL_SOLID;
 		RSDesc.CullMode = D3D11_CULL_FRONT;
 		RSDesc.DepthClipEnable = true;
+		RSDesc.DepthBias = 100;
+		RSDesc.SlopeScaledDepthBias = 1.5f;
+		RSDesc.DepthBiasClamp = 0.01f;
 		Renderer.GetDevice()->CreateRasterizerState(&RSDesc, &ShadowRasterizerState);
 	}
 	DeviceContext->RSSetState(ShadowRasterizerState);

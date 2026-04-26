@@ -185,16 +185,18 @@ uint GetCubeFaceIndex(float3 dir)
 		return (dir.y > 0.0f) ? 2 : 3;
 	return (dir.z > 0.0f) ? 4 : 5;
 }
-float ComputePointShadowFactor(uint shadowIndex, float3 worldPos, float3 lightPos)
+float ComputePointShadowFactor(uint shadowIndex, float3 worldPos, float3 worldNormal, float3 lightPos)
 {
 	if (shadowIndex == 0xFFFFFFFF)
 		return 1.0f;
 
-	float3 lightToSurface = worldPos - lightPos;
+	float3 biasedWorldPos = worldPos + worldNormal * 0.05f;
+	float3 lightToSurface = biasedWorldPos - lightPos;
+
 	uint faceIndex = GetCubeFaceIndex(lightToSurface);
 	FShadowData data = PointShadowMatrices[shadowIndex * 6 + faceIndex];
 
-	float4 shadowPos = mul(float4(worldPos, 1.0f), data.ViewProj);
+	float4 shadowPos = mul(float4(biasedWorldPos, 1.0f), data.ViewProj);
 	shadowPos.xyz /= shadowPos.w;
 
 	if (shadowPos.w <= 0.0f || shadowPos.z < 0.0f || shadowPos.z > 1.0f)
@@ -205,14 +207,16 @@ float ComputePointShadowFactor(uint shadowIndex, float3 worldPos, float3 lightPo
         float4(lightToSurface, (float) shadowIndex),
         shadowPos.z - data.DepthBias);
 }
-float ComputeShadowFactor(uint shadowIndex, float3 worldPos)
+float ComputeShadowFactor(uint shadowIndex, float3 worldPos, float3 worldNormal)
 {
 	if (shadowIndex == 0xFFFFFFFF)
 		return 1.0f;
 
 	FShadowData shadowData  = ShadowMatrices[shadowIndex];
 	float4x4    lightViewProj = shadowData.ViewProj;
-	float4 shadowPos = mul(float4(worldPos, 1.0f), lightViewProj);
+	
+	float3 biasWorldPos = worldPos + worldNormal * 0.05f;
+	float4 shadowPos = mul(float4(biasWorldPos, 1.0f), shadowData.ViewProj);
 
 	shadowPos.xyz /= shadowPos.w;
 
@@ -227,7 +231,6 @@ float ComputeShadowFactor(uint shadowIndex, float3 worldPos)
 		return 1.0f;
 
 	float currentDepth = shadowPos.z;
-	float bias = shadowData.DepthBias;
 
 	// Texture2DArray 샘플링: float3(u, v, sliceIndex) — sliceIndex = shadowIndex
 	return ShadowMapTexture.SampleCmpLevelZero(ShadowSampler, float3(shadowUV, (float)shadowIndex), currentDepth );
@@ -369,7 +372,7 @@ float4 CalculateSpotLight(FLocalLightGPU info,
 	float spec = pow(max(0.0f, dot(N, H)), Shininess);
 	float attenuation = CalculateAttenuation(distance, info.PositionRange.w);
 	//shadow facotr
-	float shadowFactor = ComputeShadowFactor(info.ShadowIndex, worldPos);
+	float shadowFactor = ComputeShadowFactor(info.ShadowIndex, worldPos, N);
 	float3 diffuse = info.ColorIntensity.xyz * info.ColorIntensity.w * diff * attenuation * intensity * shadowFactor;
 	float3 specular = info.ColorIntensity.xyz * info.ColorIntensity.w * spec * attenuation * intensity * shadowFactor;
 
@@ -422,12 +425,12 @@ void ComputeLocalLightContributions(
 		{
 			return;
 		}
-		shadowFactor = ComputeShadowFactor(light.ShadowIndex, worldPos);
+		shadowFactor = ComputeShadowFactor(light.ShadowIndex, worldPos,N);
 	}
 	else if (lightClass == LIGHT_CLASS_POINT)
 	{
 		shadowFactor = ComputePointShadowFactor(
-			light.ShadowIndex, worldPos, light.PositionRange.xyz);
+			light.ShadowIndex, worldPos,N, light.PositionRange.xyz);
 	}
 
 	float diff = max(dot(N, L), 0.0f);
@@ -503,7 +506,8 @@ float4 ComputeObjectLocalLightingLambert(uint localLightListOffset, uint localLi
 
 				if (lightClass == LIGHT_CLASS_POINT)
 				{
-					lighting += float4(light.ColorIntensity.xyz * light.ColorIntensity.w * diff * atten, 1.0f);
+					float shadowFactor = ComputePointShadowFactor(light.ShadowIndex, worldPos,N, light.PositionRange.xyz);
+					lighting += float4(light.ColorIntensity.xyz * light.ColorIntensity.w * diff * atten * shadowFactor, 1.0f);
 				}
 				else if (lightClass == LIGHT_CLASS_SPOT)
 				{
@@ -511,7 +515,7 @@ float4 ComputeObjectLocalLightingLambert(uint localLightListOffset, uint localLi
 					float innerCutoff = light.AngleParams.x;
 					float outerCutoff = light.AngleParams.y;
 					float cone = saturate((theta - outerCutoff) / max(innerCutoff - outerCutoff, 1.0e-5f));
-					float shadowFactor = ComputeShadowFactor(light.ShadowIndex, worldPos);
+					float shadowFactor = ComputeShadowFactor(light.ShadowIndex, worldPos,N);
 					lighting += float4(light.ColorIntensity.xyz * light.ColorIntensity.w * diff * atten * cone * shadowFactor, 1.0f);
 				}
 			}
@@ -637,7 +641,8 @@ float4 ComputeClusteredLocalLightingLambert(float4 svPosition, float3 worldPos, 
 
                 if (lightClass == LIGHT_CLASS_POINT)
                 {
-                    lighting += float4(light.ColorIntensity.xyz * light.ColorIntensity.w * diff * atten, 1.0f);
+                    float shadowFactor = ComputePointShadowFactor(light.ShadowIndex, worldPos,N, light.PositionRange.xyz);
+                    lighting += float4(light.ColorIntensity.xyz * light.ColorIntensity.w * diff * atten * shadowFactor, 1.0f);
                 }
                 else if (lightClass == LIGHT_CLASS_SPOT)
                 {
@@ -645,7 +650,7 @@ float4 ComputeClusteredLocalLightingLambert(float4 svPosition, float3 worldPos, 
                     float innerCutoff = light.AngleParams.x;
                     float outerCutoff = light.AngleParams.y;
                     float cone = saturate((theta - outerCutoff) / max(innerCutoff - outerCutoff, 1.0e-5f));
-                    float shadowFactor = ComputeShadowFactor(light.ShadowIndex, worldPos);
+                    float shadowFactor = ComputeShadowFactor(light.ShadowIndex, worldPos,N);
 
                     lighting += float4(light.ColorIntensity.xyz * light.ColorIntensity.w * diff * atten * cone * shadowFactor, 1.0f);
                 }
