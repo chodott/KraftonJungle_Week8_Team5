@@ -2721,7 +2721,8 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 			const EShadowDebugViewMode NewDebugMode = static_cast<EShadowDebugViewMode>(DebugMode);
 			ShadowFeature->SetDebugViewMode(NewDebugMode);
 
-			if (NewDebugMode != EShadowDebugViewMode::None)
+			if (NewDebugMode != EShadowDebugViewMode::None &&
+			    ShadowFeature->IsDebugViewportOverlayEnabled())
 			{
 				LightDebugPinnedLightComponent = LightComponent;
 				LightDebugPinnedActor = LightComponent ? LightComponent->GetOwner() : nullptr;
@@ -2742,6 +2743,17 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 		if (ImGui::Checkbox("Show Shadow Debug In Editor Viewport", &bShowInEditorViewport))
 		{
 			ShadowFeature->SetDebugViewportOverlayEnabled(bShowInEditorViewport);
+			if (bShowInEditorViewport &&
+			    ShadowFeature->GetDebugViewMode() != EShadowDebugViewMode::None)
+			{
+				LightDebugPinnedLightComponent = LightComponent;
+				LightDebugPinnedActor = LightComponent ? LightComponent->GetOwner() : nullptr;
+				SelectedComponent = LightComponent;
+			}
+			else
+			{
+				ClearLightDebugPin();
+			}
 		}
 		ImGui::EndDisabled();
 
@@ -3467,7 +3479,9 @@ AActor* FPropertyWindow::ResolvePropertyActorForLightDebug(FEditorEngine* Engine
 	FRenderer* Renderer = Engine ? Engine->GetRenderer() : nullptr;
 	FShadowRenderFeature* ShadowFeature = Renderer ? Renderer->GetShadowFeature() : nullptr;
 
-	if (!ShadowFeature || ShadowFeature->GetDebugViewMode() == EShadowDebugViewMode::None)
+	if (!ShadowFeature ||
+	    ShadowFeature->GetDebugViewMode() == EShadowDebugViewMode::None ||
+	    !ShadowFeature->IsDebugViewportOverlayEnabled())
 	{
 		ClearLightDebugPin();
 		return EditorSelectedActor;

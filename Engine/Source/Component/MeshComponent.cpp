@@ -3,6 +3,7 @@
 #include "Renderer/Resources/Material/Material.h"
 #include "Component/MeshComponent.h"
 
+#include "Core/Paths.h"
 #include "Debug/EngineLog.h"
 #include "Renderer/Resources/Material/MaterialManager.h"
 
@@ -45,7 +46,7 @@ void UMeshComponent::SetMaterial(int32 Index, const std::shared_ptr<FMaterial>& 
 			const FString& OverridePath = NormalTextureOverrides[Index];
 			if (!OverridePath.empty())
 			{
-				LoadNormalTextureFromFile(Materials[Index], std::filesystem::path(OverridePath));
+				LoadNormalTextureFromFile(Materials[Index], FPaths::ToPath(OverridePath));
 			}
 		}
 	}
@@ -87,7 +88,7 @@ void UMeshComponent::SetNormalTextureOverride(int32 Index, const FString& InText
 
 	if (Index < static_cast<int32>(Materials.size()) && Materials[Index])
 	{
-		LoadNormalTextureFromFile(Materials[Index], std::filesystem::path(InTexturePath));
+		LoadNormalTextureFromFile(Materials[Index], FPaths::ToPath(InTexturePath));
 	}
 }
 
