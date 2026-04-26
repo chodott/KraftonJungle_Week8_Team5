@@ -191,8 +191,9 @@ float ComputePointShadowFactor(uint shadowIndex, float3 worldPos, float3 worldNo
 		return 1.0f;
 	float3 L = normalize(lightPos - worldPos);
 	float NdotL = saturate(dot(worldNormal, L));
-	float offsetScale = (1.0f - NdotL);
-	float3 biasedWorldPos = worldPos + worldNormal * 0.05f * offsetScale;
+	float offsetScale = (1.0f - NdotL); // 0(직각) ~ 1(수평)
+
+	float3 biasedWorldPos = worldPos + worldNormal * 0.02f * offsetScale;
 	float3 lightToSurface = biasedWorldPos - lightPos;
 
 	uint faceIndex = GetCubeFaceIndex(lightToSurface);
@@ -204,10 +205,8 @@ float ComputePointShadowFactor(uint shadowIndex, float3 worldPos, float3 worldNo
 	if (shadowPos.w <= 0.0f || shadowPos.z < 0.0f || shadowPos.z > 1.0f)
 		return 1.0f;
 
-	return PointShadowCubes.SampleCmpLevelZero(
-        ShadowSampler,
-        float4(lightToSurface, (float) shadowIndex),
-        shadowPos.z - data.DepthBias);
+	return PointShadowCubes.SampleCmpLevelZero(ShadowSampler, float4(lightToSurface, (float) shadowIndex),shadowPos.z) ;
+
 }
 float ComputeShadowFactor(uint shadowIndex, float3 worldPos, float3 worldNormal)
 {

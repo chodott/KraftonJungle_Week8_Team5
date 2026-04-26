@@ -336,11 +336,11 @@ bool FShadowRenderFeature::RenderDepthPass(FRenderer& Renderer, const FSceneView
 	{
 		D3D11_RASTERIZER_DESC RSDesc = {};
 		RSDesc.FillMode = D3D11_FILL_SOLID;
-		RSDesc.CullMode = D3D11_CULL_FRONT;
+		RSDesc.CullMode = D3D11_CULL_BACK;
 		RSDesc.DepthClipEnable = true;
-		RSDesc.DepthBias = 100;
-		RSDesc.SlopeScaledDepthBias = 1.5f;
-		RSDesc.DepthBiasClamp = 0.01f;
+		RSDesc.DepthBias = 0;
+		RSDesc.SlopeScaledDepthBias = 0.0f;
+		RSDesc.DepthBiasClamp = 0.0f;
 		Renderer.GetDevice()->CreateRasterizerState(&RSDesc, &ShadowRasterizerState);
 	}
 	DeviceContext->RSSetState(ShadowRasterizerState);
