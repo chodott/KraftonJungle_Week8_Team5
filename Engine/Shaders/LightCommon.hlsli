@@ -189,8 +189,10 @@ float ComputePointShadowFactor(uint shadowIndex, float3 worldPos, float3 worldNo
 {
 	if (shadowIndex == 0xFFFFFFFF)
 		return 1.0f;
-
-	float3 biasedWorldPos = worldPos + worldNormal * 0.05f;
+	float3 L = normalize(lightPos - worldPos);
+	float NdotL = saturate(dot(worldNormal, L));
+	float offsetScale = (1.0f - NdotL);
+	float3 biasedWorldPos = worldPos + worldNormal * 0.05f * offsetScale;
 	float3 lightToSurface = biasedWorldPos - lightPos;
 
 	uint faceIndex = GetCubeFaceIndex(lightToSurface);
