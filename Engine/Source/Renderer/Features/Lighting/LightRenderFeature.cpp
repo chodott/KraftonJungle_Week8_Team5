@@ -411,6 +411,26 @@ std::shared_ptr<FPixelShaderHandle> FLightRenderFeature::GetCurrentPSHandle(bool
 	}
 }
 
+bool FLightRenderFeature::AreShaderVariantsValid() const
+{
+	for (uint32 VariantIndex = 0; VariantIndex < ShaderVariantCount; ++VariantIndex)
+	{
+		if (!GouraudVariants[VariantIndex].VertexHandle
+			|| !GouraudVariants[VariantIndex].PixelHandle
+			|| !LambertVariants[VariantIndex].VertexHandle
+			|| !LambertVariants[VariantIndex].PixelHandle
+			|| !PhongVariants[VariantIndex].VertexHandle
+			|| !PhongVariants[VariantIndex].PixelHandle
+			|| !WorldNormalVariants[VariantIndex].VertexHandle
+			|| !WorldNormalVariants[VariantIndex].PixelHandle)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 bool FLightRenderFeature::Initialize(FRenderer& Renderer)
 {
 	ID3D11Device* Device = Renderer.GetDevice();
@@ -419,9 +439,12 @@ bool FLightRenderFeature::Initialize(FRenderer& Renderer)
 		return false;
 	}
 
-	if (!CompileShaderVariants(Renderer))
+	if (!AreShaderVariantsValid())
 	{
-		return false;
+		if (!CompileShaderVariants(Renderer))
+		{
+			return false;
+		}
 	}
 
 	if (!GlobalLightConstantBuffer)

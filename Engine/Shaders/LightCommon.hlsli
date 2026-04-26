@@ -341,7 +341,7 @@ float SampleShadowViewVSM(
 
 	float d    = compareDepth - mean;
 	float pMax = variance / (variance + d * d);
-	pMax       = ReduceLightBleeding(pMax, 1.0f - shadowLight.Params0.z);
+	pMax       = ReduceLightBleeding(pMax, shadowLight.Params0.z);
 	return saturate(pMax);
 }
 

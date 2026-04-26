@@ -62,6 +62,7 @@ public:
 	D3D11_VIEWPORT BuildShadowViewport(float ResolutionScale) const;
 
 private:
+	bool AreShaderVariantsValid() const;
 	bool Initialize(FRenderer& Renderer);
 	bool CompileShaderVariants(FRenderer& Renderer);
 
