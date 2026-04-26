@@ -22,6 +22,7 @@ enum class EMaterialPassType : uint8
 	EditorGrid,
 	EditorPrimitive,
 	ShadowVSM,
+	ShadowESM,
 	Count,
 };
 

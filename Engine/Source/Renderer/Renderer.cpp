@@ -374,6 +374,7 @@ void FRenderer::ConfigureMaterialPasses(FMaterial& Material, bool bTexturedMater
 	FMaterialPassShaders OutlineMaskPass;
 	FMaterialPassShaders PickingPass;
 	FMaterialPassShaders ShadowVSMPass;
+	FMaterialPassShaders ShadowESMPass;
 	if (bTexturedMaterial)
 	{
 		DepthPass.VS = FShaderMap::Get().GetOrCreateVertexShader(
@@ -383,6 +384,9 @@ void FRenderer::ConfigureMaterialPasses(FMaterial& Material, bool bTexturedMater
 		ShadowVSMPass.VS = DepthPass.VS;
 		ShadowVSMPass.PS = FShaderMap::Get().GetOrCreatePixelShader(Device,
 		                                                            (ShaderDir + L"Shadow/VSMMomentPixelShader.hlsl").c_str());
+		ShadowESMPass.VS = DepthPass.VS;
+		ShadowESMPass.PS = FShaderMap::Get().GetOrCreatePixelShader(Device,
+		                                                            (ShaderDir + L"Shadow/ESMMomentPixelShader.hlsl").c_str());
 		GBufferPass.VS = FShaderMap::Get().GetOrCreateVertexShader(
 			Device,
 			(ShaderDir + L"SceneGeometry/TextureVertexShader.hlsl").c_str(),
@@ -407,6 +411,9 @@ void FRenderer::ConfigureMaterialPasses(FMaterial& Material, bool bTexturedMater
 		ShadowVSMPass.VS = DepthPass.VS;
 		ShadowVSMPass.PS = FShaderMap::Get().GetOrCreatePixelShader(Device,
 		                                                            (ShaderDir + L"Shadow/VSMMomentPixelShader.hlsl").c_str());
+		ShadowESMPass.VS = DepthPass.VS;
+		ShadowESMPass.PS = FShaderMap::Get().GetOrCreatePixelShader(Device,
+		                                                            (ShaderDir + L"Shadow/ESMMomentPixelShader.hlsl").c_str());
 		GBufferPass.VS = FShaderMap::Get().GetOrCreateVertexShader(Device,
 		                                                           (ShaderDir + L"SceneGeometry/VertexShader.hlsl").c_str(),
 		                                                           EVertexLayoutType::MeshVertex);
@@ -425,6 +432,7 @@ void FRenderer::ConfigureMaterialPasses(FMaterial& Material, bool bTexturedMater
 	Material.SetPassShaders(EMaterialPassType::OutlineMask, OutlineMaskPass);
 	Material.SetPassShaders(EMaterialPassType::Picking, PickingPass);
 	Material.SetPassShaders(EMaterialPassType::ShadowVSM, ShadowVSMPass);
+	Material.SetPassShaders(EMaterialPassType::ShadowESM, ShadowESMPass);
 }
 
 void FRenderer::TickShaderHotReload(float DeltaTime)

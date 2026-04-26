@@ -103,6 +103,9 @@ private:
 
 	bool EnsureShadowBuffers(FRenderer& Renderer, uint32 ShadowLightCount, uint32 ShadowViewCount);
 
+	bool EnsureShadowExpsArray(FRenderer& Renderer, uint32 RequiredResolution);
+	bool EnsureESMConstantBuffer(FRenderer& Renderer);
+
 	bool EnsureDynamicStructuredBufferSRV(
 		FRenderer&                 Renderer,
 		uint32                     ElementStride,
@@ -145,6 +148,12 @@ private:
 	ID3D11RenderTargetView*   ShadowMomentsBlurRTV[ShadowConfig::MaxShadowViews] = {};
 	ID3D11ShaderResourceView* ShadowMomentsBlurSRV                               = nullptr;
 
+	ID3D11Texture2D*          ShadowExpsArray                             = nullptr;
+	ID3D11RenderTargetView*   ShadowExpsRTV[ShadowConfig::MaxShadowViews] = {};
+	ID3D11ShaderResourceView* ShadowExpsArraySRV                          = nullptr;
+
+	ID3D11Buffer* ShadowESMConstantBuffer = nullptr;
+
 	ID3D11Buffer*             ShadowLightBuffer    = nullptr;
 	ID3D11ShaderResourceView* ShadowLightBufferSRV = nullptr;
 
@@ -157,7 +166,7 @@ private:
 	uint32               ShadowDepthArrayResolution = ShadowConfig::DefaultShadowMapResolution;
 	bool                 bShadowDepthArrayDirty     = true;
 	bool                 bMomentsBlurValid          = false;
-	EShadowFilterMode    GlobalFilterMode           = EShadowFilterMode::VSM;
+	EShadowFilterMode    GlobalFilterMode           = EShadowFilterMode::ESM;
 	EShadowDebugViewMode DebugViewMode              = EShadowDebugViewMode::None;
 	uint32               DebugViewSlice             = 0;
 	float                DebugVarianceExposure      = 5000.0f;;

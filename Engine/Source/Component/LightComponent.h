@@ -24,6 +24,7 @@ public:
 	void SetShadowBias(float NewBias);
 	void SetShadowSlopeBias(float NewSlopeBias);
 	void SetShadowSharpen(float NewSharpen);
+	void SetShadowESMExponent(float NewExponent);
 
 
 	float GetIntensity() const
@@ -71,6 +72,11 @@ public:
 		return ShadowSharpen;
 	}
 
+	float GetShadowESMExponent() const
+	{
+		return ShadowESMExponent;
+	}
+
 	void         DuplicateShallow(UObject* DuplicatedObject, FDuplicateContext& Context) const override;
 	virtual bool SupportsIntensityUnit(ELightUnits UnitType) const;
 	void         Serialize(FArchive& Ar) override;
@@ -86,7 +92,8 @@ protected:
 	bool         bVisible       = true;
 
 	uint32 ShadowMapResolution = 0;
-	float ShadowBias            = 0.0001f;
-	float ShadowSlopeBias       = 0.0f;
-	float ShadowSharpen         = 0.0f;
+	float  ShadowBias          = 0.0001f;
+	float  ShadowSlopeBias     = 0.0f;
+	float  ShadowSharpen       = 0.0f;
+	float  ShadowESMExponent   = 30.0f;
 };

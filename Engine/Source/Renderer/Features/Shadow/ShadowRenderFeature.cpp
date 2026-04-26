@@ -63,7 +63,9 @@ void FShadowRenderFeature::BindShadowResources(
 		static_cast<uint32>(SceneViewData.LightingInputs.ShadowViews.size()),
 		ShadowConfig::MaxShadowViews);
 
-	const bool bNeedVSM = (GlobalFilterMode == EShadowFilterMode::VSM);
+	const bool bNeedVSM           = (GlobalFilterMode == EShadowFilterMode::VSM);
+	const bool bNeedESM           = (GlobalFilterMode == EShadowFilterMode::ESM);
+	const bool bNeedLinearSampler = bNeedVSM || bNeedESM;
 
 	const bool bHasCommonShadowData =
 			!SceneViewData.LightingInputs.ShadowLights.empty() &&
@@ -77,7 +79,11 @@ void FShadowRenderFeature::BindShadowResources(
 			!bNeedVSM ||
 			(ShadowMomentsArraySRV && ShadowLinearSampler);
 
-	if (!(bHasCommonShadowData && bHasVSMData))
+	const bool bHasESMData =
+			!bNeedESM ||
+			(ShadowExpsArraySRV && ShadowLinearSampler);
+
+	if (!(bHasCommonShadowData && bHasVSMData && bHasESMData))
 	{
 		UnbindShadowResources(Renderer);
 		return;
@@ -92,21 +98,22 @@ void FShadowRenderFeature::BindShadowResources(
 					: ShadowMomentsArraySRV;
 	}
 
-	ID3D11ShaderResourceView* SRVs[4] =
+	ID3D11ShaderResourceView* SRVs[5] =
 	{
 		ShadowLightBufferSRV,
 		ShadowViewBufferSRV,
 		ShadowDepthArraySRV,
-		MomentsSRV
+		MomentsSRV,
+		bNeedESM ? ShadowExpsArraySRV : nullptr,
 	};
 
-	DeviceContext->VSSetShaderResources(ShadowSlots::ShadowLightSRV, 4, SRVs);
-	DeviceContext->PSSetShaderResources(ShadowSlots::ShadowLightSRV, 4, SRVs);
+	DeviceContext->VSSetShaderResources(ShadowSlots::ShadowLightSRV, 5, SRVs);
+	DeviceContext->PSSetShaderResources(ShadowSlots::ShadowLightSRV, 5, SRVs);
 
 	DeviceContext->VSSetSamplers(ShadowSlots::ShadowSampler, 1, &ShadowComparisonSampler);
 	DeviceContext->PSSetSamplers(ShadowSlots::ShadowSampler, 1, &ShadowComparisonSampler);
 
-	if (bNeedVSM)
+	if (bNeedLinearSampler)
 	{
 		DeviceContext->VSSetSamplers(ShadowSlots::ShadowLinearSampler, 1, &ShadowLinearSampler);
 		DeviceContext->PSSetSamplers(ShadowSlots::ShadowLinearSampler, 1, &ShadowLinearSampler);
@@ -127,10 +134,10 @@ void FShadowRenderFeature::UnbindShadowResources(FRenderer& Renderer)
 		return;
 	}
 
-	ID3D11ShaderResourceView* NullSRVs[4] = { nullptr, nullptr, nullptr, nullptr };
+	ID3D11ShaderResourceView* NullSRVs[5] = { nullptr, nullptr, nullptr, nullptr, nullptr };
 	ID3D11SamplerState*       NullSampler = nullptr;
-	DeviceContext->VSSetShaderResources(ShadowSlots::ShadowLightSRV, 4, NullSRVs);
-	DeviceContext->PSSetShaderResources(ShadowSlots::ShadowLightSRV, 4, NullSRVs);
+	DeviceContext->VSSetShaderResources(ShadowSlots::ShadowLightSRV, 5, NullSRVs);
+	DeviceContext->PSSetShaderResources(ShadowSlots::ShadowLightSRV, 5, NullSRVs);
 	DeviceContext->VSSetSamplers(ShadowSlots::ShadowSampler, 1, &NullSampler);
 	DeviceContext->PSSetSamplers(ShadowSlots::ShadowSampler, 1, &NullSampler);
 	DeviceContext->VSSetSamplers(ShadowSlots::ShadowLinearSampler, 1, &NullSampler);
@@ -177,6 +184,14 @@ void FShadowRenderFeature::Release()
 		SafeRelease(DSV);
 	}
 	SafeRelease(ShadowDepthArray);
+
+	SafeRelease(ShadowExpsArraySRV);
+	for (ID3D11RenderTargetView*& RTV : ShadowExpsRTV)
+	{
+		SafeRelease(RTV);
+	}
+	SafeRelease(ShadowExpsArray);
+	SafeRelease(ShadowESMConstantBuffer);
 
 	bMomentsBlurValid      = false;
 	bShadowDepthArrayDirty = true;
@@ -388,6 +403,7 @@ bool FShadowRenderFeature::EnsureResources(
 	const uint32 RequiredResolution = ComputeRequiredShadowDepthArrayResolution(SceneViewData);
 
 	const bool bNeedVSM = (GlobalFilterMode == EShadowFilterMode::VSM);
+	const bool bNeedESM = (GlobalFilterMode == EShadowFilterMode::ESM);
 
 	bool bOk =
 			EnsureShadowDepthArray(Renderer, RequiredResolution) &&
@@ -404,6 +420,19 @@ bool FShadowRenderFeature::EnsureResources(
 		bOk =
 				EnsureLinearSampler(Renderer) &&
 				EnsureMomentsArray(Renderer, RequiredResolution);
+
+		if (!bOk)
+		{
+			return false;
+		}
+	}
+
+	if (bNeedESM)
+	{
+		bOk =
+				EnsureLinearSampler(Renderer) &&
+				EnsureShadowExpsArray(Renderer, RequiredResolution) &&
+				EnsureESMConstantBuffer(Renderer);
 
 		if (!bOk)
 		{
@@ -554,6 +583,139 @@ bool FShadowRenderFeature::EnsureShadowBuffers(
 				ShadowViewBufferSRV);
 }
 
+bool FShadowRenderFeature::EnsureShadowExpsArray(FRenderer& Renderer, uint32 RequiredResolution)
+{
+	ID3D11Device* Device = Renderer.GetDevice();
+	if (!Device)
+	{
+		return false;
+	}
+
+	RequiredResolution = FMath::Clamp(
+		RequiredResolution,
+		ShadowConfig::MinShadowMapResolution,
+		ShadowConfig::MaxShadowMapResolution);
+
+	bool bAllRTVsValid = true;
+	for (uint32 Slice = 0; Slice < ShadowConfig::MaxShadowViews; ++Slice)
+	{
+		if (!ShadowExpsRTV[Slice])
+		{
+			bAllRTVsValid = false;
+			break;
+		}
+	}
+
+	bool bRecreate =
+			bShadowDepthArrayDirty ||
+			!ShadowExpsArray ||
+			!ShadowExpsArraySRV ||
+			!bAllRTVsValid;
+
+	if (!bRecreate)
+	{
+		D3D11_TEXTURE2D_DESC ExistingDesc = {};
+		ShadowExpsArray->GetDesc(&ExistingDesc);
+
+		if (ExistingDesc.Width != RequiredResolution ||
+			ExistingDesc.Height != RequiredResolution ||
+			ExistingDesc.ArraySize != ShadowConfig::MaxShadowViews ||
+			ExistingDesc.Format != DXGI_FORMAT_R32_FLOAT)
+		{
+			bRecreate = true;
+		}
+	}
+
+	if (!bRecreate)
+	{
+		return true;
+	}
+
+	SafeRelease(ShadowExpsArraySRV);
+
+	for (uint32 Slice = 0; Slice < ShadowConfig::MaxShadowViews; ++Slice)
+	{
+		SafeRelease(ShadowExpsRTV[Slice]);
+	}
+
+	SafeRelease(ShadowExpsArray);
+
+	D3D11_TEXTURE2D_DESC TextureDesc = {};
+	TextureDesc.Width                = RequiredResolution;
+	TextureDesc.Height               = RequiredResolution;
+	TextureDesc.MipLevels            = 1;
+	TextureDesc.ArraySize            = ShadowConfig::MaxShadowViews;
+	TextureDesc.Format               = DXGI_FORMAT_R32_FLOAT;
+	TextureDesc.SampleDesc.Count     = 1;
+	TextureDesc.SampleDesc.Quality   = 0;
+	TextureDesc.Usage                = D3D11_USAGE_DEFAULT;
+	TextureDesc.BindFlags            = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+	if (FAILED(Device->CreateTexture2D(&TextureDesc, nullptr, &ShadowExpsArray)) || !ShadowExpsArray)
+	{
+		return false;
+	}
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
+	SRVDesc.Format                          = TextureDesc.Format;
+	SRVDesc.ViewDimension                   = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
+	SRVDesc.Texture2DArray.MostDetailedMip  = 0;
+	SRVDesc.Texture2DArray.MipLevels        = 1;
+	SRVDesc.Texture2DArray.FirstArraySlice  = 0;
+	SRVDesc.Texture2DArray.ArraySize        = ShadowConfig::MaxShadowViews;
+
+	if (FAILED(Device->CreateShaderResourceView(ShadowExpsArray, &SRVDesc, &ShadowExpsArraySRV)) || !ShadowExpsArraySRV)
+	{
+		SafeRelease(ShadowExpsArray);
+		return false;
+	}
+
+	for (uint32 Slice = 0; Slice < ShadowConfig::MaxShadowViews; ++Slice)
+	{
+		D3D11_RENDER_TARGET_VIEW_DESC RTVDesc  = {};
+		RTVDesc.Format                         = DXGI_FORMAT_R32_FLOAT;
+		RTVDesc.ViewDimension                  = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
+		RTVDesc.Texture2DArray.MipSlice        = 0;
+		RTVDesc.Texture2DArray.FirstArraySlice = Slice;
+		RTVDesc.Texture2DArray.ArraySize       = 1;
+
+		if (FAILED(Device->CreateRenderTargetView(ShadowExpsArray, &RTVDesc, &ShadowExpsRTV[Slice])) || !ShadowExpsRTV[Slice])
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool FShadowRenderFeature::EnsureESMConstantBuffer(FRenderer& Renderer)
+{
+	if (ShadowESMConstantBuffer)
+	{
+		return true;
+	}
+
+	ID3D11Device* Device = Renderer.GetDevice();
+	if (!Device)
+	{
+		return false;
+	}
+
+	struct FESMConstantData
+	{
+		float Exponent;
+		float Pad[3];
+	};
+
+	D3D11_BUFFER_DESC Desc = {};
+	Desc.ByteWidth         = sizeof(FESMConstantData);
+	Desc.Usage             = D3D11_USAGE_DYNAMIC;
+	Desc.BindFlags         = D3D11_BIND_CONSTANT_BUFFER;
+	Desc.CPUAccessFlags    = D3D11_CPU_ACCESS_WRITE;
+
+	return SUCCEEDED(Device->CreateBuffer(&Desc, nullptr, &ShadowESMConstantBuffer)) && ShadowESMConstantBuffer;
+}
+
 bool FShadowRenderFeature::EnsureDynamicStructuredBufferSRV(
 	FRenderer&                 Renderer,
 	uint32                     ElementStride,
@@ -680,7 +842,7 @@ void FShadowRenderFeature::UploadShadowBuffers(
 			Dst.Flags            = 0;
 			Dst.PositionType     = FVector4(Src.PositionWS.X, Src.PositionWS.Y, Src.PositionWS.Z, 0.0f);
 			Dst.DirectionBias    = FVector4(Src.DirectionWS.X, Src.DirectionWS.Y, Src.DirectionWS.Z, Src.Bias);
-			Dst.Params0          = FVector4(Src.SlopeBias, Src.NormalBias, Src.Sharpen, 0.0f);
+			Dst.Params0          = FVector4(Src.SlopeBias, Src.NormalBias, Src.Sharpen, Src.C);
 		}
 
 		D3D11_MAPPED_SUBRESOURCE Mapped = {};
@@ -795,7 +957,7 @@ void FShadowRenderFeature::RenderShadowViews(
 				SceneViewData,
 				EMeshPassType::DepthPrepass);
 		}
-		else
+		else if (GlobalFilterMode == EShadowFilterMode::VSM)
 		{
 			ID3D11RenderTargetView* MomentsRTV = ShadowMomentsRTV[ShadowView.ArraySlice];
 			if (!MomentsRTV)
@@ -818,6 +980,50 @@ void FShadowRenderFeature::RenderShadowViews(
 				Targets,
 				SceneViewData,
 				EMeshPassType::ShadowVSM);
+		}
+		else if (GlobalFilterMode == EShadowFilterMode::ESM)
+		{
+			ID3D11RenderTargetView* ExpRTV = ShadowExpsRTV[ShadowView.ArraySlice];
+			if (!ExpRTV || !ShadowESMConstantBuffer)
+			{
+				continue;
+			}
+
+			const FShadowLightRenderItem& Light =
+					SceneViewData.LightingInputs.ShadowLights[ShadowView.ShadowLightIndex];
+
+			struct FESMConstantData
+			{
+				float Exponent;
+				float Pad[3];
+			};
+			FESMConstantData CBData = { Light.C, 0.f, 0.f, 0.f };
+
+			D3D11_MAPPED_SUBRESOURCE Mapped = {};
+			if (SUCCEEDED(DeviceContext->Map(ShadowESMConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
+			{
+				std::memcpy(Mapped.pData, &CBData, sizeof(CBData));
+				DeviceContext->Unmap(ShadowESMConstantBuffer, 0);
+			}
+			DeviceContext->PSSetConstantBuffers(9, 1, &ShadowESMConstantBuffer);
+
+			const float ClearExps[4] = { std::exp(std::min(Light.C, 87.0f)), 0.0f, 0.0f, 0.0f };
+			DeviceContext->ClearRenderTargetView(ExpRTV, ClearExps);
+			DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+			BeginPass(
+				Renderer,
+				ExpRTV,
+				ShadowDSV,
+				ShadowViewport,
+				SceneViewData.Frame,
+				SceneViewData.View);
+
+			Processor.ExecutePass(
+				Renderer,
+				Targets,
+				SceneViewData,
+				EMeshPassType::ShadowESM);
 		}
 	}
 

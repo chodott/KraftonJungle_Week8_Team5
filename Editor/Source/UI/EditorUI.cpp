@@ -968,8 +968,8 @@ void FEditorUI::Render()
 					ImGui::SeparatorText("Shadow Filter Mode");
 					ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
-					FRenderer* Renderer = Engine ? Engine->GetRenderer() : nullptr;
-					FShadowRenderFeature* Shadow = Renderer ? Renderer->GetShadowFeature() : nullptr;
+					FRenderer*            Renderer = Engine ? Engine->GetRenderer() : nullptr;
+					FShadowRenderFeature* Shadow   = Renderer ? Renderer->GetShadowFeature() : nullptr;
 					if (Shadow)
 					{
 						const EShadowFilterMode CurrentFilterMode = Shadow->GetGlobalFilterMode();
@@ -986,6 +986,11 @@ void FEditorUI::Render()
 						if (ImGui::RadioButton("VSM", CurrentFilterMode == EShadowFilterMode::VSM))
 						{
 							Shadow->SetGlobalFilterMode(EShadowFilterMode::VSM);
+						}
+						ImGui::SameLine();
+						if (ImGui::RadioButton("ESM", CurrentFilterMode == EShadowFilterMode::ESM))
+						{
+							Shadow->SetGlobalFilterMode(EShadowFilterMode::ESM);
 						}
 					}
 				}

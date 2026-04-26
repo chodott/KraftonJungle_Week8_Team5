@@ -140,6 +140,7 @@ namespace
 		ShadowLight.SlopeBias   = Spot->GetShadowSlopeBias();
 		ShadowLight.NormalBias  = 0.0f;
 		ShadowLight.Sharpen     = Spot->GetShadowSharpen();
+		ShadowLight.C           = Spot->GetShadowESMExponent();
 
 		const FVector DirectionWS = LightItem.DirectionWS.GetSafeNormal();
 

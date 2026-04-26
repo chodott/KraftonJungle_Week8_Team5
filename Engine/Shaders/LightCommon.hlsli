@@ -202,9 +202,10 @@ StructuredBuffer<FShadowViewGPU>  ShadowViews        : register(t21);
 
 Texture2DArray<float>             ShadowDepthArray   : register(t22); // PCF
 Texture2DArray<float2>            ShadowMomentsArray : register(t23); // VSM
+Texture2DArray<float>			  ShadowExpsArray    : register(t24); // ESM
 
 SamplerComparisonState            ShadowSampler      : register(s8); // PCF
-SamplerState                      LinearClampSampler : register(s9); // VSM
+SamplerState                      LinearClampSampler : register(s9); // VSM/ESM
 
 float ComputeShadowBias(
 	FShadowLightGPU shadowLight,
@@ -345,6 +346,45 @@ float SampleShadowViewVSM(
 	return saturate(pMax);
 }
 
+float SampleShadowViewESM(
+	FShadowLightGPU shadowLight,
+	FShadowViewGPU shadowView,
+	float3 worldPos,
+	float3 N,
+	float3 L
+)
+{
+	float2 uv;
+	float compareDepth;
+	if (!ComputeShadowCoords(shadowView, worldPos, uv, compareDepth))
+	{
+		return 1.0f;
+	}
+
+	float bias = ComputeShadowBias(shadowLight, N, L);
+	compareDepth = saturate(compareDepth - bias);
+
+	float viewportScale = max(shadowView.ViewParams.z, 1.0e-6f);
+	float2 texelSize    = shadowView.ViewParams.w.xx;
+
+	float2 scaledUV = uv * viewportScale;
+	float2 minUV    = texelSize * 0.5f;
+	float2 maxUV    = viewportScale.xx - texelSize * 0.5f;
+	scaledUV        = clamp(scaledUV, minUV, maxUV);
+
+	float esm = ShadowExpsArray.SampleLevel(
+		LinearClampSampler,
+		float3(scaledUV, (float)shadowView.ArraySlice),
+		0.0f
+	).r;
+
+	float c = shadowLight.Params0.w;
+	float logEsm = log(max(esm, 1e-20f));
+	float visibility = exp(min(logEsm - c * compareDepth, 0.0f));
+
+	return visibility;
+}
+
 float SampleShadowViewRawDepth(
 	FShadowLightGPU shadowLight,
 	FShadowViewGPU shadowView,
@@ -399,10 +439,15 @@ float EvaluateSpotShadow(
 	{
 		return SampleShadowViewPCF(shadowLight, view, worldPos, N, L);
 	}
-	else // VSM
+	if (view.FilterMode == 2u) // VSM
 	{
 		return SampleShadowViewVSM(shadowLight, view, worldPos, N, L);
 	}
+	if (view.FilterMode == 3u) // ESM
+	{
+		return SampleShadowViewESM(shadowLight, view, worldPos, N, L);
+	}
+	return 1.0f;
 }
 
 float EvaluateShadow(

@@ -21,6 +21,7 @@ namespace ShadowSlots
 	static constexpr uint32 ShadowViewSRV       = 21;
 	static constexpr uint32 ShadowMapSRV        = 22;
 	static constexpr uint32 ShadowMomentsSRV    = 23;
+	static constexpr uint32 ShadowExpsSRV       = 24;
 	static constexpr uint32 ShadowSampler       = 8;
 	static constexpr uint32 ShadowLinearSampler = 9;
 }
@@ -30,6 +31,7 @@ enum class EShadowFilterMode : uint32
 	Raw = 0u,
 	PCF = 1u,
 	VSM = 2u,
+	ESM = 3u,
 };
 
 enum class EShadowLightType : uint32
@@ -60,6 +62,7 @@ struct FShadowLightRenderItem
 	float SlopeBias  = 0.001f;
 	float NormalBias = 0.0f;
 	float Sharpen    = 0.0f;
+	float C          = 0.0f;
 
 	FVector PositionWS  = FVector::ZeroVector;
 	FVector DirectionWS = FVector(1.0f, 0.0f, 0.0f);
@@ -85,7 +88,7 @@ struct FShadowViewRenderItem
 	float FarZ  = 1000.0f;
 
 	uint32            RequestedResolution = 0;
-	EShadowFilterMode FilterMode          = EShadowFilterMode::VSM;
+	EShadowFilterMode FilterMode          = EShadowFilterMode::ESM;
 
 	D3D11_VIEWPORT Viewport = {};
 };
