@@ -10,6 +10,7 @@ struct FSceneViewData;
 struct FSceneRenderTargets;
 class FMeshPassProcessor;
 class FRenderer;
+class FShadowAtlasAllocator;
 
 enum class EShadowDebugViewMode : uint32
 {
@@ -118,7 +119,7 @@ private:
 
 	uint32         ResolveShadowViewResolution(uint32 RequestedResolution) const;
 	uint32         ComputeRequiredShadowDepthArrayResolution(const FSceneViewData& SceneViewData) const;
-	D3D11_VIEWPORT BuildShadowViewport(uint32 RequestedResolution) const;
+	D3D11_VIEWPORT BuildShadowViewport(int X, int Y, int Size) const;
 	float          GetShadowViewportScale(uint32 RequestedResolution) const;
 	bool           EnsureDebugPreviewResources(FRenderer& Renderer);
 	bool           RenderDebugPreview(FRenderer& Renderer, FSceneRenderTargets& Targets, const FSceneViewData& SceneViewData);
@@ -167,4 +168,6 @@ private:
 	float                DebugVarianceExposure      = 5000.0f;;
 	TArray<uint32>       DebugAvailableSlices;
 	bool                 bDebugViewportOverlayEnabled = false;
+
+	FShadowAtlasAllocator* ShadowAtlasAllocator;
 };

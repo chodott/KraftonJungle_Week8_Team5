@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <d3d11.h>
 
@@ -87,6 +87,8 @@ struct FShadowViewRenderItem
 	uint32            RequestedResolution = 0;
 	EShadowFilterMode FilterMode          = EShadowFilterMode::VSM;
 
+	FVector AtlasUV = FVector::ZeroVector;
+
 	D3D11_VIEWPORT Viewport = {};
 };
 
@@ -116,4 +118,7 @@ struct FShadowViewGPU
 	uint32 Pad0;
 
 	FVector4 ViewParams;
+	
+	FVector AtlasUV; // X,Y: UV offset, Z: UV scale
+	float   Pad1;
 };

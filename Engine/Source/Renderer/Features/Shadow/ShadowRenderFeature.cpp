@@ -1,4 +1,5 @@
 #include "Renderer/Features/Shadow/ShadowRenderFeature.h"
+#include "Renderer/Features/Shadow/ShadowAtlasAllocator.h"
 
 #include "Renderer/Renderer.h"
 #include "Renderer/Scene/MeshPassProcessor.h"
@@ -96,7 +97,7 @@ void FShadowRenderFeature::BindShadowResources(
 	{
 		ShadowLightBufferSRV,
 		ShadowViewBufferSRV,
-		ShadowDepthArraySRV,
+		LocalShadowDepthAtlasSRV,
 		MomentsSRV
 	};
 
@@ -536,6 +537,7 @@ bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer, uint32 Re
 	}
 
 	//Atlas
+	ShadowAtlasAllocator = new FShadowAtlasAllocator(ShadowConfig::MaxShadowMapResolution);
 
 	D3D11_TEXTURE2D_DESC AtlasTextureDesc = {};
 	AtlasTextureDesc.Width = ShadowConfig::MaxShadowMapResolution;
@@ -561,7 +563,7 @@ bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer, uint32 Re
 	AtlasSRVDesc.Texture2D.MostDetailedMip = 0;
 	AtlasSRVDesc.Texture2D.MipLevels = 1;
 
-	if (FAILED(Device->CreateShaderResourceView(ShadowDepthArray, &SRVDesc, &ShadowDepthArraySRV)) || !ShadowDepthArraySRV)
+	if (FAILED(Device->CreateShaderResourceView(LocalShadowDepthAtlas, &AtlasSRVDesc, &LocalShadowDepthAtlasSRV)) || !LocalShadowDepthAtlasSRV)
 	{
 		SafeRelease(LocalShadowDepthAtlas);
 		return false;
@@ -748,7 +750,7 @@ void FShadowRenderFeature::UploadShadowBuffers(
 		{
 			const FShadowViewRenderItem& Src = SceneViewData.LightingInputs.ShadowViews[Index];
 
-			const float ViewportScale = GetShadowViewportScale(Src.RequestedResolution);
+			const float ViewportScale = 0;// = GetShadowViewportScale(Src.RequestedResolution);
 			const float TexelSize     = ShadowDepthArrayResolution > 0
 				                        ? 1.0f / static_cast<float>(ShadowDepthArrayResolution)
 				                        : 1.0f;
@@ -760,6 +762,7 @@ void FShadowRenderFeature::UploadShadowBuffers(
 			Dst.FilterMode          = static_cast<uint32>(GlobalFilterMode);
 			Dst.Pad0                = 0;
 			Dst.ViewParams          = FVector4(Src.NearZ, Src.FarZ, ViewportScale, TexelSize);
+			Dst.AtlasUV				= Src.AtlasUV;
 		}
 
 		D3D11_MAPPED_SUBRESOURCE Mapped = {};
@@ -795,6 +798,10 @@ void FShadowRenderFeature::RenderShadowViews(
 	const FViewContext OriginalView    = SceneViewData.View;
 	static const float ClearMoments[4] = { 1.0f, 1.0f, 0.0f, 0.0f };
 
+	ID3D11DepthStencilView* ShadowDSV = LocalShadowDepthAtlasDSV;
+	DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	ShadowAtlasAllocator->Reset();
+
 	for (uint32 ViewIndex = 0; ViewIndex < ShadowViewCount; ++ViewIndex)
 	{
 		const FShadowViewRenderItem& ShadowView = SceneViewData.LightingInputs.ShadowViews[ViewIndex];
@@ -804,15 +811,16 @@ void FShadowRenderFeature::RenderShadowViews(
 			continue;
 		}
 
-		ID3D11DepthStencilView* ShadowDSV = LocalShadowDepthAtlasDSV;
 		if (!ShadowDSV)
 		{
 			continue;
 		}
 
 
-		//이후 아틀라스 방식으로 변경 시 계산 로직 필요.
-		const D3D11_VIEWPORT ShadowViewport = BuildShadowViewport(ShadowView.RequestedResolution);
+		//현재 매프레임 아틀라스 초기화 중. 개선 필요
+		const uint32 ResolvedResolution = ResolveShadowViewResolution(ShadowView.RequestedResolution);
+		ShadowAtlasNode* ShadowAtlasNode = ShadowAtlasAllocator->Allocate(ResolvedResolution);
+		const D3D11_VIEWPORT ShadowViewport = BuildShadowViewport(ShadowAtlasNode->X, ShadowAtlasNode->Y, ShadowAtlasNode->Size);
 
 		SceneViewData.View.View                  = ShadowView.View;
 		SceneViewData.View.Projection            = ShadowView.Projection;
@@ -829,7 +837,6 @@ void FShadowRenderFeature::RenderShadowViews(
 		if (GlobalFilterMode == EShadowFilterMode::Raw ||
 			GlobalFilterMode == EShadowFilterMode::PCF)
 		{
-			DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 			BeginPass(
 				Renderer,
@@ -846,30 +853,30 @@ void FShadowRenderFeature::RenderShadowViews(
 				SceneViewData,
 				EMeshPassType::DepthPrepass);
 		}
-		else
-		{
-			ID3D11RenderTargetView* MomentsRTV = ShadowMomentsRTV[ShadowView.ArraySlice];
-			if (!MomentsRTV)
-			{
-				continue;
-			}
-			DeviceContext->ClearRenderTargetView(MomentsRTV, ClearMoments);
-			DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+		//else
+		//{
+		//	ID3D11RenderTargetView* MomentsRTV = ShadowMomentsRTV[ShadowView.ArraySlice];
+		//	if (!MomentsRTV)
+		//	{
+		//		continue;
+		//	}
+		//	DeviceContext->ClearRenderTargetView(MomentsRTV, ClearMoments);
+		//	DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
-			BeginPass(
-				Renderer,
-				MomentsRTV,
-				ShadowDSV,
-				ShadowViewport,
-				SceneViewData.Frame,
-				SceneViewData.View);
+		//	BeginPass(
+		//		Renderer,
+		//		MomentsRTV,
+		//		ShadowDSV,
+		//		ShadowViewport,
+		//		SceneViewData.Frame,
+		//		SceneViewData.View);
 
-			Processor.ExecutePass(
-				Renderer,
-				Targets,
-				SceneViewData,
-				EMeshPassType::ShadowVSM);
-		}
+		//	Processor.ExecutePass(
+		//		Renderer,
+		//		Targets,
+		//		SceneViewData,
+		//		EMeshPassType::ShadowVSM);
+		//}
 	}
 
 	SceneViewData.View = OriginalView;
@@ -916,16 +923,13 @@ uint32 FShadowRenderFeature::ComputeRequiredShadowDepthArrayResolution(
 		ShadowConfig::MaxShadowMapResolution);
 }
 
-D3D11_VIEWPORT FShadowRenderFeature::BuildShadowViewport(uint32 RequestedResolution) const
+D3D11_VIEWPORT FShadowRenderFeature::BuildShadowViewport(int X, int Y, int Size) const
 {
-	const uint32 ResolvedResolution = ResolveShadowViewResolution(RequestedResolution);
-	const float  EffectiveSize      = static_cast<float>((std::min)(ResolvedResolution, ShadowDepthArrayResolution));
-
 	D3D11_VIEWPORT Viewport = {};
-	Viewport.TopLeftX       = 0.0f;
-	Viewport.TopLeftY       = 0.0f;
-	Viewport.Width          = EffectiveSize;
-	Viewport.Height         = EffectiveSize;
+	Viewport.TopLeftX       = static_cast<float>(X);
+	Viewport.TopLeftY       = static_cast<float>(Y);
+	Viewport.Width          = static_cast<float>(Size);
+	Viewport.Height         = static_cast<float>(Size);
 	Viewport.MinDepth       = 0.0f;
 	Viewport.MaxDepth       = 1.0f;
 
@@ -939,7 +943,7 @@ float FShadowRenderFeature::GetShadowViewportScale(uint32 RequestedResolution) c
 		return 1.0f;
 	}
 
-	const D3D11_VIEWPORT Viewport = BuildShadowViewport(RequestedResolution);
+	const D3D11_VIEWPORT Viewport{}; //BuildShadowViewport(RequestedResolution);
 	return Viewport.Width / static_cast<float>(ShadowDepthArrayResolution);
 }
 

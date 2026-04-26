@@ -201,12 +201,14 @@ struct FShadowViewGPU
 	uint Pad0;
 
 	float4 ViewParams;
+	float3 AtlasUV;
+	float Pad1;
 };
 
 StructuredBuffer<FShadowLightGPU> ShadowLights       : register(t20);
 StructuredBuffer<FShadowViewGPU>  ShadowViews        : register(t21);
 
-Texture2DArray<float>             ShadowDepthArray   : register(t22); // PCF
+Texture2D<float>             ShadowDepth   : register(t22); // PCF
 Texture2DArray<float2>            ShadowMomentsArray : register(t23); // VSM
 
 SamplerComparisonState            ShadowSampler      : register(s8); // PCF
@@ -274,12 +276,9 @@ float SampleShadowViewPCF(
 	float bias = ComputeShadowBias(shadowLight, N, L);
 	compareDepth = saturate(compareDepth - bias);
 	
-	float viewportScale = max(shadowView.ViewParams.z, 1.0e-6f);
-	float2 texelSize = shadowView.ViewParams.w.xx;
-	
-	float2 scaledUV = uv * viewportScale;
-	float2 minUV = texelSize * 0.5f;
-	float2 maxUV = viewportScale.xx - texelSize * 0.5f;
+	float2 atlasOffset = shadowView.AtlasUV.xy;
+	float atlasScale = shadowView.AtlasUV.z;
+	float texelSize = shadowView.ViewParams.w;
 	
 	float visibility = 0.0f;
 
@@ -289,11 +288,13 @@ float SampleShadowViewPCF(
 		[unroll]
 		for (int x = -1; x <= 1; ++x)
 		{
-			float2 tapUV = clamp(scaledUV + float2(x, y) * texelSize, minUV, maxUV);
+			float2 tapUV = uv + float2(x,y) * (texelSize / atlasScale);
+			float2 clampedUV = clamp(tapUV, 0.0f, 1.0f);
+			float2 finalUV = clampedUV * atlasScale + atlasOffset;
 
-			visibility += ShadowDepthArray.SampleCmpLevelZero(
+			visibility += ShadowDepth.SampleCmpLevelZero(
 				ShadowSampler,
-				float3(tapUV, (float)shadowView.ArraySlice),
+				finalUV,
 				compareDepth);
 		}
 	}
@@ -376,9 +377,9 @@ float SampleShadowViewRawDepth(
 	float2 maxUV    = viewportScale.xx - texelSize * 0.5f;
 	scaledUV        = clamp(scaledUV, minUV, maxUV);
 
-	float rawDepth = ShadowDepthArray.SampleLevel(
+	float rawDepth = ShadowDepth.SampleLevel(
 		LinearClampSampler,
-		float3(scaledUV, (float)shadowView.ArraySlice),
+		scaledUV,
 		0.0f
 	).r;
 
