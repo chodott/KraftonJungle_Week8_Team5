@@ -202,7 +202,7 @@ StructuredBuffer<FShadowViewGPU>  ShadowViews        : register(t21);
 
 Texture2DArray<float>             ShadowDepthArray   : register(t22); // PCF
 Texture2DArray<float2>            ShadowMomentsArray : register(t23); // VSM
-
+TextureCubeArray<float>		     ShadowDepthCubeArray: register(t24);// Cube Map
 SamplerComparisonState            ShadowSampler      : register(s8); // PCF
 SamplerState                      LinearClampSampler : register(s9); // VSM
 
@@ -294,6 +294,7 @@ float SampleShadowViewPCF(
 
 	return visibility / 9.0f;
 }
+//float SampleShadowViewPoint(F)
 
 float ReduceLightBleeding(float pMax, float amount)
 {

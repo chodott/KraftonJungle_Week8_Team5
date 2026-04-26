@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <d3d11.h>
 
@@ -8,7 +8,12 @@ namespace ShadowConfig
 {
 	static constexpr uint32 MaxShadowLights = 16;
 
-	static constexpr uint32 MaxShadowViews             = 8;
+
+	static constexpr uint32 MaxSpotShadowViews		   = 8;
+	static constexpr uint32 MaxPointShadowCubes        = 4;
+	static constexpr uint32 MaxShadowViews = MaxSpotShaderViews + MaxPointShadowCubes * 6;
+
+	static constexpr uint32 PointShadowSliceOffset = MaxSpotShadowViews;
 	static constexpr uint32 DefaultShadowMapResolution = 512;
 	static constexpr uint32 MinShadowMapResolution     = 64;
 	static constexpr uint32 MaxShadowMapResolution     = 4096;
@@ -21,6 +26,8 @@ namespace ShadowSlots
 	static constexpr uint32 ShadowViewSRV       = 21;
 	static constexpr uint32 ShadowMapSRV        = 22;
 	static constexpr uint32 ShadowMomentsSRV    = 23;
+	static constexpr uint32 ShadowCubeSRV		= 24;
+
 	static constexpr uint32 ShadowSampler       = 8;
 	static constexpr uint32 ShadowLinearSampler = 9;
 }

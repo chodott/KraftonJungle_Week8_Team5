@@ -102,6 +102,7 @@ void FShadowRenderFeature::BindShadowResources(
 
 	DeviceContext->VSSetShaderResources(ShadowSlots::ShadowLightSRV, 4, SRVs);
 	DeviceContext->PSSetShaderResources(ShadowSlots::ShadowLightSRV, 4, SRVs);
+	DeviceContext->PSSetShaderResources(ShadowSlots::ShadowCubeSRV, 1 , &ShadowDepthCubeArraySRV);
 
 	DeviceContext->VSSetSamplers(ShadowSlots::ShadowSampler, 1, &ShadowComparisonSampler);
 	DeviceContext->PSSetSamplers(ShadowSlots::ShadowSampler, 1, &ShadowComparisonSampler);
@@ -177,7 +178,7 @@ void FShadowRenderFeature::Release()
 		SafeRelease(DSV);
 	}
 	SafeRelease(ShadowDepthArray);
-
+	SafeRelease(ShadowDepthCubeArraySRV);
 	bMomentsBlurValid      = false;
 	bShadowDepthArrayDirty = true;
 }
@@ -500,7 +501,16 @@ bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer, uint32 Re
 	SRVDesc.Texture2DArray.FirstArraySlice  = 0;
 	SRVDesc.Texture2DArray.ArraySize        = ShadowConfig::MaxShadowViews;
 
-	if (FAILED(Device->CreateShaderResourceView(ShadowDepthArray, &SRVDesc, &ShadowDepthArraySRV)) || !ShadowDepthArraySRV)
+
+	// just Cube only 
+	D3D11_SHADER_RESOURCE_VIEW_DESC CubeSRVDesc = {};
+	CubeSRVDesc.Format = DXGI_FORMAT_R32_FLOAT;
+	CubeSRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBEARRAY;
+	CubeSRVDesc.Texture2DArray.MostDetailedMip = 0;
+	CubeSRVDesc.Texture2DArray.MipLevels = 1;
+	CubeSRVDesc.Texture2DArray.FirstArraySlice = ShadowConfig::PointShadowSliceOffset;
+	CubeSRVDesc.Texture2DArray.ArraySize = ShadowConfig::MaxPointShadowCubes;
+	if (FAILED(Device->CreateShaderResourceView(ShadowDepthArray, &SRVDesc, &ShadowDepthCubeArraySRV)))
 	{
 		SafeRelease(ShadowDepthArray);
 		bShadowDepthArrayDirty = true;
