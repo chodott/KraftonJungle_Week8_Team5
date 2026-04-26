@@ -133,6 +133,10 @@ private:
 	std::shared_ptr<FVertexShaderHandle> ShadowDebugVS = nullptr;
 	std::shared_ptr<FPixelShaderHandle>  ShadowDebugPS = nullptr;;
 
+	ID3D11Texture2D*		  LocalShadowDepthAtlas						   = nullptr;
+	ID3D11DepthStencilView*   LocalShadowDepthAtlasDSV					   = nullptr;
+	ID3D11ShaderResourceView* LocalShadowDepthAtlasSRV					   = nullptr;
+
 	ID3D11Texture2D*          ShadowDepthArray                             = nullptr;
 	ID3D11ShaderResourceView* ShadowDepthArraySRV                          = nullptr;
 	ID3D11DepthStencilView*   ShadowViewDSVs[ShadowConfig::MaxShadowViews] = {};

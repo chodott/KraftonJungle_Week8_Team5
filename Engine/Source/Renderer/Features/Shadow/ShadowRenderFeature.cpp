@@ -178,6 +178,10 @@ void FShadowRenderFeature::Release()
 	}
 	SafeRelease(ShadowDepthArray);
 
+	SafeRelease(LocalShadowDepthAtlasSRV);
+	SafeRelease(LocalShadowDepthAtlasDSV);
+	SafeRelease(LocalShadowDepthAtlas);
+
 	bMomentsBlurValid      = false;
 	bShadowDepthArrayDirty = true;
 }
@@ -531,6 +535,51 @@ bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer, uint32 Re
 		}
 	}
 
+	//Atlas
+
+	D3D11_TEXTURE2D_DESC AtlasTextureDesc = {};
+	AtlasTextureDesc.Width = ShadowConfig::MaxShadowMapResolution;
+	AtlasTextureDesc.Height = ShadowConfig::MaxShadowMapResolution;
+	AtlasTextureDesc.MipLevels = 1;
+	AtlasTextureDesc.ArraySize = 1;
+	AtlasTextureDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+	AtlasTextureDesc.SampleDesc.Count = 1;
+	AtlasTextureDesc.SampleDesc.Quality = 0;
+	AtlasTextureDesc.Usage = D3D11_USAGE_DEFAULT;
+	AtlasTextureDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+	AtlasTextureDesc.CPUAccessFlags = 0;
+	AtlasTextureDesc.MiscFlags = 0;
+
+	if (FAILED(Device->CreateTexture2D(&AtlasTextureDesc, nullptr, &LocalShadowDepthAtlas)) || !LocalShadowDepthAtlas)
+	{
+		return false;
+	}
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC AtlasSRVDesc = {};
+	AtlasSRVDesc.Format = DXGI_FORMAT_R32_FLOAT;
+	AtlasSRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	AtlasSRVDesc.Texture2D.MostDetailedMip = 0;
+	AtlasSRVDesc.Texture2D.MipLevels = 1;
+
+	if (FAILED(Device->CreateShaderResourceView(ShadowDepthArray, &SRVDesc, &ShadowDepthArraySRV)) || !ShadowDepthArraySRV)
+	{
+		SafeRelease(LocalShadowDepthAtlas);
+		return false;
+	}
+
+	D3D11_DEPTH_STENCIL_VIEW_DESC AtlasDSVDesc = {};
+	AtlasDSVDesc.Format = DXGI_FORMAT_D32_FLOAT;
+	AtlasDSVDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	AtlasDSVDesc.Texture2D.MipSlice = 0;
+	AtlasDSVDesc.Flags = 0;
+
+	if (FAILED(Device->CreateDepthStencilView(LocalShadowDepthAtlas, &AtlasDSVDesc, &LocalShadowDepthAtlasDSV)) || !LocalShadowDepthAtlasDSV)
+	{
+		SafeRelease(LocalShadowDepthAtlasSRV);
+		SafeRelease(LocalShadowDepthAtlas);
+		return false;
+	}
+
 	bShadowDepthArrayDirty = false;
 	return true;
 }
@@ -755,12 +804,14 @@ void FShadowRenderFeature::RenderShadowViews(
 			continue;
 		}
 
-		ID3D11DepthStencilView* ShadowDSV = ShadowViewDSVs[ShadowView.ArraySlice];
+		ID3D11DepthStencilView* ShadowDSV = LocalShadowDepthAtlasDSV;
 		if (!ShadowDSV)
 		{
 			continue;
 		}
 
+
+		//이후 아틀라스 방식으로 변경 시 계산 로직 필요.
 		const D3D11_VIEWPORT ShadowViewport = BuildShadowViewport(ShadowView.RequestedResolution);
 
 		SceneViewData.View.View                  = ShadowView.View;
