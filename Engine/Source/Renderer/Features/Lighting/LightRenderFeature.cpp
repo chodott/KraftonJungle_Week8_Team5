@@ -381,9 +381,12 @@ void FLightRenderFeature::Release()
 	SafeRelease(DepthSampler);
 }
 
-std::shared_ptr<FVertexShaderHandle> FLightRenderFeature::GetCurrentVSHandle(bool bHasNormalMap, ERenderMode RenderMode) const
+std::shared_ptr<FVertexShaderHandle> FLightRenderFeature::GetCurrentVSHandle(
+	bool        bHasNormalMap,
+	bool        bEnableShadows,
+	ERenderMode RenderMode) const
 {
-	const uint32 Variant = ToShaderVariantIndex(bHasNormalMap);
+	const uint32 Variant = ToShaderVariantIndex(bHasNormalMap, bEnableShadows);
 	if (RenderMode == ERenderMode::WorldNormal)
 	{
 		return WorldNormalVariants[Variant].VertexHandle;
@@ -396,9 +399,12 @@ std::shared_ptr<FVertexShaderHandle> FLightRenderFeature::GetCurrentVSHandle(boo
 	}
 }
 
-std::shared_ptr<FPixelShaderHandle> FLightRenderFeature::GetCurrentPSHandle(bool bHasNormalMap, ERenderMode RenderMode) const
+std::shared_ptr<FPixelShaderHandle> FLightRenderFeature::GetCurrentPSHandle(
+	bool        bHasNormalMap,
+	bool        bEnableShadows,
+	ERenderMode RenderMode) const
 {
-	const uint32 Variant = ToShaderVariantIndex(bHasNormalMap);
+	const uint32 Variant = ToShaderVariantIndex(bHasNormalMap, bEnableShadows);
 	if (RenderMode == ERenderMode::WorldNormal)
 	{
 		return WorldNormalVariants[Variant].PixelHandle;
@@ -551,35 +557,83 @@ bool FLightRenderFeature::CompileShaderVariants(FRenderer& Renderer)
 
 	for (uint32 VariantIndex = 0; VariantIndex < ShaderVariantCount; ++VariantIndex)
 	{
-		const bool bHasNormalMap = (VariantIndex != 0);
+		const bool bHasNormalMap  = (VariantIndex & 1u) != 0u;
+		const bool bEnableShadows = (VariantIndex & 2u) != 0u;
+		const char* NormalMapMacro = bHasNormalMap ? "1" : "0";
+		const char* ShadowMacro    = bEnableShadows ? "1" : "0";
 
 		GouraudVariants[VariantIndex].VertexHandle = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(
 			Device,
-			BuildVertexRecipe(VSPath, { { "LIGHTING_MODEL_GOURAUD", "1" }, { "VERTEX_NORMAL_MAP", bHasNormalMap ? "1" : "0" } }));
+			BuildVertexRecipe(
+				VSPath,
+				{
+					{ "LIGHTING_MODEL_GOURAUD", "1" },
+					{ "VERTEX_NORMAL_MAP", NormalMapMacro },
+					{ "ENABLE_SHADOWS", ShadowMacro },
+				}));
 		GouraudVariants[VariantIndex].PixelHandle = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(
 			Device,
-			BuildPixelRecipe(PSPath, { { "LIGHTING_MODEL_GOURAUD", "1" }, { "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" } }));
+			BuildPixelRecipe(
+				PSPath,
+				{
+					{ "LIGHTING_MODEL_GOURAUD", "1" },
+					{ "HAS_NORMAL_MAP", NormalMapMacro },
+					{ "ENABLE_SHADOWS", ShadowMacro },
+				}));
 
 		LambertVariants[VariantIndex].VertexHandle = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(
 			Device,
-			BuildVertexRecipe(VSPath, { { "LIGHTING_MODEL_LAMBERT", "1" } }));
+			BuildVertexRecipe(
+				VSPath,
+				{
+					{ "LIGHTING_MODEL_LAMBERT", "1" },
+					{ "ENABLE_SHADOWS", ShadowMacro },
+				}));
 		LambertVariants[VariantIndex].PixelHandle = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(
 			Device,
-			BuildPixelRecipe(PSPath, { { "LIGHTING_MODEL_LAMBERT", "1" }, { "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" } }));
+			BuildPixelRecipe(
+				PSPath,
+				{
+					{ "LIGHTING_MODEL_LAMBERT", "1" },
+					{ "HAS_NORMAL_MAP", NormalMapMacro },
+					{ "ENABLE_SHADOWS", ShadowMacro },
+				}));
 
 		PhongVariants[VariantIndex].VertexHandle = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(
 			Device,
-			BuildVertexRecipe(VSPath, { { "LIGHTING_MODEL_PHONG", "1" } }));
+			BuildVertexRecipe(
+				VSPath,
+				{
+					{ "LIGHTING_MODEL_PHONG", "1" },
+					{ "ENABLE_SHADOWS", ShadowMacro },
+				}));
 		PhongVariants[VariantIndex].PixelHandle = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(
 			Device,
-			BuildPixelRecipe(PSPath, { { "LIGHTING_MODEL_PHONG", "1" }, { "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" } }));
+			BuildPixelRecipe(
+				PSPath,
+				{
+					{ "LIGHTING_MODEL_PHONG", "1" },
+					{ "HAS_NORMAL_MAP", NormalMapMacro },
+					{ "ENABLE_SHADOWS", ShadowMacro },
+				}));
 
 		WorldNormalVariants[VariantIndex].VertexHandle = FShaderRegistry::Get().GetOrCreateVertexShaderHandle(
 			Device,
-			BuildVertexRecipe(VSPath, { { "VIEWMODE_WORLD_NORMAL", "1" } }));
+			BuildVertexRecipe(
+				VSPath,
+				{
+					{ "VIEWMODE_WORLD_NORMAL", "1" },
+					{ "ENABLE_SHADOWS", ShadowMacro },
+				}));
 		WorldNormalVariants[VariantIndex].PixelHandle = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(
 			Device,
-			BuildPixelRecipe(PSPath, { { "VIEWMODE_WORLD_NORMAL", "1" }, { "HAS_NORMAL_MAP", bHasNormalMap ? "1" : "0" } }));
+			BuildPixelRecipe(
+				PSPath,
+				{
+					{ "VIEWMODE_WORLD_NORMAL", "1" },
+					{ "HAS_NORMAL_MAP", NormalMapMacro },
+					{ "ENABLE_SHADOWS", ShadowMacro },
+				}));
 
 		if (!GouraudVariants[VariantIndex].VertexHandle
 			|| !GouraudVariants[VariantIndex].PixelHandle

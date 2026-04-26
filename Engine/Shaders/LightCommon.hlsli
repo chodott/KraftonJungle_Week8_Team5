@@ -1,6 +1,10 @@
 #ifndef LIGHT_COMMON_HLSLI
 #define LIGHT_COMMON_HLSLI
 
+#ifndef ENABLE_SHADOWS
+#define ENABLE_SHADOWS 0
+#endif
+
 #define LIGHT_CLASS_POINT 0
 #define LIGHT_CLASS_SPOT 1
 #define LIGHT_CLASS_RECT 2
@@ -172,6 +176,8 @@ StructuredBuffer<FLightClusterHeader> ClusterLightHeaders : register(t10);
 StructuredBuffer<uint>                ClusterLightIndices : register(t11);
 StructuredBuffer<FLocalLightGPU>      LocalLights         : register(t12);
 StructuredBuffer<uint>                ObjectLightIndices  : register(t13);
+
+#if ENABLE_SHADOWS
 
 struct FShadowLightGPU
 {
@@ -427,6 +433,20 @@ float EvaluateShadow(
 	// TODO : Point / Directional
 	return 1.0f;
 }
+
+#else
+
+float EvaluateShadow(
+	uint shadowIndex,
+	uint lightClass,
+	float3 worldPos,
+	float3 N,
+	float3 L)
+{
+	return 1.0f;
+}
+
+#endif
 
 float CalculateAttenuation(float distance, float range)
 {
