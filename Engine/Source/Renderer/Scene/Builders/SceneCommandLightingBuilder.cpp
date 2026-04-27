@@ -394,7 +394,7 @@ namespace
 			ViewItem.PositionWS = FrustumCenter;
 			ViewItem.NearZ = BoxNear;
 			ViewItem.FarZ = BoxFar;
-			ViewItem.RequestedResolution = ShadowConfig::DirShadowDepthArrayResolution;
+			ViewItem.RequestedResolution = ShadowConfig::DirShadowDepthResolution;
 
 			ViewItem.BiasParams = { DirLight->GetShadowBias(), DirLight->GetShadowSlopeBias(), 0.0f, 0.0f };
 			ViewItem.View = TempShadowView;

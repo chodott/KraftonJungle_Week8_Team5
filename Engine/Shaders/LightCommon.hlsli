@@ -219,8 +219,8 @@ TextureCubeArray<float2>		     ShadowMomentsCubeArray: register(t25);// Cube Map
 StructuredBuffer<FShadowLightGPU>	DirShadowLights : register(t26);
 StructuredBuffer<FShadowViewGPU>	DirShadowViews : register(t27);
 
-Texture2DArray<float>				DirShadowDepthArray		: register(t28); // PCF
-Texture2DArray<float2>				DirShadowMomentsArray	: register(t29); // VSM
+Texture2D<float>				DirShadowDepthTexture		: register(t28); // PCF
+Texture2D<float2>				DirShadowMomentsTexture		: register(t29); // VSM
 
 SamplerComparisonState            ShadowSampler      : register(s8); // PCF
 SamplerState                      LinearClampSampler : register(s9); // VSM
@@ -499,7 +499,7 @@ float SampleDirShadowViewPCF(FShadowLightGPU shadowLight, FShadowViewGPU shadowV
         for (int x = -1; x <= 1; ++x)
         {
             float2 tapUV = clamp(scaledUV + float2(x, y) * texelSize, minUV, maxUV);
-            visibility += DirShadowDepthArray.SampleCmpLevelZero(ShadowSampler, float3(tapUV, (float) shadowView.ArraySlice), compareDepth);
+            visibility += DirShadowDepthTexture.SampleCmpLevelZero(ShadowSampler, tapUV,  compareDepth);
         }
     }
     return visibility / 9.0f;
@@ -521,7 +521,7 @@ float SampleDirShadowViewVSM(FShadowLightGPU shadowLight, FShadowViewGPU shadowV
     float2 maxUV = viewportScale.xx - texelSize * 0.5f;
     scaledUV = clamp(scaledUV, minUV, maxUV);
 
-    float2 moments = DirShadowMomentsArray.SampleLevel(LinearClampSampler, float3(scaledUV, (float) shadowView.ArraySlice), 0.0f).rg;
+    float2 moments = DirShadowMomentsTexture.SampleLevel(LinearClampSampler, scaledUV, 0.0f).rg;
     float mean = moments.x;
     float variance = max(moments.y - mean * mean, 1.0e-6f);
     if (compareDepth <= mean)
