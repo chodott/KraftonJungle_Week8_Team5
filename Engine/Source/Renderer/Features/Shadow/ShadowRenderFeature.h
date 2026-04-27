@@ -104,6 +104,10 @@ private:
 
 	bool EnsureShadowBuffers(FRenderer& Renderer, uint32 ShadowLightCount, uint32 ShadowViewCount);
 
+	bool EnsureDirMomentsArray(const FRenderer& Renderer, uint32 RequiredResolution);
+	bool EnsureDirShadowDepthArray(FRenderer& Renderer, uint32 RequiredResolution);
+	bool EnsureDirShadowBuffers(FRenderer& Renderer, uint32 ShadowLightCount, uint32 ShadowViewCount);
+
 	bool EnsureDynamicStructuredBufferSRV(
 		FRenderer&                 Renderer,
 		uint32                     ElementStride,
@@ -116,6 +120,7 @@ private:
 	void UploadShadowBuffers(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 
 	void RenderShadowViews(FRenderer& Renderer, const FMeshPassProcessor& Processor, FSceneRenderTargets& Targets, FSceneViewData& SceneViewData);
+	void RenderDirectionalShadows(FRenderer& Renderer, const FMeshPassProcessor& Processor, FSceneRenderTargets& Targets, FSceneViewData& SceneViewData);
 
 	uint32         ResolveShadowViewResolution(uint32 RequestedResolution) const;
 	uint32         ComputeRequiredShadowDepthArrayResolution(const FSceneViewData& SceneViewData) const;
@@ -157,11 +162,31 @@ private:
 	ID3D11Buffer*             ShadowViewBuffer    = nullptr;
 	ID3D11ShaderResourceView* ShadowViewBufferSRV = nullptr;
 
+	ID3D11Texture2D*			DirShadowDepthArray		= nullptr;
+	ID3D11ShaderResourceView*	DirShadowDepthArraySRV	= nullptr;
+	ID3D11DepthStencilView*		DirShadowViewDSVs[ShadowConfig::MaxDirCascade] = {};
+
+	ID3D11Texture2D*			DirShadowMomentsArray	= nullptr;
+	ID3D11RenderTargetView*		DirShadowMomentsRTV[ShadowConfig::MaxDirCascade] = {};
+	ID3D11ShaderResourceView*	DirShadowMomentsArraySRV = nullptr;
+
+	ID3D11Texture2D*			DirShadowMomentsBlur	= nullptr;
+	ID3D11RenderTargetView*		DirShadowMomentsBlurRTV[ShadowConfig::MaxDirCascade] = {};
+	ID3D11ShaderResourceView*	DirShadowMomentsBlurSRV = nullptr;
+
+	ID3D11Buffer*				DirShadowLightBuffer	= nullptr;
+	ID3D11ShaderResourceView*	DirShadowLightBufferSRV	= nullptr;
+
+	ID3D11Buffer*				DirShadowViewBuffer		= nullptr;
+	ID3D11ShaderResourceView*	DirShadowViewBufferSRV = nullptr;
+
+
 	ID3D11SamplerState*  ShadowComparisonSampler    = nullptr;
 	ID3D11SamplerState*  ShadowLinearSampler        = nullptr;
 	uint32               DefaultShadowMapResolution = ShadowConfig::DefaultShadowMapResolution;
 	uint32               ShadowDepthArrayResolution = ShadowConfig::DefaultShadowMapResolution;
-	bool                 bShadowDepthArrayDirty     = true;
+	bool                 bShadowDepthArrayDirty = true;
+	bool                 bDirShadowDepthArrayDirty     = true;
 	bool                 bMomentsBlurValid          = false;
 	EShadowFilterMode    GlobalFilterMode           = EShadowFilterMode::VSM;
 	EShadowDebugViewMode DebugViewMode              = EShadowDebugViewMode::None;

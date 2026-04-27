@@ -12,11 +12,14 @@ namespace ShadowConfig
 	static constexpr uint32 MaxSpotShadowViews		   = 8;
 	static constexpr uint32 MaxPointShadowCubes        = 4;
 	static constexpr uint32 MaxShadowViews = MaxSpotShadowViews + MaxPointShadowCubes * 6;
+	static constexpr uint32 MaxDirCascade = 4;
 
 	static constexpr uint32 PointShadowSliceOffset = MaxSpotShadowViews;
+
 	static constexpr uint32 DefaultShadowMapResolution = 512;
 	static constexpr uint32 MinShadowMapResolution     = 64;
 	static constexpr uint32 MaxShadowMapResolution     = 4096;
+	static constexpr uint32 DirShadowDepthArrayResolution = 4096;
 	static constexpr float  DefaultNearZ               = 0.05f;
 }
 
@@ -26,8 +29,14 @@ namespace ShadowSlots
 	static constexpr uint32 ShadowViewSRV       = 21;
 	static constexpr uint32 ShadowMapSRV        = 22;
 	static constexpr uint32 ShadowMomentsSRV    = 23;
+
 	static constexpr uint32 ShadowCubeSRV		= 24;
 	static constexpr uint32 ShadowMomentCubeSRV = 25;
+
+	static constexpr uint32 DirShadowLightSRV = 26;
+	static constexpr uint32 DirShadowViewSRV = 27;
+	static constexpr uint32 DirShadowMapSRV = 28;
+	static constexpr uint32 DirShadowMomentsSRV = 29;
 
 	static constexpr uint32 ShadowSampler       = 8;
 	static constexpr uint32 ShadowLinearSampler = 9;
@@ -102,6 +111,8 @@ struct FShadowViewRenderItem
 	FVector AtlasUV = FVector::ZeroVector;
 
 	D3D11_VIEWPORT Viewport = {};
+
+	FVector4 BiasParams = FVector4(0, 0, 0, 0);
 };
 
 
@@ -130,6 +141,7 @@ struct FShadowViewGPU
 	uint32 Pad0;
 
 	FVector4 ViewParams;
+	FVector4 BiasParams;
 	
 	FVector AtlasUV; // X,Y: UV offset, Z: UV scale
 	float   Pad1;

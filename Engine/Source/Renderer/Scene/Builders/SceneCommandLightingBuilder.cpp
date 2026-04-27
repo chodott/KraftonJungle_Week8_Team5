@@ -16,6 +16,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "Math/Cascade.h"
+
 namespace
 {
 	FVector ToLightRGB(const FLinearColor& Color)
@@ -139,8 +141,49 @@ namespace
 		Light.LightType = EShadowLightType::Point;
 
 		return ViewIndex;
-
 	}
+
+	uint32 AllocateDirShadowLight(FSceneLightingInputs& Inputs, EShadowLightType LightType, uint32 SourceLightIndex)
+	{
+		if (Inputs.DirShadowLights.size() >= ShadowConfig::MaxShadowLights)
+		{
+			return UINT32_MAX;
+		}
+
+		FShadowLightRenderItem Item = {};
+		Item.LightType = LightType;
+		Item.SourceLightIndex = SourceLightIndex;
+		Item.ShadowIndex = static_cast<uint32>(Inputs.DirShadowLights.size());
+		Inputs.DirShadowLights.push_back(Item);
+
+		return Item.ShadowIndex;
+	}
+
+	uint32 AddDirShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, const FShadowViewRenderItem& InView)
+	{
+		if (Inputs.DirShadowViews.size() >= ShadowConfig::MaxDirCascade)
+		{
+			return UINT32_MAX;
+		}
+
+		FShadowViewRenderItem View = InView;
+		View.ShadowLightIndex = ShadowLightIndex;
+		View.ArraySlice = static_cast<uint32>(Inputs.DirShadowViews.size());
+
+		const uint32 ViewIndex = static_cast<uint32>(Inputs.DirShadowViews.size());
+		Inputs.DirShadowViews.push_back(std::move(View));
+
+		FShadowLightRenderItem& ShadowLight = Inputs.DirShadowLights[ShadowLightIndex];
+		if (ShadowLight.ViewCount == 0)
+		{
+			ShadowLight.FirstViewIndex = ViewIndex;
+		}
+		++ShadowLight.ViewCount;
+
+		return ViewIndex;
+	}
+
+
 	void BuildSpotShadowViews(
 		FSceneLightingInputs&        Inputs,
 		const USpotLightComponent*   Spot,
@@ -197,6 +240,128 @@ namespace
 
 		AddShadowView(Inputs, ShadowLightIndex, View);
 	}
+
+	void BuildDirectionalShadowViews(
+		FSceneLightingInputs& Inputs,
+		const UDirectionalLightComponent* DirLight,
+		FDirectionalLightRenderItem& LightItem,
+		uint32 ShadowLightIndex,
+		const FViewContext& View)
+	{
+		FShadowLightRenderItem& ShadowLight = Inputs.DirShadowLights[ShadowLightIndex];
+		ShadowLight.LightType = EShadowLightType::Directional;
+		ShadowLight.PositionWS = FVector::ZeroVector;
+		ShadowLight.DirectionWS = LightItem.DirectionWS;
+		ShadowLight.Bias = 0.000001f;
+		ShadowLight.SlopeBias = 0.001f;
+		ShadowLight.NormalBias = 0.0f;
+		ShadowLight.Sharpen = 0.0f;
+
+		uint32 CascadeCount = DirLight->GetCascadeCount();
+		CascadeCount = (std::min)(CascadeCount, ShadowConfig::MaxDirCascade);
+
+		TArray<float> FrustumSplits = FCasCade::CalculateCascadeSplits(CascadeCount, View.NearZ, View.FarZ, 0.9f);
+		
+		if (FrustumSplits.size() < 2)
+		{
+			return;
+		}
+
+		LightItem.CascadeSplits = FVector4(
+			FrustumSplits.size() > 1 ? FrustumSplits[1] : 0.0f,
+			FrustumSplits.size() > 2 ? FrustumSplits[2] : 0.0f,
+			FrustumSplits.size() > 3 ? FrustumSplits[3] : 0.0f,
+			FrustumSplits.size() > 4 ? FrustumSplits[4] : 0.0f
+		);
+
+		FVector UpVector = (std::abs(LightItem.DirectionWS.Z) > 0.999f) ? FVector::YAxisVector : FVector::ZAxisVector;
+
+		FMatrix InvView = View.InverseView;
+		FMatrix InvProj = View.InverseProjection;
+
+		// NDC좌표상 각 꼭짓점
+		FVector4 NDC_Corners[4] = {
+			FVector4(-1.0f,  1.0f, 1.0f, 1.0f), FVector4(1.0f,  1.0f, 1.0f, 1.0f),
+			FVector4(1.0f, -1.0f, 1.0f, 1.0f), FVector4(-1.0f, -1.0f, 1.0f, 1.0f)
+		};
+
+		// 절두체 4개의 변
+		FVector ViewRays[4];
+		for (int j = 0; j < 4; j++)
+		{
+			FVector4 ViewCorner = NDC_Corners[j] * InvProj;
+			float InvW = 1.0f / ViewCorner.W;
+			FVector Ray = FVector(ViewCorner.X * InvW, ViewCorner.Y * InvW, ViewCorner.Z * InvW);
+
+			ViewRays[j] = Ray * (1.0f / Ray.X);
+		}
+
+		// Cascade개수만큼
+		for (uint32 i = 0; i < CascadeCount; i++)
+		{
+			float NearSplit = FrustumSplits[i];
+			float FarSplit = FrustumSplits[i + 1];
+
+			// 절두체의 각 꼭짓점
+			FVector FrustumCornersWS[8];
+			for (int j = 0; j < 4; j++)
+			{
+				FVector NearVS = ViewRays[j] * NearSplit;
+				FVector FarVS = ViewRays[j] * FarSplit;
+
+				FrustumCornersWS[j] = InvView.TransformPosition(NearVS);
+				FrustumCornersWS[j + 4] = InvView.TransformPosition(FarVS);
+			}
+
+			// 절두체 8개의 꼭짓점 기반 중심점 계산
+			FVector FrustumCenter = FVector::ZeroVector;
+			for (int j = 0; j < 8; j++) { FrustumCenter += FrustumCornersWS[j]; }
+			FrustumCenter /= 8.0f;
+
+			// 자른 절두체 기준 view 행렬 생성
+			FVector LightPosition = FrustumCenter - (LightItem.DirectionWS * 1000.0f);
+			FMatrix TempShadowView = FMatrix::MakeViewLookAtLH(LightPosition, FrustumCenter, UpVector);
+
+			// 여기서부터 각 절두체의 Light위치 기준 AABB 계산
+			float MinX = FLT_MAX; float MaxX = -FLT_MAX;
+			float MinY = FLT_MAX; float MaxY = -FLT_MAX;
+			float MinZ = FLT_MAX; float MaxZ = -FLT_MAX;
+
+			// Light위치 기준 Min, Max구해주는 중
+			for (int j = 0; j < 8; j++)
+			{
+				FVector CornerLS = TempShadowView.TransformPosition(FrustumCornersWS[j]);
+				MinX = (std::min)(MinX, CornerLS.X); MaxX = (std::max)(MaxX, CornerLS.X);
+				MinY = (std::min)(MinY, CornerLS.Y); MaxY = (std::max)(MaxY, CornerLS.Y);
+				MinZ = (std::min)(MinZ, CornerLS.Z); MaxZ = (std::max)(MaxZ, CornerLS.Z);
+			}
+
+			float MaxRadiusY = (std::max)(std::abs(MinY), std::abs(MaxY));
+			float MaxRadiusZ = (std::max)(std::abs(MinZ), std::abs(MaxZ));
+
+			float BoxWidth = MaxRadiusY * 2.0f;
+			float BoxHeight = MaxRadiusZ * 2.0f;
+
+			float BoxNear = MinX;
+			float BoxFar = MaxX;
+
+			FShadowViewRenderItem ViewItem;
+			ViewItem.ProjectionType = EShadowProjectionType::Orthographic;
+			ViewItem.PositionWS = FrustumCenter;
+			ViewItem.NearZ = BoxNear;
+			ViewItem.FarZ = BoxFar;
+			ViewItem.RequestedResolution = ShadowConfig::DirShadowDepthArrayResolution;
+
+			ViewItem.BiasParams = { DirLight->GetShadowBias(), DirLight->GetShadowSlopeBias(), 0.0f, 0.0f };
+			ViewItem.View = TempShadowView;
+			ViewItem.Projection = FMatrix::MakeOrthographicLH(BoxWidth, BoxHeight, BoxNear, BoxFar);
+			ViewItem.ViewProjection = ViewItem.View * ViewItem.Projection;
+			ViewItem.Viewport = {};
+
+			AddDirShadowView(Inputs, ShadowLightIndex, ViewItem);
+		}
+	}
+
 	void BuildPointShadowViews(FSceneLightingInputs& Inputs,const UPointLightComponent* Point, const FLocalLightRenderItem& LightItem,uint32 ShadowLightIndex, uint32 CubeArrayIndex)
 	{
 		static const FVector CubeFaceLook[6] = {{ 1, 0, 0 }, { -1, 0, 0 },	{ 0, 1, 0 }, { 0,-1, 0 },{0, 0, 1 },{ 0, 0, -1 },};
@@ -240,6 +405,7 @@ namespace
 	}
 
 }
+
 
 void FSceneCommandLightingBuilder::BuildLightingInputs(
 	const FSceneCommandBuildContext& BuildContext,
@@ -319,6 +485,14 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 					DirectionalLightItem = Candidate;
 					StrongestDirectional = Candidate.Intensity;
 					bHasDirectionalLight = true;
+
+					LightingInputs.DirShadowLights.clear();
+					LightingInputs.DirShadowViews.clear();
+					const uint32 ShadowLightIndex = AllocateDirShadowLight(LightingInputs, EShadowLightType::Directional, 0);
+					if (ShadowLightIndex != UINT32_MAX)
+					{
+						BuildDirectionalShadowViews(LightingInputs, Directional, DirectionalLightItem, ShadowLightIndex, View);
+					}
 				}
 				continue;
 			}
