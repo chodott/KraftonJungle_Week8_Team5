@@ -211,7 +211,7 @@ StructuredBuffer<FShadowViewGPU>  ShadowViews        : register(t21);
 Texture2D<float>             ShadowDepth   : register(t22); // PCF
 Texture2D<float2>            ShadowMomentsTexture : register(t23); // VSM
 TextureCubeArray<float>		     ShadowDepthCubeArray: register(t24);// Cube Map
-TextureCubeArray<float>		     ShadowMomentsCubeArray: register(t25);// Cube Map VSM
+TextureCubeArray<float2>		     ShadowMomentsCubeArray: register(t25);// Cube Map VSM
 
 SamplerComparisonState            ShadowSampler      : register(s8); // PCF
 SamplerState                      LinearClampSampler : register(s9); // VSM
@@ -341,6 +341,46 @@ float ReduceLightBleeding(float pMax, float amount)
 {
 	return saturate((pMax - amount) / max(1.0f - amount, 1.0e-5f));
 }
+float SampleShadowViewPointVSM(FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L) // TODO Point
+{
+	uint cubeIndex = (uint) shadowLight.Params0.w;
+	float3 lightPos = shadowLight.PositionType.xyz;
+	float3 lightToSurface = worldPos - lightPos;
+	// 면판정 D3D 큐브 표준 순서와 일치해야함
+	float3 absDir = abs(lightToSurface);
+	uint faceIndex = 0;
+	if (absDir.x >= absDir.y && absDir.x >= absDir.z)
+		faceIndex = (lightToSurface.x > 0) ? 0 : 1;
+	else if (absDir.y >= absDir.z)
+		faceIndex = (lightToSurface.y > 0) ? 2 : 3;
+	else
+		faceIndex = (lightToSurface.z > 0) ? 4 : 5;
+
+	// 그면의 ViewProjection으로  NDC 깊이 계산
+	FShadowViewGPU view = ShadowViews[shadowLight.FirstViewIndex + faceIndex];
+	float4 clip = mul(float4(worldPos, 1.0f), view.LightViewProjection);
+    if (clip.w <= 0.0f) 
+		return 1.0f;
+	
+    float compareDepth = saturate(clip.z / clip.w);
+    float bias = ComputeShadowBias(shadowLight, N, L);
+    compareDepth = saturate(compareDepth - bias);
+	
+	float2 moments = ShadowMomentsCubeArray.SampleLevel(LinearClampSampler, float4(lightToSurface, (float)cubeIndex), 0.0f).rg;
+
+	// Chebyshev (2D VSM과 동일)
+	float mean = moments.x;
+    float Variance = moments.y - (moments.x * moments.x);
+	Variance = max(Variance, 1.0e-6f);
+	if (compareDepth <= mean)
+		return 1.0f;
+	
+	float d = compareDepth - mean;
+	float pMax = Variance / (Variance + d * d);
+	pMax = ReduceLightBleeding(pMax, shadowLight.Params0.z);
+    return saturate(pMax);
+}
+
 
 float SampleShadowViewVSM(
 	FShadowLightGPU shadowLight,
@@ -471,7 +511,13 @@ float EvaluateShadow(
 	}
 	if (shadowLight.LightType == SHADOW_LIGHT_POINT && lightClass == LIGHT_CLASS_POINT)
 	{
-		return SampleShadowViewPoint(shadowLight, worldPos, N, L);
+		if (shadowLight.ViewCount == 0u) return 1.0f;
+    
+		FShadowViewGPU firstView = ShadowViews[shadowLight.FirstViewIndex];
+		if (firstView.FilterMode == 2u)  // VSM
+			return SampleShadowViewPointVSM(shadowLight, worldPos, N, L);
+		else
+			return SampleShadowViewPoint(shadowLight, worldPos, N, L);
 	} 
 	// TODO :  Directional
 	return 1.0f;

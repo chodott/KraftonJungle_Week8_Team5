@@ -231,7 +231,7 @@ namespace
 				FMath::DegreesToRadians(90.0f), 1.0f, NearZ, FarZ);
 
 			View.ViewProjection = View.View * View.Projection;
-			View.FilterMode = EShadowFilterMode::Raw; 
+			View.FilterMode = EShadowFilterMode::VSM;
 			View.LightType = EShadowLightType::Point;
 
 			AddPointShadowView(Inputs, ShadowLightIndex, BaseSlice + F, View);
