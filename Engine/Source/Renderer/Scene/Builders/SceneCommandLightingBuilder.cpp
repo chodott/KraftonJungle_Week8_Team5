@@ -11,6 +11,8 @@
 #include "Math/MathUtility.h"
 #include "World/World.h"
 
+#include "Renderer/Features/Shadow/ShadowAtlasAllocator.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -134,6 +136,7 @@ namespace
 		if (Light.ViewCount == 0)
 			Light.FirstViewIndex = ViewIndex;
 		Light.ViewCount++;
+		Light.LightType = EShadowLightType::Point;
 
 		return ViewIndex;
 
@@ -188,6 +191,7 @@ namespace
 			FarZ);
 
 		View.ViewProjection = View.View * View.Projection;
+		View.LightType = EShadowLightType::Spot;
 
 		View.Viewport = {};
 
@@ -198,7 +202,6 @@ namespace
 		static const FVector CubeFaceLook[6] = {{ 1, 0, 0 }, { -1, 0, 0 },	{ 0, 1, 0 }, { 0,-1, 0 },{0, 0, 1 },{ 0, 0, -1 },};
 		static const FVector CubeFaceUp[6] = {{ 0, 1, 0 }, { 0, 1, 0 }, { 0, 0, -1 }, { 0, 0, 1 },{ 0, 1, 0 }, { 0, 1, 0 },	};
 		FShadowLightRenderItem& ShadowLight = Inputs.ShadowLights[ShadowLightIndex];
-		ShadowLight.LightType  = EShadowLightType::Point;
 		ShadowLight.PositionWS = LightItem.PositionWS;
 		ShadowLight.Bias       = Point->GetShadowBias();
 		ShadowLight.SlopeBias  = Point->GetShadowSlopeBias();
@@ -229,6 +232,7 @@ namespace
 
 			View.ViewProjection = View.View * View.Projection;
 			View.FilterMode = EShadowFilterMode::Raw; 
+			View.LightType = EShadowLightType::Point;
 
 			AddPointShadowView(Inputs, ShadowLightIndex, BaseSlice + F, View);
 		}
@@ -329,7 +333,6 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 				FLocalLightRenderItem LightItem       = BuildSpotLight(Spot);
 				const uint32          LocalLightIndex = static_cast<uint32>(LightingInputs.LocalLights.size());
-
 				if (Spot->IsCastingShadows())
 				{
 					const uint32 ShadowLightIndex = AllocalteShadowLight(LightingInputs, EShadowLightType::Spot, LocalLightIndex);

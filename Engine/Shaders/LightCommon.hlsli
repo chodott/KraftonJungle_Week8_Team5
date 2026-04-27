@@ -201,14 +201,18 @@ struct FShadowViewGPU
 	uint Pad0;
 
 	float4 ViewParams;
+	float3 AtlasUV;
+	float Pad1;
 };
 
 StructuredBuffer<FShadowLightGPU> ShadowLights       : register(t20);
 StructuredBuffer<FShadowViewGPU>  ShadowViews        : register(t21);
 
-Texture2DArray<float>             ShadowDepthArray   : register(t22); // PCF
-Texture2DArray<float2>            ShadowMomentsArray : register(t23); // VSM
+Texture2D<float>             ShadowDepth   : register(t22); // PCF
+Texture2D<float2>            ShadowMomentsTexture : register(t23); // VSM
 TextureCubeArray<float>		     ShadowDepthCubeArray: register(t24);// Cube Map
+TextureCubeArray<float>		     ShadowMomentsCubeArray: register(t25);// Cube Map VSM
+
 SamplerComparisonState            ShadowSampler      : register(s8); // PCF
 SamplerState                      LinearClampSampler : register(s9); // VSM
 
@@ -273,13 +277,16 @@ float SampleShadowViewPCF(
 	
 	float bias = ComputeShadowBias(shadowLight, N, L);
 	compareDepth = saturate(compareDepth - bias);
+
+	float atlasSize = shadowView.ViewParams.z;
+	float tileSize  = shadowView.AtlasUV.z;
+
+	float2 tileOffset = shadowView.AtlasUV.xy / atlasSize;
+	float tileScale  = shadowView.AtlasUV.z / atlasSize;
+
+	float2 baseUV = uv * tileScale + tileOffset;
 	
-	float viewportScale = max(shadowView.ViewParams.z, 1.0e-6f);
-	float2 texelSize = shadowView.ViewParams.w.xx;
-	
-	float2 scaledUV = uv * viewportScale;
-	float2 minUV = texelSize * 0.5f;
-	float2 maxUV = viewportScale.xx - texelSize * 0.5f;
+	float texelSize = shadowView.ViewParams.w;
 	
 	float visibility = 0.0f;
 
@@ -289,11 +296,15 @@ float SampleShadowViewPCF(
 		[unroll]
 		for (int x = -1; x <= 1; ++x)
 		{
-			float2 tapUV = clamp(scaledUV + float2(x, y) * texelSize, minUV, maxUV);
+			float2 tapUV = baseUV + float2(x, y) * texelSize;
 
-			visibility += ShadowDepthArray.SampleCmpLevelZero(
+			float2 minUV = tileOffset + texelSize * 0.5f;
+			float2 maxUV = tileOffset + tileScale - texelSize * 0.5f;
+
+			tapUV = clamp(tapUV, minUV, maxUV);
+			visibility += ShadowDepth.SampleCmpLevelZero(
 				ShadowSampler,
-				float3(tapUV, (float)shadowView.ArraySlice),
+				tapUV,
 				compareDepth);
 		}
 	}
@@ -348,17 +359,21 @@ float SampleShadowViewVSM(
 	float bias = ComputeShadowBias(shadowLight, N, L);
 	compareDepth = saturate(compareDepth - bias);
 
-	float viewportScale = max(shadowView.ViewParams.z, 1.0e-6f);
-	float2 texelSize    = shadowView.ViewParams.w.xx;
+	float atlasSize = shadowView.ViewParams.z;
+	float tileSize  = shadowView.AtlasUV.z;
 
-	float2 scaledUV = uv * viewportScale;
-	float2 minUV    = texelSize * 0.5f;
-	float2 maxUV    = viewportScale.xx - texelSize * 0.5f;
-	scaledUV        = clamp(scaledUV, minUV, maxUV);
+	float2 tileOffset = shadowView.AtlasUV.xy / atlasSize;
+	float tileScale  = shadowView.AtlasUV.z / atlasSize;
 
-	float2 moments = ShadowMomentsArray.SampleLevel(
+	float2 baseUV = uv * tileScale + tileOffset;
+	
+	float texelSize = shadowView.ViewParams.w;
+
+	baseUV = clamp(baseUV, texelSize * 0.5f, 1.0f - texelSize * 0.5f);
+
+	float2 moments = ShadowMomentsTexture.SampleLevel(
 		LinearClampSampler,
-		float3(scaledUV, (float)shadowView.ArraySlice),
+		baseUV,
 		0.0f
 	).rg;
 
@@ -401,9 +416,9 @@ float SampleShadowViewRawDepth(
 	float2 maxUV    = viewportScale.xx - texelSize * 0.5f;
 	scaledUV        = clamp(scaledUV, minUV, maxUV);
 
-	float rawDepth = ShadowDepthArray.SampleLevel(
+	float rawDepth = ShadowDepth.SampleLevel(
 		LinearClampSampler,
-		float3(scaledUV, (float)shadowView.ArraySlice),
+		scaledUV,
 		0.0f
 	).r;
 

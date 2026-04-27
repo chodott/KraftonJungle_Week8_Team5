@@ -27,6 +27,7 @@ namespace ShadowSlots
 	static constexpr uint32 ShadowMapSRV        = 22;
 	static constexpr uint32 ShadowMomentsSRV    = 23;
 	static constexpr uint32 ShadowCubeSRV		= 24;
+	static constexpr uint32 ShadowMomentCubeSRV = 25;
 
 	static constexpr uint32 ShadowSampler       = 8;
 	static constexpr uint32 ShadowLinearSampler = 9;
@@ -84,6 +85,8 @@ struct FShadowViewRenderItem
 
 	EShadowProjectionType ProjectionType = EShadowProjectionType::Perspective;
 
+	EShadowLightType LightType = EShadowLightType::Spot;
+
 	FMatrix View           = FMatrix::Identity;
 	FMatrix Projection     = FMatrix::Identity;
 	FMatrix ViewProjection = FMatrix::Identity;
@@ -95,6 +98,8 @@ struct FShadowViewRenderItem
 
 	uint32            RequestedResolution = 0;
 	EShadowFilterMode FilterMode          = EShadowFilterMode::VSM;
+
+	FVector AtlasUV = FVector::ZeroVector;
 
 	D3D11_VIEWPORT Viewport = {};
 };
@@ -125,4 +130,7 @@ struct FShadowViewGPU
 	uint32 Pad0;
 
 	FVector4 ViewParams;
+	
+	FVector AtlasUV; // X,Y: UV offset, Z: UV scale
+	float   Pad1;
 };

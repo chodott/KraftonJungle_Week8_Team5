@@ -637,6 +637,8 @@
       <Filter>Source\World</Filter>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Features\Lighting\BloomRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Features\Shadow\ShadowRenderFeature.cpp" />
+    <ClCompile Include="Source\Renderer\Features\Shadow\ShadowAtlasAllocator.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\CoreMinimal.h">
@@ -1576,6 +1578,9 @@
       <Filter>ThirdParty\nlohmann</Filter>
     </ClInclude>
     <ClInclude Include="Source\Renderer\Features\Lighting\BloomRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Features\Shadow\ShadowRenderFeature.h" />
+    <ClInclude Include="Source\Renderer\Features\Shadow\ShadowTypes.h" />
+    <ClInclude Include="Source\Renderer\Features\Shadow\ShadowAtlasAllocator.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
