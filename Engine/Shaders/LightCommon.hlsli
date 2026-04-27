@@ -220,8 +220,8 @@ TextureCubeArray<float2>		     ShadowMomentsCubeArray: register(t25);// Cube Map
 StructuredBuffer<FShadowLightGPU>	DirShadowLights : register(t26);
 StructuredBuffer<FShadowViewGPU>	DirShadowViews : register(t27);
 
-Texture2DArray<float>				DirShadowDepthArray		: register(t28); // PCF
-Texture2DArray<float2>				DirShadowMomentsArray	: register(t29); // VSM
+Texture2D<float>				DirShadowDepthTexture		: register(t28); // PCF
+Texture2D<float2>				DirShadowMomentsTexture		: register(t29); // VSM
 
 SamplerComparisonState            ShadowSampler      : register(s8); // PCF
 SamplerState                      LinearClampSampler : register(s9); // VSM
@@ -421,8 +421,6 @@ float SampleShadowViewVSM(
 	
 	float texelSize = shadowView.ViewParams.w;
 
-	baseUV = clamp(baseUV, texelSize * 0.5f, 1.0f - texelSize * 0.5f);
-
 	float2 moments = ShadowMomentsTexture.SampleLevel(
 		LinearClampSampler,
 		baseUV,
@@ -503,13 +501,14 @@ float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, flo
     float variableBias = clamp(slopeBias * slope, 0.0f, baseBias * 10.0f);
     float compareDepth = saturate(ndc.z) - (baseBias + variableBias);
 
-    // 공통 Viewport 및 Texel Size 세팅 [cite: 51]
-    float viewportScale = max(view.ViewParams.z, 1.0e-6f);
-    float2 texelSize = view.ViewParams.w.xx;
-    float2 scaledUV = uv * viewportScale;
-    float2 minUV = texelSize * 0.5f;
-    float2 maxUV = viewportScale.xx - texelSize * 0.5f;
-    scaledUV = clamp(scaledUV, minUV, maxUV); // [cite: 52]
+
+	float atlasSize = view.ViewParams.z;
+	float tileSize  = view.AtlasUV.z;
+
+	float2 tileOffset = view.AtlasUV.xy / atlasSize;
+	float tileScale  = view.AtlasUV.z / atlasSize;
+	float2 baseUV = uv * tileScale + tileOffset;
+	float texelSize = view.ViewParams.w;
 
     // 5. Filter Mode에 따른 분기 (0: Raw, 1: PCF, 2: VSM) 
     if (view.FilterMode == 1u) // PCF
@@ -521,15 +520,26 @@ float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, flo
             [unroll]
             for (int x = -1; x <= 1; ++x)
             {
-                float2 tapUV = clamp(scaledUV + float2(x, y) * texelSize, minUV, maxUV);
-                visibility += DirShadowDepthArray.SampleCmpLevelZero(ShadowSampler, float3(tapUV, (float) view.ArraySlice), compareDepth);
+				float2 tapUV = baseUV + float2(x, y) * texelSize;
+
+				float2 minUV = tileOffset + texelSize * 0.5f;
+				float2 maxUV = tileOffset + tileScale - texelSize * 0.5f;
+
+				tapUV = clamp(tapUV, minUV, maxUV);
+                visibility += DirShadowDepthTexture.SampleCmpLevelZero(
+					ShadowSampler, 
+					tapUV, 
+					compareDepth);
             }
         }
         return visibility / 9.0f;
     }
     else if (view.FilterMode == 2u) // VSM
     {
-        float2 moments = DirShadowMomentsArray.SampleLevel(LinearClampSampler, float3(scaledUV, (float) view.ArraySlice), 0.0f).rg;
+        float2 moments = DirShadowMomentsTexture.SampleLevel(
+					LinearClampSampler, 
+					baseUV,
+					0.0f).rg;
         float mean = moments.x;
         float variance = max(moments.y - mean * mean, 1.0e-6f);
         
@@ -542,7 +552,7 @@ float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, flo
     }
 
     // FilterMode == 0u (Raw Depth)
-    float rawDepth = DirShadowDepthArray.SampleLevel(LinearClampSampler, float3(scaledUV, (float) view.ArraySlice), 0.0f).r;
+    float rawDepth = DirShadowDepthTexture.SampleLevel(LinearClampSampler, baseUV, 0.0f).r;
     return (compareDepth <= rawDepth) ? 1.0f : 0.0f;
 }
 
@@ -644,8 +654,6 @@ float3 DebugDirectionalShadow(uint shadowIndex, float3 worldPos, float viewDepth
     
     return float3(rawDepth, rawDepth, rawDepth); // ⚪⚫ 흑백: 텍스처 내부 데이터 출력
 }
-
-
 
 float EvaluateSpotShadow(
 	FShadowLightGPU shadowLight,

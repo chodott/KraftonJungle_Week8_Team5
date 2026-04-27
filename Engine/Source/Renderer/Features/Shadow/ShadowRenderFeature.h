@@ -104,8 +104,8 @@ private:
 
 	bool EnsureShadowBuffers(FRenderer& Renderer, uint32 ShadowLightCount, uint32 ShadowViewCount);
 
-	bool EnsureDirMomentsArray(const FRenderer& Renderer, uint32 RequiredResolution);
-	bool EnsureDirShadowDepthArray(FRenderer& Renderer, uint32 RequiredResolution);
+	bool EnsureDirMomentsAtlas(const FRenderer& Renderer, uint32 RequiredResolution);
+	bool EnsureDirShadowDepthAtlas(FRenderer& Renderer, uint32 RequiredResolution);
 	bool EnsureDirShadowBuffers(FRenderer& Renderer, uint32 ShadowLightCount, uint32 ShadowViewCount);
 
 	bool EnsureDynamicStructuredBufferSRV(
@@ -162,17 +162,14 @@ private:
 	ID3D11Buffer*             ShadowViewBuffer    = nullptr;
 	ID3D11ShaderResourceView* ShadowViewBufferSRV = nullptr;
 
-	ID3D11Texture2D*			DirShadowDepthArray		= nullptr;
-	ID3D11ShaderResourceView*	DirShadowDepthArraySRV	= nullptr;
-	ID3D11DepthStencilView*		DirShadowViewDSVs[ShadowConfig::MaxDirCascade] = {};
+	//Directional
+	ID3D11Texture2D*			DirShadowDepthAtlas		= nullptr;
+	ID3D11ShaderResourceView*	DirShadowDepthAtlasSRV	= nullptr;
+	ID3D11DepthStencilView*		DirShadowDepthAtlasDSV = nullptr;
 
-	ID3D11Texture2D*			DirShadowMomentsArray	= nullptr;
-	ID3D11RenderTargetView*		DirShadowMomentsRTV[ShadowConfig::MaxDirCascade] = {};
-	ID3D11ShaderResourceView*	DirShadowMomentsArraySRV = nullptr;
-
-	ID3D11Texture2D*			DirShadowMomentsBlur	= nullptr;
-	ID3D11RenderTargetView*		DirShadowMomentsBlurRTV[ShadowConfig::MaxDirCascade] = {};
-	ID3D11ShaderResourceView*	DirShadowMomentsBlurSRV = nullptr;
+	ID3D11Texture2D*			DirShadowMomentsAtlas	= nullptr;
+	ID3D11RenderTargetView*		DirShadowMomentsAtlasRTV = nullptr;
+	ID3D11ShaderResourceView*	DirShadowMomentsAtlasSRV = nullptr;
 
 	ID3D11Buffer*				DirShadowLightBuffer	= nullptr;
 	ID3D11ShaderResourceView*	DirShadowLightBufferSRV	= nullptr;
@@ -196,4 +193,5 @@ private:
 	bool                 bDebugViewportOverlayEnabled = false;
 
 	FShadowAtlasAllocator* ShadowAtlasAllocator;
+	FShadowAtlasAllocator* DirShadowAtlasAllocator;
 };

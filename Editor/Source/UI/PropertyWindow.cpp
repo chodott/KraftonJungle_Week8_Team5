@@ -2658,12 +2658,12 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 		LightComponent->SetIntensity(Intensity);
 	}
 
-	int ShadowMapResolution = (int)LightComponent->GetShadowMapResolution();
+	float ShadowResolutionScale = (int)LightComponent->GetShadowResolutionScale();
 	ImGui::Text("Shadow Map Resolution");
 	ImGui::NextColumn();
-	if (ImGui::DragInt("Shadow Map Resolution", &ShadowMapResolution, 16.0f, 0, (int)ShadowConfig::MaxShadowMapResolution))
+	if (ImGui::DragFloat("Shadow Map Resolution", &ShadowResolutionScale, 1.0f, 0.0f, 10.0f, "%.3f"))
 	{
-		LightComponent->SetShadowMapResolution((uint32)(std::max)(0, ShadowMapResolution));
+		LightComponent->SetShadowResolutionScale(ShadowResolutionScale);
 	}
 
 	float ShadowBias = LightComponent->GetShadowBias();

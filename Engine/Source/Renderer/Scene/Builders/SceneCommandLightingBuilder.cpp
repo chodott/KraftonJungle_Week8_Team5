@@ -104,7 +104,7 @@ namespace
 
 	uint32 AddShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, const FShadowViewRenderItem& InView)
 	{
-		if (Inputs.ShadowViews.size() >= ShadowConfig::MaxSpotShadowViews)
+		if (Inputs.ShadowViews.size() >= ShadowConfig::MaxShadowViews)
 			return UINT32_MAX;
 
 		FShadowViewRenderItem View = InView;
@@ -125,6 +125,42 @@ namespace
 
 		return ViewIndex;
 	}
+	float ComputeSpotScreenCoverage(
+		const FVector& CameraPosition,
+		const FVector& LightPosition,
+		const FVector& LightDirection,
+		float Range,
+		float OuterConeAngleDeg)
+	{
+		const float SafeRange = (std::max)(Range, 0.0f);
+		const float HalfRange = SafeRange * 0.5f;
+
+		const float OuterAngleRad = FMath::DegreesToRadians(
+			FMath::Clamp(OuterConeAngleDeg, 1.0f, 80.0f));
+
+		const float ConeEndRadius = std::tan(OuterAngleRad) * SafeRange;
+
+		const FVector BoundsCenter = LightPosition + LightDirection.GetSafeNormal() * HalfRange;
+		const float BoundsRadius = std::sqrt(HalfRange * HalfRange + ConeEndRadius * ConeEndRadius);
+
+		const float Distance = (CameraPosition - BoundsCenter).Size();
+		const float SafeDistance = (std::max)(Distance - BoundsRadius, 1.0f);
+
+		const float ProjectedRadius = BoundsRadius / SafeDistance;
+
+		return FMath::Clamp(ProjectedRadius * ProjectedRadius, 0.0f, 1.0f);
+	}
+
+	uint32 QuantizeShadowResolution(uint32 Resolution)
+	{
+		if (Resolution >= 2048) return 2048;
+		if (Resolution >= 1024) return 1024;
+		if (Resolution >= 512)  return 512;
+		if (Resolution >= 256)  return 256;
+		if (Resolution >= 128)  return 128;
+		return 64;
+	}
+
 	uint32 AddPointShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, uint32 ExplicitArraySlice, const FShadowViewRenderItem& InView) 
 	{
 		FShadowViewRenderItem View = InView;
@@ -189,7 +225,8 @@ namespace
 		const USpotLightComponent*   Spot,
 		const FLocalLightRenderItem& LightItem,
 		uint32                       LocalLightIndex,
-		uint32                       ShadowLightIndex)
+		uint32                       ShadowLightIndex,
+		const FVector&				 CameraPosition)
 	{
 		FShadowLightRenderItem& ShadowLight = Inputs.ShadowLights[ShadowLightIndex];
 
@@ -215,12 +252,18 @@ namespace
 		const float OuterHalfAngleDeg = FMath::Clamp(Spot->GetOuterConeAngle(), 1.0f, 80.0f);
 		const float FullFovRad        = FMath::DegreesToRadians(OuterHalfAngleDeg * 2.0f);
 
+		const float Coverage = ComputeSpotScreenCoverage(CameraPosition, LightItem.PositionWS, LightItem.DirectionWS,
+			LightItem.Range, Spot->GetOuterConeAngle());
+		float ResolutionScale = Spot->GetShadowResolutionScale();
+
+		float ResolutionFactor = std::sqrt(Coverage) * ResolutionScale;
+		uint32 RequestedResolution = QuantizeShadowResolution(static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionFactor));
+
 		FShadowViewRenderItem View;
 		View.ProjectionType      = EShadowProjectionType::Perspective;
 		View.PositionWS          = LightItem.PositionWS;
 		View.NearZ               = NearZ;
 		View.FarZ                = FarZ;
-		View.RequestedResolution = Spot->GetShadowMapResolution();
 
 		View.View = FMatrix::MakeViewLookAtLH(
 			LightItem.PositionWS,
@@ -237,6 +280,7 @@ namespace
 		View.LightType = EShadowLightType::Spot;
 
 		View.Viewport = {};
+		View.RequestedResolution = QuantizeShadowResolution(RequestedResolution);
 
 		AddShadowView(Inputs, ShadowLightIndex, View);
 	}
@@ -328,7 +372,7 @@ namespace
 			float BoxWidth = SphereRadius * 2.0f;
 			float BoxHeight = SphereRadius * 2.0f;
 
-			float WorldUnitsPerTexel = BoxWidth / ShadowConfig::DirShadowDepthArrayResolution;
+			float WorldUnitsPerTexel = BoxWidth / ShadowConfig::DirShadowDepthResolution;
 
 			// Texel 작업을 위함. Sanpping 현상 완화
 			// 빛을 0, 0, 0으로 두고, 이를 기반으로 위치를 Texel화 -> floor를 이용
@@ -352,7 +396,7 @@ namespace
 			ViewItem.PositionWS = FrustumCenter;
 			ViewItem.NearZ = BoxNear;
 			ViewItem.FarZ = BoxFar;
-			ViewItem.RequestedResolution = ShadowConfig::DirShadowDepthArrayResolution;
+			ViewItem.RequestedResolution = ShadowConfig::DirShadowDepthResolution;
 
 			ViewItem.BiasParams = { DirLight->GetShadowBias(), DirLight->GetShadowSlopeBias(), 0.0f, 0.0f };
 			ViewItem.View = FMatrix::MakeViewLookAtLH(LightPosition, LightPosition + LightItem.DirectionWS, UpVector);
@@ -515,7 +559,7 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 					if (ShadowLightIndex != UINT32_MAX)
 					{
-						BuildSpotShadowViews(LightingInputs, Spot, LightItem, LocalLightIndex, ShadowLightIndex);
+						BuildSpotShadowViews(LightingInputs, Spot, LightItem, LocalLightIndex, ShadowLightIndex, View.CameraPosition);
 						if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount > 0)
 						{
 							LightItem.ShadowIndex = ShadowLightIndex;
