@@ -753,6 +753,16 @@ float EvaluateShadow(
 	return 1.0f;
 }
 
+float EvaluateDirectionalShadow(
+    uint shadowIndex,
+    float3 worldPos,
+    float3 N,
+    float3 L,
+    float viewDepth)
+{
+    return 0.0f;
+}
+
 #endif
 
 float CalculateAttenuation(float distance, float range)

@@ -342,8 +342,8 @@ namespace
 			float BoxWidth = MaxRadiusY * 2.0f;
 			float BoxHeight = MaxRadiusZ * 2.0f;
 
-			float BoxNear = MinX - 2000.0f;
-			float BoxFar = MaxX + 500.0f;
+			float BoxNear = MinX;
+			float BoxFar = MaxX;
 
 			FShadowViewRenderItem ViewItem;
 			ViewItem.ProjectionType = EShadowProjectionType::Orthographic;
