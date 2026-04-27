@@ -11,6 +11,8 @@
 #include "Math/MathUtility.h"
 #include "World/World.h"
 
+#include "Renderer/Features/Shadow/ShadowAtlasAllocator.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -273,7 +275,6 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 				FLocalLightRenderItem LightItem       = BuildSpotLight(Spot);
 				const uint32          LocalLightIndex = static_cast<uint32>(LightingInputs.LocalLights.size());
-
 				if (Spot->IsCastingShadows())
 				{
 					const uint32 ShadowLightIndex = AllocalteShadowLight(LightingInputs, EShadowLightType::Spot, LocalLightIndex);

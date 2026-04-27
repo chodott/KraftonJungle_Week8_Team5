@@ -750,10 +750,10 @@ void FShadowRenderFeature::UploadShadowBuffers(
 		{
 			const FShadowViewRenderItem& Src = SceneViewData.LightingInputs.ShadowViews[Index];
 
-			const float ViewportScale = 0;// = GetShadowViewportScale(Src.RequestedResolution);
-			const float TexelSize     = ShadowDepthArrayResolution > 0
-				                        ? 1.0f / static_cast<float>(ShadowDepthArrayResolution)
-				                        : 1.0f;
+			const float ViewportScale = ShadowConfig::MaxShadowMapResolution;// = GetShadowViewportScale(Src.RequestedResolution);
+			const float TexelSize = ViewportScale > 0
+				? 1.0f / static_cast<float>(ViewportScale)
+				: 1.0f;
 
 			FShadowViewGPU& Dst     = GPUData[Index];
 			Dst.LightViewProjection = Src.ViewProjection.GetTransposed();
@@ -804,7 +804,7 @@ void FShadowRenderFeature::RenderShadowViews(
 
 	for (uint32 ViewIndex = 0; ViewIndex < ShadowViewCount; ++ViewIndex)
 	{
-		const FShadowViewRenderItem& ShadowView = SceneViewData.LightingInputs.ShadowViews[ViewIndex];
+		FShadowViewRenderItem& ShadowView = SceneViewData.LightingInputs.ShadowViews[ViewIndex];
 
 		if (ShadowView.ArraySlice >= ShadowConfig::MaxShadowViews)
 		{
@@ -833,6 +833,7 @@ void FShadowRenderFeature::RenderShadowViews(
 		SceneViewData.View.FarZ                  = ShadowView.FarZ;
 		SceneViewData.View.bOrthographic         = ShadowView.ProjectionType == EShadowProjectionType::Orthographic;
 		SceneViewData.View.Viewport              = ShadowViewport;
+		ShadowView.AtlasUV = FVector(ShadowAtlasNode->X, ShadowAtlasNode->Y, ShadowAtlasNode->Size);
 
 		if (GlobalFilterMode == EShadowFilterMode::Raw ||
 			GlobalFilterMode == EShadowFilterMode::PCF)

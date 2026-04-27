@@ -275,9 +275,15 @@ float SampleShadowViewPCF(
 	
 	float bias = ComputeShadowBias(shadowLight, N, L);
 	compareDepth = saturate(compareDepth - bias);
+
+	float atlasSize = shadowView.ViewParams.z;
+	float tileSize  = shadowView.AtlasUV.z;
+
+	float2 tileOffset = shadowView.AtlasUV.xy / atlasSize;
+	float tileScale  = shadowView.AtlasUV.z / atlasSize;
+
+	float2 baseUV = uv * tileScale + tileOffset;
 	
-	float2 atlasOffset = shadowView.AtlasUV.xy;
-	float atlasScale = shadowView.AtlasUV.z;
 	float texelSize = shadowView.ViewParams.w;
 	
 	float visibility = 0.0f;
@@ -288,13 +294,15 @@ float SampleShadowViewPCF(
 		[unroll]
 		for (int x = -1; x <= 1; ++x)
 		{
-			float2 tapUV = uv + float2(x,y) * (texelSize / atlasScale);
-			float2 clampedUV = clamp(tapUV, 0.0f, 1.0f);
-			float2 finalUV = clampedUV * atlasScale + atlasOffset;
+			float2 tapUV = baseUV + float2(x, y) * texelSize;
 
+			float2 minUV = tileOffset + texelSize * 0.5f;
+			float2 maxUV = tileOffset + tileScale - texelSize * 0.5f;
+
+			tapUV = clamp(tapUV, minUV, maxUV);
 			visibility += ShadowDepth.SampleCmpLevelZero(
 				ShadowSampler,
-				finalUV,
+				tapUV,
 				compareDepth);
 		}
 	}
