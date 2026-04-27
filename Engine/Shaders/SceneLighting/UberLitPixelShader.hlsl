@@ -28,6 +28,7 @@ Texture2D EmissiveMap : register(t2);
 
 float4 main(VS_OUTPUT Input) : SV_TARGET
 {
+	
 	if (VisualizationMode == LIGHT_VISUALIZATION_CLUSTER_HEATMAP)
 	{
 		return VisualizeClusterLightCulling(Input.Position, Input.WorldPosition);
@@ -67,7 +68,10 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
     {
 		float3 L_dir = normalize(-Directional.DirectionEtc.xyz);
 		float diff = max(0.0f, dot(N, L_dir));
-		lighting += Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff;
+	
+		float viewDepth = length(CameraPosition.xyz - Input.WorldPosition);
+		float shadow = EvaluateDirectionalShadow(0, Input.WorldPosition, N, L_dir, viewDepth);
+		lighting += Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff * shadow;
     }
     
 	lighting += ComputeClusteredLocalLightingLambert(Input.Position, Input.WorldPosition, N).rgb;
@@ -95,9 +99,12 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 	{
 		float3 L_dir = normalize(-Directional.DirectionEtc.xyz);
 		float diff = max(0.0f, dot(N, L_dir));
-		float3 dirDiffuse = Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff;
+	
+		float viewDepth = length(CameraPosition.xyz - Input.WorldPosition);
+		float shadow = EvaluateDirectionalShadow(0, Input.WorldPosition, N, L_dir, viewDepth);
+		float3 dirDiffuse = Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff * shadow;
 		diffuseLighting += dirDiffuse;
-		totalLighting += CalculateDirectionalLight(Directional, Input.WorldPosition, N, V).rgb;
+		totalLighting += CalculateDirectionalLight(Directional, Input.WorldPosition, N, V).rgb * shadow;
 	}
 	
 	ComputeClusteredLocalLightingContributions(
