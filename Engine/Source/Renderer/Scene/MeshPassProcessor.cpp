@@ -66,6 +66,13 @@ void FMeshPassProcessor::ExecutePass(
 	std::vector<const FMeshBatch*> Batches;
 	Batches.reserve(SceneViewData.MeshInputs.Batches.size());
 
+	// 그림자 패스에서는 라이트 영향권 밖 메시 컬링 (per-light distance culling)
+	// ShadowVSM 패스는 항상 라이트 시점이라 안전하게 컬링 가능.
+	// DepthPrepass는 메인 카메라/그림자 양쪽에서 쓰여서 컬링하면 메인 씬이 잘릴 위험.
+	const bool bIsShadowPass = (PassType == EMeshPassType::ShadowVSM);
+	const FVector LightPosWS = SceneViewData.View.CameraPosition;
+	const float   LightRange = SceneViewData.View.FarZ;
+
 	for (const FMeshBatch& Batch : SceneViewData.MeshInputs.Batches)
 	{
 		if (!Batch.Mesh || !Batch.Material || !ShouldDrawInPass(Batch, PassType))
@@ -89,6 +96,17 @@ void FMeshPassProcessor::ExecutePass(
 		if (PassType == EMeshPassType::ShadowVSM && Batch.Material->GetPassShaders(EMaterialPassType::ShadowVSM) == nullptr)
 		{
 			continue;
+		}
+
+		// 그림자 패스 거리 컬링 — 라이트 영향 반경 밖이면 스킵
+		if (bIsShadowPass)
+		{
+			const FVector Delta = Batch.WorldBounds.Center - LightPosWS;
+			const float MaxDist = Batch.WorldBounds.Radius + LightRange + 1.0f;  // 1유닛 안전 마진
+			if (Delta.SizeSquared() > MaxDist * MaxDist)
+			{
+				continue;
+			}
 		}
 
 		Batches.push_back(&Batch);

@@ -766,7 +766,6 @@ void FShadowRenderFeature::RenderShadowViews(
 	ShadowAtlasAllocator->Reset();
 
 
-
 	for (uint32 ViewIndex = 0; ViewIndex < ShadowViewCount; ++ViewIndex)
 	{
 		FShadowViewRenderItem& ShadowView = SceneViewData.LightingInputs.ShadowViews[ViewIndex];
