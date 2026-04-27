@@ -211,6 +211,7 @@ StructuredBuffer<FShadowViewGPU>  ShadowViews        : register(t21);
 Texture2D<float>             ShadowDepth   : register(t22); // PCF
 Texture2D<float2>            ShadowMomentsTexture : register(t23); // VSM
 TextureCubeArray<float>		     ShadowDepthCubeArray: register(t24);// Cube Map
+TextureCubeArray<float>		     ShadowMomentsCubeArray: register(t25);// Cube Map VSM
 
 SamplerComparisonState            ShadowSampler      : register(s8); // PCF
 SamplerState                      LinearClampSampler : register(s9); // VSM

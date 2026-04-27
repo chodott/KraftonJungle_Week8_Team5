@@ -101,6 +101,7 @@ void FShadowRenderFeature::BindShadowResources(
 	DeviceContext->VSSetShaderResources(ShadowSlots::ShadowLightSRV, 4, SRVs);
 	DeviceContext->PSSetShaderResources(ShadowSlots::ShadowLightSRV, 4, SRVs);
 	DeviceContext->PSSetShaderResources(ShadowSlots::ShadowCubeSRV, 1 , &ShadowDepthCubeArraySRV);
+	DeviceContext->PSSetShaderResources(ShadowSlots::ShadowMomentCubeSRV, 1, &ShadowMomentsCubeArraySRV);
 
 	DeviceContext->VSSetSamplers(ShadowSlots::ShadowSampler, 1, &ShadowComparisonSampler);
 	DeviceContext->PSSetSamplers(ShadowSlots::ShadowSampler, 1, &ShadowComparisonSampler);
@@ -171,6 +172,14 @@ void FShadowRenderFeature::Release()
 	}
 	SafeRelease(ShadowDepthCubeArray);
 	SafeRelease(ShadowDepthCubeArraySRV);
+
+	for(ID3D11RenderTargetView*& RTV : ShadowMomentsCubeRTVs)
+	{
+		SafeRelease(RTV);
+	}
+	SafeRelease(ShadowMomentsCubeArray);
+	SafeRelease(ShadowMomentsCubeArraySRV);
+
 	bMomentsBlurValid      = false;
 	bShadowDepthArrayDirty = true;
 }
@@ -255,6 +264,9 @@ bool FShadowRenderFeature::EnsureMomentsAtlas(const FRenderer& Renderer, uint32 
 		return true;
 	}
 
+	/////////////////////////////////////////////////////////////////////
+	// Atlas
+	/////////////////////////////////////////////////////////////////////
 	D3D11_TEXTURE2D_DESC TextureDesc = {};
 	TextureDesc.Width                = ShadowConfig::MaxShadowMapResolution;
 	TextureDesc.Height               = ShadowConfig::MaxShadowMapResolution;
@@ -292,6 +304,66 @@ bool FShadowRenderFeature::EnsureMomentsAtlas(const FRenderer& Renderer, uint32 
 	if (FAILED(Device->CreateRenderTargetView(LocalShadowMomentsAtlas, &RTVDesc, &LocalShadowMomentsAtlasRTV)) || !LocalShadowMomentsAtlasRTV)
 	{
 		return false;
+	}
+
+	////////////////////////////////////////////////////////////////////
+	// Cube array (for point light shadows)
+	/////////////////////////////////////////////////////////////////////
+
+	D3D11_TEXTURE2D_DESC CubeTextureDesc = {};
+	CubeTextureDesc.Width = ShadowConfig::MaxShadowMapResolution;
+	CubeTextureDesc.Height = ShadowConfig::MaxShadowMapResolution;
+	CubeTextureDesc.MipLevels = 1;
+	CubeTextureDesc.Format = DXGI_FORMAT_R32G32_FLOAT;
+	CubeTextureDesc.ArraySize = ShadowConfig::MaxShadowViews;
+	CubeTextureDesc.SampleDesc.Count = 1;
+	CubeTextureDesc.SampleDesc.Quality = 0;
+	CubeTextureDesc.Usage = D3D11_USAGE_DEFAULT;
+	CubeTextureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	CubeTextureDesc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
+
+	if (FAILED(Device->CreateTexture2D(&CubeTextureDesc, nullptr, &ShadowMomentsCubeArray)) || !ShadowMomentsCubeArray)
+	{
+		SafeRelease(ShadowMomentsCubeArray);
+		return false;
+	}
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC CubeSRVDesc = {};
+	CubeSRVDesc.Format = CubeTextureDesc.Format;
+	CubeSRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBEARRAY;
+	CubeSRVDesc.Texture2D.MostDetailedMip = 0;
+	CubeSRVDesc.Texture2D.MipLevels = 1;
+	CubeSRVDesc.TextureCubeArray.First2DArrayFace = ShadowConfig::PointShadowSliceOffset;
+	CubeSRVDesc.TextureCubeArray.NumCubes = ShadowConfig::MaxPointShadowCubes;
+
+	if (FAILED(Device->CreateShaderResourceView(ShadowMomentsCubeArray, &CubeSRVDesc, &ShadowMomentsCubeArraySRV)) || !ShadowMomentsCubeArraySRV)
+	{
+		SafeRelease(ShadowMomentsCubeArraySRV);
+		SafeRelease(ShadowMomentsCubeArray);
+		return false;
+	}
+
+	for (uint32 Slice = 0; Slice < ShadowConfig::MaxShadowViews; ++Slice)
+	{
+		D3D11_RENDER_TARGET_VIEW_DESC CubeRTVDesc = {};
+		CubeRTVDesc.Format = CubeTextureDesc.Format;
+		CubeRTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
+		CubeRTVDesc.Texture2DArray.MipSlice = 0;
+		CubeRTVDesc.Texture2DArray.FirstArraySlice = Slice;
+		CubeRTVDesc.Texture2DArray.ArraySize = 1;
+
+		if (FAILED(Device->CreateRenderTargetView(ShadowMomentsCubeArray, &CubeRTVDesc, &ShadowMomentsCubeRTVs[Slice])) || !ShadowMomentsCubeRTVs[Slice])
+		{
+			// 에러 발생 시 릴리즈 로직 (팀원분들의 기존 스타일 유지)
+			SafeRelease(ShadowMomentsCubeArraySRV);
+			for (ID3D11RenderTargetView*& RTV : ShadowMomentsCubeRTVs)
+			{
+				SafeRelease(RTV);
+			}
+			SafeRelease(ShadowMomentsCubeArray);
+			bShadowDepthArrayDirty = true;
+			return false;
+		}
 	}
 
 	return true;
@@ -693,9 +765,7 @@ void FShadowRenderFeature::RenderShadowViews(
 	//현재 매프레임 아틀라스 배치 초기화 중. 개선 필요
 	ShadowAtlasAllocator->Reset();
 
-	ID3D11RenderTargetView* MomentsRTV = LocalShadowMomentsAtlasRTV;
-	DeviceContext->ClearRenderTargetView(MomentsRTV, ClearMoments);
-	DeviceContext->ClearDepthStencilView(LocalShadowDepthAtlasDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
 
 	for (uint32 ViewIndex = 0; ViewIndex < ShadowViewCount; ++ViewIndex)
 	{
@@ -709,6 +779,8 @@ void FShadowRenderFeature::RenderShadowViews(
 		D3D11_VIEWPORT ShadowViewport = {};
 		const uint32 ResolvedResolution = ResolveShadowViewResolution(ShadowView.RequestedResolution);
 		ID3D11DepthStencilView* ShadowDSV = nullptr;
+		ID3D11RenderTargetView* MomentsRTV = nullptr;
+
 		switch (ShadowView.LightType)
 		{
 		case EShadowLightType::Spot:
@@ -721,11 +793,16 @@ void FShadowRenderFeature::RenderShadowViews(
 			}
 			ShadowView.AtlasUV = FVector(ShadowAtlasNode->X, ShadowAtlasNode->Y, ShadowAtlasNode->Size);
 			ShadowViewport = BuildShadowViewport(ShadowAtlasNode->X, ShadowAtlasNode->Y, ShadowAtlasNode->Size);
+
+			MomentsRTV = LocalShadowMomentsAtlasRTV;
+			DeviceContext->ClearRenderTargetView(MomentsRTV, ClearMoments);
+			DeviceContext->ClearDepthStencilView(LocalShadowDepthAtlasDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 			break;
 		}
 		case EShadowLightType::Point:
 
 			ShadowDSV = ShadowDepthCubeDSVs[ShadowView.ArraySlice];
+			MomentsRTV = ShadowMomentsCubeRTVs[ShadowView.ArraySlice];
 			DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 			ShadowViewport = BuildShadowViewport(0, 0, ResolvedResolution);
 			break;
@@ -763,27 +840,27 @@ void FShadowRenderFeature::RenderShadowViews(
 				SceneViewData,
 				EMeshPassType::DepthPrepass);
 		}
-		//else
-		//{
-		//	if (!MomentsRTV)
-		//	{
-		//		continue;
-		//	}
+		else
+		{
+			if (!MomentsRTV)
+			{
+				continue;
+			}
 
-		//	BeginPass(
-		//		Renderer,
-		//		MomentsRTV,
-		//		ShadowDSV,
-		//		ShadowViewport,
-		//		SceneViewData.Frame,
-		//		SceneViewData.View);
+			BeginPass(
+				Renderer,
+				MomentsRTV,
+				ShadowDSV,
+				ShadowViewport,
+				SceneViewData.Frame,
+				SceneViewData.View);
 
-		//	Processor.ExecutePass(
-		//		Renderer,
-		//		Targets,
-		//		SceneViewData,
-		//		EMeshPassType::ShadowVSM);
-		//}
+			Processor.ExecutePass(
+				Renderer,
+				Targets,
+				SceneViewData,
+				EMeshPassType::ShadowVSM);
+		}
 	}
 
 	SceneViewData.View = OriginalView;

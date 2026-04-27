@@ -27,6 +27,7 @@ namespace ShadowSlots
 	static constexpr uint32 ShadowMapSRV        = 22;
 	static constexpr uint32 ShadowMomentsSRV    = 23;
 	static constexpr uint32 ShadowCubeSRV		= 24;
+	static constexpr uint32 ShadowMomentCubeSRV = 25;
 
 	static constexpr uint32 ShadowSampler       = 8;
 	static constexpr uint32 ShadowLinearSampler = 9;

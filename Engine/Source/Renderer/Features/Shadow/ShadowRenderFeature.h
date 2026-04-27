@@ -138,14 +138,18 @@ private:
 	ID3D11DepthStencilView*   LocalShadowDepthAtlasDSV					   = nullptr;
 	ID3D11ShaderResourceView* LocalShadowDepthAtlasSRV					   = nullptr;
 
+	ID3D11Texture2D* LocalShadowMomentsAtlas = nullptr;
+	ID3D11RenderTargetView* LocalShadowMomentsAtlasRTV = nullptr;
+	ID3D11ShaderResourceView* LocalShadowMomentsAtlasSRV = nullptr;
+
 	//PointCubeMap
 	ID3D11Texture2D*          ShadowDepthCubeArray                             = nullptr;
 	ID3D11ShaderResourceView* ShadowDepthCubeArraySRV					   = nullptr;
 	ID3D11DepthStencilView*   ShadowDepthCubeDSVs[ShadowConfig::MaxShadowViews] = {};
 
-	ID3D11Texture2D* LocalShadowMomentsAtlas = nullptr;
-	ID3D11RenderTargetView* LocalShadowMomentsAtlasRTV = nullptr;
-	ID3D11ShaderResourceView* LocalShadowMomentsAtlasSRV = nullptr;
+	ID3D11Texture2D* ShadowMomentsCubeArray = nullptr;
+	ID3D11ShaderResourceView* ShadowMomentsCubeArraySRV = nullptr;
+	ID3D11RenderTargetView* ShadowMomentsCubeRTVs[ShadowConfig::MaxShadowViews] = {};
 
 	ID3D11Buffer*             ShadowLightBuffer    = nullptr;
 	ID3D11ShaderResourceView* ShadowLightBufferSRV = nullptr;
