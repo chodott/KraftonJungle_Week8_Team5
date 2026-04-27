@@ -238,6 +238,10 @@ namespace
 		}
 
 	}
+	float ComputeShadowPriority(const FVector& LightPos, const FVector& CameraPos)
+	{
+		return (LightPos - CameraPos).SizeSquared();
+	}
 
 }
 
@@ -260,6 +264,18 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 	{
 		return;
 	}
+
+
+	//temp Condidtate colletion vector
+	struct FPointShadowCandidate
+	{
+		const UPointLightComponent* PointLightl;
+		FLocalLightRenderItem LightItem;
+		uint32 LocalLightIndex;
+		float SortKey;
+	};
+	std::vector<FPointShadowCandidate> ShadowCandidates;
+	ShadowCandidates.reserve(16);
 
 	FVector                     AmbientRadiance      = FVector::ZeroVector;
 	float                       AmbientIntensitySum  = 0.0f;
@@ -365,7 +381,12 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 				{
 					const uint32 ShadowLightIndex = AllocalteShadowLight(
 						LightingInputs, EShadowLightType::Point, LocalLightIndex);
-
+					FPointShadowCandidate Candidate;
+					Candidate.PointLightl = Point;
+					Candidate.LightItem = LightItem;
+					Candidate.LocalLightIndex = LocalLightIndex;
+					Candidate.SortKey = ComputeShadowPriority(LightItem.PositionWS, OutSceneViewData.View.CameraPosition);
+					ShadowCandidates.push_back(Candidate);
 					if (ShadowLightIndex != UINT32_MAX)
 					{
 						BuildPointShadowViews(LightingInputs, Point, LightItem,
@@ -378,13 +399,47 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 						}
 					}
 				}
-
-				LightingInputs.LocalLights.push_back(LightItem);
+				else
+				{
+			
+					LightingInputs.LocalLights.push_back(LightItem);
+				}
 				continue;
 			}
 		}
 	}
+	std::sort(ShadowCandidates.begin(), ShadowCandidates.end(),
+		[](const FPointShadowCandidate& A, const FPointShadowCandidate& B)
+	{;
+	return A.SortKey < B.SortKey;
+	});
 
+	uint32 PointCubeCounter = 0;
+
+	for (FPointShadowCandidate& Candidate : ShadowCandidates)
+	{
+		FLocalLightRenderItem LightItem = Candidate.LightItem;
+
+		if (PointCubeCounter < ShadowConfig::MaxPointShadowCubes)
+		{
+			const uint32 ShadowLightIndex = AllocalteShadowLight(
+				LightingInputs, EShadowLightType::Point, Candidate.LocalLightIndex);
+
+			if (ShadowLightIndex != UINT32_MAX)
+			{
+				BuildPointShadowViews(LightingInputs, Candidate.PointLightl, LightItem,
+					ShadowLightIndex, PointCubeCounter);
+
+				if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount == 6)
+				{
+					LightItem.ShadowIndex = ShadowLightIndex;
+					++PointCubeCounter;
+				}
+			}
+		}
+
+		LightingInputs.LocalLights.push_back(LightItem);
+	}
 	if (bHasAmbientLight && AmbientIntensitySum > 0.0f)
 	{
 		LightingInputs.Ambient.Color     = AmbientRadiance / AmbientIntensitySum;
