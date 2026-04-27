@@ -177,7 +177,6 @@ namespace
 		View.PositionWS          = LightItem.PositionWS;
 		View.NearZ               = NearZ;
 		View.FarZ                = FarZ;
-		View.RequestedResolution = Spot->GetShadowMapResolution();
 
 		View.View = FMatrix::MakeViewLookAtLH(
 			LightItem.PositionWS,
