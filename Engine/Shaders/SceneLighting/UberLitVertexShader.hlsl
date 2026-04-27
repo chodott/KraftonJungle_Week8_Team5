@@ -69,7 +69,7 @@ VS_OUTPUT main(VS_INPUT Input)
 		float3 L_dir = normalize(-Directional.DirectionEtc.xyz);
 		float diff = max(0.0f, dot(N, L_dir));
 	
-		float viewDepth = length(CameraPosition.xyz - Output.WorldPosition);
+		float viewDepth = mul(float4(Output.WorldPosition, 1.0f), View).x;
 		float shadow = EvaluateDirectionalShadow(0, Output.WorldPosition, N, L_dir, viewDepth);
         
 		float3 dirDiffuse = Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff * shadow;

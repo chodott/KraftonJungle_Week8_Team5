@@ -14,6 +14,7 @@
 #include "Renderer/Features/Shadow/ShadowAtlasAllocator.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <cmath>
 
 #include "Math/Cascade.h"
@@ -219,6 +220,362 @@ namespace
 		return ViewIndex;
 	}
 
+	bool IsFinite(float Value)
+	{
+		return std::isfinite(Value);
+	}
+
+	bool IsFinite(const FVector& Value)
+	{
+		return IsFinite(Value.X) && IsFinite(Value.Y) && IsFinite(Value.Z);
+	}
+
+	bool IsFinite(const FVector4& Value)
+	{
+		return IsFinite(Value.X) && IsFinite(Value.Y) && IsFinite(Value.Z) && IsFinite(Value.W);
+	}
+
+	bool IsFinite(const FMatrix& Matrix)
+	{
+		for (int Row = 0; Row < 4; ++Row)
+		{
+			for (int Col = 0; Col < 4; ++Col)
+			{
+				if (!IsFinite(Matrix[Row][Col]))
+				{
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	bool IsUsableProjectionMatrix(const FMatrix& Matrix)
+	{
+		return IsFinite(Matrix) && Matrix.IsInvertible(1.0e-7f);
+	}
+
+	bool ValidateShadowProjectionForCascade(
+		const FMatrix& ViewProjection,
+		const FVector FrustumCornersWS[8])
+	{
+		float MinX = FLT_MAX;
+		float MaxX = -FLT_MAX;
+		float MinY = FLT_MAX;
+		float MaxY = -FLT_MAX;
+		float MinDepth = FLT_MAX;
+		float MaxDepth = -FLT_MAX;
+
+		for (int CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
+		{
+			const FVector& Corner = FrustumCornersWS[CornerIndex];
+			if (!IsFinite(Corner))
+			{
+				return false;
+			}
+
+			const FVector4 Clip = FVector4(Corner.X, Corner.Y, Corner.Z, 1.0f) * ViewProjection;
+			if (!IsFinite(Clip) || Clip.W <= 1.0e-5f)
+			{
+				return false;
+			}
+
+			const float InvW = 1.0f / Clip.W;
+			const FVector NDC(Clip.X * InvW, Clip.Y * InvW, Clip.Z * InvW);
+			if (!IsFinite(NDC) ||
+				NDC.X < -1.02f || NDC.X > 1.02f ||
+				NDC.Y < -1.02f || NDC.Y > 1.02f ||
+				NDC.Z < -0.02f || NDC.Z > 1.02f)
+			{
+				return false;
+			}
+
+			MinX = (std::min)(MinX, NDC.X);
+			MaxX = (std::max)(MaxX, NDC.X);
+			MinY = (std::min)(MinY, NDC.Y);
+			MaxY = (std::max)(MaxY, NDC.Y);
+			MinDepth = (std::min)(MinDepth, NDC.Z);
+			MaxDepth = (std::max)(MaxDepth, NDC.Z);
+		}
+
+		return IsFinite(MinX) && IsFinite(MaxX) &&
+			IsFinite(MinY) && IsFinite(MaxY) &&
+			IsFinite(MinDepth) && IsFinite(MaxDepth) &&
+			(MaxX - MinX) > 1.0e-2f &&
+			(MaxY - MinY) > 1.0e-2f &&
+			(MaxDepth - MinDepth) > 1.0e-4f;
+	}
+
+	bool ExtractPerspectiveSettings(const FMatrix& Projection, float& OutFovY, float& OutAspectRatio)
+	{
+		const float XScale = Projection[1][0];
+		const float YScale = Projection[2][1];
+		if (!IsFinite(XScale) || !IsFinite(YScale) ||
+			std::fabs(XScale) <= 1.0e-6f || std::fabs(YScale) <= 1.0e-6f)
+		{
+			return false;
+		}
+
+		OutFovY = 2.0f * std::atan(1.0f / YScale);
+		OutAspectRatio = YScale / XScale;
+
+		return IsFinite(OutFovY) && IsFinite(OutAspectRatio) &&
+			OutFovY > FMath::DegreesToRadians(1.0f) &&
+			OutFovY < FMath::DegreesToRadians(179.0f) &&
+			OutAspectRatio > 1.0e-4f;
+	}
+
+	FVector ChooseStableUpVector(const FVector& LookDirection)
+	{
+		const FVector SafeLook = LookDirection.GetSafeNormal();
+		FVector UpVector = FVector::ZAxisVector;
+		if (std::fabs(FVector::DotProduct(UpVector, SafeLook)) > 0.99f)
+		{
+			UpVector = FVector::YAxisVector;
+		}
+		return UpVector;
+	}
+
+	float SmoothStep01(float Value)
+	{
+		const float T = FMath::Clamp(Value, 0.0f, 1.0f);
+		return T * T * (3.0f - 2.0f * T);
+	}
+
+	float ComputeVirtualSlideBack(
+		float NearSplit,
+		float FarSplit,
+		const FVector& CameraForwardWS,
+		const FVector& LightSourceDirectionWS)
+	{
+		const FVector SafeCameraForwardWS = CameraForwardWS.GetSafeNormal();
+		const FVector SafeLightSourceDirectionWS = LightSourceDirectionWS.GetSafeNormal();
+		if (SafeCameraForwardWS.IsNearlyZero() || SafeLightSourceDirectionWS.IsNearlyZero())
+		{
+			return 0.0f;
+		}
+
+		const float ParallelAmount = std::fabs(FVector::DotProduct(SafeCameraForwardWS, SafeLightSourceDirectionWS));
+		const float SlideWeight = SmoothStep01((ParallelAmount - 0.55f) / 0.45f);
+		const float CascadeDepth = (std::max)(FarSplit - NearSplit, 0.0f);
+		const float SlideDistance = FMath::Clamp(CascadeDepth * 0.5f, 10.0f, 100.0f);
+
+		return SlideDistance * SlideWeight;
+	}
+
+	bool BuildVirtualCameraForCascade(
+		const FViewContext& View,
+		const FVector& LightSourceDirectionWS,
+		float NearSplit,
+		float FarSplit,
+		FMatrix& OutVirtualView,
+		FMatrix& OutVirtualProjection,
+		FVector& OutVirtualCameraPositionWS,
+		float& OutVirtualNear,
+		float& OutVirtualFar)
+	{
+		float FovY = 0.0f;
+		float AspectRatio = 1.0f;
+		if (!ExtractPerspectiveSettings(View.Projection, FovY, AspectRatio))
+		{
+			return false;
+		}
+
+		const FVector CameraForwardWS = View.InverseView.TransformVector(FVector::ForwardVector).GetSafeNormal();
+		const FVector CameraUpWS = View.InverseView.TransformVector(FVector::ZAxisVector).GetSafeNormal();
+		if (CameraForwardWS.IsNearlyZero() || CameraUpWS.IsNearlyZero())
+		{
+			return false;
+		}
+
+		const float SlideBack = ComputeVirtualSlideBack(NearSplit, FarSplit, CameraForwardWS, LightSourceDirectionWS);
+		OutVirtualCameraPositionWS = View.CameraPosition - CameraForwardWS * SlideBack;
+		OutVirtualNear = NearSplit + SlideBack;
+		OutVirtualFar = FarSplit + SlideBack;
+		if (OutVirtualFar <= OutVirtualNear + 1.0e-3f)
+		{
+			return false;
+		}
+
+		OutVirtualView = FMatrix::MakeViewLookAtLH(
+			OutVirtualCameraPositionWS,
+			OutVirtualCameraPositionWS + CameraForwardWS,
+			CameraUpWS);
+		OutVirtualProjection = FMatrix::MakePerspectiveFovLH(
+			FovY,
+			AspectRatio,
+			OutVirtualNear,
+			OutVirtualFar);
+
+		return IsUsableProjectionMatrix(OutVirtualView) && IsUsableProjectionMatrix(OutVirtualProjection);
+	}
+
+	bool BuildPostPerspectiveInfo(
+		const FMatrix& VirtualView,
+		const FMatrix& VirtualProjection,
+		const FVector& LightSourceDirectionWS,
+		FMatrix& OutViewPP,
+		FMatrix& OutProjectionPP)
+	{
+		// HTML assumes an OpenGL unit cube centered at zero. This engine is D3D LH,
+		// so post-perspective z is [0, 1] and the fitted cube center is z = 0.5.
+		const FVector CubeCenterPP(0.0f, 0.0f, 0.5f);
+		const float CubeRadiusPP = 1.5f;
+		const float MinDepthSpan = 0.1f;
+
+		const FVector SafeLightSourceDirectionWS = LightSourceDirectionWS.GetSafeNormal();
+		if (SafeLightSourceDirectionWS.IsNearlyZero())
+		{
+			return false;
+		}
+
+		const FVector EyeLightDirection = VirtualView.TransformVector(SafeLightSourceDirectionWS);
+		const FVector4 LightPP = FVector4(EyeLightDirection.X, EyeLightDirection.Y, EyeLightDirection.Z, 0.0f) * VirtualProjection;
+		if (!IsFinite(LightPP))
+		{
+			return false;
+		}
+
+		const bool bLightIsBehindEye = LightPP.W < 0.0f;
+		const bool bUseOrthographicPP = std::fabs(LightPP.W) <= 1.0e-3f;
+
+		if (bUseOrthographicPP)
+		{
+			FVector LightDirectionPP(LightPP.X, LightPP.Y, LightPP.Z);
+			LightDirectionPP = LightDirectionPP.GetSafeNormal();
+			if (LightDirectionPP.IsNearlyZero())
+			{
+				return false;
+			}
+
+			const FVector LightPositionPP = CubeCenterPP + LightDirectionPP * (2.0f * CubeRadiusPP);
+			const FVector LookDirectionPP = CubeCenterPP - LightPositionPP;
+			const float DistToCenter = LookDirectionPP.Size();
+			if (!IsFinite(DistToCenter) || DistToCenter <= CubeRadiusPP)
+			{
+				return false;
+			}
+
+			const float NearPP = (std::max)(MinDepthSpan, DistToCenter - CubeRadiusPP);
+			const float FarPP = (std::max)(NearPP + MinDepthSpan, DistToCenter + CubeRadiusPP);
+
+			OutViewPP = FMatrix::MakeViewLookAtLH(
+				LightPositionPP,
+				CubeCenterPP,
+				ChooseStableUpVector(LookDirectionPP));
+			OutProjectionPP = FMatrix::MakeOrthographicLH(
+				CubeRadiusPP * 2.0f,
+				CubeRadiusPP * 2.0f,
+				NearPP,
+				FarPP);
+
+			return IsUsableProjectionMatrix(OutViewPP) && IsUsableProjectionMatrix(OutProjectionPP);
+		}
+
+		const float InvW = 1.0f / LightPP.W;
+		const FVector LightPositionPP(LightPP.X * InvW, LightPP.Y * InvW, LightPP.Z * InvW);
+		if (!IsFinite(LightPositionPP))
+		{
+			return false;
+		}
+
+		FVector LookAtCubePP = CubeCenterPP - LightPositionPP;
+		const float DistLookAtCubePP = LookAtCubePP.Size();
+		if (!IsFinite(DistLookAtCubePP) || DistLookAtCubePP <= 1.0e-4f)
+		{
+			return false;
+		}
+		LookAtCubePP /= DistLookAtCubePP;
+
+		float FovPP = 2.0f * std::atan(CubeRadiusPP / DistLookAtCubePP);
+		FovPP = FMath::Clamp(FovPP, FMath::DegreesToRadians(1.0f), FMath::DegreesToRadians(175.0f));
+
+		float NearPP = 0.0f;
+		float FarPP = 0.0f;
+		if (bLightIsBehindEye)
+		{
+			NearPP = (std::max)(MinDepthSpan, DistLookAtCubePP - CubeRadiusPP);
+			FarPP = NearPP;
+			NearPP = -NearPP;
+		}
+		else
+		{
+			NearPP = (std::max)(MinDepthSpan, DistLookAtCubePP - CubeRadiusPP);
+			FarPP = (std::max)(NearPP + MinDepthSpan, DistLookAtCubePP + CubeRadiusPP);
+		}
+
+		OutViewPP = FMatrix::MakeViewLookAtLH(
+			LightPositionPP,
+			CubeCenterPP,
+			ChooseStableUpVector(LookAtCubePP));
+		OutProjectionPP = FMatrix::MakePerspectiveFovLH(FovPP, 1.0f, NearPP, FarPP);
+
+		return IsUsableProjectionMatrix(OutViewPP) && IsUsableProjectionMatrix(OutProjectionPP);
+	}
+
+	bool TryBuildCascadePSMView(
+		const FViewContext& View,
+		const FVector& LightSourceDirectionWS,
+		float NearSplit,
+		float FarSplit,
+		const FVector FrustumCornersWS[8],
+		const FShadowViewRenderItem& StableCascadeView,
+		FShadowViewRenderItem& OutView)
+	{
+		if (View.bOrthographic || FarSplit <= NearSplit + 1.0e-3f)
+		{
+			return false;
+		}
+
+		FMatrix VirtualView = FMatrix::Identity;
+		FMatrix VirtualProjection = FMatrix::Identity;
+		FVector VirtualCameraPositionWS = View.CameraPosition;
+		float VirtualNear = NearSplit;
+		float VirtualFar = FarSplit;
+		if (!BuildVirtualCameraForCascade(
+			View,
+			LightSourceDirectionWS,
+			NearSplit,
+			FarSplit,
+			VirtualView,
+			VirtualProjection,
+			VirtualCameraPositionWS,
+			VirtualNear,
+			VirtualFar))
+		{
+			return false;
+		}
+
+		FMatrix ViewPP = FMatrix::Identity;
+		FMatrix ProjectionPP = FMatrix::Identity;
+		if (!BuildPostPerspectiveInfo(VirtualView, VirtualProjection, LightSourceDirectionWS, ViewPP, ProjectionPP))
+		{
+			return false;
+		}
+
+		const FMatrix PSMProjection = VirtualProjection * ViewPP * ProjectionPP;
+		const FMatrix PSMViewProjection = VirtualView * PSMProjection;
+		if (!IsUsableProjectionMatrix(PSMProjection) || !IsUsableProjectionMatrix(PSMViewProjection))
+		{
+			return false;
+		}
+		if (!ValidateShadowProjectionForCascade(PSMViewProjection, FrustumCornersWS))
+		{
+			return false;
+		}
+
+		OutView = StableCascadeView;
+		OutView.ProjectionType = EShadowProjectionType::Perspective;
+		OutView.PositionWS = VirtualCameraPositionWS;
+		OutView.NearZ = VirtualNear;
+		OutView.FarZ = VirtualFar;
+		OutView.View = VirtualView;
+		OutView.Projection = PSMProjection;
+		OutView.ViewProjection = PSMViewProjection;
+		return true;
+	}
+
 
 	void BuildSpotShadowViews(
 		FSceneLightingInputs&        Inputs,
@@ -332,13 +689,28 @@ namespace
 
 		// 절두체 4개의 변
 		FVector ViewRays[4];
+		bool bValidViewRays = true;
 		for (int j = 0; j < 4; j++)
 		{
 			FVector4 ViewCorner = NDC_Corners[j] * CameraInvProj;
+			if (std::fabs(ViewCorner.W) <= 1.0e-6f)
+			{
+				bValidViewRays = false;
+				break;
+			}
 			float InvW = 1.0f / ViewCorner.W;
 			FVector Ray = FVector(ViewCorner.X * InvW, ViewCorner.Y * InvW, ViewCorner.Z * InvW);
+			if (std::fabs(Ray.X) <= 1.0e-6f)
+			{
+				bValidViewRays = false;
+				break;
+			}
 
 			ViewRays[j] = Ray * (1.0f / Ray.X);
+		}
+		if (!bValidViewRays)
+		{
+			return;
 		}
 		
 		// 절두체 별
@@ -404,6 +776,19 @@ namespace
 			ViewItem.Projection = FMatrix::MakeOrthographicLH(BoxWidth, BoxHeight, BoxNear, BoxFar);
 			ViewItem.ViewProjection = ViewItem.View * ViewItem.Projection;
 			ViewItem.Viewport = {};
+
+			FShadowViewRenderItem PSMViewItem;
+			if (TryBuildCascadePSMView(
+				View,
+				-LightItem.DirectionWS,
+				NearSplit,
+				FarSplit,
+				FrustumCornersWS,
+				ViewItem,
+				PSMViewItem))
+			{
+				ViewItem = PSMViewItem;
+			}
 
 			AddDirShadowView(Inputs, ShadowLightIndex, ViewItem);
 		}

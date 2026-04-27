@@ -650,7 +650,19 @@ float3 DebugDirectionalShadow(uint shadowIndex, float3 worldPos, float viewDepth
     uv.y = -ndc.y * 0.5f + 0.5f;
 
     // 정상 범위 안에 있다면, GPU 텍스처에 찍혀있는 깊이 값(Raw Depth)을 그대로 가져와서 화면에 출력합니다.
-    float rawDepth = DirShadowDepthArray.SampleLevel(LinearClampSampler, float3(uv, (float) view.ArraySlice), 0.0f).r;
+    float atlasSize = view.ViewParams.z;
+    float tileSize  = view.AtlasUV.z;
+
+    float2 tileOffset = view.AtlasUV.xy / atlasSize;
+    float tileScale  = tileSize / atlasSize;
+    float texelSize  = view.ViewParams.w;
+
+    float2 baseUV = uv * tileScale + tileOffset;
+    float2 minUV = tileOffset + texelSize * 0.5f;
+    float2 maxUV = tileOffset + tileScale - texelSize * 0.5f;
+    baseUV = clamp(baseUV, minUV, maxUV);
+
+    float rawDepth = DirShadowDepthTexture.SampleLevel(LinearClampSampler, baseUV, 0.0f).r;
     
     return float3(rawDepth, rawDepth, rawDepth); // ⚪⚫ 흑백: 텍스처 내부 데이터 출력
 }
