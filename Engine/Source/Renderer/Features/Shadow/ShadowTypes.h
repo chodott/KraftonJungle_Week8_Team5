@@ -96,6 +96,8 @@ struct FShadowViewRenderItem
 	EShadowFilterMode FilterMode          = EShadowFilterMode::VSM;
 
 	D3D11_VIEWPORT Viewport = {};
+
+	FVector4 BiasParams = FVector4(0, 0, 0, 0);
 };
 
 
@@ -124,4 +126,5 @@ struct FShadowViewGPU
 	uint32 Pad0;
 
 	FVector4 ViewParams;
+	FVector4 BiasParams;
 };

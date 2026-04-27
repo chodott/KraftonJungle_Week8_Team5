@@ -1052,6 +1052,7 @@ void FShadowRenderFeature::UploadShadowBuffers(
 				Dst.FilterMode = static_cast<uint32>(GlobalFilterMode);
 				Dst.Pad0 = 0;
 				Dst.ViewParams = FVector4(Src.NearZ, Src.FarZ, ViewportScale, TexelSize);
+				Dst.BiasParams = Src.BiasParams;
 			}
 
 			D3D11_MAPPED_SUBRESOURCE Mapped = {};

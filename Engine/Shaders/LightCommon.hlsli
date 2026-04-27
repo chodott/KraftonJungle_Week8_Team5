@@ -196,6 +196,7 @@ struct FShadowViewGPU
 	uint Pad0;
 
 	float4 ViewParams;
+    float4 BiasParams;
 };
 
 StructuredBuffer<FShadowLightGPU> ShadowLights       : register(t20);
@@ -472,8 +473,8 @@ float EvaluateDirectionalShadow(uint shadowIndex, float3 worldPos, float3 N, flo
     FShadowLightGPU shadowLight = DirShadowLights[shadowIndex];
     if (shadowLight.ViewCount == 0u)
         return 1.0f;
-
-    // 1. 카메라 거리에 따른 캐스케이드 인덱스 판정
+    
+    // 1. Cascade 인덱스 판별
     uint cascadeIndex = 0;
     if (viewDepth > Directional.CascadeSplits.x)
         cascadeIndex = 1;
@@ -484,35 +485,72 @@ float EvaluateDirectionalShadow(uint shadowIndex, float3 worldPos, float3 N, flo
     cascadeIndex = min(cascadeIndex, shadowLight.ViewCount - 1);
 
     FShadowViewGPU view = DirShadowViews[shadowLight.FirstViewIndex + cascadeIndex];
-
-    // 2. 현재 픽셀의 월드 좌표를 빛의 시점(Light-Space)으로 투영
+    
+    // 2. 투영 및 NDC 좌표 계산
     float4 clip = mul(float4(worldPos, 1.0f), view.LightViewProjection);
     if (clip.w <= 0.0f)
         return 1.0f;
 
     float3 ndc = clip.xyz / clip.w;
-
-    // 3. 절두체 바운드 체크 (영역 밖이면 그림자 없음)
     if (ndc.x < -1.0f || ndc.x > 1.0f ||
         ndc.y < -1.0f || ndc.y > 1.0f ||
         ndc.z < 0.0f || ndc.z > 1.0f)
     {
         return 1.0f;
     }
-
-    // 4. NDC 좌표를 텍스처 UV 좌표로 변환 (DX11 기준)
+    
     float2 uv;
     uv.x = ndc.x * 0.5f + 0.5f;
     uv.y = -ndc.y * 0.5f + 0.5f;
+    
+    // 3. 완벽하게 세팅된 동적 Bias 연산 
+    float baseBias = view.BiasParams.x;
+    float slopeBias = view.BiasParams.y;
+    float NdotL = saturate(dot(N, L));
+    float slope = sqrt(saturate(1.0f - NdotL * NdotL)) / max(NdotL, 0.0001f);
+    float variableBias = clamp(slopeBias * slope, 0.0f, baseBias * 10.0f);
+    float compareDepth = saturate(ndc.z) - (baseBias + variableBias);
 
-    // 5. 고정 바이어스(Bias) 적용
-    // (여드름-Shadow Acne 현상이 생기더라도, 무조건 그림자가 화면에 뜨는지 보기 위해 고정값 사용)
-    float compareDepth = saturate(ndc.z) - 0.000005f;
+    // 4. 공통 Viewport 및 Texel Size 세팅 [cite: 51]
+    float viewportScale = max(view.ViewParams.z, 1.0e-6f);
+    float2 texelSize = view.ViewParams.w.xx;
+    float2 scaledUV = uv * viewportScale;
+    float2 minUV = texelSize * 0.5f;
+    float2 maxUV = viewportScale.xx - texelSize * 0.5f;
+    scaledUV = clamp(scaledUV, minUV, maxUV); // [cite: 52]
 
-    // 6. PCF/VSM 등 모든 필터링을 무시하고, 0번째 MipLevel에서 오직 1개의 깊이(Raw Depth)만 냅다 뽑아옵니다.
-    float rawDepth = DirShadowDepthArray.SampleLevel(LinearClampSampler, float3(uv, (float) view.ArraySlice), 0.0f).r;
+    // 5. Filter Mode에 따른 분기 (0: Raw, 1: PCF, 2: VSM) 
+    if (view.FilterMode == 1u) // PCF
+    {
+        float visibility = 0.0f;
+        [unroll]
+        for (int y = -1; y <= 1; ++y)
+        {
+            [unroll]
+            for (int x = -1; x <= 1; ++x)
+            {
+                float2 tapUV = clamp(scaledUV + float2(x, y) * texelSize, minUV, maxUV);
+                visibility += DirShadowDepthArray.SampleCmpLevelZero(ShadowSampler, float3(tapUV, (float) view.ArraySlice), compareDepth);
+            }
+        }
+        return visibility / 9.0f;
+    }
+    else if (view.FilterMode == 2u) // VSM
+    {
+        float2 moments = DirShadowMomentsArray.SampleLevel(LinearClampSampler, float3(scaledUV, (float) view.ArraySlice), 0.0f).rg;
+        float mean = moments.x;
+        float variance = max(moments.y - mean * mean, 1.0e-6f);
+        
+        if (compareDepth <= mean)
+            return 1.0f;
+        
+        float d = compareDepth - mean;
+        float pMax = variance / (variance + d * d);
+        return saturate(ReduceLightBleeding(pMax, shadowLight.Params0.z));
+    }
 
-    // 7. 내 픽셀의 깊이가 섀도우맵에 찍힌 깊이보다 크면(더 뒤에 있으면 빛이 가려진 것이므로) 0.0, 아니면 1.0 반환
+    // FilterMode == 0u (Raw Depth)
+    float rawDepth = DirShadowDepthArray.SampleLevel(LinearClampSampler, float3(scaledUV, (float) view.ArraySlice), 0.0f).r;
     return (compareDepth <= rawDepth) ? 1.0f : 0.0f;
 }
 

@@ -241,7 +241,7 @@ namespace
 		uint32 CascadeCount = DirLight->GetCascadeCount();
 		CascadeCount = (std::min)(CascadeCount, ShadowConfig::MaxDirCascade);
 
-		TArray<float> FrustumSplits = FCasCade::CalculateCascadeSplits(CascadeCount, View.NearZ, View.FarZ);
+		TArray<float> FrustumSplits = FCasCade::CalculateCascadeSplits(CascadeCount, View.NearZ, View.FarZ, 0.9f);
 		
 		if (FrustumSplits.size() < 2)
 		{
@@ -333,6 +333,7 @@ namespace
 			ViewItem.FarZ = BoxFar;
 			ViewItem.RequestedResolution = ShadowConfig::DirShadowDepthArrayResolution;
 
+			ViewItem.BiasParams = { DirLight->GetShadowBias(), DirLight->GetShadowSlopeBias(), 0.0f, 0.0f };
 			ViewItem.View = TempShadowView;
 			ViewItem.Projection = FMatrix::MakeOrthographicLH(BoxWidth, BoxHeight, BoxNear, BoxFar);
 			ViewItem.ViewProjection = ViewItem.View * ViewItem.Projection;
