@@ -21,6 +21,7 @@
 #define MAX_LIGHTS_PER_CLUSTER 1024
 #define LIGHT_VISUALIZATION_NONE 0
 #define LIGHT_VISUALIZATION_CLUSTER_HEATMAP 1
+#define LIGHT_VISUALIZATION_CSM_CASCADE 2
 
 #define INVALID_SHADOW_INDEX 0xFFFFFFFFu
 
@@ -475,29 +476,9 @@ float SampleShadowViewRawDepth(
 }
 
 
-float EvaluateDirectionalShadow(uint shadowIndex, float3 worldPos, float3 N, float3 L, float viewDepth)
+float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L)
 {
-    if (shadowIndex == INVALID_SHADOW_INDEX)
-        return 1.0f;
-    
-    FShadowLightGPU shadowLight = DirShadowLights[shadowIndex];
-    if (shadowLight.ViewCount == 0u)
-        return 1.0f;
-    
-    // 1. Cascade 인덱스 판별
-    uint cascadeIndex = 0;
-    if (viewDepth > Directional.CascadeSplits.x)
-        cascadeIndex = 1;
-    if (viewDepth > Directional.CascadeSplits.y)
-        cascadeIndex = 2;
-    if (viewDepth > Directional.CascadeSplits.z)
-        cascadeIndex = 3;
-    cascadeIndex = min(cascadeIndex, shadowLight.ViewCount - 1);
-
-    FShadowViewGPU view = DirShadowViews[shadowLight.FirstViewIndex + cascadeIndex];
-    
-    // 2. 투영 및 NDC 좌표 계산
-    float4 clip = mul(float4(worldPos, 1.0f), view.LightViewProjection);
+	float4 clip = mul(float4(worldPos, 1.0f), view.LightViewProjection);
     if (clip.w <= 0.0f)
         return 1.0f;
 
@@ -513,22 +494,20 @@ float EvaluateDirectionalShadow(uint shadowIndex, float3 worldPos, float3 N, flo
     uv.x = ndc.x * 0.5f + 0.5f;
     uv.y = -ndc.y * 0.5f + 0.5f;
     
-    // 3. 완벽하게 세팅된 동적 Bias 연산 
-    float baseBias = view.BiasParams.x;
+    float baseBias = 0.00005f;
     float slopeBias = view.BiasParams.y;
     float NdotL = saturate(dot(N, L));
     float slope = sqrt(saturate(1.0f - NdotL * NdotL)) / max(NdotL, 0.0001f);
     float variableBias = clamp(slopeBias * slope, 0.0f, baseBias * 10.0f);
     float compareDepth = saturate(ndc.z) - (baseBias + variableBias);
 
+
 	float atlasSize = view.ViewParams.z;
 	float tileSize  = view.AtlasUV.z;
 
 	float2 tileOffset = view.AtlasUV.xy / atlasSize;
 	float tileScale  = view.AtlasUV.z / atlasSize;
-
 	float2 baseUV = uv * tileScale + tileOffset;
-	
 	float texelSize = view.ViewParams.w;
 
     // 5. Filter Mode에 따른 분기 (0: Raw, 1: PCF, 2: VSM) 
@@ -575,6 +554,105 @@ float EvaluateDirectionalShadow(uint shadowIndex, float3 worldPos, float3 N, flo
     // FilterMode == 0u (Raw Depth)
     float rawDepth = DirShadowDepthTexture.SampleLevel(LinearClampSampler, baseUV, 0.0f).r;
     return (compareDepth <= rawDepth) ? 1.0f : 0.0f;
+}
+
+float EvaluateDirectionalShadow(uint shadowIndex, float3 worldPos, float3 N, float3 L, float viewDepth)
+{
+    if (shadowIndex == INVALID_SHADOW_INDEX) return 1.0f;
+    
+    FShadowLightGPU shadowLight = DirShadowLights[shadowIndex];
+    if (shadowLight.ViewCount == 0u) return 1.0f;
+    
+    // Cascade 인덱스 판별
+    float4 splits = Directional.CascadeSplits;
+    uint cascadeIndex = 0;
+    if (viewDepth > splits.x) cascadeIndex = 1;
+    if (viewDepth > splits.y) cascadeIndex = 2;
+    if (viewDepth > splits.z) cascadeIndex = 3;
+    cascadeIndex = min(cascadeIndex, shadowLight.ViewCount - 1);
+
+    // 현재 Cascade의 전체 길이 계산 및 동적 Blend Band 설정
+    float currentSplit = (cascadeIndex == 0) ? splits.x :
+                         (cascadeIndex == 1) ? splits.y :
+                         (cascadeIndex == 2) ? splits.z : splits.w;
+
+    float prevSplit = (cascadeIndex == 0) ? 0.0f :
+                      (cascadeIndex == 1) ? splits.x :
+                      (cascadeIndex == 2) ? splits.y : splits.z;
+                      
+    float cascadeLength = currentSplit - prevSplit;
+    
+    // 15% 구간에서만 부드럽게 섞이도록 설정
+    float blendBand = cascadeLength * 0.15f; 
+    uint nextCascadeIndex = cascadeIndex;
+    float blendWeight = 0.0f;
+
+    if (cascadeIndex < shadowLight.ViewCount - 1)
+    {
+        float distToSplit = currentSplit - viewDepth;
+        if (distToSplit > 0.0f && distToSplit < blendBand)
+        {
+            blendWeight = smoothstep(blendBand, 0.0f, distToSplit);
+            nextCascadeIndex = cascadeIndex + 1;
+        }
+    }
+
+
+    FShadowViewGPU view = DirShadowViews[shadowLight.FirstViewIndex + cascadeIndex];
+    float visibility = GetCascadeVisibility(view, shadowLight, worldPos, N, L);
+    
+    if (blendWeight > 0.0f)
+    {
+        FShadowViewGPU nextView = DirShadowViews[shadowLight.FirstViewIndex + nextCascadeIndex];
+        float nextVisibility = GetCascadeVisibility(nextView, shadowLight, worldPos, N, L);
+        
+        visibility = lerp(visibility, nextVisibility, blendWeight);
+    }
+
+    return visibility;
+}
+
+
+float3 DebugDirectionalShadow(uint shadowIndex, float3 worldPos, float viewDepth)
+{
+    if (shadowIndex == INVALID_SHADOW_INDEX)
+        return float3(1, 0, 0); // 🔴 빨간색: 빛 정보 바인딩 안됨
+    
+    FShadowLightGPU shadowLight = DirShadowLights[shadowIndex];
+    if (shadowLight.ViewCount == 0u)
+        return float3(1, 0, 0); // 🔴 빨간색: 뷰 카운트 0
+
+    uint cascadeIndex = 0;
+    if (viewDepth > Directional.CascadeSplits.x)
+        cascadeIndex = 1;
+    if (viewDepth > Directional.CascadeSplits.y)
+        cascadeIndex = 2;
+    if (viewDepth > Directional.CascadeSplits.z)
+        cascadeIndex = 3;
+    cascadeIndex = min(cascadeIndex, shadowLight.ViewCount - 1);
+
+    FShadowViewGPU view = DirShadowViews[shadowLight.FirstViewIndex + cascadeIndex];
+
+    float4 clip = mul(float4(worldPos, 1.0f), view.LightViewProjection);
+    if (clip.w <= 0.0f)
+        return float3(1, 1, 0); // 🟡 노란색: W 나누기 오류
+
+    float3 ndc = clip.xyz / clip.w;
+
+    if (ndc.x < -1.0f || ndc.x > 1.0f || ndc.y < -1.0f || ndc.y > 1.0f) 
+        return float3(0, 1, 0); // 🟢 초록색: 투영 영역 밖 (직교 투영 Width/Height 설정 문제)
+        
+    if (ndc.z < 0.0f || ndc.z > 1.0f) 
+        return float3(0, 0, 1); // 🔵 파란색: 깊이 영역 밖 (직교 투영 Near/Far 설정 문제)
+
+    float2 uv;
+    uv.x = ndc.x * 0.5f + 0.5f;
+    uv.y = -ndc.y * 0.5f + 0.5f;
+
+    // 정상 범위 안에 있다면, GPU 텍스처에 찍혀있는 깊이 값(Raw Depth)을 그대로 가져와서 화면에 출력합니다.
+    float rawDepth = DirShadowDepthArray.SampleLevel(LinearClampSampler, float3(uv, (float) view.ArraySlice), 0.0f).r;
+    
+    return float3(rawDepth, rawDepth, rawDepth); // ⚪⚫ 흑백: 텍스처 내부 데이터 출력
 }
 
 float EvaluateSpotShadow(

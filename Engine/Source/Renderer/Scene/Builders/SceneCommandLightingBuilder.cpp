@@ -320,8 +320,8 @@ namespace
 
 		FVector UpVector = (std::abs(LightItem.DirectionWS.Z) > 0.999f) ? FVector::YAxisVector : FVector::ZAxisVector;
 
-		FMatrix InvView = View.InverseView;
-		FMatrix InvProj = View.InverseProjection;
+		FMatrix CameraInvView = View.InverseView;
+		FMatrix CameraInvProj = View.InverseProjection;
 
 		// NDC좌표상 각 꼭짓점
 		FVector4 NDC_Corners[4] = {
@@ -333,61 +333,63 @@ namespace
 		FVector ViewRays[4];
 		for (int j = 0; j < 4; j++)
 		{
-			FVector4 ViewCorner = NDC_Corners[j] * InvProj;
+			FVector4 ViewCorner = NDC_Corners[j] * CameraInvProj;
 			float InvW = 1.0f / ViewCorner.W;
 			FVector Ray = FVector(ViewCorner.X * InvW, ViewCorner.Y * InvW, ViewCorner.Z * InvW);
 
 			ViewRays[j] = Ray * (1.0f / Ray.X);
 		}
-
-		// Cascade개수만큼
+		
+		// 절두체 별
 		for (uint32 i = 0; i < CascadeCount; i++)
 		{
 			float NearSplit = FrustumSplits[i];
 			float FarSplit = FrustumSplits[i + 1];
 
-			// 절두체의 각 꼭짓점
 			FVector FrustumCornersWS[8];
 			for (int j = 0; j < 4; j++)
 			{
 				FVector NearVS = ViewRays[j] * NearSplit;
 				FVector FarVS = ViewRays[j] * FarSplit;
 
-				FrustumCornersWS[j] = InvView.TransformPosition(NearVS);
-				FrustumCornersWS[j + 4] = InvView.TransformPosition(FarVS);
+				FrustumCornersWS[j] = CameraInvView.TransformPosition(NearVS);
+				FrustumCornersWS[j + 4] = CameraInvView.TransformPosition(FarVS);
 			}
 
-			// 절두체 8개의 꼭짓점 기반 중심점 계산
 			FVector FrustumCenter = FVector::ZeroVector;
 			for (int j = 0; j < 8; j++) { FrustumCenter += FrustumCornersWS[j]; }
 			FrustumCenter /= 8.0f;
 
-			// 자른 절두체 기준 view 행렬 생성
-			FVector LightPosition = FrustumCenter - (LightItem.DirectionWS * 1000.0f);
-			FMatrix TempShadowView = FMatrix::MakeViewLookAtLH(LightPosition, FrustumCenter, UpVector);
-
-			// 여기서부터 각 절두체의 Light위치 기준 AABB 계산
-			float MinX = FLT_MAX; float MaxX = -FLT_MAX;
-			float MinY = FLT_MAX; float MaxY = -FLT_MAX;
-			float MinZ = FLT_MAX; float MaxZ = -FLT_MAX;
-
-			// Light위치 기준 Min, Max구해주는 중
+			float SphereRadius = 0.0f;
 			for (int j = 0; j < 8; j++)
 			{
-				FVector CornerLS = TempShadowView.TransformPosition(FrustumCornersWS[j]);
-				MinX = (std::min)(MinX, CornerLS.X); MaxX = (std::max)(MaxX, CornerLS.X);
-				MinY = (std::min)(MinY, CornerLS.Y); MaxY = (std::max)(MaxY, CornerLS.Y);
-				MinZ = (std::min)(MinZ, CornerLS.Z); MaxZ = (std::max)(MaxZ, CornerLS.Z);
+				SphereRadius = (std::max)(SphereRadius, FVector::Dist(FrustumCenter, FrustumCornersWS[j]));
 			}
 
-			float MaxRadiusY = (std::max)(std::abs(MinY), std::abs(MaxY));
-			float MaxRadiusZ = (std::max)(std::abs(MinZ), std::abs(MaxZ));
+			// 부동 소수점 오차
+			SphereRadius = std::ceil(SphereRadius * 16.0f) / 16.0f;
 
-			float BoxWidth = MaxRadiusY * 2.0f;
-			float BoxHeight = MaxRadiusZ * 2.0f;
+			float BoxWidth = SphereRadius * 2.0f;
+			float BoxHeight = SphereRadius * 2.0f;
 
-			float BoxNear = MinX - 2000.0f;
-			float BoxFar = MaxX + 5.0f;
+			float WorldUnitsPerTexel = BoxWidth / ShadowConfig::DirShadowDepthResolution;
+
+			// Texel 작업을 위함. Sanpping 현상 완화
+			// 빛을 0, 0, 0으로 두고, 이를 기반으로 위치를 Texel화 -> floor를 이용
+			FMatrix TempShadowView = FMatrix::MakeViewLookAtLH(FVector::ZeroVector, LightItem.DirectionWS, UpVector);
+			FVector CenterLS = TempShadowView.TransformPosition(FrustumCenter);
+
+			CenterLS.Y = std::floor(CenterLS.Y / WorldUnitsPerTexel) * WorldUnitsPerTexel;
+			CenterLS.Z = std::floor(CenterLS.Z / WorldUnitsPerTexel) * WorldUnitsPerTexel;
+
+			// 다시 절두체의 중심을 world세계로 변환. -> 이를 이용해서 View Proj행렬 계산.
+			FVector SnappedCenterWS = TempShadowView.GetInverse().TransformPosition(CenterLS);
+			FVector LightPosition = SnappedCenterWS;
+
+			// -2000으로 두면 VSM의 빛샘현상이 너무 심하게 나타남.
+			// float BoxNear = -SphereRadius - 2000.0f; 
+			float BoxNear = -SphereRadius;
+			float BoxFar = SphereRadius;
 
 			FShadowViewRenderItem ViewItem;
 			ViewItem.ProjectionType = EShadowProjectionType::Orthographic;
@@ -397,7 +399,7 @@ namespace
 			ViewItem.RequestedResolution = ShadowConfig::DirShadowDepthResolution;
 
 			ViewItem.BiasParams = { DirLight->GetShadowBias(), DirLight->GetShadowSlopeBias(), 0.0f, 0.0f };
-			ViewItem.View = TempShadowView;
+			ViewItem.View = FMatrix::MakeViewLookAtLH(LightPosition, LightPosition + LightItem.DirectionWS, UpVector);
 			ViewItem.Projection = FMatrix::MakeOrthographicLH(BoxWidth, BoxHeight, BoxNear, BoxFar);
 			ViewItem.ViewProjection = ViewItem.View * ViewItem.Projection;
 			ViewItem.Viewport = {};
@@ -440,7 +442,7 @@ namespace
 				FMath::DegreesToRadians(90.0f), 1.0f, NearZ, FarZ);
 
 			View.ViewProjection = View.View * View.Projection;
-			View.FilterMode = EShadowFilterMode::VSM;
+			View.FilterMode = EShadowFilterMode::Raw; 
 			View.LightType = EShadowLightType::Point;
 
 			AddPointShadowView(Inputs, ShadowLightIndex, BaseSlice + F, View);

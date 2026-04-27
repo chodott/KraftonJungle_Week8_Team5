@@ -234,7 +234,7 @@ void FEditorViewportRenderService::RenderAll(
 				EffectiveFarPlane = ActiveCameraComponent->GetFarPlane();
 			}
 		}
-		if (bIsPIEPossessedView && EffectiveRenderMode == ERenderMode::LightCullingHeatmap)
+		if (bIsPIEPossessedView && (EffectiveRenderMode == ERenderMode::LightCullingHeatmap || EffectiveRenderMode == ERenderMode::CSMCascadeDebug))
 		{
 			// PIE 소유 시점에서는 LightCulling Heatmap 디버그 뷰를 강제 비활성화한다.
 			// (게임 화면에 디버그 시각화가 섞여 보이는 것을 방지)

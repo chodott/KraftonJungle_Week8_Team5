@@ -11,5 +11,6 @@ enum class ERenderMode : uint8
     Wireframe,
 	SceneDepth,
 	WorldNormal,
-    LightCullingHeatmap
+    LightCullingHeatmap,
+	CSMCascadeDebug,
 };
