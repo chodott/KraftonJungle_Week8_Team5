@@ -102,7 +102,7 @@ namespace
 
 	uint32 AddShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, const FShadowViewRenderItem& InView)
 	{
-		if (Inputs.ShadowViews.size() >= ShadowConfig::MaxSpotShadowViews)
+		if (Inputs.ShadowViews.size() >= ShadowConfig::MaxShadowViews)
 			return UINT32_MAX;
 
 		FShadowViewRenderItem View = InView;

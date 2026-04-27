@@ -767,16 +767,42 @@ void FShadowRenderFeature::RenderShadowViews(
 	//현재 매프레임 아틀라스 배치 초기화 중. 개선 필요
 	ShadowAtlasAllocator->Reset();
 
+	std::vector<uint32> RenderOrder;
+	RenderOrder.reserve(ShadowViewCount);
+
+	for (uint32 i = 0; i < ShadowViewCount; ++i)
+	{
+		RenderOrder.push_back(i);
+	}
+
+	std::sort(
+		RenderOrder.begin(),
+		RenderOrder.end(),
+		[&](uint32 A, uint32 B)
+		{
+			const FShadowViewRenderItem& VA = SceneViewData.LightingInputs.ShadowViews[A];
+			const FShadowViewRenderItem& VB = SceneViewData.LightingInputs.ShadowViews[B];
+
+			const bool AIsSpot = VA.LightType == EShadowLightType::Spot;
+			const bool BIsSpot = VB.LightType == EShadowLightType::Spot;
+
+			if (AIsSpot != BIsSpot)
+			{
+				return AIsSpot; // spot 먼저
+			}
+
+			if (AIsSpot && BIsSpot)
+			{
+				return VA.RequestedResolution > VB.RequestedResolution;
+			}
+
+			return A < B; // point는 기존 순서 유지
+		});
 
 
-	for (uint32 ViewIndex = 0; ViewIndex < ShadowViewCount; ++ViewIndex)
+	for (uint32 ViewIndex : RenderOrder)
 	{
 		FShadowViewRenderItem& ShadowView = SceneViewData.LightingInputs.ShadowViews[ViewIndex];
-
-		if (ShadowView.ArraySlice >= ShadowConfig::MaxShadowViews)
-		{
-			continue;
-		}
 
 		D3D11_VIEWPORT ShadowViewport = {};
 		const uint32 ResolvedResolution = ResolveShadowViewResolution(ShadowView.RequestedResolution);
