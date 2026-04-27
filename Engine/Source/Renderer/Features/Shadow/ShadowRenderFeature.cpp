@@ -373,8 +373,8 @@ bool FShadowRenderFeature::EnsureMomentsAtlas(const FRenderer& Renderer, uint32 
 	/////////////////////////////////////////////////////////////////////
 
 	D3D11_TEXTURE2D_DESC CubeTextureDesc = {};
-	CubeTextureDesc.Width = ShadowConfig::MaxShadowMapResolution;
-	CubeTextureDesc.Height = ShadowConfig::MaxShadowMapResolution;
+	CubeTextureDesc.Width = ShadowDepthArrayResolution;   // 깊이 큐브와 동일 크기
+	CubeTextureDesc.Height = ShadowDepthArrayResolution;
 	CubeTextureDesc.MipLevels = 1;
 	CubeTextureDesc.Format = DXGI_FORMAT_R32G32_FLOAT;
 	CubeTextureDesc.ArraySize = ShadowConfig::MaxShadowViews;
@@ -1157,8 +1157,9 @@ void FShadowRenderFeature::RenderShadowViews(
 
 			ShadowDSV = ShadowDepthCubeDSVs[ShadowView.ArraySlice];
 			MomentsRTV = ShadowMomentsCubeRTVs[ShadowView.ArraySlice];
+			DeviceContext->ClearRenderTargetView(MomentsRTV, ClearMoments);
 			DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
-			ShadowViewport = BuildShadowViewport(0, 0, ResolvedResolution);
+			ShadowViewport = BuildShadowViewport(0, 0, ShadowDepthArrayResolution);
 			break;
 		}
 
