@@ -356,7 +356,12 @@ bool FShadowRenderFeature::EnsureShadowDepthAtlas(FRenderer& Renderer, uint32 Re
 		return true;
 	}
 
-	//Atlas
+
+	/////////////////////////////////////////////////////////////////////
+	// Atlas
+	/////////////////////////////////////////////////////////////////////
+
+
 	ShadowAtlasAllocator = new FShadowAtlasAllocator(ShadowConfig::MaxShadowMapResolution);
 
 	D3D11_TEXTURE2D_DESC AtlasTextureDesc = {};
@@ -402,6 +407,10 @@ bool FShadowRenderFeature::EnsureShadowDepthAtlas(FRenderer& Renderer, uint32 Re
 		return false;
 	}
 
+
+	/////////////////////////////////////////////////////////////////////
+	// CubeArray Resources (포인트용) — 슬라이스 [PointShadowSliceOffset, ...) 영역
+	/////////////////////////////////////////////////////////////////////
 	ShadowDepthArrayResolution = RequiredResolution;
 
 	D3D11_TEXTURE2D_DESC TextureDesc = {};
@@ -422,23 +431,7 @@ bool FShadowRenderFeature::EnsureShadowDepthAtlas(FRenderer& Renderer, uint32 Re
 		return false;
 	}
 
-	// 2D Array SRV (스포트/디렉셔널용) — 전체 슬라이스 노출
-	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
-	SRVDesc.Format                          = DXGI_FORMAT_R32_FLOAT;
-	SRVDesc.ViewDimension                   = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
-	SRVDesc.Texture2DArray.MostDetailedMip  = 0;
-	SRVDesc.Texture2DArray.MipLevels        = 1;
-	SRVDesc.Texture2DArray.FirstArraySlice  = 0;
-	SRVDesc.Texture2DArray.ArraySize        = ShadowConfig::MaxShadowViews;
 
-	if (FAILED(Device->CreateShaderResourceView(ShadowDepthCubeArray, &SRVDesc, &ShadowDepthCubeArraySRV)))
-	{
-		SafeRelease(ShadowDepthCubeArraySRV);
-		SafeRelease(ShadowDepthCubeArray);
-		bShadowDepthArrayDirty = true;
-	}
-
-	// CubeArray SRV (포인트용) — 슬라이스 [PointShadowSliceOffset, ...) 영역
 	D3D11_SHADER_RESOURCE_VIEW_DESC CubeSRVDesc      = {};
 	CubeSRVDesc.Format                               = DXGI_FORMAT_R32_FLOAT;
 	CubeSRVDesc.ViewDimension                        = D3D11_SRV_DIMENSION_TEXTURECUBEARRAY;
@@ -455,6 +448,29 @@ bool FShadowRenderFeature::EnsureShadowDepthAtlas(FRenderer& Renderer, uint32 Re
 		return false;
 	}
 
+	for (uint32 Slice = 0; Slice < ShadowConfig::MaxShadowViews; ++Slice)
+	{
+		D3D11_DEPTH_STENCIL_VIEW_DESC DSVDesc = {};
+		DSVDesc.Format = DXGI_FORMAT_D32_FLOAT;
+		DSVDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DARRAY;
+		DSVDesc.Texture2DArray.MipSlice = 0;
+		DSVDesc.Texture2DArray.FirstArraySlice = Slice;
+		DSVDesc.Texture2DArray.ArraySize = 1;
+
+		if (FAILED(Device->CreateDepthStencilView(ShadowDepthCubeArray, &DSVDesc, &ShadowDepthCubeDSVs[Slice])) || !ShadowDepthCubeDSVs[Slice])
+		{
+			SafeRelease(ShadowDepthCubeArraySRV);
+
+			for (ID3D11DepthStencilView*& DSV : ShadowDepthCubeDSVs)
+			{
+				SafeRelease(DSV);
+			}
+
+			SafeRelease(ShadowDepthCubeArray);
+			bShadowDepthArrayDirty = true;
+			return false;
+		}
+	}
 
 	return true;
 }
@@ -674,14 +690,12 @@ void FShadowRenderFeature::RenderShadowViews(
 	const FViewContext OriginalView    = SceneViewData.View;
 	static const float ClearMoments[4] = { 1.0f, 1.0f, 0.0f, 0.0f };
 
-	ID3D11DepthStencilView* ShadowDSV = LocalShadowDepthAtlasDSV;
-	DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 	//현재 매프레임 아틀라스 배치 초기화 중. 개선 필요
 	ShadowAtlasAllocator->Reset();
 
 	ID3D11RenderTargetView* MomentsRTV = LocalShadowMomentsAtlasRTV;
 	DeviceContext->ClearRenderTargetView(MomentsRTV, ClearMoments);
-	DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	DeviceContext->ClearDepthStencilView(LocalShadowDepthAtlasDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	for (uint32 ViewIndex = 0; ViewIndex < ShadowViewCount; ++ViewIndex)
 	{
@@ -692,19 +706,30 @@ void FShadowRenderFeature::RenderShadowViews(
 			continue;
 		}
 
-		if (!ShadowDSV)
-		{
-			continue;
-		}
-
+		D3D11_VIEWPORT ShadowViewport = {};
 		const uint32 ResolvedResolution = ResolveShadowViewResolution(ShadowView.RequestedResolution);
-		ShadowAtlasNode* ShadowAtlasNode = ShadowAtlasAllocator->Allocate(ResolvedResolution);
-		if(ShadowAtlasNode == nullptr)
+		ID3D11DepthStencilView* ShadowDSV = nullptr;
+		switch (ShadowView.LightType)
 		{
-			continue;
+		case EShadowLightType::Spot:
+		{
+			ShadowDSV = LocalShadowDepthAtlasDSV;
+			ShadowAtlasNode* ShadowAtlasNode = ShadowAtlasAllocator->Allocate(ResolvedResolution);
+			if (ShadowAtlasNode == nullptr)
+			{
+				continue;
+			}
+			ShadowView.AtlasUV = FVector(ShadowAtlasNode->X, ShadowAtlasNode->Y, ShadowAtlasNode->Size);
+			ShadowViewport = BuildShadowViewport(ShadowAtlasNode->X, ShadowAtlasNode->Y, ShadowAtlasNode->Size);
+			break;
 		}
+		case EShadowLightType::Point:
 
-		const D3D11_VIEWPORT ShadowViewport = BuildShadowViewport(ShadowAtlasNode->X, ShadowAtlasNode->Y, ShadowAtlasNode->Size);
+			ShadowDSV = ShadowDepthCubeDSVs[ShadowView.ArraySlice];
+			DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+			ShadowViewport = BuildShadowViewport(0, 0, ResolvedResolution);
+			break;
+		}
 
 		SceneViewData.View.View                  = ShadowView.View;
 		SceneViewData.View.Projection            = ShadowView.Projection;
@@ -717,7 +742,7 @@ void FShadowRenderFeature::RenderShadowViews(
 		SceneViewData.View.FarZ                  = ShadowView.FarZ;
 		SceneViewData.View.bOrthographic         = ShadowView.ProjectionType == EShadowProjectionType::Orthographic;
 		SceneViewData.View.Viewport              = ShadowViewport;
-		ShadowView.AtlasUV = FVector(ShadowAtlasNode->X, ShadowAtlasNode->Y, ShadowAtlasNode->Size);
+		
 
 		if (GlobalFilterMode == EShadowFilterMode::Raw ||
 			GlobalFilterMode == EShadowFilterMode::PCF)
@@ -738,27 +763,27 @@ void FShadowRenderFeature::RenderShadowViews(
 				SceneViewData,
 				EMeshPassType::DepthPrepass);
 		}
-		else
-		{
-			if (!MomentsRTV)
-			{
-				continue;
-			}
+		//else
+		//{
+		//	if (!MomentsRTV)
+		//	{
+		//		continue;
+		//	}
 
-			BeginPass(
-				Renderer,
-				MomentsRTV,
-				ShadowDSV,
-				ShadowViewport,
-				SceneViewData.Frame,
-				SceneViewData.View);
+		//	BeginPass(
+		//		Renderer,
+		//		MomentsRTV,
+		//		ShadowDSV,
+		//		ShadowViewport,
+		//		SceneViewData.Frame,
+		//		SceneViewData.View);
 
-			Processor.ExecutePass(
-				Renderer,
-				Targets,
-				SceneViewData,
-				EMeshPassType::ShadowVSM);
-		}
+		//	Processor.ExecutePass(
+		//		Renderer,
+		//		Targets,
+		//		SceneViewData,
+		//		EMeshPassType::ShadowVSM);
+		//}
 	}
 
 	SceneViewData.View = OriginalView;

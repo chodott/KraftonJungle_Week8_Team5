@@ -84,6 +84,8 @@ struct FShadowViewRenderItem
 
 	EShadowProjectionType ProjectionType = EShadowProjectionType::Perspective;
 
+	EShadowLightType LightType = EShadowLightType::Spot;
+
 	FMatrix View           = FMatrix::Identity;
 	FMatrix Projection     = FMatrix::Identity;
 	FMatrix ViewProjection = FMatrix::Identity;
