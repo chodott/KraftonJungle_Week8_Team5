@@ -276,8 +276,8 @@ namespace
 
 		FVector UpVector = (std::abs(LightItem.DirectionWS.Z) > 0.999f) ? FVector::YAxisVector : FVector::ZAxisVector;
 
-		FMatrix InvView = View.InverseView;
-		FMatrix InvProj = View.InverseProjection;
+		FMatrix CameraInvView = View.InverseView;
+		FMatrix CameraInvProj = View.InverseProjection;
 
 		// NDC좌표상 각 꼭짓점
 		FVector4 NDC_Corners[4] = {
@@ -289,31 +289,29 @@ namespace
 		FVector ViewRays[4];
 		for (int j = 0; j < 4; j++)
 		{
-			FVector4 ViewCorner = NDC_Corners[j] * InvProj;
+			FVector4 ViewCorner = NDC_Corners[j] * CameraInvProj;
 			float InvW = 1.0f / ViewCorner.W;
 			FVector Ray = FVector(ViewCorner.X * InvW, ViewCorner.Y * InvW, ViewCorner.Z * InvW);
 
 			ViewRays[j] = Ray * (1.0f / Ray.X);
 		}
-
-		// Cascade개수만큼
+		
+		// 절두체 별
 		for (uint32 i = 0; i < CascadeCount; i++)
 		{
 			float NearSplit = FrustumSplits[i];
 			float FarSplit = FrustumSplits[i + 1];
 
-			// 절두체의 각 꼭짓점
 			FVector FrustumCornersWS[8];
 			for (int j = 0; j < 4; j++)
 			{
 				FVector NearVS = ViewRays[j] * NearSplit;
 				FVector FarVS = ViewRays[j] * FarSplit;
 
-				FrustumCornersWS[j] = InvView.TransformPosition(NearVS);
-				FrustumCornersWS[j + 4] = InvView.TransformPosition(FarVS);
+				FrustumCornersWS[j] = CameraInvView.TransformPosition(NearVS);
+				FrustumCornersWS[j + 4] = CameraInvView.TransformPosition(FarVS);
 			}
 
-			// 절두체 8개의 꼭짓점 기반 중심점 계산
 			FVector FrustumCenter = FVector::ZeroVector;
 			for (int j = 0; j < 8; j++) { FrustumCenter += FrustumCornersWS[j]; }
 			FrustumCenter /= 8.0f;
@@ -324,6 +322,7 @@ namespace
 				SphereRadius = (std::max)(SphereRadius, FVector::Dist(FrustumCenter, FrustumCornersWS[j]));
 			}
 
+			// 부동 소수점 오차
 			SphereRadius = std::ceil(SphereRadius * 16.0f) / 16.0f;
 
 			float BoxWidth = SphereRadius * 2.0f;
@@ -331,17 +330,21 @@ namespace
 
 			float WorldUnitsPerTexel = BoxWidth / ShadowConfig::DirShadowDepthArrayResolution;
 
-			// 중심점을 Light의 View 공간으로 변환
+			// Texel 작업을 위함. Sanpping 현상 완화
+			// 빛을 0, 0, 0으로 두고, 이를 기반으로 위치를 Texel화 -> floor를 이용
 			FMatrix TempShadowView = FMatrix::MakeViewLookAtLH(FVector::ZeroVector, LightItem.DirectionWS, UpVector);
 			FVector CenterLS = TempShadowView.TransformPosition(FrustumCenter);
 
 			CenterLS.Y = std::floor(CenterLS.Y / WorldUnitsPerTexel) * WorldUnitsPerTexel;
 			CenterLS.Z = std::floor(CenterLS.Z / WorldUnitsPerTexel) * WorldUnitsPerTexel;
 
+			// 다시 절두체의 중심을 world세계로 변환. -> 이를 이용해서 View Proj행렬 계산.
 			FVector SnappedCenterWS = TempShadowView.GetInverse().TransformPosition(CenterLS);
 			FVector LightPosition = SnappedCenterWS;
 
-			float BoxNear = -SphereRadius - 2000.0f;
+			// -2000으로 두면 VSM의 빛샘현상이 너무 심하게 나타남.
+			// float BoxNear = -SphereRadius - 2000.0f; 
+			float BoxNear = -SphereRadius;
 			float BoxFar = SphereRadius;
 
 			FShadowViewRenderItem ViewItem;

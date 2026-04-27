@@ -496,15 +496,14 @@ float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, flo
     uv.x = ndc.x * 0.5f + 0.5f;
     uv.y = -ndc.y * 0.5f + 0.5f;
     
-    // 3. 완벽하게 세팅된 동적 Bias 연산 
-    float baseBias = view.BiasParams.x;
+    float baseBias = 0.00005f;
     float slopeBias = view.BiasParams.y;
     float NdotL = saturate(dot(N, L));
     float slope = sqrt(saturate(1.0f - NdotL * NdotL)) / max(NdotL, 0.0001f);
     float variableBias = clamp(slopeBias * slope, 0.0f, baseBias * 10.0f);
     float compareDepth = saturate(ndc.z) - (baseBias + variableBias);
 
-    // 4. 공통 Viewport 및 Texel Size 세팅 [cite: 51]
+    // 공통 Viewport 및 Texel Size 세팅 [cite: 51]
     float viewportScale = max(view.ViewParams.z, 1.0e-6f);
     float2 texelSize = view.ViewParams.w.xx;
     float2 scaledUV = uv * viewportScale;
@@ -554,17 +553,15 @@ float EvaluateDirectionalShadow(uint shadowIndex, float3 worldPos, float3 N, flo
     FShadowLightGPU shadowLight = DirShadowLights[shadowIndex];
     if (shadowLight.ViewCount == 0u) return 1.0f;
     
-    // 1. Cascade 인덱스 판별
+    // Cascade 인덱스 판별
     float4 splits = Directional.CascadeSplits;
     uint cascadeIndex = 0;
-    
     if (viewDepth > splits.x) cascadeIndex = 1;
     if (viewDepth > splits.y) cascadeIndex = 2;
     if (viewDepth > splits.z) cascadeIndex = 3;
     cascadeIndex = min(cascadeIndex, shadowLight.ViewCount - 1);
 
-    // 2. 현재 Cascade의 전체 길이 계산 및 동적 Blend Band 설정
-    // HLSL 컴파일러 최적화를 위해 안전한 삼항 연산자 사용
+    // 현재 Cascade의 전체 길이 계산 및 동적 Blend Band 설정
     float currentSplit = (cascadeIndex == 0) ? splits.x :
                          (cascadeIndex == 1) ? splits.y :
                          (cascadeIndex == 2) ? splits.z : splits.w;
@@ -575,10 +572,8 @@ float EvaluateDirectionalShadow(uint shadowIndex, float3 worldPos, float3 N, flo
                       
     float cascadeLength = currentSplit - prevSplit;
     
-    // 핵심: 각 Cascade 길이의 15% 구간에서만 부드럽게 섞이도록 설정 (0.1 ~ 0.2 사이 추천)
+    // 15% 구간에서만 부드럽게 섞이도록 설정
     float blendBand = cascadeLength * 0.15f; 
-
-    // 3. 블렌딩 가중치(Smoothstep) 및 다음 Cascade 인덱스 계산
     uint nextCascadeIndex = cascadeIndex;
     float blendWeight = 0.0f;
 
@@ -587,7 +582,6 @@ float EvaluateDirectionalShadow(uint shadowIndex, float3 worldPos, float3 N, flo
         float distToSplit = currentSplit - viewDepth;
         if (distToSplit > 0.0f && distToSplit < blendBand)
         {
-            // Linear 대신 부드러운 곡선(Smoothstep) 사용으로 경계선 소멸
             blendWeight = smoothstep(blendBand, 0.0f, distToSplit);
             nextCascadeIndex = cascadeIndex + 1;
         }
