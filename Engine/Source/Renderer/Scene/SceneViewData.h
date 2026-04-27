@@ -94,6 +94,8 @@ struct ENGINE_API FSceneLightingInputs
 		DirectionalLights.clear();
 		ShadowLights.clear();
 		ShadowViews.clear();
+		DirShadowLights.clear();
+		DirShadowViews.clear();
 		ObjectLightIndices.clear();
 	}
 };

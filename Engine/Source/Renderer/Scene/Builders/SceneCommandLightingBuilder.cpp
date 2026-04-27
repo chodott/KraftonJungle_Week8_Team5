@@ -264,6 +264,7 @@ namespace
 		View.PositionWS          = LightItem.PositionWS;
 		View.NearZ               = NearZ;
 		View.FarZ                = FarZ;
+		View.SourceActor         = Spot->GetOwner();
 
 		View.View = FMatrix::MakeViewLookAtLH(
 			LightItem.PositionWS,

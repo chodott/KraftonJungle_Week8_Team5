@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 
+class AActor;
+
 namespace ShadowConfig
 {
 	static constexpr uint32 MaxShadowLights = 16;
@@ -106,6 +108,8 @@ struct FShadowViewRenderItem
 	float NearZ = ShadowConfig::DefaultNearZ;
 	float FarZ  = 1000.0f;
 
+	bool			  bAtlasAllocated     = false;
+	uint32			  AllocatedResolution = 0;
 	uint32            RequestedResolution = 0;
 	float			  ShadowResolutionScale = 1.0f;
 	EShadowFilterMode FilterMode          = EShadowFilterMode::VSM;
@@ -115,6 +119,8 @@ struct FShadowViewRenderItem
 	D3D11_VIEWPORT Viewport = {};
 
 	FVector4 BiasParams = FVector4(0, 0, 0, 0);
+
+	AActor* SourceActor = nullptr;
 };
 
 

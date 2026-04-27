@@ -1322,22 +1322,23 @@ void FEditorUI::Render()
 		}
 
 		FRenderer* Renderer = Engine ? Engine->GetRenderer() : nullptr;
+		AActor* SelectedActor = Engine ? Engine->GetSelectedActor() : nullptr;
 		switch (DebugState.StatDisplayMode)
 		{
 		case EStatDisplayMode::Memory:
-			Stat.Render(StatArea, EStatWindowMode::Memory, Renderer);
+			Stat.Render(StatArea, EStatWindowMode::Memory, Renderer, SelectedActor);
 			break;
 		case EStatDisplayMode::Decal:
-			Stat.Render(StatArea, EStatWindowMode::Decal, Renderer);
+			Stat.Render(StatArea, EStatWindowMode::Decal, Renderer, SelectedActor);
 			break;
 		case EStatDisplayMode::Fog:
-			Stat.Render(StatArea, EStatWindowMode::Fog, Renderer);
+			Stat.Render(StatArea, EStatWindowMode::Fog, Renderer, SelectedActor);
 			break;
 		case EStatDisplayMode::GPU:
-			Stat.Render(StatArea, EStatWindowMode::GPU, Renderer);
+			Stat.Render(StatArea, EStatWindowMode::GPU, Renderer, SelectedActor);
 			break;
 		case EStatDisplayMode::Light:
-			Stat.Render(StatArea, EStatWindowMode::Light, Renderer);
+			Stat.Render(StatArea, EStatWindowMode::Light, Renderer, SelectedActor);
 			break;
 		default:
 			break;

@@ -6,6 +6,7 @@
 #include "Renderer/Scene/Passes/ScenePassExecutionUtils.h"
 #include "Renderer/Common/SceneRenderTargets.h"
 #include "Renderer/Scene/SceneViewData.h"
+#include "Renderer/Resources/Material/Material.h"
 
 #include <algorithm>
 #include <cstring>
@@ -26,6 +27,28 @@ namespace
 			Ptr->Release();
 			Ptr = nullptr;
 		}
+	}
+
+	bool HasShadowVSMCaster(const FSceneViewData& SceneViewData)
+	{
+		for (const FMeshBatch& Batch : SceneViewData.MeshInputs.Batches)
+		{
+			if (!Batch.Mesh || !Batch.Material)
+			{
+				continue;
+			}
+			if (!EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ShadowVSM))
+			{
+				continue;
+			}
+			if (Batch.Material->GetPassShaders(EMaterialPassType::ShadowVSM) == nullptr)
+			{
+				continue;
+			}
+			return true;
+		}
+
+		return false;
 	}
 }
 
@@ -149,11 +172,18 @@ void FShadowRenderFeature::Release()
 	SafeRelease(ShadowDebugPreviewSRV);
 	SafeRelease(ShadowDebugPreviewRTV);
 	SafeRelease(ShadowDebugPreviewTexture);
+	SafeRelease(LocalShadowAtlasPreviewSRV);
+	SafeRelease(LocalShadowAtlasPreviewRTV);
+	SafeRelease(LocalShadowAtlasPreviewTexture);
+	SafeRelease(DirShadowAtlasPreviewSRV);
+	SafeRelease(DirShadowAtlasPreviewRTV);
+	SafeRelease(DirShadowAtlasPreviewTexture);
 	SafeRelease(ShadowDebugSampler);
 	SafeRelease(ShadowDebugCB);
 
 	ShadowDebugVS.reset();
 	ShadowDebugPS.reset();
+	ShadowAtlasPreviewPS.reset();
 
 	SafeRelease(ShadowLinearSampler);
 	SafeRelease(ShadowComparisonSampler);
@@ -239,6 +269,7 @@ bool FShadowRenderFeature::RenderShadows(
 	}
 
 	RenderShadowViews(Renderer, Processor, Targets, SceneViewData);
+	RenderShadowAtlasPreviews(Renderer, SceneViewData);
 
 	if (DebugViewMode != EShadowDebugViewMode::None)
 	{
@@ -1079,7 +1110,12 @@ void FShadowRenderFeature::RenderShadowViews(
 				{
 					continue;
 				}
-				ShadowView.AtlasUV = FVector(ShadowAtlasNode->X, ShadowAtlasNode->Y, ShadowAtlasNode->Size);
+				ShadowView.AtlasUV = FVector(
+					static_cast<float>(ShadowAtlasNode->X),
+					static_cast<float>(ShadowAtlasNode->Y),
+					static_cast<float>(ShadowAtlasNode->Size));
+				ShadowView.AllocatedResolution = ShadowAtlasNode->Size;
+				ShadowView.bAtlasAllocated = true;
 				ShadowViewport = BuildShadowViewport(ShadowAtlasNode->X, ShadowAtlasNode->Y, ShadowAtlasNode->Size);
 
 				MomentsRTV = LocalShadowMomentsAtlasRTV;
@@ -1147,6 +1183,12 @@ void FShadowRenderFeature::RenderShadowViews(
 					EMeshPassType::ShadowVSM);
 			}
 		}
+
+		CachedLocalShadowViews.clear();
+		for (uint32 ViewIndex = 0; ViewIndex < ShadowViewCount; ++ViewIndex)
+		{
+			CachedLocalShadowViews.push_back(SceneViewData.LightingInputs.ShadowViews[ViewIndex]);
+		}
 	}
 
 	// 3. 로컬 섀도우가 없었더라도, 뷰를 원래대로 반드시 복구하고 메인 패스 시작
@@ -1182,6 +1224,11 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 		return;
 	}
 
+	if (!HasShadowVSMCaster(SceneViewData))
+	{
+		return;
+	}
+
 	const FViewContext OriginalView = SceneViewData.View;
 	static const float ClearMoments[4] = { 1.0f, 1.0f, 0.0f, 0.0f };
 
@@ -1210,6 +1257,12 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 		{
 			continue;
 		}
+		DirShadowView.AtlasUV = FVector(
+			static_cast<float>(ShadowNode->X),
+			static_cast<float>(ShadowNode->Y),
+			static_cast<float>(ShadowNode->Size));
+		DirShadowView.AllocatedResolution = ShadowNode->Size;
+		DirShadowView.bAtlasAllocated = true;
 
 		D3D11_VIEWPORT DirShadowViewport = BuildShadowViewport(ShadowNode->X, ShadowNode->Y, ShadowNode->Size);
 
@@ -1224,7 +1277,6 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 		SceneViewData.View.FarZ = DirShadowView.FarZ;
 		SceneViewData.View.bOrthographic = DirShadowView.ProjectionType == EShadowProjectionType::Orthographic;
 		SceneViewData.View.Viewport = DirShadowViewport;
-		DirShadowView.AtlasUV = FVector(ShadowNode->X, ShadowNode->Y, ShadowNode->Size);
 
 		if (GlobalFilterMode == EShadowFilterMode::Raw ||
 			GlobalFilterMode == EShadowFilterMode::PCF)
@@ -1267,6 +1319,12 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 				SceneViewData,
 				EMeshPassType::ShadowVSM);
 		}
+	}
+
+	CachedDirShadowViews.clear();
+	for (uint32 ViewIndex = 0; ViewIndex < DirShadowViewCount; ++ViewIndex)
+	{
+		CachedDirShadowViews.push_back(SceneViewData.LightingInputs.DirShadowViews[ViewIndex]);
 	}
 
 	SceneViewData.View = OriginalView;
@@ -1466,7 +1524,192 @@ bool FShadowRenderFeature::EnsureDebugPreviewResources(FRenderer& Renderer)
 		ShadowDebugPS = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
 	}
 
-	return ShadowDebugVS != nullptr && ShadowDebugPS != nullptr;
+	if (!ShadowAtlasPreviewPS)
+	{
+		FShaderRecipe Recipe = {};
+		Recipe.Stage         = EShaderStage::Pixel;
+		Recipe.SourcePath    = ShaderDir + L"Shadow/ShadowAtlasPreviewPixelShader.hlsl";
+		Recipe.EntryPoint    = "main";
+		Recipe.Target        = "ps_5_0";
+
+		ShadowAtlasPreviewPS = FShaderRegistry::Get().GetOrCreatePixelShaderHandle(Device, Recipe);
+	}
+
+	return ShadowDebugVS != nullptr && ShadowDebugPS != nullptr && ShadowAtlasPreviewPS != nullptr;
+}
+
+bool FShadowRenderFeature::EnsureAtlasPreviewTexture(
+	FRenderer& Renderer,
+	uint32 Size,
+	ID3D11Texture2D*& Texture,
+	ID3D11RenderTargetView*& RTV,
+	ID3D11ShaderResourceView*& SRV)
+{
+	ID3D11Device* Device = Renderer.GetDevice();
+	if (!Device || Size == 0)
+	{
+		return false;
+	}
+
+	bool bRecreate = !Texture || !RTV || !SRV;
+	if (!bRecreate)
+	{
+		D3D11_TEXTURE2D_DESC ExistingDesc = {};
+		Texture->GetDesc(&ExistingDesc);
+		bRecreate =
+			ExistingDesc.Width != Size ||
+			ExistingDesc.Height != Size ||
+			ExistingDesc.Format != DXGI_FORMAT_R8G8B8A8_UNORM;
+	}
+
+	if (!bRecreate)
+	{
+		return true;
+	}
+
+	SafeRelease(SRV);
+	SafeRelease(RTV);
+	SafeRelease(Texture);
+
+	D3D11_TEXTURE2D_DESC Desc = {};
+	Desc.Width = Size;
+	Desc.Height = Size;
+	Desc.MipLevels = 1;
+	Desc.ArraySize = 1;
+	Desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	Desc.SampleDesc.Count = 1;
+	Desc.Usage = D3D11_USAGE_DEFAULT;
+	Desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+
+	if (FAILED(Device->CreateTexture2D(&Desc, nullptr, &Texture)) || !Texture)
+	{
+		return false;
+	}
+
+	if (FAILED(Device->CreateRenderTargetView(Texture, nullptr, &RTV)) || !RTV)
+	{
+		SafeRelease(Texture);
+		return false;
+	}
+
+	if (FAILED(Device->CreateShaderResourceView(Texture, nullptr, &SRV)) || !SRV)
+	{
+		SafeRelease(RTV);
+		SafeRelease(Texture);
+		return false;
+	}
+
+	return true;
+}
+
+bool FShadowRenderFeature::RenderAtlasPreview(
+	FRenderer& Renderer,
+	const FSceneViewData& SceneViewData,
+	ID3D11ShaderResourceView* SourceSRV,
+	uint32 Size,
+	ID3D11RenderTargetView* TargetRTV)
+{
+	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
+	if (!Context || !SourceSRV || !TargetRTV || !ShadowDebugCB || !ShadowDebugVS || !ShadowAtlasPreviewPS)
+	{
+		return false;
+	}
+
+	struct FShadowAtlasPreviewCBData
+	{
+		float Exposure;
+		float Padding0;
+		float Padding1;
+		float Padding2;
+	};
+
+	FShadowAtlasPreviewCBData CBData = {};
+	CBData.Exposure = 24.0f;
+
+	D3D11_MAPPED_SUBRESOURCE Mapped = {};
+	if (FAILED(Context->Map(ShadowDebugCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
+	{
+		return false;
+	}
+
+	std::memcpy(Mapped.pData, &CBData, sizeof(CBData));
+	Context->Unmap(ShadowDebugCB, 0);
+
+	const float ClearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	Context->ClearRenderTargetView(TargetRTV, ClearColor);
+
+	D3D11_VIEWPORT PreviewViewport = {};
+	PreviewViewport.TopLeftX = 0.0f;
+	PreviewViewport.TopLeftY = 0.0f;
+	PreviewViewport.Width = static_cast<float>(Size);
+	PreviewViewport.Height = static_cast<float>(Size);
+	PreviewViewport.MinDepth = 0.0f;
+	PreviewViewport.MaxDepth = 1.0f;
+
+	const FFullscreenPassConstantBufferBinding ConstantBuffers[] =
+	{
+		{ 0, ShadowDebugCB },
+	};
+	const FFullscreenPassShaderResourceBinding ShaderResources[] =
+	{
+		{ 0, SourceSRV },
+	};
+	const FFullscreenPassSamplerBinding Samplers[] =
+	{
+		{ 0, ShadowDebugSampler },
+	};
+	const FFullscreenPassBindings Bindings
+	{
+		ConstantBuffers,
+		static_cast<uint32>(sizeof(ConstantBuffers) / sizeof(ConstantBuffers[0])),
+		ShaderResources,
+		static_cast<uint32>(sizeof(ShaderResources) / sizeof(ShaderResources[0])),
+		Samplers,
+		static_cast<uint32>(sizeof(Samplers) / sizeof(Samplers[0]))
+	};
+
+	return ExecuteFullscreenPass(
+		Renderer,
+		SceneViewData.Frame,
+		SceneViewData.View,
+		TargetRTV,
+		nullptr,
+		PreviewViewport,
+		{ ShadowDebugVS, ShadowAtlasPreviewPS },
+		{},
+		Bindings,
+		[](ID3D11DeviceContext& DrawContext)
+		{
+			DrawContext.Draw(3, 0);
+		});
+}
+
+void FShadowRenderFeature::RenderShadowAtlasPreviews(FRenderer& Renderer, const FSceneViewData& SceneViewData)
+{
+	if (!EnsureDebugPreviewResources(Renderer))
+	{
+		return;
+	}
+
+	if (LocalShadowDepthAtlasSRV &&
+		EnsureAtlasPreviewTexture(
+			Renderer,
+			ShadowConfig::MaxShadowMapResolution,
+			LocalShadowAtlasPreviewTexture,
+			LocalShadowAtlasPreviewRTV,
+			LocalShadowAtlasPreviewSRV))
+	{
+		RenderAtlasPreview(
+			Renderer,
+			SceneViewData,
+			LocalShadowDepthAtlasSRV,
+			ShadowConfig::MaxShadowMapResolution,
+			LocalShadowAtlasPreviewRTV);
+	}
+
+	SafeRelease(DirShadowAtlasPreviewSRV);
+	SafeRelease(DirShadowAtlasPreviewRTV);
+	SafeRelease(DirShadowAtlasPreviewTexture);
 }
 
 bool FShadowRenderFeature::RenderDebugPreview(

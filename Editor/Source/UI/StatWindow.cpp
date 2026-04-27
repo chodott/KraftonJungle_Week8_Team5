@@ -8,6 +8,7 @@
 #include "Renderer/Features/Decal/DecalRenderFeature.h"
 #include "Renderer/Features/Fog/FogStats.h"
 #include "Renderer/Features/Lighting/LightStats.h"
+#include "Renderer/Features/Shadow/ShadowRenderFeature.h"
 #include "Renderer/GPUStats.h"
 
 #include "imgui.h"
@@ -89,21 +90,14 @@ namespace
 		Lines.push_back({ Header, "", true, bSeparatorBefore, bSeparatorAfter });
 	}
 
-	void RenderStatTablePanel(const char* ChildId, const std::vector<FStatLine>& Lines)
+	void RenderStatTable(const char* TableId, const std::vector<FStatLine>& Lines)
 	{
-		ImGui::BeginChild(
-			ChildId,
-			ImVec2(0.0f, 0.0f),
-			false,
-			ImGuiWindowFlags_AlwaysVerticalScrollbar
-		);
-
 		const ImGuiTableFlags TableFlags =
 			ImGuiTableFlags_SizingStretchProp |
 			ImGuiTableFlags_BordersInnerV |
 			ImGuiTableFlags_PadOuterX;
 
-		if (ImGui::BeginTable("StatsTable", 2, TableFlags))
+		if (ImGui::BeginTable(TableId, 2, TableFlags))
 		{
 			ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthStretch, 0.68f);
 			ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.32f);
@@ -147,8 +141,191 @@ namespace
 
 			ImGui::EndTable();
 		}
+	}
+
+	void RenderStatTablePanel(const char* ChildId, const std::vector<FStatLine>& Lines)
+	{
+		ImGui::BeginChild(
+			ChildId,
+			ImVec2(0.0f, 0.0f),
+			false,
+			ImGuiWindowFlags_AlwaysVerticalScrollbar
+		);
+
+		RenderStatTable("StatsTable", Lines);
 
 		ImGui::EndChild();
+	}
+
+	void RenderDirectionalShadowAtlasPreview(FShadowRenderFeature* ShadowFeature)
+	{
+		if (!ShadowFeature)
+		{
+			return;
+		}
+
+		ID3D11ShaderResourceView* AtlasSRV = ShadowFeature->GetDirShadowDepthAtlasSRV();
+		if (!AtlasSRV)
+		{
+			ImGui::TextDisabled("Directional shadow atlas unavailable.");
+			return;
+		}
+
+		const float AvailableWidth = ImGui::GetContentRegionAvail().x;
+		const float PreviewSize = ClampFloat(AvailableWidth, 96.0f, 220.0f);
+		const float AtlasSize = static_cast<float>(ShadowConfig::DirMaxShadowDepthResolution);
+
+		ImGui::TextDisabled("Directional Shadow Atlas");
+		const ImVec2 Cursor = ImGui::GetCursorScreenPos();
+		ImGui::GetWindowDrawList()->AddRectFilled(
+			Cursor,
+			ImVec2(Cursor.x + PreviewSize, Cursor.y + PreviewSize),
+			IM_COL32(18, 18, 18, 255));
+		ImGui::Image(
+			reinterpret_cast<ImTextureID>(AtlasSRV),
+			ImVec2(PreviewSize, PreviewSize),
+			ImVec2(0.0f, 0.0f),
+			ImVec2(1.0f, 1.0f));
+
+		const ImVec2 ImageMin = ImGui::GetItemRectMin();
+		ImDrawList* DrawList = ImGui::GetWindowDrawList();
+		const TArray<FShadowViewRenderItem>& Cascades = ShadowFeature->GetLastDirectionalShadowViews();
+		const ImU32 Colors[] = {
+			IM_COL32(255, 210, 64, 255),
+			IM_COL32(96, 220, 255, 255),
+			IM_COL32(140, 255, 128, 255),
+			IM_COL32(255, 128, 220, 255),
+		};
+
+		for (uint32 Index = 0; Index < static_cast<uint32>(Cascades.size()); ++Index)
+		{
+			const FShadowViewRenderItem& Cascade = Cascades[Index];
+			if (!Cascade.bAtlasAllocated || Cascade.AtlasUV.Z <= 0.0f)
+			{
+				continue;
+			}
+
+			const float X0 = ImageMin.x + (Cascade.AtlasUV.X / AtlasSize) * PreviewSize;
+			const float Y0 = ImageMin.y + (Cascade.AtlasUV.Y / AtlasSize) * PreviewSize;
+			const float X1 = ImageMin.x + ((Cascade.AtlasUV.X + Cascade.AtlasUV.Z) / AtlasSize) * PreviewSize;
+			const float Y1 = ImageMin.y + ((Cascade.AtlasUV.Y + Cascade.AtlasUV.Z) / AtlasSize) * PreviewSize;
+			const ImU32 Color = Colors[Index % 4];
+
+			DrawList->AddRectFilled(ImVec2(X0, Y0), ImVec2(X1, Y1), Color & IM_COL32(255, 255, 255, 48));
+			DrawList->AddRect(ImVec2(X0, Y0), ImVec2(X1, Y1), IM_COL32(0, 0, 0, 255), 0.0f, 0, 4.0f);
+			DrawList->AddRect(ImVec2(X0, Y0), ImVec2(X1, Y1), Color, 0.0f, 0, 2.5f);
+
+			char Label[16];
+			std::snprintf(Label, sizeof(Label), "%u", Index);
+			const ImVec2 TextPos(X0 + 6.0f, Y0 + 5.0f);
+			const ImVec2 TextSize = ImGui::CalcTextSize(Label);
+			DrawList->AddRectFilled(
+				ImVec2(TextPos.x - 3.0f, TextPos.y - 2.0f),
+				ImVec2(TextPos.x + TextSize.x + 3.0f, TextPos.y + TextSize.y + 2.0f),
+				IM_COL32(0, 0, 0, 190));
+			DrawList->AddText(TextPos, Color, Label);
+		}
+
+		ImGui::Spacing();
+	}
+
+	void RenderSpotShadowAtlasPreview(FShadowRenderFeature* ShadowFeature, const AActor* SelectedActor)
+	{
+		if (!ShadowFeature)
+		{
+			return;
+		}
+
+		ID3D11ShaderResourceView* AtlasSRV = ShadowFeature->GetLocalShadowAtlasPreviewSRV();
+		if (!AtlasSRV)
+		{
+			ImGui::TextDisabled("Spot shadow atlas unavailable.");
+			return;
+		}
+
+		const float AvailableWidth = ImGui::GetContentRegionAvail().x;
+		const float PreviewSize = ClampFloat(AvailableWidth, 96.0f, 220.0f);
+		const float AtlasSize = static_cast<float>(ShadowConfig::MaxShadowMapResolution);
+
+		ImGui::TextDisabled("Spot Shadow Atlas");
+		const ImVec2 Cursor = ImGui::GetCursorScreenPos();
+		ImGui::GetWindowDrawList()->AddRectFilled(
+			Cursor,
+			ImVec2(Cursor.x + PreviewSize, Cursor.y + PreviewSize),
+			IM_COL32(18, 18, 18, 255));
+		ImGui::Image(
+			reinterpret_cast<ImTextureID>(AtlasSRV),
+			ImVec2(PreviewSize, PreviewSize),
+			ImVec2(0.0f, 0.0f),
+			ImVec2(1.0f, 1.0f));
+
+		const ImVec2 ImageMin = ImGui::GetItemRectMin();
+		ImDrawList* DrawList = ImGui::GetWindowDrawList();
+		const TArray<FShadowViewRenderItem>& Views = ShadowFeature->GetLastLocalShadowViews();
+		const ImU32 Colors[] = {
+			IM_COL32(255, 210, 64, 255),
+			IM_COL32(96, 220, 255, 255),
+			IM_COL32(140, 255, 128, 255),
+			IM_COL32(255, 128, 220, 255),
+			IM_COL32(255, 150, 96, 255),
+			IM_COL32(180, 160, 255, 255),
+		};
+
+		bool bDrewSelectedSpot = false;
+		for (uint32 ViewIndex = 0; ViewIndex < static_cast<uint32>(Views.size()); ++ViewIndex)
+		{
+			const FShadowViewRenderItem& View = Views[ViewIndex];
+			if (View.LightType != EShadowLightType::Spot || !View.bAtlasAllocated || View.AtlasUV.Z <= 0.0f)
+			{
+				continue;
+			}
+			if (!SelectedActor || View.SourceActor != SelectedActor)
+			{
+				continue;
+			}
+
+			const float X0 = ImageMin.x + (View.AtlasUV.X / AtlasSize) * PreviewSize;
+			const float Y0 = ImageMin.y + (View.AtlasUV.Y / AtlasSize) * PreviewSize;
+			const float X1 = ImageMin.x + ((View.AtlasUV.X + View.AtlasUV.Z) / AtlasSize) * PreviewSize;
+			const float Y1 = ImageMin.y + ((View.AtlasUV.Y + View.AtlasUV.Z) / AtlasSize) * PreviewSize;
+			const ImU32 Color = Colors[ViewIndex % 6];
+
+			DrawList->AddRectFilled(ImVec2(X0, Y0), ImVec2(X1, Y1), Color & IM_COL32(255, 255, 255, 48));
+			DrawList->AddRect(ImVec2(X0, Y0), ImVec2(X1, Y1), IM_COL32(0, 0, 0, 255), 0.0f, 0, 4.0f);
+			DrawList->AddRect(ImVec2(X0, Y0), ImVec2(X1, Y1), Color, 0.0f, 0, 2.5f);
+			bDrewSelectedSpot = true;
+		}
+
+		if (!bDrewSelectedSpot)
+		{
+			ImGui::TextDisabled("No selected spot shadow view.");
+		}
+
+		ImGui::Spacing();
+	}
+
+	void RenderShadowAtlasPreviewRow(FShadowRenderFeature* ShadowFeature, const AActor* SelectedActor)
+	{
+		const ImGuiTableFlags TableFlags =
+			ImGuiTableFlags_SizingStretchSame |
+			ImGuiTableFlags_PadOuterX;
+
+		if (ImGui::BeginTable("ShadowAtlasPreviewRow", 2, TableFlags))
+		{
+			ImGui::TableNextRow();
+			ImGui::TableSetColumnIndex(0);
+			RenderDirectionalShadowAtlasPreview(ShadowFeature);
+
+			ImGui::TableSetColumnIndex(1);
+			RenderSpotShadowAtlasPreview(ShadowFeature, SelectedActor);
+
+			ImGui::EndTable();
+		}
+		else
+		{
+			RenderDirectionalShadowAtlasPreview(ShadowFeature);
+			RenderSpotShadowAtlasPreview(ShadowFeature, SelectedActor);
+		}
 	}
 }
 
@@ -173,32 +350,32 @@ void FStatWindow::RefreshObjectList()
 	bShowObjectList = true;
 }
 
-void FStatWindow::Render(const FRect& AreaRect, EStatWindowMode Mode, FRenderer* Renderer)
+void FStatWindow::Render(const FRect& AreaRect, EStatWindowMode Mode, FRenderer* Renderer, AActor* SelectedActor)
 {
 	if (Mode == EStatWindowMode::Memory)
 	{
 		RefreshObjectList();
 	}
 
-	const float ViewportWidth = AreaRect.Width;
-	const float ViewportHeight = AreaRect.Height;
-	const float MarginX = 20.0f;
-	const float MarginY = 20.0f;
+	const float ViewportWidth = static_cast<float>(AreaRect.Width);
+	const float ViewportHeight = static_cast<float>(AreaRect.Height);
+	const float MarginX = 12.0f;
+	const float MarginY = 12.0f;
 
 	const float MaxWindowWidth = (ViewportWidth > MarginX * 2.0f) ? (ViewportWidth - MarginX * 2.0f) : ViewportWidth;
 	const float MaxWindowHeight = (ViewportHeight > MarginY * 2.0f) ? (ViewportHeight - MarginY * 2.0f) : ViewportHeight;
 
-	float WindowWidth = ViewportWidth * 0.70f;
-	float WindowHeight = ViewportHeight * 0.55f;
+	float WindowWidth = ViewportWidth * 0.50f;
+	float WindowHeight = ViewportHeight * 0.50f;
 
-	WindowWidth = ClampFloat(WindowWidth, 320.0f, MaxWindowWidth);
-	WindowHeight = ClampFloat(WindowHeight, 220.0f, MaxWindowHeight);
+	WindowWidth = ClampFloat(WindowWidth, 280.0f, MaxWindowWidth);
+	WindowHeight = ClampFloat(WindowHeight, 180.0f, MaxWindowHeight);
 
 	ImGuiViewport* MainVp = ImGui::GetMainViewport();
-	const float CenterX = MainVp->Pos.x + AreaRect.X + AreaRect.Width * 0.5f;
-	const float CenterY = MainVp->Pos.y + AreaRect.Y + AreaRect.Height * 0.5f;
+	const float WindowX = MainVp->Pos.x + AreaRect.X + MarginX;
+	const float WindowY = MainVp->Pos.y + AreaRect.Y + MarginY;
 
-	ImGui::SetNextWindowPos(ImVec2(CenterX, CenterY), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+	ImGui::SetNextWindowPos(ImVec2(WindowX, WindowY), ImGuiCond_Always);
 	ImGui::SetNextWindowSize(ImVec2(WindowWidth, WindowHeight), ImGuiCond_Always);
 	ImGui::SetNextWindowBgAlpha(0.35f);
 
@@ -248,7 +425,7 @@ void FStatWindow::Render(const FRect& AreaRect, EStatWindowMode Mode, FRenderer*
 		RenderGPUStats(Renderer);
 		break;
 	case EStatWindowMode::Light:
-		RenderLightStats(Renderer);
+		RenderLightStats(Renderer, SelectedActor);
 		break;
 	default:
 		break;
@@ -538,7 +715,7 @@ void FStatWindow::RenderGPUStats(FRenderer* Renderer)
 	ImGui::TextDisabled("Geometry/overdraw are engine-side aggregates. D3D11 hardware counters are not sampled here.");
 }
 
-void FStatWindow::RenderLightStats(FRenderer* Renderer)
+void FStatWindow::RenderLightStats(FRenderer* Renderer, AActor* SelectedActor)
 {
 	if (!Renderer)
 	{
@@ -596,5 +773,61 @@ void FStatWindow::RenderLightStats(FRenderer* Renderer)
 	std::snprintf(Buffer, sizeof(Buffer), "%.2f KB", Stats.TotalBufferBytes / 1024.0);
 	AddStatLine(Lines, "Total Buffer", Buffer);
 
-	RenderStatTablePanel("LightStatPanel", Lines);
+	FShadowRenderFeature* ShadowFeature = Renderer->GetShadowFeature();
+	AddStatHeader(Lines, "[Directional Shadow Cascades]");
+	if (ShadowFeature)
+	{
+		const TArray<FShadowViewRenderItem>& Cascades = ShadowFeature->GetLastDirectionalShadowViews();
+		if (Cascades.empty())
+		{
+			AddStatLine(Lines, "Cascade Count", "0");
+		}
+		else
+		{
+			std::snprintf(Buffer, sizeof(Buffer), "%u", static_cast<uint32>(Cascades.size()));
+			AddStatLine(Lines, "Cascade Count", Buffer);
+
+			for (uint32 Index = 0; Index < static_cast<uint32>(Cascades.size()); ++Index)
+			{
+				const FShadowViewRenderItem& Cascade = Cascades[Index];
+				char Label[64];
+
+				std::snprintf(Label, sizeof(Label), "Cascade %u", Index);
+				AddStatLine(Lines, Label, Cascade.bAtlasAllocated ? "Allocated" : "Not allocated");
+
+				std::snprintf(Label, sizeof(Label), "Cascade %u Rect", Index);
+				std::snprintf(
+					Buffer,
+					sizeof(Buffer),
+					"%.0f, %.0f, %.0f",
+					Cascade.AtlasUV.X,
+					Cascade.AtlasUV.Y,
+					Cascade.AtlasUV.Z);
+				AddStatLine(Lines, Label, Buffer);
+
+				std::snprintf(Label, sizeof(Label), "Cascade %u Resolution", Index);
+				std::snprintf(Buffer, sizeof(Buffer), "%u", Cascade.AllocatedResolution);
+				AddStatLine(Lines, Label, Buffer);
+
+				std::snprintf(Label, sizeof(Label), "Cascade %u Near/Far", Index);
+				std::snprintf(Buffer, sizeof(Buffer), "%.2f / %.2f", Cascade.NearZ, Cascade.FarZ);
+				AddStatLine(Lines, Label, Buffer);
+			}
+		}
+	}
+	else
+	{
+		AddStatLine(Lines, "Shadow Feature", "Unavailable");
+	}
+
+	ImGui::BeginChild(
+		"LightStatPanel",
+		ImVec2(0.0f, 0.0f),
+		false,
+		ImGuiWindowFlags_AlwaysVerticalScrollbar);
+
+	RenderShadowAtlasPreviewRow(ShadowFeature, SelectedActor);
+	RenderStatTable("LightStatsTable", Lines);
+
+	ImGui::EndChild();
 }
