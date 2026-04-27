@@ -448,12 +448,12 @@ bool FShadowRenderFeature::EnsureResources(
 	bool bDirOk = true;
 	if (DirViewCount > 0)
 	{
-		bDirOk = EnsureDirShadowDepthAtlas(Renderer, ShadowConfig::DirShadowDepthResolution) &&
+		bDirOk = EnsureDirShadowDepthAtlas(Renderer, ShadowConfig::DirMaxShadowDepthResolution) &&
 			EnsureDirShadowBuffers(Renderer, DirLightCount, DirViewCount);
 
 		if (bNeedVSM && bDirOk)
 		{
-			bDirOk = EnsureDirMomentsAtlas(Renderer, ShadowConfig::DirShadowDepthResolution);
+			bDirOk = EnsureDirMomentsAtlas(Renderer, ShadowConfig::DirMaxShadowDepthResolution);
 		}
 	}
 
@@ -627,7 +627,7 @@ bool FShadowRenderFeature::EnsureDirMomentsAtlas(const FRenderer& Renderer, uint
 	RequiredResolution = FMath::Clamp(
 		RequiredResolution,
 		ShadowConfig::MinShadowMapResolution,
-		ShadowConfig::MaxShadowMapResolution);
+		ShadowConfig::DirMaxShadowDepthResolution);
 
 	if (DirShadowMomentsAtlasSRV)
 	{
@@ -691,6 +691,8 @@ bool FShadowRenderFeature::EnsureDirShadowDepthAtlas(FRenderer& Renderer, uint32
 	{
 		return true;
 	}
+
+	DirShadowAtlasAllocator = new FShadowAtlasAllocator(ShadowConfig::DirMaxShadowDepthResolution);
 
 	D3D11_TEXTURE2D_DESC TextureDesc = {};
 	TextureDesc.Width = RequiredResolution;
@@ -975,8 +977,8 @@ void FShadowRenderFeature::UploadShadowBuffers(
 			{
 				const FShadowViewRenderItem& Src = SceneViewData.LightingInputs.DirShadowViews[Index];
 
-				const float ViewportScale = 1.0f;
-				const float TexelSize = 1.0f / static_cast<float>(ShadowConfig::DirShadowDepthResolution);
+				const float AtlasScale = ShadowConfig::DirMaxShadowDepthResolution;
+				const float TexelSize = 1.0f / static_cast<float>(ShadowConfig::DirMaxShadowDepthResolution);
 
 				FShadowViewGPU& Dst = DirGPUData[Index];
 				Dst.LightViewProjection = Src.ViewProjection.GetTransposed();
@@ -984,8 +986,9 @@ void FShadowRenderFeature::UploadShadowBuffers(
 				Dst.ProjectionType = static_cast<uint32>(Src.ProjectionType);
 				Dst.FilterMode = static_cast<uint32>(GlobalFilterMode);
 				Dst.Pad0 = 0;
-				Dst.ViewParams = FVector4(Src.NearZ, Src.FarZ, ViewportScale, TexelSize);
+				Dst.ViewParams = FVector4(Src.NearZ, Src.FarZ, AtlasScale, TexelSize);
 				Dst.BiasParams = Src.BiasParams;
+				Dst.AtlasUV = Src.AtlasUV;
 			}
 
 			D3D11_MAPPED_SUBRESOURCE Mapped = {};
@@ -1165,7 +1168,7 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 	FSceneViewData& SceneViewData)
 {
 	ID3D11DeviceContext* DeviceContext = Renderer.GetDeviceContext();
-	if (!DeviceContext)
+	if (!DeviceContext && DirShadowAtlasAllocator == nullptr)
 	{
 		return;
 	}
@@ -1191,22 +1194,24 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 	DeviceContext->ClearRenderTargetView(DirShadowMomentsAtlasRTV, ClearMoments);
 	DeviceContext->ClearDepthStencilView(DirShadowDepthAtlasDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
+	DirShadowAtlasAllocator->Reset();
+
 	for (uint32 ViewIndex = 0; ViewIndex < DirShadowViewCount; ++ViewIndex)
 	{
-		const FShadowViewRenderItem& DirShadowView = SceneViewData.LightingInputs.DirShadowViews[ViewIndex];
+		FShadowViewRenderItem& DirShadowView = SceneViewData.LightingInputs.DirShadowViews[ViewIndex];
 
 		if (DirShadowView.ArraySlice >= ShadowConfig::MaxDirCascade)
 		{
 			continue;
 		}
 
-		D3D11_VIEWPORT DirShadowViewport = {};
-		DirShadowViewport.TopLeftX = 0.0f;
-		DirShadowViewport.TopLeftY = 0.0f;
-		DirShadowViewport.Width = static_cast<float>(ShadowConfig::DirShadowDepthResolution);
-		DirShadowViewport.Height = static_cast<float>(ShadowConfig::DirShadowDepthResolution);
-		DirShadowViewport.MinDepth = 0.0f;
-		DirShadowViewport.MaxDepth = 1.0f;
+		ShadowAtlasNode* ShadowNode = DirShadowAtlasAllocator->Allocate(ShadowConfig::DirShadowDepthResolution);
+		if(ShadowNode == nullptr)
+		{
+			continue;
+		}
+
+		D3D11_VIEWPORT DirShadowViewport = BuildShadowViewport(ShadowNode->X, ShadowNode->Y, ShadowNode->Size);
 
 		SceneViewData.View.View = DirShadowView.View;
 		SceneViewData.View.Projection = DirShadowView.Projection;
@@ -1219,6 +1224,7 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 		SceneViewData.View.FarZ = DirShadowView.FarZ;
 		SceneViewData.View.bOrthographic = DirShadowView.ProjectionType == EShadowProjectionType::Orthographic;
 		SceneViewData.View.Viewport = DirShadowViewport;
+		DirShadowView.AtlasUV = FVector(ShadowNode->X, ShadowNode->Y, ShadowNode->Size);
 
 		if (GlobalFilterMode == EShadowFilterMode::Raw ||
 			GlobalFilterMode == EShadowFilterMode::PCF)

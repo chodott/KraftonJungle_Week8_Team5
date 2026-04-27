@@ -193,4 +193,5 @@ private:
 	bool                 bDebugViewportOverlayEnabled = false;
 
 	FShadowAtlasAllocator* ShadowAtlasAllocator;
+	FShadowAtlasAllocator* DirShadowAtlasAllocator;
 };

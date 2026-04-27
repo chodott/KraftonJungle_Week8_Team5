@@ -20,6 +20,7 @@ namespace ShadowConfig
 	static constexpr uint32 MinShadowMapResolution     = 64;
 	static constexpr uint32 MaxShadowMapResolution     = 4096;
 	static constexpr uint32 DirShadowDepthResolution = 4096;
+	static constexpr uint32 DirMaxShadowDepthResolution = 8192;
 	static constexpr float  DefaultNearZ               = 0.05f;
 }
 
