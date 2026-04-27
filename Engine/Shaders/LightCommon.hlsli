@@ -21,6 +21,7 @@
 #define MAX_LIGHTS_PER_CLUSTER 1024
 #define LIGHT_VISUALIZATION_NONE 0
 #define LIGHT_VISUALIZATION_CLUSTER_HEATMAP 1
+#define LIGHT_VISUALIZATION_CSM_CASCADE 2
 
 #define INVALID_SHADOW_INDEX 0xFFFFFFFFu
 
@@ -476,105 +477,10 @@ float SampleShadowViewRawDepth(
 	return (compareDepth <= rawDepth) ? 1.0f : 0.0f;
 }
 
-float SampleDirShadowViewPCF(FShadowLightGPU shadowLight, FShadowViewGPU shadowView, float3 worldPos, float3 N, float3 L)
+
+float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L)
 {
-    float2 uv;
-    float compareDepth;
-    if (!ComputeShadowCoords(shadowView, worldPos, uv, compareDepth))
-        return 1.0f;
-	
-    float bias = ComputeShadowBias(shadowLight, N, L);
-    compareDepth = saturate(compareDepth - bias);
-    float viewportScale = max(shadowView.ViewParams.z, 1.0e-6f);
-    float2 texelSize = shadowView.ViewParams.w.xx;
-    float2 scaledUV = uv * viewportScale;
-    float2 minUV = texelSize * 0.5f;
-    float2 maxUV = viewportScale.xx - texelSize * 0.5f;
-	
-    float visibility = 0.0f;
-	[unroll]
-    for (int y = -1; y <= 1; ++y)
-    {
-		[unroll]
-        for (int x = -1; x <= 1; ++x)
-        {
-            float2 tapUV = clamp(scaledUV + float2(x, y) * texelSize, minUV, maxUV);
-            visibility += DirShadowDepthArray.SampleCmpLevelZero(ShadowSampler, float3(tapUV, (float) shadowView.ArraySlice), compareDepth);
-        }
-    }
-    return visibility / 9.0f;
-}
-
-float SampleDirShadowViewVSM(FShadowLightGPU shadowLight, FShadowViewGPU shadowView, float3 worldPos, float3 N, float3 L)
-{
-    float2 uv;
-    float compareDepth;
-    if (!ComputeShadowCoords(shadowView, worldPos, uv, compareDepth))
-        return 1.0f;
-	
-    float bias = ComputeShadowBias(shadowLight, N, L);
-    compareDepth = saturate(compareDepth - bias);
-    float viewportScale = max(shadowView.ViewParams.z, 1.0e-6f);
-    float2 texelSize = shadowView.ViewParams.w.xx;
-    float2 scaledUV = uv * viewportScale;
-    float2 minUV = texelSize * 0.5f;
-    float2 maxUV = viewportScale.xx - texelSize * 0.5f;
-    scaledUV = clamp(scaledUV, minUV, maxUV);
-
-    float2 moments = DirShadowMomentsArray.SampleLevel(LinearClampSampler, float3(scaledUV, (float) shadowView.ArraySlice), 0.0f).rg;
-    float mean = moments.x;
-    float variance = max(moments.y - mean * mean, 1.0e-6f);
-    if (compareDepth <= mean)
-        return 1.0f;
-
-    float d = compareDepth - mean;
-    float pMax = variance / (variance + d * d);
-    return saturate(ReduceLightBleeding(pMax, shadowLight.Params0.z));
-}
-
-float SampleDirShadowViewRawDepth(FShadowLightGPU shadowLight, FShadowViewGPU shadowView, float3 worldPos, float3 N, float3 L)
-{
-    float2 uv;
-    float compareDepth;
-    if (!ComputeShadowCoords(shadowView, worldPos, uv, compareDepth))
-        return 1.0f;
-	
-    float bias = ComputeShadowBias(shadowLight, N, L);
-    compareDepth = saturate(compareDepth - bias);
-    float viewportScale = max(shadowView.ViewParams.z, 1.0e-6f);
-    float2 texelSize = shadowView.ViewParams.w.xx;
-    float2 scaledUV = uv * viewportScale;
-    float2 minUV = texelSize * 0.5f;
-    float2 maxUV = viewportScale.xx - texelSize * 0.5f;
-    scaledUV = clamp(scaledUV, minUV, maxUV);
-
-    float rawDepth = DirShadowDepthArray.SampleLevel(LinearClampSampler, float3(scaledUV, (float) shadowView.ArraySlice), 0.0f).r;
-    return (compareDepth <= rawDepth) ? 1.0f : 0.0f;
-}
-
-float EvaluateDirectionalShadow(uint shadowIndex, float3 worldPos, float3 N, float3 L, float viewDepth)
-{
-    if (shadowIndex == INVALID_SHADOW_INDEX)
-        return 1.0f;
-    
-    FShadowLightGPU shadowLight = DirShadowLights[shadowIndex];
-    if (shadowLight.ViewCount == 0u)
-        return 1.0f;
-    
-    // 1. Cascade 인덱스 판별
-    uint cascadeIndex = 0;
-    if (viewDepth > Directional.CascadeSplits.x)
-        cascadeIndex = 1;
-    if (viewDepth > Directional.CascadeSplits.y)
-        cascadeIndex = 2;
-    if (viewDepth > Directional.CascadeSplits.z)
-        cascadeIndex = 3;
-    cascadeIndex = min(cascadeIndex, shadowLight.ViewCount - 1);
-
-    FShadowViewGPU view = DirShadowViews[shadowLight.FirstViewIndex + cascadeIndex];
-    
-    // 2. 투영 및 NDC 좌표 계산
-    float4 clip = mul(float4(worldPos, 1.0f), view.LightViewProjection);
+	float4 clip = mul(float4(worldPos, 1.0f), view.LightViewProjection);
     if (clip.w <= 0.0f)
         return 1.0f;
 
@@ -641,6 +547,68 @@ float EvaluateDirectionalShadow(uint shadowIndex, float3 worldPos, float3 N, flo
     return (compareDepth <= rawDepth) ? 1.0f : 0.0f;
 }
 
+float EvaluateDirectionalShadow(uint shadowIndex, float3 worldPos, float3 N, float3 L, float viewDepth)
+{
+    if (shadowIndex == INVALID_SHADOW_INDEX) return 1.0f;
+    
+    FShadowLightGPU shadowLight = DirShadowLights[shadowIndex];
+    if (shadowLight.ViewCount == 0u) return 1.0f;
+    
+    // 1. Cascade 인덱스 판별
+    float4 splits = Directional.CascadeSplits;
+    uint cascadeIndex = 0;
+    
+    if (viewDepth > splits.x) cascadeIndex = 1;
+    if (viewDepth > splits.y) cascadeIndex = 2;
+    if (viewDepth > splits.z) cascadeIndex = 3;
+    cascadeIndex = min(cascadeIndex, shadowLight.ViewCount - 1);
+
+    // 2. 현재 Cascade의 전체 길이 계산 및 동적 Blend Band 설정
+    // HLSL 컴파일러 최적화를 위해 안전한 삼항 연산자 사용
+    float currentSplit = (cascadeIndex == 0) ? splits.x :
+                         (cascadeIndex == 1) ? splits.y :
+                         (cascadeIndex == 2) ? splits.z : splits.w;
+
+    float prevSplit = (cascadeIndex == 0) ? 0.0f :
+                      (cascadeIndex == 1) ? splits.x :
+                      (cascadeIndex == 2) ? splits.y : splits.z;
+                      
+    float cascadeLength = currentSplit - prevSplit;
+    
+    // 핵심: 각 Cascade 길이의 15% 구간에서만 부드럽게 섞이도록 설정 (0.1 ~ 0.2 사이 추천)
+    float blendBand = cascadeLength * 0.15f; 
+
+    // 3. 블렌딩 가중치(Smoothstep) 및 다음 Cascade 인덱스 계산
+    uint nextCascadeIndex = cascadeIndex;
+    float blendWeight = 0.0f;
+
+    if (cascadeIndex < shadowLight.ViewCount - 1)
+    {
+        float distToSplit = currentSplit - viewDepth;
+        if (distToSplit > 0.0f && distToSplit < blendBand)
+        {
+            // Linear 대신 부드러운 곡선(Smoothstep) 사용으로 경계선 소멸
+            blendWeight = smoothstep(blendBand, 0.0f, distToSplit);
+            nextCascadeIndex = cascadeIndex + 1;
+        }
+    }
+
+
+    FShadowViewGPU view = DirShadowViews[shadowLight.FirstViewIndex + cascadeIndex];
+    float visibility = GetCascadeVisibility(view, shadowLight, worldPos, N, L);
+    
+    if (blendWeight > 0.0f)
+    {
+        FShadowViewGPU nextView = DirShadowViews[shadowLight.FirstViewIndex + nextCascadeIndex];
+        float nextVisibility = GetCascadeVisibility(nextView, shadowLight, worldPos, N, L);
+        
+        visibility = lerp(visibility, nextVisibility, blendWeight);
+    }
+
+    return visibility;
+}
+
+
 float3 DebugDirectionalShadow(uint shadowIndex, float3 worldPos, float viewDepth)
 {
     if (shadowIndex == INVALID_SHADOW_INDEX)
@@ -682,6 +650,8 @@ float3 DebugDirectionalShadow(uint shadowIndex, float3 worldPos, float viewDepth
     
     return float3(rawDepth, rawDepth, rawDepth); // ⚪⚫ 흑백: 텍스처 내부 데이터 출력
 }
+
+
 
 float EvaluateSpotShadow(
 	FShadowLightGPU shadowLight,

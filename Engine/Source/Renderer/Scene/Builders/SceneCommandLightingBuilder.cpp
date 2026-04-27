@@ -318,32 +318,31 @@ namespace
 			for (int j = 0; j < 8; j++) { FrustumCenter += FrustumCornersWS[j]; }
 			FrustumCenter /= 8.0f;
 
-			// 자른 절두체 기준 view 행렬 생성
-			FVector LightPosition = FrustumCenter - (LightItem.DirectionWS * 1000.0f);
-			FMatrix TempShadowView = FMatrix::MakeViewLookAtLH(LightPosition, FrustumCenter, UpVector);
-
-			// 여기서부터 각 절두체의 Light위치 기준 AABB 계산
-			float MinX = FLT_MAX; float MaxX = -FLT_MAX;
-			float MinY = FLT_MAX; float MaxY = -FLT_MAX;
-			float MinZ = FLT_MAX; float MaxZ = -FLT_MAX;
-
-			// Light위치 기준 Min, Max구해주는 중
+			float SphereRadius = 0.0f;
 			for (int j = 0; j < 8; j++)
 			{
-				FVector CornerLS = TempShadowView.TransformPosition(FrustumCornersWS[j]);
-				MinX = (std::min)(MinX, CornerLS.X); MaxX = (std::max)(MaxX, CornerLS.X);
-				MinY = (std::min)(MinY, CornerLS.Y); MaxY = (std::max)(MaxY, CornerLS.Y);
-				MinZ = (std::min)(MinZ, CornerLS.Z); MaxZ = (std::max)(MaxZ, CornerLS.Z);
+				SphereRadius = (std::max)(SphereRadius, FVector::Dist(FrustumCenter, FrustumCornersWS[j]));
 			}
 
-			float MaxRadiusY = (std::max)(std::abs(MinY), std::abs(MaxY));
-			float MaxRadiusZ = (std::max)(std::abs(MinZ), std::abs(MaxZ));
+			SphereRadius = std::ceil(SphereRadius * 16.0f) / 16.0f;
 
-			float BoxWidth = MaxRadiusY * 2.0f;
-			float BoxHeight = MaxRadiusZ * 2.0f;
+			float BoxWidth = SphereRadius * 2.0f;
+			float BoxHeight = SphereRadius * 2.0f;
 
-			float BoxNear = MinX;
-			float BoxFar = MaxX;
+			float WorldUnitsPerTexel = BoxWidth / ShadowConfig::DirShadowDepthArrayResolution;
+
+			// 중심점을 Light의 View 공간으로 변환
+			FMatrix TempShadowView = FMatrix::MakeViewLookAtLH(FVector::ZeroVector, LightItem.DirectionWS, UpVector);
+			FVector CenterLS = TempShadowView.TransformPosition(FrustumCenter);
+
+			CenterLS.Y = std::floor(CenterLS.Y / WorldUnitsPerTexel) * WorldUnitsPerTexel;
+			CenterLS.Z = std::floor(CenterLS.Z / WorldUnitsPerTexel) * WorldUnitsPerTexel;
+
+			FVector SnappedCenterWS = TempShadowView.GetInverse().TransformPosition(CenterLS);
+			FVector LightPosition = SnappedCenterWS;
+
+			float BoxNear = -SphereRadius - 2000.0f;
+			float BoxFar = SphereRadius;
 
 			FShadowViewRenderItem ViewItem;
 			ViewItem.ProjectionType = EShadowProjectionType::Orthographic;
@@ -353,7 +352,7 @@ namespace
 			ViewItem.RequestedResolution = ShadowConfig::DirShadowDepthArrayResolution;
 
 			ViewItem.BiasParams = { DirLight->GetShadowBias(), DirLight->GetShadowSlopeBias(), 0.0f, 0.0f };
-			ViewItem.View = TempShadowView;
+			ViewItem.View = FMatrix::MakeViewLookAtLH(LightPosition, LightPosition + LightItem.DirectionWS, UpVector);
 			ViewItem.Projection = FMatrix::MakeOrthographicLH(BoxWidth, BoxHeight, BoxNear, BoxFar);
 			ViewItem.ViewProjection = ViewItem.View * ViewItem.Projection;
 			ViewItem.Viewport = {};
@@ -396,7 +395,7 @@ namespace
 				FMath::DegreesToRadians(90.0f), 1.0f, NearZ, FarZ);
 
 			View.ViewProjection = View.View * View.Projection;
-			View.FilterMode = EShadowFilterMode::VSM;
+			View.FilterMode = EShadowFilterMode::Raw; 
 			View.LightType = EShadowLightType::Point;
 
 			AddPointShadowView(Inputs, ShadowLightIndex, BaseSlice + F, View);

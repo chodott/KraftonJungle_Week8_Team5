@@ -85,6 +85,7 @@ bool FSceneRenderer::RenderSceneView(
 		break;
 	case ERenderMode::Lit_Phong:
 	case ERenderMode::LightCullingHeatmap:
+	case ERenderMode::CSMCascadeDebug:
 		Renderer.GetLightFeature()->SetLightingModel(ELightingModel::Phong);
 		break;
 	default:

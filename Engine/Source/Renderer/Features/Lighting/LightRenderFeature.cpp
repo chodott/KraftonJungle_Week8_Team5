@@ -723,7 +723,9 @@ void FLightRenderFeature::UpdateClusterGlobalConstantBuffer(
 	CB.bOrthographic       = SceneViewData.View.bOrthographic ? 1u : 0u;
 	CB.MaxLightsPerCluster = LightListConfig::MaxLightsPerCluster;
 	CB.LightingEnabled     = SceneViewData.RenderMode != ERenderMode::Unlit ? 1u : 0u;
-	CB.VisualizationMode   = SceneViewData.RenderMode == ERenderMode::LightCullingHeatmap ? 1u : 0u;
+	if (SceneViewData.RenderMode == ERenderMode::LightCullingHeatmap) { CB.VisualizationMode = 1u; }
+	else if (SceneViewData.RenderMode == ERenderMode::CSMCascadeDebug) { CB.VisualizationMode = 2u; }
+	else { CB.VisualizationMode = 0u; }
 
 	CB.NearZ = (std::max)(SceneViewData.View.NearZ, 1e-4f);
 	CB.FarZ  = (std::max)(SceneViewData.View.FarZ, CB.NearZ + 1e-3f);
