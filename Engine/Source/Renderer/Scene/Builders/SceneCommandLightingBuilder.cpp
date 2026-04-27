@@ -241,6 +241,7 @@ namespace
 	float ComputeShadowPriority(const FVector& LightPos, const FVector& CameraPos)
 	{
 		return (LightPos - CameraPos).SizeSquared();
+
 	}
 
 }
@@ -258,7 +259,6 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 	LightingInputs.Ambient.Color     = FVector::OneVector;
 	LightingInputs.Ambient.Intensity = 0.0f;
-	uint32 PointCubeCounter = 0;
 
 	if (!BuildContext.World)
 	{
@@ -377,31 +377,19 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 				FLocalLightRenderItem LightItem = BuildPointLight(Point);
 				const uint32 LocalLightIndex = static_cast<uint32>(LightingInputs.LocalLights.size());
 
-				if (Point->IsCastingShadows() && PointCubeCounter < ShadowConfig::MaxPointShadowCubes)
+				if (Point->IsCastingShadows())
 				{
-					const uint32 ShadowLightIndex = AllocalteShadowLight(
-						LightingInputs, EShadowLightType::Point, LocalLightIndex);
+					// 후보로만 수집 등록은 정렬 후 2차 패스에서
 					FPointShadowCandidate Candidate;
 					Candidate.PointLightl = Point;
 					Candidate.LightItem = LightItem;
 					Candidate.LocalLightIndex = LocalLightIndex;
 					Candidate.SortKey = ComputeShadowPriority(LightItem.PositionWS, OutSceneViewData.View.CameraPosition);
 					ShadowCandidates.push_back(Candidate);
-					if (ShadowLightIndex != UINT32_MAX)
-					{
-						BuildPointShadowViews(LightingInputs, Point, LightItem,
-							ShadowLightIndex, PointCubeCounter);
-
-						if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount == 6)
-						{
-							LightItem.ShadowIndex = ShadowLightIndex;
-							++PointCubeCounter;
-						}
-					}
+			
 				}
 				else
 				{
-			
 					LightingInputs.LocalLights.push_back(LightItem);
 				}
 				continue;
