@@ -100,6 +100,7 @@ void FShadowRenderFeature::BindShadowResources(
 
 	DeviceContext->VSSetShaderResources(ShadowSlots::ShadowLightSRV, 4, SRVs);
 	DeviceContext->PSSetShaderResources(ShadowSlots::ShadowLightSRV, 4, SRVs);
+	DeviceContext->PSSetShaderResources(ShadowSlots::ShadowCubeSRV, 1 , &ShadowDepthCubeArraySRV);
 
 	DeviceContext->VSSetSamplers(ShadowSlots::ShadowSampler, 1, &ShadowComparisonSampler);
 	DeviceContext->PSSetSamplers(ShadowSlots::ShadowSampler, 1, &ShadowComparisonSampler);
@@ -163,6 +164,13 @@ void FShadowRenderFeature::Release()
 	SafeRelease(LocalShadowMomentsAtlasRTV);
 	SafeRelease(LocalShadowMomentsAtlas);
 
+
+	for (ID3D11DepthStencilView*& DSV : ShadowDepthCubeDSVs)
+	{
+		SafeRelease(DSV);
+	}
+	SafeRelease(ShadowDepthCubeArray);
+	SafeRelease(ShadowDepthCubeArraySRV);
 	bMomentsBlurValid      = false;
 	bShadowDepthArrayDirty = true;
 }
@@ -394,6 +402,60 @@ bool FShadowRenderFeature::EnsureShadowDepthAtlas(FRenderer& Renderer, uint32 Re
 		return false;
 	}
 
+	ShadowDepthArrayResolution = RequiredResolution;
+
+	D3D11_TEXTURE2D_DESC TextureDesc = {};
+	TextureDesc.Width                = ShadowDepthArrayResolution;
+	TextureDesc.Height               = ShadowDepthArrayResolution;
+	TextureDesc.MipLevels            = 1;
+	TextureDesc.ArraySize            = ShadowConfig::MaxShadowViews;
+	TextureDesc.Format               = DXGI_FORMAT_R32_TYPELESS;
+	TextureDesc.SampleDesc.Count     = 1;
+	TextureDesc.SampleDesc.Quality   = 0;
+	TextureDesc.Usage                = D3D11_USAGE_DEFAULT;
+	TextureDesc.BindFlags            = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+	TextureDesc.MiscFlags            = D3D11_RESOURCE_MISC_TEXTURECUBE;
+
+	if (FAILED(Device->CreateTexture2D(&TextureDesc, nullptr, &ShadowDepthCubeArray)) || !ShadowDepthCubeArray)
+	{
+		bShadowDepthArrayDirty = true;
+		return false;
+	}
+
+	// 2D Array SRV (스포트/디렉셔널용) — 전체 슬라이스 노출
+	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
+	SRVDesc.Format                          = DXGI_FORMAT_R32_FLOAT;
+	SRVDesc.ViewDimension                   = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
+	SRVDesc.Texture2DArray.MostDetailedMip  = 0;
+	SRVDesc.Texture2DArray.MipLevels        = 1;
+	SRVDesc.Texture2DArray.FirstArraySlice  = 0;
+	SRVDesc.Texture2DArray.ArraySize        = ShadowConfig::MaxShadowViews;
+
+	if (FAILED(Device->CreateShaderResourceView(ShadowDepthCubeArray, &SRVDesc, &ShadowDepthCubeArraySRV)))
+	{
+		SafeRelease(ShadowDepthCubeArraySRV);
+		SafeRelease(ShadowDepthCubeArray);
+		bShadowDepthArrayDirty = true;
+	}
+
+	// CubeArray SRV (포인트용) — 슬라이스 [PointShadowSliceOffset, ...) 영역
+	D3D11_SHADER_RESOURCE_VIEW_DESC CubeSRVDesc      = {};
+	CubeSRVDesc.Format                               = DXGI_FORMAT_R32_FLOAT;
+	CubeSRVDesc.ViewDimension                        = D3D11_SRV_DIMENSION_TEXTURECUBEARRAY;
+	CubeSRVDesc.TextureCubeArray.MostDetailedMip     = 0;
+	CubeSRVDesc.TextureCubeArray.MipLevels           = 1;
+	CubeSRVDesc.TextureCubeArray.First2DArrayFace    = ShadowConfig::PointShadowSliceOffset;
+	CubeSRVDesc.TextureCubeArray.NumCubes            = ShadowConfig::MaxPointShadowCubes;
+
+	if (FAILED(Device->CreateShaderResourceView(ShadowDepthCubeArray, &CubeSRVDesc, &ShadowDepthCubeArraySRV)))
+	{
+		SafeRelease(ShadowDepthCubeArraySRV);
+		SafeRelease(ShadowDepthCubeArray);
+		bShadowDepthArrayDirty = true;
+		return false;
+	}
+
+
 	return true;
 }
 
@@ -542,7 +604,10 @@ void FShadowRenderFeature::UploadShadowBuffers(
 			Dst.Flags            = 0;
 			Dst.PositionType     = FVector4(Src.PositionWS.X, Src.PositionWS.Y, Src.PositionWS.Z, 0.0f);
 			Dst.DirectionBias    = FVector4(Src.DirectionWS.X, Src.DirectionWS.Y, Src.DirectionWS.Z, Src.Bias);
-			Dst.Params0          = FVector4(Src.SlopeBias, Src.NormalBias, Src.Sharpen, 0.0f);
+			const float CubeIndexAsFloat = (Src.CubeArrayIndex == UINT32_MAX)
+				? 0.0f
+				: static_cast<float>(Src.CubeArrayIndex);
+			Dst.Params0          = FVector4(Src.SlopeBias, Src.NormalBias, Src.Sharpen, CubeIndexAsFloat);
 		}
 
 		D3D11_MAPPED_SUBRESOURCE Mapped = {};

@@ -210,6 +210,7 @@ StructuredBuffer<FShadowViewGPU>  ShadowViews        : register(t21);
 
 Texture2D<float>             ShadowDepth   : register(t22); // PCF
 Texture2D<float2>            ShadowMomentsTexture : register(t23); // VSM
+TextureCubeArray<float>		     ShadowDepthCubeArray: register(t24);// Cube Map
 
 SamplerComparisonState            ShadowSampler      : register(s8); // PCF
 SamplerState                      LinearClampSampler : register(s9); // VSM
@@ -309,7 +310,32 @@ float SampleShadowViewPCF(
 
 	return visibility / 9.0f;
 }
+float SampleShadowViewPoint(FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L) // TODO Point
+{
+	uint cubeIndex = (uint) shadowLight.Params0.w;
+	float3 lightPos = shadowLight.PositionType.xyz;
+	float3 lightToSurface = worldPos - lightPos;
+	// 면판정 D3D 큐브 표준 순서와 일치해야함
+	float3 absDir = abs(lightToSurface);
+	uint faceIndex = 0;
+	if (absDir.x >= absDir.y && absDir.x >= absDir.z)
+		faceIndex = (lightToSurface.x > 0) ? 0 : 1;
+	else if (absDir.y >= absDir.z)
+		faceIndex = (lightToSurface.y > 0) ? 2 : 3;
+	else
+		faceIndex = (lightToSurface.z > 0) ? 4 : 5;
+	// 그면의 ViewProjection으로  NDC 깊이 계산
+	FShadowViewGPU view = ShadowViews[shadowLight.FirstViewIndex + faceIndex];
+	float4 shadowPos = mul(float4(worldPos, 1.0f), view.LightViewProjection);
+	shadowPos.xyz /= shadowPos.w;
 
+	if (shadowPos.w <= 0 || shadowPos.z < 0 || shadowPos.z > 1)
+		return 1.0f;
+	float bias = shadowLight.DirectionBias.w;
+	float rawDepth = ShadowDepthCubeArray.SampleLevel(LinearClampSampler,float4(lightToSurface, (float) cubeIndex),0.0f).r;
+	
+	return (shadowPos.z - bias <= rawDepth) ? 1.0f : 0.0f;
+}
 float ReduceLightBleeding(float pMax, float amount)
 {
 	return saturate((pMax - amount) / max(1.0f - amount, 1.0e-5f));
@@ -442,8 +468,11 @@ float EvaluateShadow(
 	{
 		return EvaluateSpotShadow(shadowLight, worldPos, N, L);
 	}
-
-	// TODO : Point / Directional
+	if (shadowLight.LightType == SHADOW_LIGHT_POINT && lightClass == LIGHT_CLASS_POINT)
+	{
+		return SampleShadowViewPoint(shadowLight, worldPos, N, L);
+	} 
+	// TODO :  Directional
 	return 1.0f;
 }
 
