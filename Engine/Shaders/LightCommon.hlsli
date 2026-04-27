@@ -1,6 +1,10 @@
 #ifndef LIGHT_COMMON_HLSLI
 #define LIGHT_COMMON_HLSLI
 
+#ifndef ENABLE_SHADOWS
+#define ENABLE_SHADOWS 0
+#endif
+
 #define LIGHT_CLASS_POINT 0
 #define LIGHT_CLASS_SPOT 1
 #define LIGHT_CLASS_RECT 2
@@ -174,6 +178,8 @@ StructuredBuffer<uint>                ClusterLightIndices : register(t11);
 StructuredBuffer<FLocalLightGPU>      LocalLights         : register(t12);
 StructuredBuffer<uint>                ObjectLightIndices  : register(t13);
 
+#if ENABLE_SHADOWS
+
 struct FShadowLightGPU
 {
 	uint LightType;
@@ -197,19 +203,24 @@ struct FShadowViewGPU
 
 	float4 ViewParams;
     float4 BiasParams;
+
+	float3 AtlasUV;
+	float Pad1;
 };
 
 StructuredBuffer<FShadowLightGPU> ShadowLights       : register(t20);
 StructuredBuffer<FShadowViewGPU>  ShadowViews        : register(t21);
 
-Texture2DArray<float>             ShadowDepthArray   : register(t22); // PCF
-Texture2DArray<float2>            ShadowMomentsArray : register(t23); // VSM
+Texture2D<float>             ShadowDepth   : register(t22); // PCF
+Texture2D<float2>            ShadowMomentsTexture : register(t23); // VSM
+TextureCubeArray<float>		     ShadowDepthCubeArray: register(t24);// Cube Map
+TextureCubeArray<float>		     ShadowMomentsCubeArray: register(t25);// Cube Map VSM
 
-StructuredBuffer<FShadowLightGPU>	DirShadowLights : register(t24);
-StructuredBuffer<FShadowViewGPU>	DirShadowViews : register(t25);
+StructuredBuffer<FShadowLightGPU>	DirShadowLights : register(t26);
+StructuredBuffer<FShadowViewGPU>	DirShadowViews : register(t27);
 
-Texture2DArray<float>				DirShadowDepthArray		: register(t26); // PCF
-Texture2DArray<float2>				DirShadowMomentsArray	: register(t27); // VSM
+Texture2DArray<float>				DirShadowDepthArray		: register(t28); // PCF
+Texture2DArray<float2>				DirShadowMomentsArray	: register(t29); // VSM
 
 SamplerComparisonState            ShadowSampler      : register(s8); // PCF
 SamplerState                      LinearClampSampler : register(s9); // VSM
@@ -277,13 +288,16 @@ float SampleShadowViewPCF(
 	
 	float bias = ComputeShadowBias(shadowLight, N, L);
 	compareDepth = saturate(compareDepth - bias);
+
+	float atlasSize = shadowView.ViewParams.z;
+	float tileSize  = shadowView.AtlasUV.z;
+
+	float2 tileOffset = shadowView.AtlasUV.xy / atlasSize;
+	float tileScale  = shadowView.AtlasUV.z / atlasSize;
+
+	float2 baseUV = uv * tileScale + tileOffset;
 	
-	float viewportScale = max(shadowView.ViewParams.z, 1.0e-6f);
-	float2 texelSize = shadowView.ViewParams.w.xx;
-	
-	float2 scaledUV = uv * viewportScale;
-	float2 minUV = texelSize * 0.5f;
-	float2 maxUV = viewportScale.xx - texelSize * 0.5f;
+	float texelSize = shadowView.ViewParams.w;
 	
 	float visibility = 0.0f;
 
@@ -293,18 +307,47 @@ float SampleShadowViewPCF(
 		[unroll]
 		for (int x = -1; x <= 1; ++x)
 		{
-			float2 tapUV = clamp(scaledUV + float2(x, y) * texelSize, minUV, maxUV);
+			float2 tapUV = baseUV + float2(x, y) * texelSize;
 
-			visibility += ShadowDepthArray.SampleCmpLevelZero(
+			float2 minUV = tileOffset + texelSize * 0.5f;
+			float2 maxUV = tileOffset + tileScale - texelSize * 0.5f;
+
+			tapUV = clamp(tapUV, minUV, maxUV);
+			visibility += ShadowDepth.SampleCmpLevelZero(
 				ShadowSampler,
-				float3(tapUV, (float)shadowView.ArraySlice),
+				tapUV,
 				compareDepth);
 		}
 	}
 
 	return visibility / 9.0f;
 }
+float SampleShadowViewPoint(FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L) // TODO Point
+{
+	uint cubeIndex = (uint) shadowLight.Params0.w;
+	float3 lightPos = shadowLight.PositionType.xyz;
+	float3 lightToSurface = worldPos - lightPos;
+	// 면판정 D3D 큐브 표준 순서와 일치해야함
+	float3 absDir = abs(lightToSurface);
+	uint faceIndex = 0;
+	if (absDir.x >= absDir.y && absDir.x >= absDir.z)
+		faceIndex = (lightToSurface.x > 0) ? 0 : 1;
+	else if (absDir.y >= absDir.z)
+		faceIndex = (lightToSurface.y > 0) ? 2 : 3;
+	else
+		faceIndex = (lightToSurface.z > 0) ? 4 : 5;
+	// 그면의 ViewProjection으로  NDC 깊이 계산
+	FShadowViewGPU view = ShadowViews[shadowLight.FirstViewIndex + faceIndex];
+	float4 shadowPos = mul(float4(worldPos, 1.0f), view.LightViewProjection);
+	shadowPos.xyz /= shadowPos.w;
 
+	if (shadowPos.w <= 0 || shadowPos.z < 0 || shadowPos.z > 1)
+		return 1.0f;
+	float bias = shadowLight.DirectionBias.w;
+	float rawDepth = ShadowDepthCubeArray.SampleLevel(LinearClampSampler,float4(lightToSurface, (float) cubeIndex),0.0f).r;
+	
+	return (shadowPos.z - bias <= rawDepth) ? 1.0f : 0.0f;
+}
 float ReduceLightBleeding(float pMax, float amount)
 {
 	return saturate((pMax - amount) / max(1.0f - amount, 1.0e-5f));
@@ -327,17 +370,21 @@ float SampleShadowViewVSM(
 	float bias = ComputeShadowBias(shadowLight, N, L);
 	compareDepth = saturate(compareDepth - bias);
 
-	float viewportScale = max(shadowView.ViewParams.z, 1.0e-6f);
-	float2 texelSize    = shadowView.ViewParams.w.xx;
+	float atlasSize = shadowView.ViewParams.z;
+	float tileSize  = shadowView.AtlasUV.z;
 
-	float2 scaledUV = uv * viewportScale;
-	float2 minUV    = texelSize * 0.5f;
-	float2 maxUV    = viewportScale.xx - texelSize * 0.5f;
-	scaledUV        = clamp(scaledUV, minUV, maxUV);
+	float2 tileOffset = shadowView.AtlasUV.xy / atlasSize;
+	float tileScale  = shadowView.AtlasUV.z / atlasSize;
 
-	float2 moments = ShadowMomentsArray.SampleLevel(
+	float2 baseUV = uv * tileScale + tileOffset;
+	
+	float texelSize = shadowView.ViewParams.w;
+
+	baseUV = clamp(baseUV, texelSize * 0.5f, 1.0f - texelSize * 0.5f);
+
+	float2 moments = ShadowMomentsTexture.SampleLevel(
 		LinearClampSampler,
-		float3(scaledUV, (float)shadowView.ArraySlice),
+		baseUV,
 		0.0f
 	).rg;
 
@@ -380,9 +427,9 @@ float SampleShadowViewRawDepth(
 	float2 maxUV    = viewportScale.xx - texelSize * 0.5f;
 	scaledUV        = clamp(scaledUV, minUV, maxUV);
 
-	float rawDepth = ShadowDepthArray.SampleLevel(
+	float rawDepth = ShadowDepth.SampleLevel(
 		LinearClampSampler,
-		float3(scaledUV, (float)shadowView.ArraySlice),
+		scaledUV,
 		0.0f
 	).r;
 
@@ -640,10 +687,27 @@ float EvaluateShadow(
 	{
 		return EvaluateSpotShadow(shadowLight, worldPos, N, L);
 	}
-
-	// TODO : Point / Directional
+	if (shadowLight.LightType == SHADOW_LIGHT_POINT && lightClass == LIGHT_CLASS_POINT)
+	{
+		return SampleShadowViewPoint(shadowLight, worldPos, N, L);
+	} 
+	// TODO :  Directional
 	return 1.0f;
 }
+
+#else
+
+float EvaluateShadow(
+	uint shadowIndex,
+	uint lightClass,
+	float3 worldPos,
+	float3 N,
+	float3 L)
+{
+	return 1.0f;
+}
+
+#endif
 
 float CalculateAttenuation(float distance, float range)
 {

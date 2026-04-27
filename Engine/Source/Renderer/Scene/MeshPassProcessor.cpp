@@ -160,6 +160,12 @@ void FMeshPassProcessor::ExecutePass(
 	const bool           bApplyLighting = (Feature != nullptr && (PassType == EMeshPassType::ForwardOpaque || PassType == EMeshPassType::ForwardMeshDecal)
 		&& SceneViewData.RenderMode != ERenderMode::Unlit
 		&& SceneViewData.RenderMode != ERenderMode::Wireframe);
+	const bool           bUseShadowVariant = bApplyLighting
+		&& (SceneViewData.RenderMode == ERenderMode::Lit_Gouraud ||
+			SceneViewData.RenderMode == ERenderMode::Lit_Lambert ||
+			SceneViewData.RenderMode == ERenderMode::Lit_Phong)
+		&& !SceneViewData.LightingInputs.ShadowLights.empty()
+		&& !SceneViewData.LightingInputs.ShadowViews.empty();
 
 	if (bApplyLighting)
 	{
@@ -199,8 +205,8 @@ void FMeshPassProcessor::ExecutePass(
 		if (bApplyLighting)
 		{
 			const bool                           bHasNormalMap = Batch->Material->HasNormalTexture();
-			std::shared_ptr<FVertexShaderHandle> VSHandle      = Feature->GetCurrentVSHandle(bHasNormalMap, SceneViewData.RenderMode);
-			std::shared_ptr<FPixelShaderHandle>  PSHandle      = Feature->GetCurrentPSHandle(bHasNormalMap, SceneViewData.RenderMode);
+			std::shared_ptr<FVertexShaderHandle> VSHandle      = Feature->GetCurrentVSHandle(bHasNormalMap, bUseShadowVariant, SceneViewData.RenderMode);
+			std::shared_ptr<FPixelShaderHandle>  PSHandle      = Feature->GetCurrentPSHandle(bHasNormalMap, bUseShadowVariant, SceneViewData.RenderMode);
 			if (VSHandle)
 			{
 				VSHandle->Bind(DeviceContext);

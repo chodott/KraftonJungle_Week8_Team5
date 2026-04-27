@@ -11,6 +11,8 @@
 #include "Math/MathUtility.h"
 #include "World/World.h"
 
+#include "Renderer/Features/Shadow/ShadowAtlasAllocator.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -102,14 +104,12 @@ namespace
 
 	uint32 AddShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, const FShadowViewRenderItem& InView)
 	{
-		if (Inputs.ShadowViews.size() >= ShadowConfig::MaxShadowViews)
-		{
+		if (Inputs.ShadowViews.size() >= ShadowConfig::MaxSpotShadowViews)
 			return UINT32_MAX;
-		}
 
 		FShadowViewRenderItem View = InView;
-		View.ShadowLightIndex      = ShadowLightIndex;
-		View.ArraySlice            = static_cast<uint32>(Inputs.ShadowViews.size());
+		View.ShadowLightIndex = ShadowLightIndex;
+		View.ArraySlice = static_cast<uint32>(Inputs.ShadowViews.size());
 
 		const uint32 ViewIndex = static_cast<uint32>(Inputs.ShadowViews.size());
 		Inputs.ShadowViews.push_back(std::move(View));
@@ -122,6 +122,23 @@ namespace
 		}
 
 		++ShadowLight.ViewCount;
+
+		return ViewIndex;
+	}
+	uint32 AddPointShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, uint32 ExplicitArraySlice, const FShadowViewRenderItem& InView) 
+	{
+		FShadowViewRenderItem View = InView;
+		View.ShadowLightIndex = ShadowLightIndex;
+		View.ArraySlice = ExplicitArraySlice;
+
+		uint32 ViewIndex = static_cast<uint32>(Inputs.ShadowViews.size());
+		Inputs.ShadowViews.push_back(std::move(View));
+
+		FShadowLightRenderItem& Light = Inputs.ShadowLights[ShadowLightIndex];
+		if (Light.ViewCount == 0)
+			Light.FirstViewIndex = ViewIndex;
+		Light.ViewCount++;
+		Light.LightType = EShadowLightType::Point;
 
 		return ViewIndex;
 	}
@@ -165,6 +182,7 @@ namespace
 
 		return ViewIndex;
 	}
+
 
 	void BuildSpotShadowViews(
 		FSceneLightingInputs&        Inputs,
@@ -216,6 +234,7 @@ namespace
 			FarZ);
 
 		View.ViewProjection = View.View * View.Projection;
+		View.LightType = EShadowLightType::Spot;
 
 		View.Viewport = {};
 
@@ -342,6 +361,49 @@ namespace
 			AddDirShadowView(Inputs, ShadowLightIndex, ViewItem);
 		}
 	}
+
+	void BuildPointShadowViews(FSceneLightingInputs& Inputs,const UPointLightComponent* Point, const FLocalLightRenderItem& LightItem,uint32 ShadowLightIndex, uint32 CubeArrayIndex)
+	{
+		static const FVector CubeFaceLook[6] = {{ 1, 0, 0 }, { -1, 0, 0 },	{ 0, 1, 0 }, { 0,-1, 0 },{0, 0, 1 },{ 0, 0, -1 },};
+		static const FVector CubeFaceUp[6] = {{ 0, 1, 0 }, { 0, 1, 0 }, { 0, 0, -1 }, { 0, 0, 1 },{ 0, 1, 0 }, { 0, 1, 0 },	};
+		FShadowLightRenderItem& ShadowLight = Inputs.ShadowLights[ShadowLightIndex];
+		ShadowLight.PositionWS = LightItem.PositionWS;
+		ShadowLight.Bias       = Point->GetShadowBias();
+		ShadowLight.SlopeBias  = Point->GetShadowSlopeBias();
+		ShadowLight.Sharpen    = Point->GetShadowSharpen();
+		ShadowLight.CubeArrayIndex = CubeArrayIndex;
+
+		const float NearZ = ShadowConfig::DefaultNearZ;
+		const float FarZ = (std::max)(LightItem.Range, NearZ + 0.001f);
+
+		const uint32 BaseSlice = ShadowConfig::PointShadowSliceOffset + CubeArrayIndex * 6;
+
+		for (uint32 F = 0; F < 6; ++F)
+		{
+			FShadowViewRenderItem View;
+			View.ProjectionType = EShadowProjectionType::Perspective;
+			View.PositionWS = LightItem.PositionWS;
+			View.NearZ = NearZ;
+			View.FarZ = FarZ;
+			View.RequestedResolution = ShadowConfig::DefaultShadowMapResolution;
+
+			View.View = FMatrix::MakeViewLookAtLH(
+				LightItem.PositionWS,
+				LightItem.PositionWS + CubeFaceLook[F],
+				CubeFaceUp[F]);	
+
+			View.Projection = FMatrix::MakePerspectiveFovLH(
+				FMath::DegreesToRadians(90.0f), 1.0f, NearZ, FarZ);
+
+			View.ViewProjection = View.View * View.Projection;
+			View.FilterMode = EShadowFilterMode::Raw; 
+			View.LightType = EShadowLightType::Point;
+
+			AddPointShadowView(Inputs, ShadowLightIndex, BaseSlice + F, View);
+		}
+
+	}
+
 }
 
 
@@ -353,12 +415,12 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 {
 	(void)Packet;
 	(void)View;
-
 	FSceneLightingInputs& LightingInputs = OutSceneViewData.LightingInputs;
 	LightingInputs.Clear();
 
 	LightingInputs.Ambient.Color     = FVector::OneVector;
 	LightingInputs.Ambient.Intensity = 0.0f;
+	uint32 PointCubeCounter = 0;
 
 	if (!BuildContext.World)
 	{
@@ -445,7 +507,6 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 				FLocalLightRenderItem LightItem       = BuildSpotLight(Spot);
 				const uint32          LocalLightIndex = static_cast<uint32>(LightingInputs.LocalLights.size());
-
 				if (Spot->IsCastingShadows())
 				{
 					const uint32 ShadowLightIndex = AllocalteShadowLight(LightingInputs, EShadowLightType::Spot, LocalLightIndex);
@@ -467,12 +528,33 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 			if (Component->IsA(UPointLightComponent::StaticClass()))
 			{
 				const UPointLightComponent* Point = static_cast<UPointLightComponent*>(Component);
-				if (!Point->GetVisible() || Point->GetEffectiveIntensity() <= 0.0f || Point->GetAttenuationRadius() <= 0.0f)
-				{
+				if (!Point->GetVisible() || Point->GetEffectiveIntensity() <= 0.0f
+					|| Point->GetAttenuationRadius() <= 0.0f)
 					continue;
+
+				FLocalLightRenderItem LightItem = BuildPointLight(Point);
+				const uint32 LocalLightIndex = static_cast<uint32>(LightingInputs.LocalLights.size());
+
+				if (Point->IsCastingShadows() && PointCubeCounter < ShadowConfig::MaxPointShadowCubes)
+				{
+					const uint32 ShadowLightIndex = AllocalteShadowLight(
+						LightingInputs, EShadowLightType::Point, LocalLightIndex);
+
+					if (ShadowLightIndex != UINT32_MAX)
+					{
+						BuildPointShadowViews(LightingInputs, Point, LightItem,
+							ShadowLightIndex, PointCubeCounter);
+
+						if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount == 6)
+						{
+							LightItem.ShadowIndex = ShadowLightIndex;
+							++PointCubeCounter;
+						}
+					}
 				}
 
-				LightingInputs.LocalLights.push_back(BuildPointLight(Point));
+				LightingInputs.LocalLights.push_back(LightItem);
+				continue;
 			}
 		}
 	}

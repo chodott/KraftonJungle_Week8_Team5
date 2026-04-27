@@ -51,8 +51,8 @@ public:
 		return CurrentLightingModel;
 	}
 
-	std::shared_ptr<FVertexShaderHandle> GetCurrentVSHandle(bool bHasNormalMap, ERenderMode RenderMode) const;
-	std::shared_ptr<FPixelShaderHandle>  GetCurrentPSHandle(bool bHasNormalMap, ERenderMode RenderMode) const;
+	std::shared_ptr<FVertexShaderHandle> GetCurrentVSHandle(bool bHasNormalMap, bool bEnableShadows, ERenderMode RenderMode) const;
+	std::shared_ptr<FPixelShaderHandle>  GetCurrentPSHandle(bool bHasNormalMap, bool bEnableShadows, ERenderMode RenderMode) const;
 
 	FLightStats GetStats() const
 	{
@@ -90,12 +90,12 @@ private:
 	bool EnsureTimingQueries(FRenderer& Renderer);
 	void ResolveTimingQueries(ID3D11DeviceContext* DeviceContext);
 
-	static uint32 ToShaderVariantIndex(bool bHasNormalMap)
+	static uint32 ToShaderVariantIndex(bool bHasNormalMap, bool bEnableShadows)
 	{
-		return bHasNormalMap ? 1u : 0u;
+		return (bEnableShadows ? 2u : 0u) | (bHasNormalMap ? 1u : 0u);
 	}
 
-	static constexpr uint32 ShaderVariantCount     = 2;
+	static constexpr uint32 ShaderVariantCount     = 4;
 	static constexpr uint32 TimingQueryBufferCount = 3;
 
 	struct FLightTimingQuerySet
