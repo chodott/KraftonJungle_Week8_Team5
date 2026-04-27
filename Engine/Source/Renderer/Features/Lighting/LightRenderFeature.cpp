@@ -619,6 +619,7 @@ void FLightRenderFeature::UpdateGlobalLightConstantBuffer(
 		CB.Directional.ColorIntensity = FVector4(Dir.Color.X, Dir.Color.Y, Dir.Color.Z, Dir.Intensity);
 		CB.Directional.DirectionEtc   = FVector4(SafeDir.X, SafeDir.Y, SafeDir.Z, 0.0f);
 		CB.DirectionalLightCount      = 1;
+		CB.Directional.CascadeSplits = Dir.CascadeSplits;
 	}
 	else
 	{

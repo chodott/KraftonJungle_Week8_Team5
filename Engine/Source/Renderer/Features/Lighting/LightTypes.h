@@ -54,6 +54,7 @@ struct FDirectionalLightInfo
 {
 	FVector4 ColorIntensity; // xyz=color, w=intensity
 	FVector4 DirectionEtc;   // xyz=direction, w=reserved
+	FVector4 CascadeSplits;
 };
 
 struct FGlobalLightConstantBuffer
