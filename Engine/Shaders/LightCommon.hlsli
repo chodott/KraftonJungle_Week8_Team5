@@ -531,7 +531,7 @@ float3 GetNormalFromMap(
 	Texture2D normalMapTexture,
 	SamplerState normalMapSampler,
 	float3 vertexNormal,
-	float3 tangent,
+	float3 tangent, 
 	float3 bitangent,
 	float2 uv)
 {
