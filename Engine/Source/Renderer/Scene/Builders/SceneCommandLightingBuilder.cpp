@@ -202,7 +202,7 @@ namespace
 		ShadowLight.PositionWS = LightItem.PositionWS;
 		ShadowLight.Bias = Point->GetShadowBias();
 		ShadowLight.SlopeBias = Point->GetShadowSharpen();
-		//Cube arrau index temped 
+		//Cube arrau index container
 		ShadowLight.Params0 = FVector4(static_cast<float>(CubeArrayIndex), 0, 0, 0);
 
 		const float NearZ = ShadowConfig::DefaultNearZ;
