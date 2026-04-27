@@ -761,6 +761,8 @@ void FShadowRenderFeature::RenderShadowViews(
 
 	const FViewContext OriginalView    = SceneViewData.View;
 	static const float ClearMoments[4] = { 1.0f, 1.0f, 0.0f, 0.0f };
+	DeviceContext->ClearDepthStencilView(LocalShadowDepthAtlasDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	DeviceContext->ClearRenderTargetView(LocalShadowMomentsAtlasRTV, ClearMoments);
 
 	//현재 매프레임 아틀라스 배치 초기화 중. 개선 필요
 	ShadowAtlasAllocator->Reset();
@@ -795,8 +797,6 @@ void FShadowRenderFeature::RenderShadowViews(
 			ShadowViewport = BuildShadowViewport(ShadowAtlasNode->X, ShadowAtlasNode->Y, ShadowAtlasNode->Size);
 
 			MomentsRTV = LocalShadowMomentsAtlasRTV;
-			DeviceContext->ClearRenderTargetView(MomentsRTV, ClearMoments);
-			DeviceContext->ClearDepthStencilView(LocalShadowDepthAtlasDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 			break;
 		}
 		case EShadowLightType::Point:

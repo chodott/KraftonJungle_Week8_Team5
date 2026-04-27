@@ -97,6 +97,7 @@ struct FShadowViewRenderItem
 	float FarZ  = 1000.0f;
 
 	uint32            RequestedResolution = 0;
+	float			  ShadowResolutionScale = 1.0f;
 	EShadowFilterMode FilterMode          = EShadowFilterMode::VSM;
 
 	FVector AtlasUV = FVector::ZeroVector;
