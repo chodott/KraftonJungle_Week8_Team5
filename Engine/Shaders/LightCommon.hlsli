@@ -613,7 +613,7 @@ float EvaluateDirectionalShadow(uint shadowIndex, float3 worldPos, float3 N, flo
 }
 
 
-float3 DebugDirectionalShadow(uint shadowIndex, float3 worldPos, float viewDepth)
+/*float3 DebugDirectionalShadow(uint shadowIndex, float3 worldPos, float viewDepth)
 {
     if (shadowIndex == INVALID_SHADOW_INDEX)
         return float3(1, 0, 0); // 🔴 빨간색: 빛 정보 바인딩 안됨
@@ -653,7 +653,7 @@ float3 DebugDirectionalShadow(uint shadowIndex, float3 worldPos, float viewDepth
     float rawDepth = DirShadowDepthArray.SampleLevel(LinearClampSampler, float3(uv, (float) view.ArraySlice), 0.0f).r;
     
     return float3(rawDepth, rawDepth, rawDepth); // ⚪⚫ 흑백: 텍스처 내부 데이터 출력
-}
+}*/
 
 float EvaluateSpotShadow(
 	FShadowLightGPU shadowLight,
