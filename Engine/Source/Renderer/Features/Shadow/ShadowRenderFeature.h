@@ -135,6 +135,8 @@ private:
 
 	ID3D11Texture2D*          ShadowDepthArray                             = nullptr;
 	ID3D11ShaderResourceView* ShadowDepthArraySRV                          = nullptr;
+	ID3D11ShaderResourceView* ShadowDepthCubeArraySRV					   = nullptr;
+
 	ID3D11DepthStencilView*   ShadowViewDSVs[ShadowConfig::MaxShadowViews] = {};
 
 	ID3D11Texture2D*          ShadowMomentsArray                             = nullptr;
