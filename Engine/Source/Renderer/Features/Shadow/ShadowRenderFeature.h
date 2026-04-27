@@ -120,7 +120,6 @@ private:
 	uint32         ResolveShadowViewResolution(uint32 RequestedResolution) const;
 	uint32         ComputeRequiredShadowDepthArrayResolution(const FSceneViewData& SceneViewData) const;
 	D3D11_VIEWPORT BuildShadowViewport(int X, int Y, int Size) const;
-	float          GetShadowViewportScale(uint32 RequestedResolution) const;
 	bool           EnsureDebugPreviewResources(FRenderer& Renderer);
 	bool           RenderDebugPreview(FRenderer& Renderer, FSceneRenderTargets& Targets, const FSceneViewData& SceneViewData);
 
@@ -138,9 +137,9 @@ private:
 	ID3D11DepthStencilView*   LocalShadowDepthAtlasDSV					   = nullptr;
 	ID3D11ShaderResourceView* LocalShadowDepthAtlasSRV					   = nullptr;
 
-	ID3D11Texture2D* ShadowMomentsAtlas = nullptr;
-	ID3D11RenderTargetView* ShadowMomentsAtlasRTV = nullptr;
-	ID3D11ShaderResourceView* ShadowMomentsAtlasSRV = nullptr;
+	ID3D11Texture2D* LocalShadowMomentsAtlas = nullptr;
+	ID3D11RenderTargetView* LocalShadowMomentsAtlasRTV = nullptr;
+	ID3D11ShaderResourceView* LocalShadowMomentsAtlasSRV = nullptr;
 
 	ID3D11Buffer*             ShadowLightBuffer    = nullptr;
 	ID3D11ShaderResourceView* ShadowLightBufferSRV = nullptr;
