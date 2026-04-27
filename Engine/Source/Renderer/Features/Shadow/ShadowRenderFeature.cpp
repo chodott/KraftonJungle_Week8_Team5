@@ -486,6 +486,7 @@ bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer, uint32 Re
 	TextureDesc.SampleDesc.Quality   = 0;
 	TextureDesc.Usage                = D3D11_USAGE_DEFAULT;
 	TextureDesc.BindFlags            = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+	TextureDesc.MiscFlags            = D3D11_RESOURCE_MISC_TEXTURECUBE;
 
 	if (FAILED(Device->CreateTexture2D(&TextureDesc, nullptr, &ShadowDepthArray)) || !ShadowDepthArray)
 	{
@@ -493,6 +494,7 @@ bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer, uint32 Re
 		return false;
 	}
 
+	// 2D Array SRV (스포트/디렉셔널용) — 전체 슬라이스 노출
 	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
 	SRVDesc.Format                          = DXGI_FORMAT_R32_FLOAT;
 	SRVDesc.ViewDimension                   = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
@@ -501,17 +503,25 @@ bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer, uint32 Re
 	SRVDesc.Texture2DArray.FirstArraySlice  = 0;
 	SRVDesc.Texture2DArray.ArraySize        = ShadowConfig::MaxShadowViews;
 
-
-	// just Cube only 
-	D3D11_SHADER_RESOURCE_VIEW_DESC CubeSRVDesc = {};
-	CubeSRVDesc.Format = DXGI_FORMAT_R32_FLOAT;
-	CubeSRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBEARRAY;
-	CubeSRVDesc.Texture2DArray.MostDetailedMip = 0;
-	CubeSRVDesc.Texture2DArray.MipLevels = 1;
-	CubeSRVDesc.Texture2DArray.FirstArraySlice = ShadowConfig::PointShadowSliceOffset;
-	CubeSRVDesc.Texture2DArray.ArraySize = ShadowConfig::MaxPointShadowCubes;
-	if (FAILED(Device->CreateShaderResourceView(ShadowDepthArray, &SRVDesc, &ShadowDepthCubeArraySRV)))
+	if (FAILED(Device->CreateShaderResourceView(ShadowDepthArray, &SRVDesc, &ShadowDepthArraySRV)))
 	{
+		SafeRelease(ShadowDepthArray);
+		bShadowDepthArrayDirty = true;
+		return false;
+	}
+
+	// CubeArray SRV (포인트용) — 슬라이스 [PointShadowSliceOffset, ...) 영역
+	D3D11_SHADER_RESOURCE_VIEW_DESC CubeSRVDesc      = {};
+	CubeSRVDesc.Format                               = DXGI_FORMAT_R32_FLOAT;
+	CubeSRVDesc.ViewDimension                        = D3D11_SRV_DIMENSION_TEXTURECUBEARRAY;
+	CubeSRVDesc.TextureCubeArray.MostDetailedMip     = 0;
+	CubeSRVDesc.TextureCubeArray.MipLevels           = 1;
+	CubeSRVDesc.TextureCubeArray.First2DArrayFace    = ShadowConfig::PointShadowSliceOffset;
+	CubeSRVDesc.TextureCubeArray.NumCubes            = ShadowConfig::MaxPointShadowCubes;
+
+	if (FAILED(Device->CreateShaderResourceView(ShadowDepthArray, &CubeSRVDesc, &ShadowDepthCubeArraySRV)))
+	{
+		SafeRelease(ShadowDepthArraySRV);
 		SafeRelease(ShadowDepthArray);
 		bShadowDepthArrayDirty = true;
 		return false;
@@ -690,7 +700,10 @@ void FShadowRenderFeature::UploadShadowBuffers(
 			Dst.Flags            = 0;
 			Dst.PositionType     = FVector4(Src.PositionWS.X, Src.PositionWS.Y, Src.PositionWS.Z, 0.0f);
 			Dst.DirectionBias    = FVector4(Src.DirectionWS.X, Src.DirectionWS.Y, Src.DirectionWS.Z, Src.Bias);
-			Dst.Params0          = FVector4(Src.SlopeBias, Src.NormalBias, Src.Sharpen, 0.0f);
+			const float CubeIndexAsFloat = (Src.CubeArrayIndex == UINT32_MAX)
+				? 0.0f
+				: static_cast<float>(Src.CubeArrayIndex);
+			Dst.Params0          = FVector4(Src.SlopeBias, Src.NormalBias, Src.Sharpen, CubeIndexAsFloat);
 		}
 
 		D3D11_MAPPED_SUBRESOURCE Mapped = {};

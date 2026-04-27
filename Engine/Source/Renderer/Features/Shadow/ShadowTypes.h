@@ -11,7 +11,7 @@ namespace ShadowConfig
 
 	static constexpr uint32 MaxSpotShadowViews		   = 8;
 	static constexpr uint32 MaxPointShadowCubes        = 4;
-	static constexpr uint32 MaxShadowViews = MaxSpotShaderViews + MaxPointShadowCubes * 6;
+	static constexpr uint32 MaxShadowViews = MaxSpotShadowViews + MaxPointShadowCubes * 6;
 
 	static constexpr uint32 PointShadowSliceOffset = MaxSpotShadowViews;
 	static constexpr uint32 DefaultShadowMapResolution = 512;
@@ -67,6 +67,8 @@ struct FShadowLightRenderItem
 	float SlopeBias  = 0.001f;
 	float NormalBias = 0.0f;
 	float Sharpen    = 0.0f;
+
+	uint32 CubeArrayIndex = UINT32_MAX;
 
 	FVector PositionWS  = FVector::ZeroVector;
 	FVector DirectionWS = FVector(1.0f, 0.0f, 0.0f);

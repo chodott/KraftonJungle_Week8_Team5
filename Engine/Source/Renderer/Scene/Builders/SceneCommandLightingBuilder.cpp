@@ -198,12 +198,12 @@ namespace
 		static const FVector CubeFaceLook[6] = {{ 1, 0, 0 }, { -1, 0, 0 },	{ 0, 1, 0 }, { 0,-1, 0 },{0, 0, 1 },{ 0, 0, -1 },};
 		static const FVector CubeFaceUp[6] = {{ 0, 1, 0 }, { 0, 1, 0 }, { 0, 0, -1 }, { 0, 0, 1 },{ 0, 1, 0 }, { 0, 1, 0 },	};
 		FShadowLightRenderItem& ShadowLight = Inputs.ShadowLights[ShadowLightIndex];
-		ShadowLight.LightType = EShadowLightType::Point;
+		ShadowLight.LightType  = EShadowLightType::Point;
 		ShadowLight.PositionWS = LightItem.PositionWS;
-		ShadowLight.Bias = Point->GetShadowBias();
-		ShadowLight.SlopeBias = Point->GetShadowSharpen();
-		//Cube arrau index container
-		ShadowLight.Params0 = FVector4(static_cast<float>(CubeArrayIndex), 0, 0, 0);
+		ShadowLight.Bias       = Point->GetShadowBias();
+		ShadowLight.SlopeBias  = Point->GetShadowSlopeBias();
+		ShadowLight.Sharpen    = Point->GetShadowSharpen();
+		ShadowLight.CubeArrayIndex = CubeArrayIndex;
 
 		const float NearZ = ShadowConfig::DefaultNearZ;
 		const float FarZ = (std::max)(LightItem.Range, NearZ + 0.001f);

@@ -296,7 +296,7 @@ float SampleShadowViewPCF(
 }
 float SampleShadowViewPoint(FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L) // TODO Point
 {
-	uint cubeIndex = (uint) shadowLight.Params0.x;
+	uint cubeIndex = (uint) shadowLight.Params0.w;
 	float3 lightPos = shadowLight.PositionType.xyz;
 	float3 lightToSurface = worldPos - lightPos;
 	// 면판정 D3D 큐브 표준 순서와 일치해야함
@@ -451,7 +451,7 @@ float EvaluateShadow(
 	if (shadowLight.LightType == SHADOW_LIGHT_POINT && lightClass == LIGHT_CLASS_POINT)
 	{
 		return SampleShadowViewPoint(shadowLight, worldPos, N, L);
-	}
+	} 
 	// TODO :  Directional
 	return 1.0f;
 }
