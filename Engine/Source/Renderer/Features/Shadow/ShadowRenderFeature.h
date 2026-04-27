@@ -48,9 +48,9 @@ public:
 
 	void Release();
 
-	ID3D11ShaderResourceView* GetShadowDepthArraySRV() const
+	ID3D11ShaderResourceView* GetLocalShadowDepthAtlasSRV() const
 	{
-		return ShadowDepthArraySRV;
+		return LocalShadowDepthAtlasSRV;
 	}
 
 	bool RenderShadows(FRenderer& Renderer, const FMeshPassProcessor& Processor, FSceneRenderTargets& Targets, FSceneViewData& SceneViewData);
@@ -97,10 +97,10 @@ public:
 
 private:
 	bool EnsureLinearSampler(const FRenderer& Renderer);
-	bool EnsureMomentsArray(const FRenderer& Renderer, uint32 RequiredResolution);
+	bool EnsureMomentsAtlas(const FRenderer& Renderer, uint32 RequiredResolution);
 	bool EnsureResources(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 
-	bool EnsureShadowDepthArray(FRenderer& Renderer, uint32 RequiredResolution);
+	bool EnsureShadowDepthAtlas(FRenderer& Renderer, uint32 RequiredResolution);
 
 	bool EnsureShadowBuffers(FRenderer& Renderer, uint32 ShadowLightCount, uint32 ShadowViewCount);
 
@@ -138,17 +138,9 @@ private:
 	ID3D11DepthStencilView*   LocalShadowDepthAtlasDSV					   = nullptr;
 	ID3D11ShaderResourceView* LocalShadowDepthAtlasSRV					   = nullptr;
 
-	ID3D11Texture2D*          ShadowDepthArray                             = nullptr;
-	ID3D11ShaderResourceView* ShadowDepthArraySRV                          = nullptr;
-	ID3D11DepthStencilView*   ShadowViewDSVs[ShadowConfig::MaxShadowViews] = {};
-
-	ID3D11Texture2D*          ShadowMomentsArray                             = nullptr;
-	ID3D11RenderTargetView*   ShadowMomentsRTV[ShadowConfig::MaxShadowViews] = {};
-	ID3D11ShaderResourceView* ShadowMomentsArraySRV                          = nullptr;
-
-	ID3D11Texture2D*          ShadowMomentsBlur                                  = nullptr;
-	ID3D11RenderTargetView*   ShadowMomentsBlurRTV[ShadowConfig::MaxShadowViews] = {};
-	ID3D11ShaderResourceView* ShadowMomentsBlurSRV                               = nullptr;
+	ID3D11Texture2D* ShadowMomentsAtlas = nullptr;
+	ID3D11RenderTargetView* ShadowMomentsAtlasRTV = nullptr;
+	ID3D11ShaderResourceView* ShadowMomentsAtlasSRV = nullptr;
 
 	ID3D11Buffer*             ShadowLightBuffer    = nullptr;
 	ID3D11ShaderResourceView* ShadowLightBufferSRV = nullptr;

@@ -71,12 +71,12 @@ void FShadowRenderFeature::BindShadowResources(
 			!SceneViewData.LightingInputs.ShadowViews.empty() &&
 			ShadowLightBufferSRV &&
 			ShadowViewBufferSRV &&
-			ShadowDepthArraySRV &&
+			LocalShadowDepthAtlasSRV &&
 			ShadowComparisonSampler;
 
 	const bool bHasVSMData =
 			!bNeedVSM ||
-			(ShadowMomentsArraySRV && ShadowLinearSampler);
+			(ShadowMomentsAtlasSRV && ShadowLinearSampler);
 
 	if (!(bHasCommonShadowData && bHasVSMData))
 	{
@@ -87,10 +87,7 @@ void FShadowRenderFeature::BindShadowResources(
 	ID3D11ShaderResourceView* MomentsSRV = nullptr;
 	if (bNeedVSM)
 	{
-		MomentsSRV =
-				(bMomentsBlurValid && ShadowMomentsBlurSRV)
-					? ShadowMomentsBlurSRV
-					: ShadowMomentsArraySRV;
+		MomentsSRV =ShadowMomentsAtlasSRV;
 	}
 
 	ID3D11ShaderResourceView* SRVs[4] =
@@ -158,30 +155,13 @@ void FShadowRenderFeature::Release()
 	SafeRelease(ShadowLightBufferSRV);
 	SafeRelease(ShadowLightBuffer);
 
-	SafeRelease(ShadowMomentsBlurSRV);
-	for (ID3D11RenderTargetView*& RTV : ShadowMomentsBlurRTV)
-	{
-		SafeRelease(RTV);
-	}
-	SafeRelease(ShadowMomentsBlur);
-
-	SafeRelease(ShadowMomentsArraySRV);
-	for (ID3D11RenderTargetView*& RTV : ShadowMomentsRTV)
-	{
-		SafeRelease(RTV);
-	}
-	SafeRelease(ShadowMomentsArray);
-
-	SafeRelease(ShadowDepthArraySRV);
-	for (ID3D11DepthStencilView*& DSV : ShadowViewDSVs)
-	{
-		SafeRelease(DSV);
-	}
-	SafeRelease(ShadowDepthArray);
-
 	SafeRelease(LocalShadowDepthAtlasSRV);
 	SafeRelease(LocalShadowDepthAtlasDSV);
 	SafeRelease(LocalShadowDepthAtlas);
+
+	SafeRelease(ShadowMomentsAtlasSRV);
+	SafeRelease(ShadowMomentsAtlasRTV);
+	SafeRelease(ShadowMomentsAtlas);
 
 	bMomentsBlurValid      = false;
 	bShadowDepthArrayDirty = true;
@@ -249,7 +229,7 @@ bool FShadowRenderFeature::EnsureLinearSampler(const FRenderer& Renderer)
 	return SUCCEEDED(Device->CreateSamplerState(&Desc, &ShadowLinearSampler)) && ShadowLinearSampler;
 }
 
-bool FShadowRenderFeature::EnsureMomentsArray(const FRenderer& Renderer, uint32 RequiredResolution)
+bool FShadowRenderFeature::EnsureMomentsAtlas(const FRenderer& Renderer, uint32 RequiredResolution)
 {
 	ID3D11Device* Device = Renderer.GetDevice();
 	if (!Device)
@@ -262,117 +242,48 @@ bool FShadowRenderFeature::EnsureMomentsArray(const FRenderer& Renderer, uint32 
 		ShadowConfig::MinShadowMapResolution,
 		ShadowConfig::MaxShadowMapResolution);
 
-	bool bAllRTVsValid = true;
-	for (uint32 Slice = 0; Slice < ShadowConfig::MaxShadowViews; ++Slice)
-	{
-		if (!ShadowMomentsRTV[Slice] || !ShadowMomentsBlurRTV[Slice])
-		{
-			bAllRTVsValid = false;
-			break;
-		}
-	}
-
-	bool bRecreate =
-			bShadowDepthArrayDirty ||
-			!ShadowMomentsArray ||
-			!ShadowMomentsArraySRV ||
-			!ShadowMomentsBlur ||
-			!ShadowMomentsBlurSRV ||
-			!bAllRTVsValid;
-
-	if (!bRecreate)
-	{
-		D3D11_TEXTURE2D_DESC ExistingDesc = {};
-		ShadowMomentsArray->GetDesc(&ExistingDesc);
-
-		if (ExistingDesc.Width != RequiredResolution ||
-			ExistingDesc.Height != RequiredResolution ||
-			ExistingDesc.ArraySize != ShadowConfig::MaxShadowViews ||
-			ExistingDesc.Format != DXGI_FORMAT_R32G32_FLOAT)
-		{
-			bRecreate = true;
-		}
-	}
-
-	if (!bRecreate)
+	if (ShadowMomentsAtlas)
 	{
 		return true;
 	}
 
-	SafeRelease(ShadowMomentsArraySRV);
-	SafeRelease(ShadowMomentsBlurSRV);
-
-	for (uint32 Slice = 0; Slice < ShadowConfig::MaxShadowViews; ++Slice)
-	{
-		SafeRelease(ShadowMomentsRTV[Slice]);
-		SafeRelease(ShadowMomentsBlurRTV[Slice]);
-	}
-
-	SafeRelease(ShadowMomentsArray);
-	SafeRelease(ShadowMomentsBlur);
-
 	D3D11_TEXTURE2D_DESC TextureDesc = {};
-	TextureDesc.Width                = RequiredResolution;
-	TextureDesc.Height               = RequiredResolution;
+	TextureDesc.Width                = ShadowConfig::MaxShadowMapResolution;
+	TextureDesc.Height               = ShadowConfig::MaxShadowMapResolution;
 	TextureDesc.MipLevels            = 1;
-	TextureDesc.ArraySize            = ShadowConfig::MaxShadowViews;
 	TextureDesc.Format               = DXGI_FORMAT_R32G32_FLOAT;
+	TextureDesc.ArraySize = 1;
 	TextureDesc.SampleDesc.Count     = 1;
 	TextureDesc.SampleDesc.Quality   = 0;
 	TextureDesc.Usage                = D3D11_USAGE_DEFAULT;
 	TextureDesc.BindFlags            = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 
-	if (FAILED(Device->CreateTexture2D(&TextureDesc, nullptr, &ShadowMomentsArray)) || !ShadowMomentsArray)
+	if (FAILED(Device->CreateTexture2D(&TextureDesc, nullptr, &ShadowMomentsAtlas)) || !ShadowMomentsAtlas)
 	{
-		return false;
-	}
-
-	if (FAILED(Device->CreateTexture2D(&TextureDesc, nullptr, &ShadowMomentsBlur)) || !ShadowMomentsBlur)
-	{
-		SafeRelease(ShadowMomentsArray);
+		SafeRelease(ShadowMomentsAtlas);
 		return false;
 	}
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
 	SRVDesc.Format                          = TextureDesc.Format;
-	SRVDesc.ViewDimension                   = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
-	SRVDesc.Texture2DArray.MostDetailedMip  = 0;
-	SRVDesc.Texture2DArray.MipLevels        = 1;
-	SRVDesc.Texture2DArray.FirstArraySlice  = 0;
-	SRVDesc.Texture2DArray.ArraySize        = ShadowConfig::MaxShadowViews;
+	SRVDesc.ViewDimension                   = D3D11_SRV_DIMENSION_TEXTURE2D;
+	SRVDesc.Texture2D.MostDetailedMip = 0;
+	SRVDesc.Texture2D.MipLevels = 1;
 
-	if (FAILED(Device->CreateShaderResourceView(ShadowMomentsArray, &SRVDesc, &ShadowMomentsArraySRV)) || !ShadowMomentsArraySRV)
+	if (FAILED(Device->CreateShaderResourceView(ShadowMomentsAtlas, &SRVDesc, &ShadowMomentsAtlasSRV)) || !ShadowMomentsAtlasSRV)
 	{
-		SafeRelease(ShadowMomentsArray);
-		SafeRelease(ShadowMomentsBlur);
+		SafeRelease(ShadowMomentsAtlas);
 		return false;
 	}
 
-	if (FAILED(Device->CreateShaderResourceView(ShadowMomentsBlur, &SRVDesc, &ShadowMomentsBlurSRV)) || !ShadowMomentsBlurSRV)
+	D3D11_RENDER_TARGET_VIEW_DESC RTVDesc  = {};
+	RTVDesc.Format                         = DXGI_FORMAT_R32G32_FLOAT;
+	RTVDesc.ViewDimension                  = D3D11_RTV_DIMENSION_TEXTURE2D;
+	RTVDesc.Texture2D.MipSlice = 0;
+
+	if (FAILED(Device->CreateRenderTargetView(ShadowMomentsAtlas, &RTVDesc, &ShadowMomentsAtlasRTV)) || !ShadowMomentsAtlasRTV)
 	{
-		SafeRelease(ShadowMomentsArray);
-		SafeRelease(ShadowMomentsBlur);
 		return false;
-	}
-
-	for (uint32 Slice = 0; Slice < ShadowConfig::MaxShadowViews; ++Slice)
-	{
-		D3D11_RENDER_TARGET_VIEW_DESC RTVDesc  = {};
-		RTVDesc.Format                         = DXGI_FORMAT_R32G32_FLOAT;
-		RTVDesc.ViewDimension                  = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
-		RTVDesc.Texture2DArray.MipSlice        = 0;
-		RTVDesc.Texture2DArray.FirstArraySlice = Slice;
-		RTVDesc.Texture2DArray.ArraySize       = 1;
-
-		if (FAILED(Device->CreateRenderTargetView(ShadowMomentsArray, &RTVDesc, &ShadowMomentsRTV[Slice])) || !ShadowMomentsRTV[Slice])
-		{
-			return false;
-		}
-
-		if (FAILED(Device->CreateRenderTargetView(ShadowMomentsBlur, &RTVDesc, &ShadowMomentsBlurRTV[Slice])) || !ShadowMomentsBlurRTV[Slice])
-		{
-			return false;
-		}
 	}
 
 	return true;
@@ -395,7 +306,7 @@ bool FShadowRenderFeature::EnsureResources(
 	const bool bNeedVSM = (GlobalFilterMode == EShadowFilterMode::VSM);
 
 	bool bOk =
-			EnsureShadowDepthArray(Renderer, RequiredResolution) &&
+			EnsureShadowDepthAtlas(Renderer, RequiredResolution) &&
 			EnsureShadowBuffers(Renderer, ShadowLightCount, ShadowViewCount) &&
 			EnsureComparisonSampler(Renderer);
 
@@ -408,7 +319,7 @@ bool FShadowRenderFeature::EnsureResources(
 	{
 		bOk =
 				EnsureLinearSampler(Renderer) &&
-				EnsureMomentsArray(Renderer, RequiredResolution);
+				EnsureMomentsAtlas(Renderer, RequiredResolution);
 
 		if (!bOk)
 		{
@@ -419,7 +330,7 @@ bool FShadowRenderFeature::EnsureResources(
 	return true;
 }
 
-bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer, uint32 RequiredResolution)
+bool FShadowRenderFeature::EnsureShadowDepthAtlas(FRenderer& Renderer, uint32 RequiredResolution)
 {
 	ID3D11Device* Device = Renderer.GetDevice();
 	if (!Device)
@@ -432,108 +343,9 @@ bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer, uint32 Re
 		ShadowConfig::MinShadowMapResolution,
 		ShadowConfig::MaxShadowMapResolution);
 
-	bool bAllDSVsValid = true;
-	for (ID3D11DepthStencilView* DSV : ShadowViewDSVs)
-	{
-		if (!DSV)
-		{
-			bAllDSVsValid = false;
-			break;
-		}
-	}
-
-	bool bRecreate =
-			bShadowDepthArrayDirty ||
-			!ShadowDepthArray ||
-			!ShadowDepthArraySRV ||
-			!bAllDSVsValid ||
-			ShadowDepthArrayResolution != RequiredResolution;
-
-	if (!bRecreate)
-	{
-		D3D11_TEXTURE2D_DESC ExistingDesc = {};
-		ShadowDepthArray->GetDesc(&ExistingDesc);
-
-		if (ExistingDesc.Width != RequiredResolution ||
-			ExistingDesc.Height != RequiredResolution ||
-			ExistingDesc.ArraySize != ShadowConfig::MaxShadowViews)
-		{
-			bRecreate = true;
-		}
-	}
-
-	if (!bRecreate)
+	if (LocalShadowDepthAtlas)
 	{
 		return true;
-	}
-
-	UnbindShadowResources(Renderer);
-
-	SafeRelease(ShadowDepthArraySRV);
-
-	for (ID3D11DepthStencilView*& DSV : ShadowViewDSVs)
-	{
-		SafeRelease(DSV);
-	}
-
-	SafeRelease(ShadowDepthArray);
-
-	ShadowDepthArrayResolution = RequiredResolution;
-
-	D3D11_TEXTURE2D_DESC TextureDesc = {};
-	TextureDesc.Width                = ShadowDepthArrayResolution;
-	TextureDesc.Height               = ShadowDepthArrayResolution;
-	TextureDesc.MipLevels            = 1;
-	TextureDesc.ArraySize            = ShadowConfig::MaxShadowViews;
-	TextureDesc.Format               = DXGI_FORMAT_R32_TYPELESS;
-	TextureDesc.SampleDesc.Count     = 1;
-	TextureDesc.SampleDesc.Quality   = 0;
-	TextureDesc.Usage                = D3D11_USAGE_DEFAULT;
-	TextureDesc.BindFlags            = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
-
-	if (FAILED(Device->CreateTexture2D(&TextureDesc, nullptr, &ShadowDepthArray)) || !ShadowDepthArray)
-	{
-		bShadowDepthArrayDirty = true;
-		return false;
-	}
-
-	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
-	SRVDesc.Format                          = DXGI_FORMAT_R32_FLOAT;
-	SRVDesc.ViewDimension                   = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
-	SRVDesc.Texture2DArray.MostDetailedMip  = 0;
-	SRVDesc.Texture2DArray.MipLevels        = 1;
-	SRVDesc.Texture2DArray.FirstArraySlice  = 0;
-	SRVDesc.Texture2DArray.ArraySize        = ShadowConfig::MaxShadowViews;
-
-	if (FAILED(Device->CreateShaderResourceView(ShadowDepthArray, &SRVDesc, &ShadowDepthArraySRV)) || !ShadowDepthArraySRV)
-	{
-		SafeRelease(ShadowDepthArray);
-		bShadowDepthArrayDirty = true;
-		return false;
-	}
-
-	for (uint32 Slice = 0; Slice < ShadowConfig::MaxShadowViews; ++Slice)
-	{
-		D3D11_DEPTH_STENCIL_VIEW_DESC DSVDesc  = {};
-		DSVDesc.Format                         = DXGI_FORMAT_D32_FLOAT;
-		DSVDesc.ViewDimension                  = D3D11_DSV_DIMENSION_TEXTURE2DARRAY;
-		DSVDesc.Texture2DArray.MipSlice        = 0;
-		DSVDesc.Texture2DArray.FirstArraySlice = Slice;
-		DSVDesc.Texture2DArray.ArraySize       = 1;
-
-		if (FAILED(Device->CreateDepthStencilView(ShadowDepthArray, &DSVDesc, &ShadowViewDSVs[Slice])) || !ShadowViewDSVs[Slice])
-		{
-			SafeRelease(ShadowDepthArraySRV);
-
-			for (ID3D11DepthStencilView*& DSV : ShadowViewDSVs)
-			{
-				SafeRelease(DSV);
-			}
-
-			SafeRelease(ShadowDepthArray);
-			bShadowDepthArrayDirty = true;
-			return false;
-		}
 	}
 
 	//Atlas
@@ -582,7 +394,6 @@ bool FShadowRenderFeature::EnsureShadowDepthArray(FRenderer& Renderer, uint32 Re
 		return false;
 	}
 
-	bShadowDepthArrayDirty = false;
 	return true;
 }
 
@@ -802,6 +613,10 @@ void FShadowRenderFeature::RenderShadowViews(
 	DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 	ShadowAtlasAllocator->Reset();
 
+	ID3D11RenderTargetView* MomentsRTV = ShadowMomentsAtlasRTV;
+	DeviceContext->ClearRenderTargetView(MomentsRTV, ClearMoments);
+	DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
 	for (uint32 ViewIndex = 0; ViewIndex < ShadowViewCount; ++ViewIndex)
 	{
 		FShadowViewRenderItem& ShadowView = SceneViewData.LightingInputs.ShadowViews[ViewIndex];
@@ -854,30 +669,27 @@ void FShadowRenderFeature::RenderShadowViews(
 				SceneViewData,
 				EMeshPassType::DepthPrepass);
 		}
-		//else
-		//{
-		//	ID3D11RenderTargetView* MomentsRTV = ShadowMomentsRTV[ShadowView.ArraySlice];
-		//	if (!MomentsRTV)
-		//	{
-		//		continue;
-		//	}
-		//	DeviceContext->ClearRenderTargetView(MomentsRTV, ClearMoments);
-		//	DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+		else
+		{
+			if (!MomentsRTV)
+			{
+				continue;
+			}
 
-		//	BeginPass(
-		//		Renderer,
-		//		MomentsRTV,
-		//		ShadowDSV,
-		//		ShadowViewport,
-		//		SceneViewData.Frame,
-		//		SceneViewData.View);
+			BeginPass(
+				Renderer,
+				MomentsRTV,
+				ShadowDSV,
+				ShadowViewport,
+				SceneViewData.Frame,
+				SceneViewData.View);
 
-		//	Processor.ExecutePass(
-		//		Renderer,
-		//		Targets,
-		//		SceneViewData,
-		//		EMeshPassType::ShadowVSM);
-		//}
+			Processor.ExecutePass(
+				Renderer,
+				Targets,
+				SceneViewData,
+				EMeshPassType::ShadowVSM);
+		}
 	}
 
 	SceneViewData.View = OriginalView;
@@ -1100,14 +912,14 @@ bool FShadowRenderFeature::RenderDebugPreview(
 		return true;
 	}
 
-	if (!ShadowDepthArraySRV)
+	if (!LocalShadowDepthAtlasSRV)
 	{
 		return false;
 	}
 
 	if ((DebugViewMode == EShadowDebugViewMode::VSMMean ||
 			DebugViewMode == EShadowDebugViewMode::VSMVariance) &&
-		!ShadowMomentsArraySRV)
+		!ShadowMomentsAtlasSRV)
 	{
 		return false;
 	}
@@ -1233,8 +1045,8 @@ bool FShadowRenderFeature::RenderDebugPreview(
 
 	const FFullscreenPassShaderResourceBinding ShaderResources[] =
 	{
-		{ 0, ShadowDepthArraySRV },
-		{ 1, ShadowMomentsArraySRV },
+		{ 0, LocalShadowDepthAtlasSRV },
+		{ 1, ShadowMomentsAtlasSRV },
 	};
 
 	const FFullscreenPassSamplerBinding Samplers[] =
