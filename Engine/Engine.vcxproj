@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\Renderer\Features\Shadow\PointShadowPoolManager.h" />
     <ClInclude Include="Source\CoreMinimal.h" />
     <ClInclude Include="Source\EngineAPI.h" />
     <ClInclude Include="Source\Actor\Actor.h" />
@@ -337,6 +338,7 @@
     <ClInclude Include="ThirdParty\nlohmann\json.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Source\Renderer\Features\Shadow\PointShadowPoolManager.cpp" />
     <ClCompile Include="Source\Actor\Actor.cpp" />
     <ClCompile Include="Source\Actor\AmbientLightActor.cpp" />
     <ClCompile Include="Source\Actor\BillboardActor.cpp" />
