@@ -361,18 +361,6 @@ namespace
 		AddShadowView(Inputs, ShadowLightIndex, View);
 	}
 
-
-	// -----------------------------------------------------------------------------
-	// Cascade Perspective Shadow Map (PSM)
-	// -----------------------------------------------------------------------------
-	// Engine convention used here:
-	//   - DirectX NDC: x,y = [-1, 1], z = [0, 1]
-	//   - X-depth view space: view-space X is forward/depth
-	//   - Row-vector matrices: World * View * Projection
-	// Therefore the PSM matrix is:
-	//   VCView * VCProj * PPView * PPProj
-	// instead of the column-vector order often shown in PSM articles.
-
 	struct FPSMFrustumBasis
 	{
 		FVector UnitDepthRays[4];
@@ -426,9 +414,13 @@ namespace
 		return A + (B - A) * T;
 	}
 
+	float ComputePSMSideToAlignedT(float Dot)
+	{
+		return FMath::Clamp((std::abs(Dot) - 0.18f) / 0.37f, 0.0f, 1.0f);
+	}
+
 	float QuantizePSMDepth(float Value)
 	{
-		// PSM is very sensitive to tiny near/far changes. Quantization reduces shimmer.
 		const float Step = 1.0f / 16.0f;
 		return std::floor(Value / Step) * Step;
 	}
@@ -508,41 +500,47 @@ namespace
 		uint32 CascadeIndex)
 	{
 		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
+		const float AbsDot = std::abs(Dot);
+		const float SideToAlignedT = ComputePSMSideToAlignedT(Dot);
 		const float Range = (std::max)(1.0f, SplitFar - SplitNear);
 
-		// Patch1 behavior is kept for cascade 1+.
-		// Cascade 0 needs a stronger policy because its SplitNear is tied to the camera near plane.
 		float SlideBack = 0.0f;
 		if (Dot > 0.35f)
 		{
-			SlideBack = (std::min)(100.0f, Range * 0.25f);
+			SlideBack = (std::min)(100.0f, Range * 0.25f) * SideToAlignedT;
 		}
-		else if (Dot > -0.10f)
+		else if (Dot > 0.10f)
 		{
-			SlideBack = (std::min)(50.0f, Range * 0.10f);
+			const float SoftT = FMath::Clamp((Dot - 0.10f) / 0.25f, 0.0f, 1.0f);
+			SlideBack = (std::min)(50.0f, Range * 0.10f) * SoftT * SideToAlignedT;
 		}
 
 		if (CascadeIndex == 0)
 		{
-			// Force cascade 0 through PSM, but move the virtual camera far enough
-			// that the first split does not collapse into a near-plane singularity.
-			// This is intentionally stronger than v8: the previous value still left
-			// cascade 0's shadow map too flat/lying down in several directions.
+			const float TargetScale = LerpFloat(0.40f, 0.54f, SideToAlignedT);
+			const float TargetMin = LerpFloat(2.25f, 3.25f, SideToAlignedT);
+			const float TargetFarScale = LerpFloat(0.58f, 0.76f, SideToAlignedT);
+
 			const float TargetDepthAtSplitNear = FMath::Clamp(
-				Range * 0.48f,
-				3.0f,
-				(std::max)(3.0f, SplitFar * 0.70f));
+				Range * TargetScale,
+				TargetMin,
+				(std::max)(TargetMin, SplitFar * TargetFarScale));
 
 			const float RequiredSlide = (std::max)(0.0f, TargetDepthAtSplitNear - SplitNear);
-			const float MaxSlide = (std::min)(55.0f, Range * 0.95f);
+			const float MaxSlideAbs = LerpFloat(45.0f, 65.0f, SideToAlignedT);
+			const float MaxSlideRange = LerpFloat(0.85f, 1.10f, SideToAlignedT);
+			const float MaxSlide = (std::min)(MaxSlideAbs, Range * MaxSlideRange);
 
 			SlideBack = FMath::Clamp(
 				(std::max)(SlideBack, RequiredSlide),
 				0.0f,
 				MaxSlide);
 
-			// Slightly coarser quantization reduces wave-like shimmer for cascade 0.
-			SlideBack = QuantizePSMValue(SlideBack, 0.5f);
+			SlideBack = QuantizePSMValue(SlideBack, 0.25f);
+		}
+		else if (AbsDot < 0.18f)
+		{
+			SlideBack = 0.0f;
 		}
 
 		return SlideBack;
@@ -560,19 +558,21 @@ namespace
 	{
 		const float Range = (std::max)(1.0f, SplitFar - SplitNear);
 		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
+		const float SideToAlignedT = ComputePSMSideToAlignedT(Dot);
 
 		float NearMargin = (std::max)(1.0f, Range * 0.02f);
 		float FarMargin = NearMargin;
 
 		if (CascadeIndex == 0)
 		{
-			// Cascade 0 now gets a stronger SlideBack, so keep projection range tighter.
-			// A tighter near/far range improves depth precision and reduces peter panning.
-			NearMargin = FMath::Clamp(Range * 0.015f, 0.15f, 1.25f);
-			FarMargin = FMath::Clamp(Range * 0.018f, 0.20f, 1.50f);
+			const float SideNearMargin = FMath::Clamp(Range * 0.010f, 0.10f, 0.90f);
+			const float AlignedNearMargin = FMath::Clamp(Range * 0.015f, 0.15f, 1.25f);
+			const float SideFarMargin = FMath::Clamp(Range * 0.012f, 0.15f, 1.00f);
+			const float AlignedFarMargin = FMath::Clamp(Range * 0.018f, 0.20f, 1.50f);
 
-			// Potential caster room for the view-light-aligned case, but do not let it
-			// defeat the stronger effective-near correction above.
+			NearMargin = LerpFloat(SideNearMargin, AlignedNearMargin, SideToAlignedT);
+			FarMargin = LerpFloat(SideFarMargin, AlignedFarMargin, SideToAlignedT);
+
 			if (Dot > 0.35f)
 			{
 				NearMargin = (std::max)(NearMargin, FMath::Clamp(Range * 0.045f, 0.35f, 2.0f));
@@ -580,14 +580,19 @@ namespace
 		}
 		else
 		{
-			// Patch1-based receiver fitting for the remaining cascades.
+			const float BaseNearMargin = (std::max)(0.35f, Range * 0.015f);
+			const float BaseFarMargin = (std::max)(0.35f, Range * 0.015f);
+			NearMargin = LerpFloat(BaseNearMargin, NearMargin, SideToAlignedT);
+			FarMargin = LerpFloat(BaseFarMargin, FarMargin, SideToAlignedT);
+
 			if (Dot > 0.35f)
 			{
 				NearMargin = (std::max)(NearMargin, Range * 0.12f);
 			}
-			else if (Dot > -0.10f)
+			else if (Dot > 0.10f)
 			{
-				NearMargin = (std::max)(NearMargin, Range * 0.06f);
+				const float SoftT = FMath::Clamp((Dot - 0.10f) / 0.25f, 0.0f, 1.0f);
+				NearMargin = (std::max)(NearMargin, Range * LerpFloat(0.015f, 0.06f, SoftT));
 			}
 		}
 
@@ -606,19 +611,14 @@ namespace
 	{
 		FPostPerspectiveShadowCamera Result;
 
-		// DirectX post-perspective volume: x/y [-1,1], z [0,1].
 		const FVector PPCenter(0.0f, 0.0f, 0.5f);
 		const float PPRadius = 1.5f;
 
-		// Current light DirectionWS is the emission direction. For the light camera position,
-		// use the direction toward the light source.
 		const FVector LightToSourceDirWS = -LightDirectionWS.GetSafeNormal();
 
 		const FVector4 EyeLightDir = FVector4(LightToSourceDirWS, 0.0f) * VCView;
 		const FVector4 LightPPH = EyeLightDir * VCProjection;
 
-		// Keep Patch1 behavior, but use a tiny dead-zone around w=0.
-		// Patch2's broad ortho band made too many cases use an over-fitted PP camera.
 		const float WEpsilon = 1.0e-3f;
 		const bool bOrthoLike = std::abs(LightPPH.W) <= WEpsilon;
 
@@ -675,14 +675,7 @@ namespace
 
 		if (LightPPH.W < 0.0f)
 		{
-			// Perspective Projection Matrix Trick from the blog:
-			// put near on the negative side and far on the positive side so the usual
-			// LESS/LESS_EQUAL compare can still record the intended depth ordering.
-			// If MakePerspectiveFovLH asserts NearZ > 0, add a separate AllowNegativeNear variant.
-			// Blog version: NearPP = max(0.1, DistToCenter - CubeRadius),
-			// FarPP = NearPP, then Near = -NearPP. Patch2 expanded this too much,
-			// crushing depth precision and making shadows almost disappear.
-			const float MinPlane = (CascadeIndex == 0) ? 0.20f : 0.16f;
+			const float MinPlane = (CascadeIndex == 0) ? 0.24f : 0.16f;
 			const float Plane = (std::max)(MinPlane, DistToCenter - PPRadius);
 			Result.Projection = FMatrix::MakePerspectiveFovLH(FovPP, AspectPP, -Plane, Plane);
 			Result.bInversePerspective = true;
@@ -712,6 +705,7 @@ namespace
 	{
 		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
 		const float AlignT = FMath::Clamp((std::abs(Dot) - 0.15f) / 0.85f, 0.0f, 1.0f);
+		const float SideToAlignedT = ComputePSMSideToAlignedT(Dot);
 
 		const float UserCascadeBias = DirLight->GetCascadeBias(CascadeIndex);
 		const float UserCascadeSlopeBias = DirLight->GetCascadeSlopeBias(CascadeIndex);
@@ -721,19 +715,16 @@ namespace
 
 		if (CascadeIndex == 0)
 		{
-			// Stronger cascade-0 PSM correction reduces the need for constant/normal bias.
-			// Clamp constant bias very low to remove peter panning; allow slope bias to
-			// handle grazing surfaces and post-perspective depth gradients.
-			AutoConstantBias = LerpFloat(0.0000015f, 0.0000080f, AlignT);
-			AutoSlopeBias = LerpFloat(0.00055f, 0.00220f, AlignT);
+			AutoConstantBias = LerpFloat(0.0000008f, 0.0000060f, AlignT);
+			AutoSlopeBias = LerpFloat(0.00045f, 0.00200f, AlignT);
 
 			OutConstantBias = (std::min)(
 				(std::max)(UserCascadeBias, AutoConstantBias),
-				0.000010f);
+				0.0000075f);
 
 			OutSlopeBias = (std::min)(
 				(std::max)(UserCascadeSlopeBias, AutoSlopeBias),
-				0.0040f);
+				0.0030f);
 		}
 		else
 		{
@@ -750,24 +741,50 @@ namespace
 
 		if (Dot > 0.0f)
 		{
-			// For cascade 0, avoid increasing constant bias. Constant/normal bias is
-			// the main source of peter panning in the closest cascade.
 			OutConstantBias *= (CascadeIndex == 0) ? 1.00f : 1.10f;
 			OutSlopeBias *= (CascadeIndex == 0) ? 1.25f : 1.20f;
 		}
 
 		if (bInversePP)
 		{
-			// Inverse PP needs additional slope bias, but not additional constant bias
-			// for cascade 0. This preserves contact shadows while reducing acne.
 			OutConstantBias *= (CascadeIndex == 0) ? 1.00f : 1.18f;
 			OutSlopeBias *= (CascadeIndex == 0) ? 1.45f : 1.35f;
 		}
 
+		if (SideToAlignedT < 1.0f)
+		{
+			const float BiasReleaseT = SideToAlignedT * SideToAlignedT;
+
+			const float SideConstantCap = (CascadeIndex == 0)
+				? 0.0000012f
+				: 0.0000022f * (1.0f + 0.06f * static_cast<float>(CascadeIndex));
+
+			const float AlignedConstantCap = (CascadeIndex == 0)
+				? 0.0000075f
+				: 0.000060f;
+
+			const float ConstantCap = LerpFloat(SideConstantCap, AlignedConstantCap, BiasReleaseT);
+			OutConstantBias = (std::min)(OutConstantBias, ConstantCap);
+
+			const float SideSlopeCap = (CascadeIndex == 0)
+				? 0.00100f
+				: 0.00105f * (1.0f + 0.08f * static_cast<float>(CascadeIndex));
+
+			const float AlignedSlopeCap = (CascadeIndex == 0)
+				? 0.0030f
+				: 0.0060f;
+
+			const float SlopeCap = LerpFloat(SideSlopeCap, AlignedSlopeCap, BiasReleaseT);
+			OutSlopeBias = (std::min)(OutSlopeBias, SlopeCap);
+		}
+
 		const float CascadeDepth = (std::max)(1.0f, SplitFar - SplitNear);
-		OutNormalBias = (CascadeIndex == 0)
+		const float AlignedNormalBias = (CascadeIndex == 0)
 			? 0.0f
 			: CascadeDepth * 0.000018f;
+
+		const float NormalReleaseT = FMath::Clamp((SideToAlignedT - 0.80f) / 0.20f, 0.0f, 1.0f);
+		OutNormalBias = AlignedNormalBias * NormalReleaseT;
 	}
 
 	FCascadePSMResult BuildCascadePSMMatrix(
@@ -821,7 +838,6 @@ namespace
 		Result.bPPOrthographic = PPCamera.bOrthographic;
 		Result.bInversePP = PPCamera.bInversePerspective;
 
-		// Row-vector PSM order.
 		Result.PSM = Result.VCView * Result.VCProjection * Result.PPView * Result.PPProjection;
 
 		ComputeCascadePSMBias(
@@ -871,7 +887,6 @@ namespace
 			return;
 		}
 
-		// Main pass must still select cascade by the original camera X-depth.
 		LightItem.CascadeSplits = FVector4(
 			FrustumSplits.size() > 1 ? FrustumSplits[1] : 0.0f,
 			FrustumSplits.size() > 2 ? FrustumSplits[2] : 0.0f,
@@ -887,10 +902,7 @@ namespace
 		{
 			const float SplitNear = FrustumSplits[CascadeIndex];
 			const float SplitFar = FrustumSplits[CascadeIndex + 1];
-
-			// All cascades, including cascade 0, are forced through PSM.
-			// Cascade 0 is handled by safe virtual-camera/bias policy in BuildCascadePSMMatrix().
-
+			
 			const FCascadePSMResult PSM = BuildCascadePSMMatrix(
 				View,
 				LightItem.DirectionWS,
@@ -909,9 +921,6 @@ namespace
 			ViewItem.NearZ = PSM.VCNear;
 			ViewItem.FarZ = PSM.VCFar;
 
-			// PSM is not a normal light View/Projection pair.
-			// Keep ViewProjection authoritative; Projection is the remaining chain for code paths
-			// that still multiply View * Projection.
 			ViewItem.View = PSM.VCView;
 			ViewItem.Projection = PSM.VCProjection * PSM.PPView * PSM.PPProjection;
 			ViewItem.ViewProjection = PSM.PSM;
@@ -1002,8 +1011,6 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 		return;
 	}
 
-
-	//temp Condidtate colletion vector
 	struct FPointShadowCandidate
 	{
 		const UPointLightComponent* PointLightl = nullptr;
