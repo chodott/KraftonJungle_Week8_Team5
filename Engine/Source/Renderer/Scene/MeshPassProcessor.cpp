@@ -203,7 +203,8 @@ void FMeshPassProcessor::ExecutePass(
 	const bool           bUseShadowVariant = bApplyLighting
 		&& (SceneViewData.RenderMode == ERenderMode::Lit_Gouraud ||
 			SceneViewData.RenderMode == ERenderMode::Lit_Lambert ||
-			SceneViewData.RenderMode == ERenderMode::Lit_Phong)
+			SceneViewData.RenderMode == ERenderMode::Lit_Phong ||
+			SceneViewData.RenderMode == ERenderMode::CSMCascadeDebug)
 		&& (bHasLocalShadows || bHasDirShadows);
 
 	if (bApplyLighting)

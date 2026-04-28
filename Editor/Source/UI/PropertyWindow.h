@@ -81,6 +81,7 @@ private:
 	void DrawLightComponentDetails(class ULightComponent* LightComponent, FEditorEngine* Engine);
 	void DrawPointLightComponentDetails(class UPointLightComponent* PointLightComponent, bool bShowHeader = true);
 	void DrawSpotLightComponentDetails(class USpotLightComponent* SpotLightComponent);
+	void DrawDirectionalLightComponentDetails(class UDirectionalLightComponent* DirectionalLightComponent);
 	void DrawMaterialPreviewSection(class UStaticMeshComponent* MeshComponent, FEditorEngine* Engine);
 	bool RenderMaterialPreview(
 		class UStaticMeshComponent* MeshComponent,
