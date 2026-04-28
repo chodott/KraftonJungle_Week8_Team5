@@ -70,11 +70,11 @@ VS_OUTPUT main(VS_INPUT Input)
 		float diff = max(0.0f, dot(N, L_dir));
 	
 		float viewDepth = length(CameraPosition.xyz - Output.WorldPosition);
-		float shadow = EvaluateDirectionalShadow(0, Output.WorldPosition, N, L_dir, viewDepth);
+        float shadow = EvaluateDirectionalShadow(0, Output.WorldPosition, N, L_dir, viewDepth);
         
-		float3 dirDiffuse = Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff * shadow;
-		diffuseLighting += dirDiffuse;
-		totalLighting += CalculateDirectionalLight(Directional, Output.WorldPosition, N, V).rgb * shadow;
+        float3 dirDiffuse = Directional.ColorIntensity.xyz * Directional.ColorIntensity.w * diff * shadow;
+        diffuseLighting += dirDiffuse;
+        totalLighting += CalculateDirectionalLight(Directional, Output.WorldPosition, N, V).rgb * shadow;
 	}
 	
 	ComputeObjectLocalLightingContributions(

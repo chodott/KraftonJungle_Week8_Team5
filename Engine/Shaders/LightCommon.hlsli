@@ -173,6 +173,25 @@ float ViewDepthToDeviceDepth(float viewDepth)
 
 	return saturate((FarZ - (NearZ * FarZ) / max(clampedViewDepth, NearZ)) / max(FarZ - NearZ, 1.0e-6f));
 }
+float3 ApplyCSMDebugOverlay(float3 worldPos, float3 cameraPos, float4 splits, float3 baseColor)
+{
+    float viewDepth = length(cameraPos - worldPos);
+    uint cascadeIndex = 0;
+	
+    if (viewDepth > splits.x) cascadeIndex = 1;
+    if (viewDepth > splits.y) cascadeIndex = 2;
+    if (viewDepth > splits.z) cascadeIndex = 3;
+	
+    float3 debugColors[4] =
+    {
+        float3(1.0f, 0.2f, 0.2f),
+        float3(0.2f, 1.0f, 0.2f),
+        float3(0.2f, 0.2f, 1.0f),
+        float3(1.0f, 1.0f, 0.2f) 
+    };
+	
+    return baseColor * 0.2f + debugColors[cascadeIndex] * 0.8f;
+}
 
 StructuredBuffer<FLightClusterHeader> ClusterLightHeaders : register(t10);
 StructuredBuffer<uint>                ClusterLightIndices : register(t11);
@@ -586,18 +605,19 @@ float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, flo
     uv.x = ndc.x * 0.5f + 0.5f;
     uv.y = -ndc.y * 0.5f + 0.5f;
     
-    float baseBias = 0.00005f;
+    float baseBias = view.BiasParams.x;
     float slopeBias = view.BiasParams.y;
     float NdotL = saturate(dot(N, L));
     float slope = sqrt(saturate(1.0f - NdotL * NdotL)) / max(NdotL, 0.0001f);
-    float variableBias = clamp(slopeBias * slope, 0.0f, baseBias * 10.0f);
+    // float variableBias = clamp(slopeBias * slope, 0.0f, baseBias * 10.0f);	clamp로 slope 막기
+	float variableBias = min(slopeBias * slope, 0.05f);
     float compareDepth = saturate(ndc.z) - (baseBias + variableBias);
 
 	FAtlasTile tile = GetAtlasTile(view);
 	float2 baseUV = ToAtlasUV(uv, tile);
 	baseUV = ClampAtlasUV(baseUV, tile);
 
-    // 5. Filter Mode에 따른 분기 (0: Raw, 1: PCF, 2: VSM) 
+    // Filter Mode에 따른 분기 (0: Raw, 1: PCF, 2: VSM) 
     if (view.FilterMode == 1u) // PCF
     {
         float visibility = 0.0f;
@@ -798,7 +818,10 @@ float EvaluateShadow(
 	return 1.0f;
 }
 
+
+
 #else
+
 
 float EvaluateShadow(
 	uint shadowIndex,
