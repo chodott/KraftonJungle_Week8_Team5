@@ -142,6 +142,7 @@ private:
 
 	bool EnsureShadowBuffers(FRenderer& Renderer, uint32 ShadowLightCount, uint32 ShadowViewCount);
 	bool EnsureESMConstantBuffer(FRenderer& Renderer);
+	void UpdateESMConstantBuffer(ID3D11DeviceContext* DeviceContext, float ESMExponent);
 
 	bool EnsureDirMomentsAtlas(const FRenderer& Renderer, uint32 RequiredResolution);
 	bool EnsureDirShadowDepthAtlas(FRenderer& Renderer, uint32 RequiredResolution);

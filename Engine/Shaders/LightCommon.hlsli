@@ -515,6 +515,37 @@ float SampleShadowViewPointVSM(FShadowLightGPU shadowLight, float3 worldPos, flo
     return saturate(pMax);
 }
 
+float SampleShadowViewPointESM(FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L) 
+{
+	uint cubeIndex = (uint) shadowLight.Params0.w;
+	float3 lightPos = shadowLight.PositionType.xyz;
+	float3 lightToSurface = worldPos - lightPos;
+	// 면판정 D3D 큐브 표준 순서와 일치해야함
+	float3 absDir = abs(lightToSurface);
+	uint faceIndex = 0;
+	if (absDir.x >= absDir.y && absDir.x >= absDir.z)
+		faceIndex = (lightToSurface.x > 0) ? 0 : 1;
+	else if (absDir.y >= absDir.z)
+		faceIndex = (lightToSurface.y > 0) ? 2 : 3;
+	else
+		faceIndex = (lightToSurface.z > 0) ? 4 : 5;
+
+	// 그면의 ViewProjection으로  NDC 깊이 계산
+	FShadowViewGPU view = ShadowViews[shadowLight.FirstViewIndex + faceIndex];
+	float4 clip = mul(float4(worldPos, 1.0f), view.LightViewProjection);
+    if (clip.w <= 0.0f) 
+		return 1.0f;
+	
+    float compareDepth = saturate(clip.z / clip.w);
+    float bias = ComputeShadowBias(shadowLight, N, L);
+    compareDepth = saturate(compareDepth - bias);
+	
+	float esmSample = ShadowMomentsCubeArray.SampleLevel(LinearClampSampler, float4(lightToSurface, (float)cubeIndex), 0.0f).r;
+
+	const float k = max(shadowLight.Params1.x, 0.001f);
+	float shadowTerm = esmSample * exp(-k * compareDepth);
+    return saturate(shadowTerm);
+}
 
 float SampleShadowViewVSM(
 	FShadowLightGPU shadowLight,
@@ -584,7 +615,7 @@ float SampleShadowViewESM(
 		0.0f
 	).r;
 	
-	const float k = 30; //shadowLight.Params1.x;
+	const float k = shadowLight.Params1.x;
 	
 	float shadowTerm = esmSample * exp(-k * compareDepth);
 
@@ -688,6 +719,19 @@ float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, flo
         float pMax = variance / (variance + d * d);
         return saturate(ReduceLightBleeding(pMax, shadowLight.Params0.z));
     }
+
+	else if(view.FilterMode == 3u)
+	{	
+		float esmSample = DirShadowMomentsTexture.SampleLevel(
+					LinearClampSampler, 
+					baseUV,
+					0.0f).r;
+		const float k = shadowLight.Params1.x;
+	
+		float shadowTerm = esmSample * exp(-k * compareDepth);
+
+		return saturate(shadowTerm);
+	}
 
     // FilterMode == 0u (Raw Depth)
     float rawDepth = DirShadowDepthTexture.SampleLevel(LinearClampSampler, baseUV, 0.0f).r;
@@ -850,6 +894,8 @@ float EvaluateShadow(
 			return SampleShadowViewPointVSM(shadowLight, worldPos, N, L);
 		else if (firstView.FilterMode == 1u)
 			return SampleShadowViewPointPCF(shadowLight, worldPos, N, L);
+		else if(firstView.FilterMode == 3u)
+			return SampleShadowViewPointESM(shadowLight, worldPos, N, L);
 		else
 			return SampleShadowViewPoint(shadowLight, worldPos, N, L);
 	} 

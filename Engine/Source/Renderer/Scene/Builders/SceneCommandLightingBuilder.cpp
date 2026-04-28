@@ -376,6 +376,7 @@ namespace
 		ShadowLight.SlopeBias = 0.001f;
 		ShadowLight.NormalBias = 0.0f;
 		ShadowLight.Sharpen = 0.0f;
+		ShadowLight.ESMExponent = DirLight->GetShadowESMExponent();
 
 		uint32 CascadeCount = DirLight->GetCascadeCount();
 		CascadeCount = (std::min)(CascadeCount, ShadowConfig::MaxDirCascade);
@@ -500,6 +501,7 @@ namespace
 		ShadowLight.SlopeBias  = Point->GetShadowSlopeBias();
 		ShadowLight.Sharpen    = Point->GetShadowSharpen();
 		ShadowLight.CubeArrayIndex = CubeArrayIndex;
+		ShadowLight.ESMExponent = Point->GetShadowESMExponent();
 
 		const float NearZ = ShadowConfig::DefaultNearZ;
 		const float FarZ = (std::max)(LightItem.Range, NearZ + 0.001f);

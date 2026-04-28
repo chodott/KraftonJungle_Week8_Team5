@@ -859,6 +859,23 @@ bool FShadowRenderFeature::EnsureESMConstantBuffer(FRenderer& Renderer)
 	return false;
 }
 
+void FShadowRenderFeature::UpdateESMConstantBuffer(ID3D11DeviceContext* DeviceContext, float ESMExponent)
+{
+	struct FShadowESMConstants
+	{
+		float ESMExponent;
+		float Pad[3];
+	} ESMConstants;
+	ESMConstants.ESMExponent = ESMExponent;
+	D3D11_MAPPED_SUBRESOURCE Mapped = {};
+	if (SUCCEEDED(DeviceContext->Map(ShadowESMConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
+	{
+		std::memcpy(Mapped.pData, &ESMConstants, sizeof(ESMConstants));
+		DeviceContext->Unmap(ShadowESMConstantBuffer, 0);
+	}
+	DeviceContext->PSSetConstantBuffers(9, 1, &ShadowESMConstantBuffer);
+}
+
 bool FShadowRenderFeature::EnsureDirMomentsAtlas(const FRenderer& Renderer, uint32 RequiredResolution)
 {
 	ID3D11Device* Device = Renderer.GetDevice();
@@ -1209,6 +1226,7 @@ void FShadowRenderFeature::UploadShadowBuffers(
 				Dst.PositionType = FVector4(Src.PositionWS.X, Src.PositionWS.Y, Src.PositionWS.Z, 0.0f);
 				Dst.DirectionBias = FVector4(Src.DirectionWS.X, Src.DirectionWS.Y, Src.DirectionWS.Z, Src.Bias);
 				Dst.Params0 = FVector4(Src.SlopeBias, Src.NormalBias, Src.Sharpen, 0.0f);
+				Dst.Params1 = FVector4(Src.ESMExponent, 0.0f, 0.0f, 0.0f);
 			}
 
 			D3D11_MAPPED_SUBRESOURCE Mapped = {};
@@ -1550,21 +1568,7 @@ void FShadowRenderFeature::RenderShadowViews(
 			{
 				if (!MomentsRTV) continue;
 				PassType = EMeshPassType::ShadowESM;
-
-				struct FShadowESMConstants
-				{
-					float ESMExponent;
-					float Pad[3];
-				} ESMConstants;
-				ESMConstants.ESMExponent = Light.ESMExponent;
-				D3D11_MAPPED_SUBRESOURCE Mapped = {};
-				if (SUCCEEDED(DeviceContext->Map(ShadowESMConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
-				{
-					std::memcpy(Mapped.pData, &ESMConstants, sizeof(ESMConstants));
-					DeviceContext->Unmap(ShadowESMConstantBuffer, 0);
-				}
-				DeviceContext->PSSetConstantBuffers(9, 1, &ShadowESMConstantBuffer);
-
+				UpdateESMConstantBuffer(DeviceContext, Light.ESMExponent);
 				break;
 			}
 			default:
@@ -1638,6 +1642,7 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 	for (uint32 ViewIndex = 0; ViewIndex < DirShadowViewCount; ++ViewIndex)
 	{
 		FShadowViewRenderItem& DirShadowView = SceneViewData.LightingInputs.DirShadowViews[ViewIndex];
+		const FShadowLightRenderItem& Light = SceneViewData.LightingInputs.DirShadowLights[DirShadowView.ShadowLightIndex];
 
 		if (DirShadowView.ArraySlice >= ShadowConfig::MaxDirCascade)
 		{
@@ -1668,47 +1673,30 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 		SceneViewData.View.bOrthographic = DirShadowView.ProjectionType == EShadowProjectionType::Orthographic;
 		SceneViewData.View.Viewport = DirShadowViewport;
 
-		if (GlobalFilterMode == EShadowFilterMode::Raw ||
-			GlobalFilterMode == EShadowFilterMode::PCF)
+		EMeshPassType PassType = EMeshPassType::DepthPrepass;
+		ID3D11RenderTargetView* DirMomentsRTV = nullptr;
+		switch (GlobalFilterMode)
 		{
-
-			BeginPass(
-				Renderer,
-				0,
-				nullptr,
-				DirShadowDSV,
-				DirShadowViewport,
-				SceneViewData.Frame,
-				SceneViewData.View);
-
-			Processor.ExecutePass(
-				Renderer,
-				Targets,
-				SceneViewData,
-				EMeshPassType::DepthPrepass);
-		}
-		else
+		case EShadowFilterMode::VSM:
+			if (!DirShadowMomentsAtlasRTV) continue;
+			DirMomentsRTV = DirShadowMomentsAtlasRTV;
+			PassType = EMeshPassType::ShadowVSM;
+			break;
+		case EShadowFilterMode::ESM:
 		{
-			ID3D11RenderTargetView* DirMomentsRTV = DirShadowMomentsAtlasRTV;
-			if (!DirMomentsRTV)
-			{
-				continue;
-			}
-
-			BeginPass(
-				Renderer,
-				DirMomentsRTV,
-				DirShadowDSV,
-				DirShadowViewport,
-				SceneViewData.Frame,
-				SceneViewData.View);
-
-			Processor.ExecutePass(
-				Renderer,
-				Targets,
-				SceneViewData,
-				EMeshPassType::ShadowVSM);
+			if (!DirShadowMomentsAtlasRTV) continue;
+			DirMomentsRTV = DirShadowMomentsAtlasRTV;
+			PassType = EMeshPassType::ShadowESM;
+			UpdateESMConstantBuffer(DeviceContext, Light.ESMExponent);
+			break;
 		}
+		default:
+			PassType = EMeshPassType::DepthPrepass;
+			break;
+		}
+
+		BeginPass(Renderer, DirMomentsRTV, DirShadowDSV, DirShadowViewport, SceneViewData.Frame, SceneViewData.View);
+		Processor.ExecutePass(Renderer, Targets, SceneViewData, PassType);
 	}
 
 	CachedDirShadowViews.clear();
