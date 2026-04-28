@@ -76,6 +76,7 @@ namespace
 			std::swap(L.InnerAngleCos, L.OuterAngleCos);
 		}
 
+		// conservative sphere
 		L.CullCenterWS = L.PositionWS + L.DirectionWS * (L.Range * 0.5f);
 		L.CullRadius   = L.Range;
 
@@ -205,6 +206,11 @@ namespace
 			return 128;
 		}
 		return 64;
+	}
+	uint32 QuantizeDiraShadowResolution(uint32 Resolution)
+	{
+		if (Resolution >= 4096) return 409;
+		return QuantizeShadowResolution(Resolution);
 	}
 
 	uint32 AddPointShadowView(
@@ -1377,13 +1383,8 @@ namespace
 		CascadeCount        =
 				(std::min)(CascadeCount, ShadowConfig::MaxDirCascade);
 
-		TArray<float> FrustumSplits =
-				FCasCade::CalculateCascadeSplits(
-					CascadeCount,
-					View.NearZ,
-					View.FarZ,
-					0.9f);
-
+		TArray<float> FrustumSplits = FCasCade::CalculateCascadeSplits(CascadeCount, View.NearZ, View.FarZ, DirLight->GetSplitLambda());
+		
 		if (FrustumSplits.size() < 2)
 		{
 			return;
@@ -1417,6 +1418,7 @@ namespace
 			FVector4(-1.0f, -1.0f, 1.0f, 1.0f)
 		};
 
+		// 절두체 4개의 변
 		FVector ViewRays[4];
 		bool    bValidViewRays = true;
 
@@ -1517,47 +1519,29 @@ namespace
 			CenterLS.Z =
 					std::floor(CenterLS.Z / WorldUnitsPerTexel) *
 					WorldUnitsPerTexel;
+			
+			FVector SnappedCenterWS = TempShadowView.GetInverse().TransformPosition(CenterLS);
+			FVector LightPosition = SnappedCenterWS;
 
-			const FVector SnappedCenterWS =
-					TempShadowView.GetInverse().TransformPosition(CenterLS);
-
-			const FVector LightPosition =
-					SnappedCenterWS;
-
-			const float BoxNear = -SphereRadius;
-			const float BoxFar  = SphereRadius;
+			// -2000으로 두면 VSM의 빛샘현상이 너무 심하게 나타남.
+			// float BoxNear = -SphereRadius - 2000.0f; 
+			float BoxNear = -SphereRadius;
+			float BoxFar = SphereRadius;
 
 			FShadowViewRenderItem ViewItem;
-			ViewItem.ProjectionType      = EShadowProjectionType::Orthographic;
-			ViewItem.PositionWS          = FrustumCenter;
-			ViewItem.NearZ               = BoxNear;
-			ViewItem.FarZ                = BoxFar;
-			ViewItem.RequestedResolution =
-					ShadowConfig::DirShadowDepthResolution;
+			ViewItem.ProjectionType = EShadowProjectionType::Orthographic;
+			ViewItem.PositionWS = FrustumCenter;
+			ViewItem.NearZ = BoxNear;
+			ViewItem.FarZ = BoxFar;
+			
 
-			ViewItem.BiasParams = {
-				DirLight->GetShadowBias(),
-				DirLight->GetShadowSlopeBias(),
-				0.0f,
-				0.0f
-			};
-
-			ViewItem.View =
-					FMatrix::MakeViewLookAtLH(
-						LightPosition,
-						LightPosition + LightRayDirectionWS,
-						UpVector);
-
-			ViewItem.Projection =
-					FMatrix::MakeOrthographicLH(
-						BoxWidth,
-						BoxHeight,
-						BoxNear,
-						BoxFar);
-
-			ViewItem.ViewProjection =
-					ViewItem.View * ViewItem.Projection;
-
+			float ResolutionScale = DirLight->GetShadowResolutionScale();
+			uint32 RequestedResolution = QuantizeDiraShadowResolution(static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionScale));
+			ViewItem.RequestedResolution = RequestedResolution;
+			ViewItem.BiasParams = { DirLight->GetCascadeBias(i), DirLight->GetCascadeSlopeBias(i), 0.0f, 0.0f };
+			ViewItem.View = FMatrix::MakeViewLookAtLH(LightPosition, LightPosition + LightItem.DirectionWS, UpVector);
+			ViewItem.Projection = FMatrix::MakeOrthographicLH(BoxWidth, BoxHeight, BoxNear, BoxFar);
+			ViewItem.ViewProjection = ViewItem.View * ViewItem.Projection;
 			ViewItem.Viewport = {};
 
 			const FPSMBoundsWS CascadeReceiverBoundsWS =
