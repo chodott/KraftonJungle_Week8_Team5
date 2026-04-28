@@ -126,29 +126,93 @@ namespace
 		return ViewIndex;
 	}
 	float ComputeSpotScreenCoverage(
-		const FVector& CameraPosition,
 		const FVector& LightPosition,
 		const FVector& LightDirection,
 		float Range,
-		float OuterConeAngleDeg)
+		float OuterConeAngleDeg,
+		const FMatrix& ViewProj)
 	{
 		const float SafeRange = (std::max)(Range, 0.0f);
-		const float HalfRange = SafeRange * 0.5f;
+		const FVector Direction = LightDirection.GetSafeNormal();
+		if (Direction.IsNearlyZero())
+		{
+			return 0.0f;
+		}
 
 		const float OuterAngleRad = FMath::DegreesToRadians(
 			FMath::Clamp(OuterConeAngleDeg, 1.0f, 80.0f));
 
 		const float ConeEndRadius = std::tan(OuterAngleRad) * SafeRange;
+		const FVector EndCenter = LightPosition + Direction * SafeRange;
 
-		const FVector BoundsCenter = LightPosition + LightDirection.GetSafeNormal() * HalfRange;
-		const float BoundsRadius = std::sqrt(HalfRange * HalfRange + ConeEndRadius * ConeEndRadius);
+		FVector Up = FVector(0.0f, 0.0f, 1.0f);
+		if (std::abs(FVector::DotProduct(Direction, Up)) > 0.95f)
+		{
+			Up = FVector(0.0f, 1.0f, 0.0f);
+		}
 
-		const float Distance = (CameraPosition - BoundsCenter).Size();
-		const float SafeDistance = (std::max)(Distance - BoundsRadius, 1.0f);
+		const FVector Right = FVector::CrossProduct(Up, Direction).GetSafeNormal();
+		const FVector ConeUp = FVector::CrossProduct(Direction, Right).GetSafeNormal();
 
-		const float ProjectedRadius = BoundsRadius / SafeDistance;
+		float MinX = FLT_MAX;
+		float MinY = FLT_MAX;
+		float MaxX = -FLT_MAX;
+		float MaxY = -FLT_MAX;
 
-		return FMath::Clamp(ProjectedRadius * ProjectedRadius, 0.0f, 1.0f);
+		int32 ProjectedCount = 0;
+
+		auto AddProjectedPoint = [&](const FVector& WorldPos)
+			{
+				const FVector4 Clip = ViewProj.TransformVector4(FVector4(WorldPos, 1.0f));
+
+				// Near plane 뒤에 있는 점은 일단 제외.
+				// 완전 정확하게 하려면 near clipping이 필요하지만, shadow resolution 용도면 이 정도로 충분.
+				if (Clip.W <= 1.0e-4f)
+					return;
+
+				const float InvW = 1.0f / Clip.W;
+				const float NdcX = Clip.X * InvW;
+				const float NdcY = Clip.Y * InvW;
+
+				MinX = std::min(MinX, NdcX);
+				MinY = std::min(MinY, NdcY);
+				MaxX = std::max(MaxX, NdcX);
+				MaxY = std::max(MaxY, NdcY);
+
+				++ProjectedCount;
+			};
+
+		AddProjectedPoint(LightPosition);
+		AddProjectedPoint(EndCenter);
+
+		constexpr int32 SegmentCount = 12;
+
+		for (int32 i = 0; i < SegmentCount; ++i)
+		{
+			const float T = (2.0f * FMath::PI * i) / SegmentCount;
+
+			const FVector P =
+				EndCenter
+				+ Right * std::cos(T) * ConeEndRadius
+				+ ConeUp * std::sin(T) * ConeEndRadius;
+
+			AddProjectedPoint(P);
+		}
+
+		if (ProjectedCount == 0)
+			return 0.0f;
+
+		MinX = FMath::Clamp(MinX, -1.0f, 1.0f);
+		MinY = FMath::Clamp(MinY, -1.0f, 1.0f);
+		MaxX = FMath::Clamp(MaxX, -1.0f, 1.0f);
+		MaxY = FMath::Clamp(MaxY, -1.0f, 1.0f);
+
+		const float Width = std::max(0.0f, MaxX - MinX);
+		const float Height = std::max(0.0f, MaxY - MinY);
+
+		const float Coverage = (Width * Height) * 0.25f;
+
+		return FMath::Clamp(Coverage, 0.0f, 1.0f);
 	}
 
 	uint32 QuantizeShadowResolution(uint32 Resolution)
@@ -226,7 +290,7 @@ namespace
 		const FLocalLightRenderItem& LightItem,
 		uint32                       LocalLightIndex,
 		uint32                       ShadowLightIndex,
-		const FVector&				 CameraPosition)
+		const FMatrix&				 ViewProjMatrix)
 	{
 		FShadowLightRenderItem& ShadowLight = Inputs.ShadowLights[ShadowLightIndex];
 
@@ -255,11 +319,13 @@ namespace
 		const float OuterHalfAngleDeg = FMath::Clamp(Spot->GetOuterConeAngle(), 1.0f, 80.0f);
 		const float FullFovRad        = FMath::DegreesToRadians(OuterHalfAngleDeg * 2.0f);
 
-		const float Coverage = ComputeSpotScreenCoverage(CameraPosition, LightItem.PositionWS, LightItem.DirectionWS,
-			LightItem.Range, Spot->GetOuterConeAngle());
-		float ResolutionScale = Spot->GetShadowResolutionScale();
+		const float Coverage = ComputeSpotScreenCoverage(LightItem.PositionWS, LightItem.DirectionWS,LightItem.Range, Spot->GetOuterConeAngle(), ViewProjMatrix);
+		if(Coverage <= 0.0f)
+		{
+			return;
+		}
 
-		float ResolutionFactor = std::sqrt(Coverage) * ResolutionScale;
+		float ResolutionFactor = std::sqrt(Coverage) * Spot->GetShadowResolutionScale();
 		uint32 RequestedResolution = QuantizeShadowResolution(static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionFactor));
 
 		FShadowViewRenderItem View;
@@ -572,6 +638,7 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 			if (Component->IsA(USpotLightComponent::StaticClass()))
 			{
+				
 				const USpotLightComponent* Spot = static_cast<USpotLightComponent*>(Component);
 				if (!Spot->GetVisible() || Spot->GetEffectiveIntensity() <= 0.0f || Spot->GetAttenuationRadius() <= 0.0f)
 				{
@@ -586,7 +653,7 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 					if (ShadowLightIndex != UINT32_MAX)
 					{
-						BuildSpotShadowViews(LightingInputs, Spot, LightItem, LocalLightIndex, ShadowLightIndex, View.CameraPosition);
+						BuildSpotShadowViews(LightingInputs, Spot, LightItem, LocalLightIndex, ShadowLightIndex, View.ViewProjection);
 						if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount > 0)
 						{
 							LightItem.ShadowIndex = ShadowLightIndex;
