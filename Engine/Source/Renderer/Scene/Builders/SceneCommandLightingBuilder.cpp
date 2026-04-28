@@ -433,6 +433,15 @@ namespace
 		return std::floor(Value / Step) * Step;
 	}
 
+	float QuantizePSMValue(float Value, float Step)
+	{
+		if (Step <= 0.0f)
+		{
+			return Value;
+		}
+		return std::floor(Value / Step + 0.5f) * Step;
+	}
+
 	FVector GetCameraPositionWS(const FViewContext& View)
 	{
 		return View.InverseView.TransformPosition(FVector::ZeroVector);
@@ -495,22 +504,48 @@ namespace
 		const FVector& CameraForwardWS,
 		const FVector& LightDirectionWS,
 		float SplitNear,
-		float SplitFar)
+		float SplitFar,
+		uint32 CascadeIndex)
 	{
 		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
 		const float Range = (std::max)(1.0f, SplitFar - SplitNear);
 
-		// The blog recommends sliding the virtual camera back in unstable view-light-aligned cases.
-		// Keep this conservative because too much slide-back shrinks geometry in post-perspective space.
+		// Patch1 behavior is kept for cascade 1+.
+		// Cascade 0 needs a stronger policy because its SplitNear is tied to the camera near plane.
+		float SlideBack = 0.0f;
 		if (Dot > 0.35f)
 		{
-			return (std::min)(100.0f, Range * 0.25f);
+			SlideBack = (std::min)(100.0f, Range * 0.25f);
 		}
-		if (Dot > -0.10f)
+		else if (Dot > -0.10f)
 		{
-			return (std::min)(50.0f, Range * 0.10f);
+			SlideBack = (std::min)(50.0f, Range * 0.10f);
 		}
-		return 0.0f;
+
+		if (CascadeIndex == 0)
+		{
+			// Force cascade 0 through PSM, but move the virtual camera far enough
+			// that the first split does not collapse into a near-plane singularity.
+			// This is intentionally stronger than v8: the previous value still left
+			// cascade 0's shadow map too flat/lying down in several directions.
+			const float TargetDepthAtSplitNear = FMath::Clamp(
+				Range * 0.48f,
+				3.0f,
+				(std::max)(3.0f, SplitFar * 0.70f));
+
+			const float RequiredSlide = (std::max)(0.0f, TargetDepthAtSplitNear - SplitNear);
+			const float MaxSlide = (std::min)(55.0f, Range * 0.95f);
+
+			SlideBack = FMath::Clamp(
+				(std::max)(SlideBack, RequiredSlide),
+				0.0f,
+				MaxSlide);
+
+			// Slightly coarser quantization reduces wave-like shimmer for cascade 0.
+			SlideBack = QuantizePSMValue(SlideBack, 0.5f);
+		}
+
+		return SlideBack;
 	}
 
 	void ComputeCascadeVirtualCameraRange(
@@ -519,24 +554,41 @@ namespace
 		float SplitNear,
 		float SplitFar,
 		float VirtualSlideBack,
+		uint32 CascadeIndex,
 		float& OutNear,
 		float& OutFar)
 	{
-		// Patch1-based receiver fitting, with a small blog-style potential caster extension.
-		// Patch2 expanded this too aggressively and lowered effective PSM precision.
 		const float Range = (std::max)(1.0f, SplitFar - SplitNear);
 		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
 
 		float NearMargin = (std::max)(1.0f, Range * 0.02f);
 		float FarMargin = NearMargin;
 
-		if (Dot > 0.35f)
+		if (CascadeIndex == 0)
 		{
-			NearMargin = (std::max)(NearMargin, Range * 0.12f);
+			// Cascade 0 now gets a stronger SlideBack, so keep projection range tighter.
+			// A tighter near/far range improves depth precision and reduces peter panning.
+			NearMargin = FMath::Clamp(Range * 0.015f, 0.15f, 1.25f);
+			FarMargin = FMath::Clamp(Range * 0.018f, 0.20f, 1.50f);
+
+			// Potential caster room for the view-light-aligned case, but do not let it
+			// defeat the stronger effective-near correction above.
+			if (Dot > 0.35f)
+			{
+				NearMargin = (std::max)(NearMargin, FMath::Clamp(Range * 0.045f, 0.35f, 2.0f));
+			}
 		}
-		else if (Dot > -0.10f)
+		else
 		{
-			NearMargin = (std::max)(NearMargin, Range * 0.06f);
+			// Patch1-based receiver fitting for the remaining cascades.
+			if (Dot > 0.35f)
+			{
+				NearMargin = (std::max)(NearMargin, Range * 0.12f);
+			}
+			else if (Dot > -0.10f)
+			{
+				NearMargin = (std::max)(NearMargin, Range * 0.06f);
+			}
 		}
 
 		OutNear = (std::max)(0.01f, SplitNear + VirtualSlideBack - NearMargin);
@@ -549,7 +601,8 @@ namespace
 	FPostPerspectiveShadowCamera BuildPostPerspectiveShadowCamera_DX_Row_XDepth(
 		const FMatrix& VCView,
 		const FMatrix& VCProjection,
-		const FVector& LightDirectionWS)
+		const FVector& LightDirectionWS,
+		uint32 CascadeIndex)
 	{
 		FPostPerspectiveShadowCamera Result;
 
@@ -629,7 +682,8 @@ namespace
 			// Blog version: NearPP = max(0.1, DistToCenter - CubeRadius),
 			// FarPP = NearPP, then Near = -NearPP. Patch2 expanded this too much,
 			// crushing depth precision and making shadows almost disappear.
-			const float Plane = (std::max)(0.1f, DistToCenter - PPRadius);
+			const float MinPlane = (CascadeIndex == 0) ? 0.20f : 0.16f;
+			const float Plane = (std::max)(MinPlane, DistToCenter - PPRadius);
 			Result.Projection = FMatrix::MakePerspectiveFovLH(FovPP, AspectPP, -Plane, Plane);
 			Result.bInversePerspective = true;
 		}
@@ -658,28 +712,62 @@ namespace
 	{
 		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
 		const float AlignT = FMath::Clamp((std::abs(Dot) - 0.15f) / 0.85f, 0.0f, 1.0f);
-		const float CascadeScale = 1.0f + 0.25f * static_cast<float>(CascadeIndex);
 
 		const float UserCascadeBias = DirLight->GetCascadeBias(CascadeIndex);
 		const float UserCascadeSlopeBias = DirLight->GetCascadeSlopeBias(CascadeIndex);
 
-		OutConstantBias = (std::max)(UserCascadeBias, LerpFloat(0.000006f, 0.00004f, AlignT)) * CascadeScale;
-		OutSlopeBias = (std::max)(UserCascadeSlopeBias, LerpFloat(0.0005f, 0.0030f, AlignT)) * CascadeScale;
+		float AutoConstantBias = LerpFloat(0.000004f, 0.000025f, AlignT);
+		float AutoSlopeBias = LerpFloat(0.00045f, 0.0025f, AlignT);
+
+		if (CascadeIndex == 0)
+		{
+			// Stronger cascade-0 PSM correction reduces the need for constant/normal bias.
+			// Clamp constant bias very low to remove peter panning; allow slope bias to
+			// handle grazing surfaces and post-perspective depth gradients.
+			AutoConstantBias = LerpFloat(0.0000015f, 0.0000080f, AlignT);
+			AutoSlopeBias = LerpFloat(0.00055f, 0.00220f, AlignT);
+
+			OutConstantBias = (std::min)(
+				(std::max)(UserCascadeBias, AutoConstantBias),
+				0.000010f);
+
+			OutSlopeBias = (std::min)(
+				(std::max)(UserCascadeSlopeBias, AutoSlopeBias),
+				0.0040f);
+		}
+		else
+		{
+			const float CascadeScale = 1.0f + 0.20f * static_cast<float>(CascadeIndex);
+
+			OutConstantBias = (std::min)(
+				(std::max)(UserCascadeBias, AutoConstantBias) * CascadeScale,
+				0.000060f);
+
+			OutSlopeBias = (std::min)(
+				(std::max)(UserCascadeSlopeBias, AutoSlopeBias) * CascadeScale,
+				0.0060f);
+		}
 
 		if (Dot > 0.0f)
 		{
-			OutConstantBias *= 1.15f;
-			OutSlopeBias *= 1.15f;
+			// For cascade 0, avoid increasing constant bias. Constant/normal bias is
+			// the main source of peter panning in the closest cascade.
+			OutConstantBias *= (CascadeIndex == 0) ? 1.00f : 1.10f;
+			OutSlopeBias *= (CascadeIndex == 0) ? 1.25f : 1.20f;
 		}
 
 		if (bInversePP)
 		{
-			OutConstantBias *= 1.35f;
-			OutSlopeBias *= 1.35f;
+			// Inverse PP needs additional slope bias, but not additional constant bias
+			// for cascade 0. This preserves contact shadows while reducing acne.
+			OutConstantBias *= (CascadeIndex == 0) ? 1.00f : 1.18f;
+			OutSlopeBias *= (CascadeIndex == 0) ? 1.45f : 1.35f;
 		}
 
 		const float CascadeDepth = (std::max)(1.0f, SplitFar - SplitNear);
-		OutNormalBias = CascadeDepth * 0.00005f;
+		OutNormalBias = (CascadeIndex == 0)
+			? 0.0f
+			: CascadeDepth * 0.000018f;
 	}
 
 	FCascadePSMResult BuildCascadePSMMatrix(
@@ -699,13 +787,20 @@ namespace
 		const FVector CameraForwardWS = GetCameraForwardWS_XDepth(View);
 		const FVector CameraUpWS = GetCameraUpWS_XDepth(View);
 
-		Result.VirtualSlideBack = ComputeVirtualSlideBackForCascade(CameraForwardWS, LightDirectionWS, SplitNear, SplitFar);
+		Result.VirtualSlideBack = ComputeVirtualSlideBackForCascade(
+			CameraForwardWS,
+			LightDirectionWS,
+			SplitNear,
+			SplitFar,
+			CascadeIndex);
+
 		ComputeCascadeVirtualCameraRange(
 			CameraForwardWS,
 			LightDirectionWS,
 			SplitNear,
 			SplitFar,
 			Result.VirtualSlideBack,
+			CascadeIndex,
 			Result.VCNear,
 			Result.VCFar);
 
@@ -718,7 +813,8 @@ namespace
 		const FPostPerspectiveShadowCamera PPCamera = BuildPostPerspectiveShadowCamera_DX_Row_XDepth(
 			Result.VCView,
 			Result.VCProjection,
-			LightDirectionWS);
+			LightDirectionWS,
+			CascadeIndex);
 
 		Result.PPView = PPCamera.View;
 		Result.PPProjection = PPCamera.Projection;
@@ -742,6 +838,7 @@ namespace
 
 		return Result;
 	}
+
 
 	void BuildDirectionalShadowViews(
 		FSceneLightingInputs& Inputs,
@@ -790,6 +887,9 @@ namespace
 		{
 			const float SplitNear = FrustumSplits[CascadeIndex];
 			const float SplitFar = FrustumSplits[CascadeIndex + 1];
+
+			// All cascades, including cascade 0, are forced through PSM.
+			// Cascade 0 is handled by safe virtual-camera/bias policy in BuildCascadePSMMatrix().
 
 			const FCascadePSMResult PSM = BuildCascadePSMMatrix(
 				View,
