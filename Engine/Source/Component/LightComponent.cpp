@@ -96,6 +96,7 @@ void ULightComponent::SetShadowResolutionScale(float NewResolutionScale)
 		return;
 	}
 	ShadowResolutionScale = NewResolutionScale;
+	MarkTransformDirty();
 	NotifyOwnerLightPropertyChanged();
 }
 
