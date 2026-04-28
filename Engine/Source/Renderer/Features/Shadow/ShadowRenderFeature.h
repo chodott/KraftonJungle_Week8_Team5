@@ -20,6 +20,21 @@ enum class EShadowDebugViewMode : uint32
 	VSMVariance = 3
 };
 
+struct ENGINE_API FShadowStats
+{
+	uint32 ActiveDirShadowLights   = 0;
+	uint32 ActiveSpotShadowLights  = 0;
+	uint32 ActivePointShadowLights = 0;
+
+	uint64 SpotDepthAtlasBytes    = 0;
+	uint64 SpotMomentsAtlasBytes  = 0;
+	uint64 DirDepthAtlasBytes     = 0;
+	uint64 DirMomentsAtlasBytes   = 0;
+	uint64 CubeDepthArrayBytes    = 0;
+	uint64 CubeMomentsArrayBytes  = 0;
+	uint64 TotalShadowMemoryBytes = 0;
+};
+
 class FShadowRenderFeature
 {
 public:
@@ -129,6 +144,8 @@ public:
 	{
 		return bDebugViewportOverlayEnabled;
 	}
+
+	FShadowStats GetShadowStats() const { return ShadowStatsCache; }
 
 private:
 	bool EnsureLinearSampler(const FRenderer& Renderer);
@@ -266,6 +283,8 @@ private:
 	TArray<FShadowViewRenderItem> CachedLocalShadowViews;
 	TArray<FShadowViewRenderItem> CachedDirShadowViews;
 	bool                 bDebugViewportOverlayEnabled = false;
+
+	FShadowStats ShadowStatsCache;
 
 	FShadowAtlasAllocator* ShadowAtlasAllocator;
 	FShadowAtlasAllocator* DirShadowAtlasAllocator;

@@ -302,6 +302,32 @@ bool FShadowRenderFeature::RenderShadows(
 	UploadShadowBuffers(Renderer, SceneViewData);
 	BindShadowResources(Renderer, SceneViewData);
 
+	// snapshot per-frame stats for editor queries
+	ShadowStatsCache = FShadowStats{};
+	ShadowStatsCache.ActiveDirShadowLights = static_cast<uint32>(SceneViewData.LightingInputs.DirShadowLights.size());
+	for (const FShadowLightRenderItem& L : SceneViewData.LightingInputs.ShadowLights)
+	{
+		if (L.LightType == EShadowLightType::Spot)        ++ShadowStatsCache.ActiveSpotShadowLights;
+		else if (L.LightType == EShadowLightType::Point)  ++ShadowStatsCache.ActivePointShadowLights;
+	}
+	auto TextureBytes = [](ID3D11Texture2D* Tex, uint32 BytesPerPixel) -> uint64
+	{
+		if (!Tex) return 0;
+		D3D11_TEXTURE2D_DESC D;
+		Tex->GetDesc(&D);
+		return static_cast<uint64>(D.Width) * D.Height * D.ArraySize * BytesPerPixel;
+	};
+	ShadowStatsCache.SpotDepthAtlasBytes   = TextureBytes(LocalShadowDepthAtlas,   4);  // R32
+	ShadowStatsCache.SpotMomentsAtlasBytes = TextureBytes(LocalShadowMomentsAtlas, 8);  // RG32
+	ShadowStatsCache.DirDepthAtlasBytes    = TextureBytes(DirShadowDepthAtlas,     4);
+	ShadowStatsCache.DirMomentsAtlasBytes  = TextureBytes(DirShadowMomentsAtlas,   8);
+	ShadowStatsCache.CubeDepthArrayBytes   = TextureBytes(ShadowDepthCubeArray,    4);
+	ShadowStatsCache.CubeMomentsArrayBytes = TextureBytes(ShadowMomentsCubeArray,  8);
+	ShadowStatsCache.TotalShadowMemoryBytes =
+		ShadowStatsCache.SpotDepthAtlasBytes   + ShadowStatsCache.SpotMomentsAtlasBytes +
+		ShadowStatsCache.DirDepthAtlasBytes    + ShadowStatsCache.DirMomentsAtlasBytes  +
+		ShadowStatsCache.CubeDepthArrayBytes   + ShadowStatsCache.CubeMomentsArrayBytes;
+
 	return true;
 }
 

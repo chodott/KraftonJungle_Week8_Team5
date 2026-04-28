@@ -168,6 +168,11 @@ bool FForwardTransparentPass::Execute(FPassContext& Context)
 
 bool FShadowMapPass::Execute(FPassContext& Context)
 {
+	if (Context.SceneViewData.RenderMode == ERenderMode::Unlit)
+	{
+		return true;
+	}
+
 	FShadowRenderFeature* Feature = Context.Renderer.GetShadowFeature();
 	if (!Feature)
 	{

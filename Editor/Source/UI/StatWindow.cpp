@@ -820,6 +820,35 @@ void FStatWindow::RenderLightStats(FRenderer* Renderer, AActor* SelectedActor)
 		AddStatLine(Lines, "Shadow Feature", "Unavailable");
 	}
 
+	if (ShadowFeature)
+	{
+		const FShadowStats ShadowStats = ShadowFeature->GetShadowStats();
+
+		AddStatHeader(Lines, "[Active Shadow Lights]");
+		std::snprintf(Buffer, sizeof(Buffer), "%u", ShadowStats.ActiveDirShadowLights);
+		AddStatLine(Lines, "Directional", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%u", ShadowStats.ActiveSpotShadowLights);
+		AddStatLine(Lines, "Spot", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%u", ShadowStats.ActivePointShadowLights);
+		AddStatLine(Lines, "Point", Buffer);
+
+		AddStatHeader(Lines, "[Shadow Memory]");
+		std::snprintf(Buffer, sizeof(Buffer), "%.2f MB", ShadowStats.SpotDepthAtlasBytes   / (1024.0 * 1024.0));
+		AddStatLine(Lines, "Spot Depth Atlas", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%.2f MB", ShadowStats.SpotMomentsAtlasBytes / (1024.0 * 1024.0));
+		AddStatLine(Lines, "Spot Moments Atlas", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%.2f MB", ShadowStats.DirDepthAtlasBytes    / (1024.0 * 1024.0));
+		AddStatLine(Lines, "Dir Depth Atlas", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%.2f MB", ShadowStats.DirMomentsAtlasBytes  / (1024.0 * 1024.0));
+		AddStatLine(Lines, "Dir Moments Atlas", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%.2f MB", ShadowStats.CubeDepthArrayBytes   / (1024.0 * 1024.0));
+		AddStatLine(Lines, "Point Cube Depth", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%.2f MB", ShadowStats.CubeMomentsArrayBytes / (1024.0 * 1024.0));
+		AddStatLine(Lines, "Point Cube Moments", Buffer);
+		std::snprintf(Buffer, sizeof(Buffer), "%.2f MB", ShadowStats.TotalShadowMemoryBytes / (1024.0 * 1024.0));
+		AddStatLine(Lines, "Total", Buffer);
+	}
+
 	ImGui::BeginChild(
 		"LightStatPanel",
 		ImVec2(0.0f, 0.0f),

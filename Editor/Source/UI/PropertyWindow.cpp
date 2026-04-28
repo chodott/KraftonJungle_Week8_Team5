@@ -50,10 +50,12 @@
 #include "Renderer/Scene/SceneRenderer.h"
 #include "Renderer/Scene/SceneViewData.h"
 #include "Viewport/Viewport.h"
+#include "Viewport/EditorViewportRegistry.h"
 #include "World/World.h"
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 
 #include "imgui_internal.h"
 #include "Renderer/Features/Billboard/BillboardRenderer.h"
@@ -2642,6 +2644,19 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 		LightComponent->SetVisible(bVisible);
 	}
 
+	{
+		const char* MobilityLabels[] = { "Static", "Stationary", "Movable" };
+		int CurMobility = static_cast<int>(LightComponent->GetMobility());
+		ImGui::Text("Mobility");
+		ImGui::NextColumn();
+		ImGui::PushItemWidth(-1.0f);
+		if (ImGui::Combo("Mobility##Light", &CurMobility, MobilityLabels, IM_ARRAYSIZE(MobilityLabels)))
+		{
+			LightComponent->SetMobility(static_cast<ELightMobility>(CurMobility));
+		}
+		ImGui::PopItemWidth();
+	}
+
 	bool bCastShadows = LightComponent->IsCastingShadows();
 	ImGui::Text("Cast Shadows");
 	ImGui::NextColumn();
@@ -2688,6 +2703,84 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 	if (ImGui::DragFloat("Shadow Sharpeness", &ShadowSharpeness, 0.01f, 0.0f, 1.0f, "%.2f"))
 	{
 		LightComponent->SetShadowSharpen(ShadowSharpeness);
+	}
+
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::TextDisabled("View");
+
+	if (Engine)
+	{
+		FEditorViewportRegistry& Registry = Engine->GetViewportRegistry();
+		FViewportEntry* PerspEntry = Registry.FindEntryByType(EViewportType::Perspective);
+
+		const bool bIsAmbient     = LightComponent->IsA(UAmbientLightComponent::StaticClass());
+		const bool bIsDirectional = LightComponent->IsA(UDirectionalLightComponent::StaticClass());
+		const bool bIsSpot        = LightComponent->IsA(USpotLightComponent::StaticClass());
+
+		if (PerspEntry && !bIsAmbient)
+		{
+			ImGui::Text("Camera");
+			ImGui::NextColumn();
+			if (ImGui::Button("Match Camera to Light"))
+			{
+				// --- Compute new camera position and rotation ---
+				FVector  NewPos   = PerspEntry->LocalState.Position;   // default: keep current pos
+				float    PitchDeg = PerspEntry->LocalState.Rotation.Pitch;
+				float    YawDeg   = PerspEntry->LocalState.Rotation.Yaw;
+
+				if (bIsDirectional)
+				{
+					// Directional lights are at infinite distance.
+					// Unreal: keep the camera position, only rotate to match the light direction.
+					const FVector LightDir = LightComponent->GetEmissionDirectionWS().GetSafeNormal();
+					PitchDeg = FMath::RadiansToDegrees(std::asinf(FMath::Clamp(LightDir.Z, -1.0f, 1.0f)));
+					YawDeg   = FMath::RadiansToDegrees(std::atan2f(LightDir.Y, LightDir.X));
+				}
+				else
+				{
+					// Spot / Point: move camera to the light's world position.
+					const FVector LightPos = LightComponent->GetWorldLocation();
+					const FVector LightDir = LightComponent->GetEmissionDirectionWS().GetSafeNormal();
+
+					// Pull the camera back slightly so the transform gizmo
+					// (which sits exactly at the light origin) stays in view and
+					// doesn't clip through the near plane.
+					constexpr float GizmoOffset = 3.0f;
+					if (bIsSpot)
+					{
+						// Spot has a clear emission direction — back up along it.
+						NewPos   = LightPos - LightDir * GizmoOffset;
+						PitchDeg = FMath::RadiansToDegrees(std::asinf(FMath::Clamp(LightDir.Z, -1.0f, 1.0f)));
+						YawDeg   = FMath::RadiansToDegrees(std::atan2f(LightDir.Y, LightDir.X));
+					}
+					else
+					{
+						// Point light: omnidirectional — back up along current camera forward
+						// so the gizmo remains visible without changing the viewing direction.
+						const FVector CurFwd = PerspEntry->LocalState.Rotation.Vector().GetSafeNormal();
+						NewPos = LightPos - CurFwd * GizmoOffset;
+					}
+				}
+
+				// Apply to LocalState and to the underlying FCamera.
+				// The input service syncs LocalState FROM FCamera every frame, so
+				// writing only to LocalState would be overwritten immediately.
+				PerspEntry->LocalState.Position = NewPos;
+				PerspEntry->LocalState.Rotation = FRotator(PitchDeg, YawDeg, 0.0f);
+
+				UWorld* ActiveWorld = Engine->GetActiveWorld();
+				if (ActiveWorld)
+				{
+					FCamera* EditorCamera = ActiveWorld->GetCamera();
+					if (EditorCamera)
+					{
+						EditorCamera->SetPosition(NewPos);
+						EditorCamera->SetRotation(YawDeg, PitchDeg);
+					}
+				}
+			}
+		}
 	}
 
 	ImGui::Spacing();
@@ -2787,15 +2880,31 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 				ShadowFeature->SetDebugViewSlice(CurrentSlice);
 			}
 
-			char CurrentLabel[64];
-			snprintf(CurrentLabel, sizeof(CurrentLabel), "Slice %u", CurrentSlice);
+			static const char* CubeFaceNames[6] = { "+X", "-X", "+Y", "-Y", "+Z", "-Z" };
+			const bool bIsPointLight = LightComponent->IsA(UPointLightComponent::StaticClass());
+
+			auto SliceLabel = [&](char* Buf, size_t Sz, uint32 Slice)
+			{
+				if (bIsPointLight && Slice >= ShadowConfig::PointShadowSliceOffset)
+				{
+					const uint32 FaceIdx = (Slice - ShadowConfig::PointShadowSliceOffset) % 6;
+					std::snprintf(Buf, Sz, "Slice %u  [Cube Face %s]", Slice, CubeFaceNames[FaceIdx]);
+				}
+				else
+				{
+					std::snprintf(Buf, Sz, "Slice %u", Slice);
+				}
+			};
+
+			char CurrentLabel[80];
+			SliceLabel(CurrentLabel, sizeof(CurrentLabel), CurrentSlice);
 
 			if (ImGui::BeginCombo("Shadow Debug Slice", CurrentLabel))
 			{
 				for (uint32 Slice : AvailableSlices)
 				{
-					char Label[64];
-					snprintf(Label, sizeof(Label), "Slice %u", Slice);
+					char Label[80];
+					SliceLabel(Label, sizeof(Label), Slice);
 
 					const bool bSelected = (Slice == CurrentSlice);
 					if (ImGui::Selectable(Label, bSelected))
@@ -2810,6 +2919,30 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 				}
 
 				ImGui::EndCombo();
+			}
+
+			// For point lights: quick face-jump buttons
+			if (bIsPointLight)
+			{
+				ImGui::Text("Cube Face");
+				ImGui::NextColumn();
+				for (int FI = 0; FI < 6; ++FI)
+				{
+					if (FI > 0) ImGui::SameLine();
+					if (ImGui::SmallButton(CubeFaceNames[FI]))
+					{
+						// Find the first point slice with this face index
+						for (uint32 Slice : AvailableSlices)
+						{
+							if (Slice >= ShadowConfig::PointShadowSliceOffset &&
+								(Slice - ShadowConfig::PointShadowSliceOffset) % 6 == static_cast<uint32>(FI))
+							{
+								ShadowFeature->SetDebugViewSlice(Slice);
+								break;
+							}
+						}
+					}
+				}
 			}
 		}
 
