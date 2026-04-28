@@ -233,6 +233,9 @@ namespace
 		ShadowLight.LightType   = EShadowLightType::Spot;
 		ShadowLight.PositionWS  = LightItem.PositionWS;
 		ShadowLight.DirectionWS = LightItem.DirectionWS;
+		ShadowLight.Mobility    = Spot->GetMobility();
+		ShadowLight.bCacheDirty = Spot->IsCacheDirty();
+		Spot->ResetShadowCacheDirty();
 		ShadowLight.Bias        = Spot->GetShadowBias();
 		ShadowLight.SlopeBias   = Spot->GetShadowSlopeBias();
 		ShadowLight.NormalBias  = 0.0f;
@@ -417,9 +420,7 @@ namespace
 		ShadowLight.PositionWS = LightItem.PositionWS;
 		ShadowLight.Mobility = Point->GetMobility();
 		ShadowLight.bCacheDirty = Point->IsCacheDirty();
-		// dirty 읽었으니 컴포넌트 측은 즉시 reset — 다음 프레임에 또 캐시 갱신 안 되도록.
 		Point->ResetShadowCacheDirty();
-
 		ShadowLight.Bias       = Point->GetShadowBias();
 		ShadowLight.SlopeBias  = Point->GetShadowSlopeBias();
 		ShadowLight.Sharpen    = Point->GetShadowSharpen();
@@ -487,10 +488,10 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 	//temp Condidtate colletion vector
 	struct FPointShadowCandidate
 	{
-		const UPointLightComponent* PointLightl;
+		const UPointLightComponent* PointLightl = nullptr;
 		FLocalLightRenderItem LightItem;
-		uint32 LocalLightIndex;
-		float SortKey;
+		uint32 LocalLightIndex = 0;
+		float SortKey = 0.0f;
 	};
 	std::vector<FPointShadowCandidate> ShadowCandidates;
 	ShadowCandidates.reserve(16);
@@ -556,10 +557,14 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 					LightingInputs.DirShadowLights.clear();
 					LightingInputs.DirShadowViews.clear();
-					const uint32 ShadowLightIndex = AllocateDirShadowLight(LightingInputs, EShadowLightType::Directional, 0);
-					if (ShadowLightIndex != UINT32_MAX)
+					
+					if (Directional->IsCastingShadows())
 					{
-						BuildDirectionalShadowViews(LightingInputs, Directional, DirectionalLightItem, ShadowLightIndex, View);
+						const uint32 ShadowLightIndex = AllocateDirShadowLight(LightingInputs, EShadowLightType::Directional, 0);
+						if (ShadowLightIndex != UINT32_MAX)
+						{
+							BuildDirectionalShadowViews(LightingInputs, Directional, DirectionalLightItem, ShadowLightIndex, View);
+						}
 					}
 				}
 				continue;
