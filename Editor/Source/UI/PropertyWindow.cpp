@@ -1578,6 +1578,10 @@ void FPropertyWindow::DrawDetailsSection(UActorComponent* Component, FEditorEngi
 	{
 		DrawPointLightComponentDetails(static_cast<UPointLightComponent*>(Component), true);
 	}
+	else if (Component->IsA(UDirectionalLightComponent::StaticClass()))
+	{
+		DrawDirectionalLightComponentDetails(static_cast<UDirectionalLightComponent*>(Component));
+	}
 
 	ImGui::PopID();
 }
@@ -2943,6 +2947,70 @@ void FPropertyWindow::DrawSpotLightComponentDetails(USpotLightComponent* SpotLig
 	}
 
 	RefreshAttachedSpotLightGizmo(SpotLightComponent);
+}
+
+void FPropertyWindow::DrawDirectionalLightComponentDetails(class UDirectionalLightComponent* DirectionalLightComponent)
+{
+	if (!DirectionalLightComponent)
+	{
+		return;
+	}
+
+	ImGui::Spacing();
+	ImGui::TextDisabled("Directional Light (CSM)");
+
+	int cascadeCount = DirectionalLightComponent->GetCascadeCount();
+	ImGui::Text("Cascade Count");
+	ImGui::NextColumn();
+	if (ImGui::SliderInt("Cascade Count", &cascadeCount, 1, 4))
+	{
+		DirectionalLightComponent->SetCascadeCount(cascadeCount);
+	}
+
+	float shadowFarZ = DirectionalLightComponent->GetShadowFarZ();
+	ImGui::Text("Shadow Far Z");
+	ImGui::NextColumn();
+	if (ImGui::DragFloat("Shadow Far Z", &shadowFarZ, 1.0f, 0.0f, 2000.0f, "%.1f"))
+	{
+		DirectionalLightComponent->SetShadowFarZ(shadowFarZ);
+	}
+
+	float splitLambda = DirectionalLightComponent->GetSplitLambda();
+	ImGui::Text("Split Lambda");
+	ImGui::NextColumn();
+	if (ImGui::SliderFloat("Split Lambda", &splitLambda, 0.0f, 1.0f, "%.3f"))
+	{
+		DirectionalLightComponent->SetSplitLambda(splitLambda);
+	}
+
+	ImGui::Separator();
+	ImGui::TextDisabled("Cascade Biases");
+
+	for (int i = 0; i < cascadeCount; ++i)
+	{
+		ImGui::PushID(i);
+		ImGui::Text("Cascade %d", i);
+		ImGui::NextColumn();
+
+		float bias = DirectionalLightComponent->GetCascadeBias(i);
+		if (ImGui::DragFloat("Bias", &bias, 0.0001f, 0.0f, 1.0f, "%.5f"))
+			DirectionalLightComponent->SetCascadeBias(i, bias);
+
+		float slopeBias = DirectionalLightComponent->GetCascadeSlopeBias(i);
+		if (ImGui::DragFloat("Slope Bias", &slopeBias, 0.001f, 0.0f, 10.0f, "%.4f"))
+			DirectionalLightComponent->SetCascadeSlopeBias(i, slopeBias);
+
+		ImGui::Separator();
+		ImGui::PopID();
+	}
+
+	float cascadeTransition = DirectionalLightComponent->GetCascadeTransitionValue();
+	ImGui::Text("Cascade Transition");
+	ImGui::NextColumn();
+	if (ImGui::DragFloat("Cascade Transition", &cascadeTransition, 0.001f, 0.0f, 1.0f, "%.3f"))
+	{
+		DirectionalLightComponent->SetCascadeTransitionValue(cascadeTransition);
+	}
 }
 
 void FPropertyWindow::DrawMaterialPreviewSection(UStaticMeshComponent* MeshComponent, FEditorEngine* Engine)

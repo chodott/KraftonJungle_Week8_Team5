@@ -1050,6 +1050,7 @@ void FShadowRenderFeature::UploadShadowBuffers(
 				Dst.FilterMode = static_cast<uint32>(GlobalFilterMode);
 				Dst.Pad0 = 0;
 				Dst.ViewParams = FVector4(Src.NearZ, Src.FarZ, AtlasScale, TexelSize);
+				Dst.BiasParams = Src.BiasParams;
 				Dst.AtlasUV = Src.AtlasUV;
 			}
 

@@ -33,6 +33,11 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 	{
 		return VisualizeClusterLightCulling(Input.Position, Input.WorldPosition);
 	}
+    if (VisualizationMode == LIGHT_VISUALIZATION_CSM_CASCADE)
+    {
+        float3 debugOverlay = ApplyCSMDebugOverlay(Input.WorldPosition, CameraPosition.xyz, Directional.CascadeSplits, TextureColor.rgb);
+        return float4(debugOverlay, 1.0f);
+    }
 
 	    // ── 법선 결정 ──
 #if HAS_NORMAL_MAP
@@ -120,9 +125,10 @@ float4 main(VS_OUTPUT Input) : SV_TARGET
 	float3 specularLighting = max(totalLighting - diffuseLighting, 0.0f.xxx);
 	float3 finalColor = baseColor.rgb * diffuseLighting + specularLighting;
 	finalColor += EmissiveTerm;
+	
 	return float4(finalColor, baseColor.a);
 	
 #endif
-
+	
 	return float4(baseColor.rgb + EmissiveTerm, baseColor.a);
 }
