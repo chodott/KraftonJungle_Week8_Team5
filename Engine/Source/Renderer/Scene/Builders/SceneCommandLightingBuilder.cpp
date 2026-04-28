@@ -12,6 +12,7 @@
 #include "World/World.h"
 
 #include "Renderer/Features/Shadow/ShadowAtlasAllocator.h"
+#include "Debug/EngineLog.h"
 
 #include <algorithm>
 #include <cfloat>
@@ -76,7 +77,6 @@ namespace
 			std::swap(L.InnerAngleCos, L.OuterAngleCos);
 		}
 
-		// conservative sphere
 		L.CullCenterWS = L.PositionWS + L.DirectionWS * (L.Range * 0.5f);
 		L.CullRadius   = L.Range;
 
@@ -207,9 +207,14 @@ namespace
 		}
 		return 64;
 	}
+
 	uint32 QuantizeDiraShadowResolution(uint32 Resolution)
 	{
-		if (Resolution >= 4096) return 409;
+		if (Resolution >= 4096)
+		{
+			return 4096;
+		}
+
 		return QuantizeShadowResolution(Resolution);
 	}
 
@@ -585,8 +590,12 @@ namespace
 				FMath::Clamp(CascadeDepth * 0.5f, 10.0f, 100.0f) *
 				SlideWeight;
 
+		constexpr float SafeVirtualNearMargin = 1.0f;
+
 		const float RequiredSlideForPositiveNear =
-				(std::max)(0.0f, ShadowConfig::DefaultNearZ - VirtualNearWorldDepthX);
+				(std::max)(
+					0.0f,
+					SafeVirtualNearMargin - VirtualNearWorldDepthX);
 
 		return (std::max)(HeuristicSlide, RequiredSlideForPositiveNear);
 	}
@@ -667,8 +676,10 @@ namespace
 		OutVirtualFar =
 				(std::max)(FarSplit, CasterMaxDepthX) + SlideBack;
 
+		constexpr float SafeVirtualNearMargin = 1.0f;
+
 		OutVirtualNear =
-				(std::max)(OutVirtualNear, ShadowConfig::DefaultNearZ);
+				(std::max)(OutVirtualNear, SafeVirtualNearMargin);
 
 		if (OutVirtualFar <= OutVirtualNear + 1.0e-3f)
 		{
@@ -732,9 +743,9 @@ namespace
 		}
 	};
 
-	bool AddPostPerspectivePoint(
-		const FMatrix& WorldToPostPerspective,
-		const FVector& PointWS,
+	bool AddPostPerspectiveReceiverPoint(
+		const FMatrix&            WorldToPostPerspective,
+		const FVector&            PointWS,
 		FPostPerspectivePointSet& OutPointSet)
 	{
 		const FVector4 Clip =
@@ -743,6 +754,16 @@ namespace
 
 		if (!IsFinite(Clip) || Clip.W <= 1.0e-6f)
 		{
+			UE_LOG(
+				"[PSM][ReceiverPoint] reject ws=(%.6f %.6f %.6f) clip=(%.6f %.6f %.6f %.6f)",
+				PointWS.X,
+				PointWS.Y,
+				PointWS.Z,
+				Clip.X,
+				Clip.Y,
+				Clip.Z,
+				Clip.W);
+
 			return false;
 		}
 
@@ -755,6 +776,12 @@ namespace
 
 		if (!IsFinite(PointPP))
 		{
+			UE_LOG(
+				"[PSM][ReceiverPoint] reject non-finite pp ws=(%.6f %.6f %.6f)",
+				PointWS.X,
+				PointWS.Y,
+				PointWS.Z);
+
 			return false;
 		}
 
@@ -762,11 +789,58 @@ namespace
 		return true;
 	}
 
-	bool BuildPostPerspectivePointSet(
-		const FMatrix&      VirtualView,
-		const FMatrix&      VirtualProjection,
-		const FVector       FrustumCornersWS[8],
-		const FPSMBoundsWS& PotentialCasterBoundsWS,
+	bool AddPostPerspectiveCasterPoint(
+		const FMatrix&            WorldToPostPerspective,
+		const FVector&            PointWS,
+		FPostPerspectivePointSet& OutPointSet)
+	{
+		const FVector4 Clip =
+				FVector4(PointWS.X, PointWS.Y, PointWS.Z, 1.0f) *
+				WorldToPostPerspective;
+
+		constexpr float MinCasterClipW = 1.0f;
+
+		if (!IsFinite(Clip) || Clip.W <= MinCasterClipW || Clip.Z <= 0.0f)
+		{
+			UE_LOG(
+				"[PSM][CasterPoint] skip near-plane caster ws=(%.6f %.6f %.6f) clip=(%.6f %.6f %.6f %.6f)",
+				PointWS.X,
+				PointWS.Y,
+				PointWS.Z,
+				Clip.X,
+				Clip.Y,
+				Clip.Z,
+				Clip.W);
+
+			return true;
+		}
+
+		const float InvW = 1.0f / Clip.W;
+
+		const FVector PointPP(
+			Clip.X * InvW,
+			Clip.Y * InvW,
+			Clip.Z * InvW);
+
+		if (!IsFinite(PointPP))
+		{
+			UE_LOG(
+				"[PSM][CasterPoint] reject non-finite pp ws=(%.6f %.6f %.6f)",
+				PointWS.X,
+				PointWS.Y,
+				PointWS.Z);
+
+			return false;
+		}
+
+		OutPointSet.Add(PointPP);
+		return true;
+	}
+
+	bool BuildReceiverPostPerspectivePointSet(
+		const FMatrix&            VirtualView,
+		const FMatrix&            VirtualProjection,
+		const FVector             FrustumCornersWS[8],
 		FPostPerspectivePointSet& OutPointSet)
 	{
 		const FMatrix WorldToPostPerspective =
@@ -774,28 +848,64 @@ namespace
 
 		for (int i = 0; i < 8; ++i)
 		{
-			if (!AddPostPerspectivePoint(
+			if (!AddPostPerspectiveReceiverPoint(
 				WorldToPostPerspective,
 				FrustumCornersWS[i],
 				OutPointSet))
 			{
+				UE_LOG("[PSM][ReceiverSet] failed at corner=%d", i);
 				return false;
 			}
 		}
 
-		if (PotentialCasterBoundsWS.bValid)
+		UE_LOG(
+			"[PSM][ReceiverSet] count=%u min=(%.6f %.6f %.6f) max=(%.6f %.6f %.6f)",
+			OutPointSet.Count,
+			OutPointSet.Min.X,
+			OutPointSet.Min.Y,
+			OutPointSet.Min.Z,
+			OutPointSet.Max.X,
+			OutPointSet.Max.Y,
+			OutPointSet.Max.Z);
+
+		return OutPointSet.Count > 0;
+	}
+
+	bool BuildBoundsPostPerspectivePointSet(
+		const FMatrix&            VirtualView,
+		const FMatrix&            VirtualProjection,
+		const FPSMBoundsWS&       BoundsWS,
+		FPostPerspectivePointSet& OutPointSet)
+	{
+		if (!BoundsWS.bValid)
 		{
-			for (int i = 0; i < 8; ++i)
+			return false;
+		}
+
+		const FMatrix WorldToPostPerspective =
+				VirtualView * VirtualProjection;
+
+		for (int i = 0; i < 8; ++i)
+		{
+			if (!AddPostPerspectiveCasterPoint(
+				WorldToPostPerspective,
+				BoundsWS.GetCorner(i),
+				OutPointSet))
 			{
-				if (!AddPostPerspectivePoint(
-					WorldToPostPerspective,
-					PotentialCasterBoundsWS.GetCorner(i),
-					OutPointSet))
-				{
-					return false;
-				}
+				UE_LOG("[PSM][CasterSet] failed at corner=%d", i);
+				return false;
 			}
 		}
+
+		UE_LOG(
+			"[PSM][CasterSet] count=%u min=(%.6f %.6f %.6f) max=(%.6f %.6f %.6f)",
+			OutPointSet.Count,
+			OutPointSet.Min.X,
+			OutPointSet.Min.Y,
+			OutPointSet.Min.Z,
+			OutPointSet.Max.X,
+			OutPointSet.Max.Y,
+			OutPointSet.Max.Z);
 
 		return OutPointSet.Count > 0;
 	}
@@ -834,7 +944,8 @@ namespace
 	}
 
 	bool FitOrthographicPostPerspectiveProjection(
-		const FPostPerspectivePointSet& PointSetPP,
+		const FPostPerspectivePointSet& ReceiverSetPP,
+		const FPostPerspectivePointSet* CasterDepthSetPP,
 		const FMatrix&                  ViewPP,
 		FMatrix&                        OutProjectionPP)
 	{
@@ -843,10 +954,28 @@ namespace
 		float MaxAbsY   = 0.0f;
 		float MaxAbsZ   = 0.0f;
 
-		for (uint32 i = 0; i < PointSetPP.Count; ++i)
+		auto AccumulateDepthOnly =
+				[&](const FVector& PointPP) -> bool
 		{
 			const FVector PointLS =
-					ViewPP.TransformPosition(PointSetPP.Points[i]);
+					ViewPP.TransformPosition(PointPP);
+
+			if (!IsFinite(PointLS))
+			{
+				return false;
+			}
+
+			MinDepthX = (std::min)(MinDepthX, PointLS.X);
+			MaxDepthX = (std::max)(MaxDepthX, PointLS.X);
+
+			return true;
+		};
+
+		auto AccumulateReceiver =
+				[&](const FVector& PointPP) -> bool
+		{
+			const FVector PointLS =
+					ViewPP.TransformPosition(PointPP);
 
 			if (!IsFinite(PointLS))
 			{
@@ -857,13 +986,47 @@ namespace
 			MaxDepthX = (std::max)(MaxDepthX, PointLS.X);
 			MaxAbsY   = (std::max)(MaxAbsY, std::fabs(PointLS.Y));
 			MaxAbsZ   = (std::max)(MaxAbsZ, std::fabs(PointLS.Z));
+
+			return true;
+		};
+
+		for (uint32 i = 0; i < ReceiverSetPP.Count; ++i)
+		{
+			if (!AccumulateReceiver(ReceiverSetPP.Points[i]))
+			{
+				return false;
+			}
+		}
+
+		if (CasterDepthSetPP)
+		{
+			for (uint32 i = 0; i < CasterDepthSetPP->Count; ++i)
+			{
+				if (!AccumulateDepthOnly(CasterDepthSetPP->Points[i]))
+				{
+					return false;
+				}
+			}
+		}
+
+		if (!IsFinite(MinDepthX) || !IsFinite(MaxDepthX) ||
+			MaxDepthX <= MinDepthX)
+		{
+			UE_LOG(
+				"[PSM][FitOrthoPP] invalid depth min=%.6f max=%.6f",
+				MinDepthX,
+				MaxDepthX);
+
+			return false;
 		}
 
 		const float DepthPadding =
 				(std::max)((MaxDepthX - MinDepthX) * 0.01f, 1.0e-4f);
 
-		const float NearPP = MinDepthX - DepthPadding;
-		const float FarPP  =
+		const float NearPP =
+				MinDepthX - DepthPadding;
+
+		const float FarPP =
 				(std::max)(MaxDepthX + DepthPadding, NearPP + 1.0e-4f);
 
 		const float WidthPP =
@@ -871,6 +1034,15 @@ namespace
 
 		const float HeightPP =
 				(std::max)(MaxAbsZ * 2.02f, 1.0e-4f);
+
+		UE_LOG(
+			"[PSM][FitOrthoPP] near=%.6f far=%.6f width=%.6f height=%.6f receiverCount=%u casterCount=%u",
+			NearPP,
+			FarPP,
+			WidthPP,
+			HeightPP,
+			ReceiverSetPP.Count,
+			CasterDepthSetPP ? CasterDepthSetPP->Count : 0);
 
 		OutProjectionPP =
 				FMatrix::MakeOrthographicLH(
@@ -883,29 +1055,52 @@ namespace
 	}
 
 	bool FitPerspectivePostPerspectiveProjection(
-		const FPostPerspectivePointSet& PointSetPP,
+		const FPostPerspectivePointSet& ReceiverSetPP,
+		const FPostPerspectivePointSet* CasterDepthSetPP,
 		const FMatrix&                  ViewPP,
 		FMatrix&                        OutProjectionPP)
 	{
 		constexpr float MinPositiveDepth = 1.0e-5f;
-		constexpr float SlopePadding     = 1.01f;
+		constexpr float SlopePadding     = 1.03f;
 
 		float MinDepthX = FLT_MAX;
 		float MaxDepthX = -FLT_MAX;
+
 		float MinSlopeY = FLT_MAX;
 		float MaxSlopeY = -FLT_MAX;
 		float MinSlopeZ = FLT_MAX;
 		float MaxSlopeZ = -FLT_MAX;
 
-		for (uint32 i = 0; i < PointSetPP.Count; ++i)
+		auto AccumulateDepthOnly =
+				[&](const FVector& PointPP) -> bool
 		{
 			const FVector PointLS =
-					ViewPP.TransformPosition(PointSetPP.Points[i]);
+					ViewPP.TransformPosition(PointPP);
 
 			if (!IsFinite(PointLS) || PointLS.X <= MinPositiveDepth)
 			{
 				return false;
 			}
+
+			MinDepthX = (std::min)(MinDepthX, PointLS.X);
+			MaxDepthX = (std::max)(MaxDepthX, PointLS.X);
+
+			return true;
+		};
+
+		auto AccumulateReceiver =
+				[&](const FVector& PointPP) -> bool
+		{
+			const FVector PointLS =
+					ViewPP.TransformPosition(PointPP);
+
+			if (!IsFinite(PointLS) || PointLS.X <= MinPositiveDepth)
+			{
+				return false;
+			}
+
+			MinDepthX = (std::min)(MinDepthX, PointLS.X);
+			MaxDepthX = (std::max)(MaxDepthX, PointLS.X);
 
 			const float InvDepthX = 1.0f / PointLS.X;
 			const float SlopeY    = PointLS.Y * InvDepthX;
@@ -916,17 +1111,63 @@ namespace
 				return false;
 			}
 
-			MinDepthX = (std::min)(MinDepthX, PointLS.X);
-			MaxDepthX = (std::max)(MaxDepthX, PointLS.X);
 			MinSlopeY = (std::min)(MinSlopeY, SlopeY);
 			MaxSlopeY = (std::max)(MaxSlopeY, SlopeY);
 			MinSlopeZ = (std::min)(MinSlopeZ, SlopeZ);
 			MaxSlopeZ = (std::max)(MaxSlopeZ, SlopeZ);
+
+			return true;
+		};
+
+		for (uint32 i = 0; i < ReceiverSetPP.Count; ++i)
+		{
+			if (!AccumulateReceiver(ReceiverSetPP.Points[i]))
+			{
+				return false;
+			}
+		}
+
+		if (CasterDepthSetPP)
+		{
+			for (uint32 i = 0; i < CasterDepthSetPP->Count; ++i)
+			{
+				if (!AccumulateDepthOnly(CasterDepthSetPP->Points[i]))
+				{
+					return false;
+				}
+			}
 		}
 
 		if (!IsFinite(MinDepthX) || !IsFinite(MaxDepthX) ||
+			!IsFinite(MinSlopeY) || !IsFinite(MaxSlopeY) ||
+			!IsFinite(MinSlopeZ) || !IsFinite(MaxSlopeZ) ||
 			MaxDepthX <= MinDepthX)
 		{
+			UE_LOG(
+				"[PSM][FitPerspectivePP] invalid range depth=(%.6f %.6f) slopeY=(%.6f %.6f) slopeZ=(%.6f %.6f)",
+				MinDepthX,
+				MaxDepthX,
+				MinSlopeY,
+				MaxSlopeY,
+				MinSlopeZ,
+				MaxSlopeZ);
+
+			return false;
+		}
+
+		const float DepthRatio =
+				MaxDepthX / (std::max)(MinDepthX, MinPositiveDepth);
+
+		if (DepthRatio > 512.0f)
+		{
+			UE_LOG(
+				"[PSM][FitPerspectivePP] reject depth ratio min=%.6f max=%.6f ratio=%.6f receiverCount=%u casterCount=%u",
+				MinDepthX,
+				MaxDepthX,
+				DepthRatio,
+				ReceiverSetPP.Count,
+				CasterDepthSetPP ? CasterDepthSetPP->Count : 0);
+
 			return false;
 		}
 
@@ -944,22 +1185,31 @@ namespace
 
 		const float SlopeCenterY = (MinSlopeY + MaxSlopeY) * 0.5f;
 		const float SlopeCenterZ = (MinSlopeZ + MaxSlopeZ) * 0.5f;
+
 		const float SlopeHalfY =
 				(std::max)((MaxSlopeY - MinSlopeY) * 0.5f * SlopePadding, 1.0e-6f);
+
 		const float SlopeHalfZ =
 				(std::max)((MaxSlopeZ - MinSlopeZ) * 0.5f * SlopePadding, 1.0e-6f);
 
-		MinSlopeY = SlopeCenterY - SlopeHalfY;
-		MaxSlopeY = SlopeCenterY + SlopeHalfY;
-		MinSlopeZ = SlopeCenterZ - SlopeHalfZ;
-		MaxSlopeZ = SlopeCenterZ + SlopeHalfZ;
+		UE_LOG(
+			"[PSM][FitPerspectivePP] near=%.6f far=%.6f depthRatio=%.6f slopeY=(%.6f %.6f) slopeZ=(%.6f %.6f) receiverCount=%u casterCount=%u",
+			NearPP,
+			FarPP,
+			DepthRatio,
+			SlopeCenterY - SlopeHalfY,
+			SlopeCenterY + SlopeHalfY,
+			SlopeCenterZ - SlopeHalfZ,
+			SlopeCenterZ + SlopeHalfZ,
+			ReceiverSetPP.Count,
+			CasterDepthSetPP ? CasterDepthSetPP->Count : 0);
 
 		OutProjectionPP =
 				MakePerspectiveSlopeLH(
-					MinSlopeY,
-					MaxSlopeY,
-					MinSlopeZ,
-					MaxSlopeZ,
+					SlopeCenterY - SlopeHalfY,
+					SlopeCenterY + SlopeHalfY,
+					SlopeCenterZ - SlopeHalfZ,
+					SlopeCenterZ + SlopeHalfZ,
 					NearPP,
 					FarPP);
 
@@ -972,33 +1222,47 @@ namespace
 		const FMatrix&               VirtualProjection,
 		const FVector                FrustumCornersWS[8],
 		const FPSMBoundsWS&          PotentialCasterBoundsWS,
-		const FVector&               LightSourceDirectionWS,
+		const FVector&               LightRayDirectionWS,
 		FPostPerspectiveBuildResult& OutResult)
 	{
-		const FVector SafeLightSourceDirectionWS =
-				LightSourceDirectionWS.GetSafeNormal();
+		const FVector SafeLightRayDirectionWS =
+				LightRayDirectionWS.GetSafeNormal();
 
-		if (SafeLightSourceDirectionWS.IsNearlyZero())
+		if (SafeLightRayDirectionWS.IsNearlyZero())
 		{
+			UE_LOG("[PSM][BuildPostPerspectiveInfo] reject zero LightRayDirectionWS");
 			return false;
 		}
 
-		FPostPerspectivePointSet PointSetPP;
-		if (!BuildPostPerspectivePointSet(
+		FPostPerspectivePointSet ReceiverSetPP;
+
+		if (!BuildReceiverPostPerspectivePointSet(
 			VirtualView,
 			VirtualProjection,
 			FrustumCornersWS,
-			PotentialCasterBoundsWS,
-			PointSetPP))
+			ReceiverSetPP))
 		{
+			UE_LOG("[PSM][BuildPostPerspectiveInfo] receiver point set failed");
 			return false;
 		}
 
+		FPostPerspectivePointSet  CasterDepthSetPP;
+		FPostPerspectivePointSet* CasterDepthSetPtr = nullptr;
+
+		if (BuildBoundsPostPerspectivePointSet(
+			VirtualView,
+			VirtualProjection,
+			PotentialCasterBoundsWS,
+			CasterDepthSetPP))
+		{
+			CasterDepthSetPtr = &CasterDepthSetPP;
+		}
+
 		const FVector CenterPP =
-				PointSetPP.GetCenter();
+				ReceiverSetPP.GetCenter();
 
 		const FVector EyeLightDirection =
-				VirtualView.TransformVector(SafeLightSourceDirectionWS);
+				VirtualView.TransformVector(SafeLightRayDirectionWS);
 
 		const FVector4 LightPP =
 				FVector4(
@@ -1010,17 +1274,38 @@ namespace
 
 		if (!IsFinite(LightPP))
 		{
+			UE_LOG("[PSM][BuildPostPerspectiveInfo] reject non-finite LightPP");
 			return false;
 		}
 
-		const bool bLightIsBehindEye  = LightPP.W < 0.0f;
-		const bool bUseOrthographicPP = std::fabs(LightPP.W) <= 1.0e-3f;
+		constexpr float OrthographicPPWThreshold = 5.0e-2f;
+
+		const bool bLightIsBehindEye =
+				LightPP.W < 0.0f;
+
+		const bool bUseOrthographicPP =
+				std::fabs(LightPP.W) <= OrthographicPPWThreshold;
 
 		OutResult.bInversePerspective =
 				bLightIsBehindEye && !bUseOrthographicPP;
 
 		OutResult.bOrthographicPP =
 				bUseOrthographicPP;
+
+		UE_LOG(
+			"[PSM][BuildPostPerspectiveInfo] LightRayWS=(%.6f %.6f %.6f) EyeLight=(%.6f %.6f %.6f) LightPP=(%.6f %.6f %.6f %.6f) absW=%.6f mode=%s",
+			SafeLightRayDirectionWS.X,
+			SafeLightRayDirectionWS.Y,
+			SafeLightRayDirectionWS.Z,
+			EyeLightDirection.X,
+			EyeLightDirection.Y,
+			EyeLightDirection.Z,
+			LightPP.X,
+			LightPP.Y,
+			LightPP.Z,
+			LightPP.W,
+			std::fabs(LightPP.W),
+			bUseOrthographicPP ? "OrthoPP" : (OutResult.bInversePerspective ? "InversePerspectivePP" : "PerspectivePP"));
 
 		if (bUseOrthographicPP)
 		{
@@ -1060,9 +1345,19 @@ namespace
 			return
 					IsUsableProjectionMatrix(OutResult.ViewPP) &&
 					FitOrthographicPostPerspectiveProjection(
-						PointSetPP,
+						ReceiverSetPP,
+						CasterDepthSetPtr,
 						OutResult.ViewPP,
 						OutResult.ProjectionPP);
+		}
+
+		if (std::fabs(LightPP.W) < OrthographicPPWThreshold)
+		{
+			UE_LOG(
+				"[PSM][BuildPostPerspectiveInfo] reject unstable PerspectivePP W=%.9f",
+				LightPP.W);
+
+			return false;
 		}
 
 		const float InvW = 1.0f / LightPP.W;
@@ -1099,7 +1394,8 @@ namespace
 		return
 				IsUsableProjectionMatrix(OutResult.ViewPP) &&
 				FitPerspectivePostPerspectiveProjection(
-					PointSetPP,
+					ReceiverSetPP,
+					CasterDepthSetPtr,
 					OutResult.ViewPP,
 					OutResult.ProjectionPP);
 	}
@@ -1168,7 +1464,8 @@ namespace
 			MaxDepth = (std::max)(MaxDepth, NDC.Z);
 		}
 
-		const float MinXYSpan    = 1.0e-2f;
+		const float MinXYSpan = 1.0e-2f;
+
 		const float MinDepthSpan =
 				bInversePerspective ? 1.0e-6f : 1.0e-4f;
 
@@ -1185,9 +1482,11 @@ namespace
 	}
 
 	bool TryBuildCascadePSMView(
+		uint32                       CascadeIndex,
 		const FViewContext&          View,
 		const FPSMBoundsWS&          ReceiverBoundsWS,
 		const FPSMBoundsWS&          PotentialCasterBoundsWS,
+		const FVector&               LightRayDirectionWS,
 		const FVector&               LightSourceDirectionWS,
 		float                        NearSplit,
 		float                        FarSplit,
@@ -1219,6 +1518,10 @@ namespace
 			VirtualNear,
 			VirtualFar))
 		{
+			UE_LOG(
+				"[PSM][TryBuildCascadePSMView] cascade=%u BuildVirtualCameraForCascade failed",
+				CascadeIndex);
+
 			return false;
 		}
 
@@ -1229,9 +1532,13 @@ namespace
 			VirtualProjection,
 			FrustumCornersWS,
 			PotentialCasterBoundsWS,
-			LightSourceDirectionWS,
+			LightRayDirectionWS,
 			PPResult))
 		{
+			UE_LOG(
+				"[PSM][TryBuildCascadePSMView] cascade=%u BuildPostPerspectiveInfo failed",
+				CascadeIndex);
+
 			return false;
 		}
 
@@ -1244,6 +1551,10 @@ namespace
 		if (!IsUsablePSMMatrix(PSMProjection) ||
 			!IsUsablePSMMatrix(PSMViewProjection))
 		{
+			UE_LOG(
+				"[PSM][TryBuildCascadePSMView] cascade=%u unusable matrix",
+				CascadeIndex);
+
 			return false;
 		}
 
@@ -1252,6 +1563,11 @@ namespace
 			FrustumCornersWS,
 			PPResult.bInversePerspective))
 		{
+			UE_LOG(
+				"[PSM][TryBuildCascadePSMView] cascade=%u validation failed inv=%d",
+				CascadeIndex,
+				PPResult.bInversePerspective ? 1 : 0);
+
 			return false;
 		}
 
@@ -1264,8 +1580,21 @@ namespace
 		OutView.Projection     = PSMProjection;
 		OutView.ViewProjection = PSMViewProjection;
 
+		OutView.PSMVirtualViewProjection =
+				VirtualView * VirtualProjection;
+
+		OutView.bUsePSMClip = true;
+
 		OutView.BiasParams.W =
 				PPResult.bInversePerspective ? 2.0f : 1.0f;
+
+		UE_LOG(
+			"[PSM][TryBuildCascadePSMView] SUCCESS cascade=%u mode=%s near=%.6f far=%.6f usePSMClip=%d",
+			CascadeIndex,
+			PPResult.bOrthographicPP ? "OrthoPP" : (PPResult.bInversePerspective ? "InversePerspectivePP" : "PerspectivePP"),
+			VirtualNear,
+			VirtualFar,
+			OutView.bUsePSMClip ? 1 : 0);
 
 		return true;
 	}
@@ -1338,6 +1667,9 @@ namespace
 		View.FarZ           = FarZ;
 		View.SourceActor    = Spot->GetOwner();
 
+		View.PSMVirtualViewProjection = FMatrix::Identity;
+		View.bUsePSMClip              = false;
+
 		View.View =
 				FMatrix::MakeViewLookAtLH(
 					LightItem.PositionWS,
@@ -1383,8 +1715,13 @@ namespace
 		CascadeCount        =
 				(std::min)(CascadeCount, ShadowConfig::MaxDirCascade);
 
-		TArray<float> FrustumSplits = FCasCade::CalculateCascadeSplits(CascadeCount, View.NearZ, View.FarZ, DirLight->GetSplitLambda());
-		
+		TArray<float> FrustumSplits =
+				FCasCade::CalculateCascadeSplits(
+					CascadeCount,
+					View.NearZ,
+					View.FarZ,
+					DirLight->GetSplitLambda());
+
 		if (FrustumSplits.size() < 2)
 		{
 			return;
@@ -1418,7 +1755,6 @@ namespace
 			FVector4(-1.0f, -1.0f, 1.0f, 1.0f)
 		};
 
-		// 절두체 4개의 변
 		FVector ViewRays[4];
 		bool    bValidViewRays = true;
 
@@ -1519,29 +1855,60 @@ namespace
 			CenterLS.Z =
 					std::floor(CenterLS.Z / WorldUnitsPerTexel) *
 					WorldUnitsPerTexel;
-			
-			FVector SnappedCenterWS = TempShadowView.GetInverse().TransformPosition(CenterLS);
-			FVector LightPosition = SnappedCenterWS;
 
-			// -2000으로 두면 VSM의 빛샘현상이 너무 심하게 나타남.
-			// float BoxNear = -SphereRadius - 2000.0f; 
-			float BoxNear = -SphereRadius;
-			float BoxFar = SphereRadius;
+			const FVector SnappedCenterWS =
+					TempShadowView.GetInverse().TransformPosition(CenterLS);
+
+			const FVector LightPosition =
+					SnappedCenterWS;
+
+			const float BoxNear = -SphereRadius;
+			const float BoxFar  = SphereRadius;
 
 			FShadowViewRenderItem ViewItem;
 			ViewItem.ProjectionType = EShadowProjectionType::Orthographic;
-			ViewItem.PositionWS = FrustumCenter;
-			ViewItem.NearZ = BoxNear;
-			ViewItem.FarZ = BoxFar;
-			
+			ViewItem.PositionWS     = FrustumCenter;
+			ViewItem.NearZ          = BoxNear;
+			ViewItem.FarZ           = BoxFar;
 
-			float ResolutionScale = DirLight->GetShadowResolutionScale();
-			uint32 RequestedResolution = QuantizeDiraShadowResolution(static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionScale));
-			ViewItem.RequestedResolution = RequestedResolution;
-			ViewItem.BiasParams = { DirLight->GetCascadeBias(i), DirLight->GetCascadeSlopeBias(i), 0.0f, 0.0f };
-			ViewItem.View = FMatrix::MakeViewLookAtLH(LightPosition, LightPosition + LightItem.DirectionWS, UpVector);
-			ViewItem.Projection = FMatrix::MakeOrthographicLH(BoxWidth, BoxHeight, BoxNear, BoxFar);
-			ViewItem.ViewProjection = ViewItem.View * ViewItem.Projection;
+			ViewItem.PSMVirtualViewProjection = FMatrix::Identity;
+			ViewItem.bUsePSMClip              = false;
+
+			const float ResolutionScale =
+					DirLight->GetShadowResolutionScale();
+
+			const uint32 RequestedResolution =
+					QuantizeDiraShadowResolution(
+						static_cast<uint32>(
+							ShadowConfig::DefaultShadowMapResolution *
+							ResolutionScale));
+
+			ViewItem.RequestedResolution =
+					RequestedResolution;
+
+			ViewItem.BiasParams = {
+				DirLight->GetCascadeBias(i),
+				DirLight->GetCascadeSlopeBias(i),
+				0.0f,
+				0.0f
+			};
+
+			ViewItem.View =
+					FMatrix::MakeViewLookAtLH(
+						LightPosition,
+						LightPosition + LightRayDirectionWS,
+						UpVector);
+
+			ViewItem.Projection =
+					FMatrix::MakeOrthographicLH(
+						BoxWidth,
+						BoxHeight,
+						BoxNear,
+						BoxFar);
+
+			ViewItem.ViewProjection =
+					ViewItem.View * ViewItem.Projection;
+
 			ViewItem.Viewport = {};
 
 			const FPSMBoundsWS CascadeReceiverBoundsWS =
@@ -1566,9 +1933,11 @@ namespace
 
 			if (bTryPSMForThisCascade &&
 				TryBuildCascadePSMView(
+					i,
 					View,
 					CascadeReceiverBoundsWS,
 					PotentialCasterBoundsWS,
+					LightRayDirectionWS,
 					LightSourceDirectionWS,
 					NearSplit,
 					FarSplit,
@@ -1640,6 +2009,9 @@ namespace
 			View.RequestedResolution =
 					ShadowConfig::DefaultShadowMapResolution;
 
+			View.PSMVirtualViewProjection = FMatrix::Identity;
+			View.bUsePSMClip              = false;
+
 			View.View =
 					FMatrix::MakeViewLookAtLH(
 						LightItem.PositionWS,
@@ -1684,7 +2056,10 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 {
 	(void)Packet;
 	(void)View;
-	FSceneLightingInputs& LightingInputs = OutSceneViewData.LightingInputs;
+
+	FSceneLightingInputs& LightingInputs =
+			OutSceneViewData.LightingInputs;
+
 	LightingInputs.Clear();
 
 	LightingInputs.Ambient.Color     = FVector::OneVector;
@@ -1695,8 +2070,6 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 		return;
 	}
 
-
-	//temp Condidtate colletion vector
 	struct FPointShadowCandidate
 	{
 		const UPointLightComponent* PointLightl = nullptr;
@@ -1704,6 +2077,7 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 		uint32                      LocalLightIndex = 0;
 		float                       SortKey         = 0.0f;
 	};
+
 	std::vector<FPointShadowCandidate> ShadowCandidates;
 	ShadowCandidates.reserve(16);
 
@@ -1714,7 +2088,9 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 	float                       StrongestDirectional = -1.0f;
 	FDirectionalLightRenderItem DirectionalLightItem;
 
-	const TArray<AActor*> Actors = BuildContext.World->GetAllActors();
+	const TArray<AActor*> Actors =
+			BuildContext.World->GetAllActors();
+
 	LightingInputs.LocalLights.reserve(Actors.size());
 
 	for (AActor* Actor : Actors)
@@ -1733,13 +2109,17 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 			if (Component->IsA(UAmbientLightComponent::StaticClass()))
 			{
-				const UAmbientLightComponent* Ambient = static_cast<UAmbientLightComponent*>(Component);
+				const UAmbientLightComponent* Ambient =
+						static_cast<UAmbientLightComponent*>(Component);
+
 				if (!Ambient->GetVisible())
 				{
 					continue;
 				}
 
-				const float EffectiveIntensity = Ambient->GetEffectiveIntensity();
+				const float EffectiveIntensity =
+						Ambient->GetEffectiveIntensity();
+
 				if (EffectiveIntensity <= 0.0f)
 				{
 					continue;
@@ -1753,14 +2133,20 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 			if (Component->IsA(UDirectionalLightComponent::StaticClass()))
 			{
-				const UDirectionalLightComponent* Directional = static_cast<UDirectionalLightComponent*>(Component);
-				if (!Directional->GetVisible() || Directional->GetEffectiveIntensity() <= 0.0f)
+				const UDirectionalLightComponent* Directional =
+						static_cast<UDirectionalLightComponent*>(Component);
+
+				if (!Directional->GetVisible() ||
+					Directional->GetEffectiveIntensity() <= 0.0f)
 				{
 					continue;
 				}
 
-				const FDirectionalLightRenderItem Candidate = BuildDirectionalLight(Directional);
-				if (!bHasDirectionalLight || Candidate.Intensity > StrongestDirectional)
+				const FDirectionalLightRenderItem Candidate =
+						BuildDirectionalLight(Directional);
+
+				if (!bHasDirectionalLight ||
+					Candidate.Intensity > StrongestDirectional)
 				{
 					DirectionalLightItem = Candidate;
 					StrongestDirectional = Candidate.Intensity;
@@ -1771,33 +2157,63 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 					if (Directional->IsCastingShadows())
 					{
-						const uint32 ShadowLightIndex = AllocateDirShadowLight(LightingInputs, EShadowLightType::Directional, 0);
+						const uint32 ShadowLightIndex =
+								AllocateDirShadowLight(
+									LightingInputs,
+									EShadowLightType::Directional,
+									0);
+
 						if (ShadowLightIndex != UINT32_MAX)
 						{
-							BuildDirectionalShadowViews(LightingInputs, Directional, DirectionalLightItem, ShadowLightIndex, View);
+							BuildDirectionalShadowViews(
+								LightingInputs,
+								Directional,
+								DirectionalLightItem,
+								ShadowLightIndex,
+								View);
 						}
 					}
 				}
+
 				continue;
 			}
 
 			if (Component->IsA(USpotLightComponent::StaticClass()))
 			{
-				const USpotLightComponent* Spot = static_cast<USpotLightComponent*>(Component);
-				if (!Spot->GetVisible() || Spot->GetEffectiveIntensity() <= 0.0f || Spot->GetAttenuationRadius() <= 0.0f)
+				const USpotLightComponent* Spot =
+						static_cast<USpotLightComponent*>(Component);
+
+				if (!Spot->GetVisible() ||
+					Spot->GetEffectiveIntensity() <= 0.0f ||
+					Spot->GetAttenuationRadius() <= 0.0f)
 				{
 					continue;
 				}
 
-				FLocalLightRenderItem LightItem       = BuildSpotLight(Spot);
-				const uint32          LocalLightIndex = static_cast<uint32>(LightingInputs.LocalLights.size());
+				FLocalLightRenderItem LightItem =
+						BuildSpotLight(Spot);
+
+				const uint32 LocalLightIndex =
+						static_cast<uint32>(LightingInputs.LocalLights.size());
+
 				if (Spot->IsCastingShadows())
 				{
-					const uint32 ShadowLightIndex = AllocalteShadowLight(LightingInputs, EShadowLightType::Spot, LocalLightIndex);
+					const uint32 ShadowLightIndex =
+							AllocalteShadowLight(
+								LightingInputs,
+								EShadowLightType::Spot,
+								LocalLightIndex);
 
 					if (ShadowLightIndex != UINT32_MAX)
 					{
-						BuildSpotShadowViews(LightingInputs, Spot, LightItem, LocalLightIndex, ShadowLightIndex, View.CameraPosition);
+						BuildSpotShadowViews(
+							LightingInputs,
+							Spot,
+							LightItem,
+							LocalLightIndex,
+							ShadowLightIndex,
+							View.CameraPosition);
+
 						if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount > 0)
 						{
 							LightItem.ShadowIndex = ShadowLightIndex;
@@ -1811,56 +2227,76 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 			if (Component->IsA(UPointLightComponent::StaticClass()))
 			{
-				const UPointLightComponent* Point = static_cast<UPointLightComponent*>(Component);
-				if (!Point->GetVisible() || Point->GetEffectiveIntensity() <= 0.0f
-					|| Point->GetAttenuationRadius() <= 0.0f)
+				const UPointLightComponent* Point =
+						static_cast<UPointLightComponent*>(Component);
+
+				if (!Point->GetVisible() ||
+					Point->GetEffectiveIntensity() <= 0.0f ||
+					Point->GetAttenuationRadius() <= 0.0f)
 				{
 					continue;
 				}
 
-				FLocalLightRenderItem LightItem       = BuildPointLight(Point);
-				const uint32          LocalLightIndex = static_cast<uint32>(LightingInputs.LocalLights.size());
+				FLocalLightRenderItem LightItem =
+						BuildPointLight(Point);
+
+				const uint32 LocalLightIndex =
+						static_cast<uint32>(LightingInputs.LocalLights.size());
 
 				if (Point->IsCastingShadows())
 				{
-					// 후보로만 수집 등록은 정렬 후 2차 패스에서
 					FPointShadowCandidate Candidate;
 					Candidate.PointLightl     = Point;
 					Candidate.LightItem       = LightItem;
 					Candidate.LocalLightIndex = LocalLightIndex;
-					Candidate.SortKey         = ComputeShadowPriority(LightItem.PositionWS, OutSceneViewData.View.CameraPosition);
+					Candidate.SortKey         =
+							ComputeShadowPriority(
+								LightItem.PositionWS,
+								OutSceneViewData.View.CameraPosition);
+
 					ShadowCandidates.push_back(Candidate);
 				}
 				else
 				{
 					LightingInputs.LocalLights.push_back(LightItem);
 				}
+
 				continue;
 			}
 		}
 	}
-	std::sort(ShadowCandidates.begin(), ShadowCandidates.end(),
-	          [](const FPointShadowCandidate& A, const FPointShadowCandidate& B)
-	          {
-		          ;
-		          return A.SortKey < B.SortKey;
-	          });
+
+	std::sort(
+		ShadowCandidates.begin(),
+		ShadowCandidates.end(),
+		[](const FPointShadowCandidate& A, const FPointShadowCandidate& B)
+		{
+			return A.SortKey < B.SortKey;
+		});
 
 	uint32 PointCubeCounter = 0;
 
 	for (FPointShadowCandidate& Candidate : ShadowCandidates)
 	{
-		FLocalLightRenderItem LightItem = Candidate.LightItem;
+		FLocalLightRenderItem LightItem =
+				Candidate.LightItem;
 
 		if (PointCubeCounter < ShadowConfig::MaxPointShadowCubes)
 		{
-			const uint32 ShadowLightIndex = AllocalteShadowLight(
-				LightingInputs, EShadowLightType::Point, Candidate.LocalLightIndex);
+			const uint32 ShadowLightIndex =
+					AllocalteShadowLight(
+						LightingInputs,
+						EShadowLightType::Point,
+						Candidate.LocalLightIndex);
 
 			if (ShadowLightIndex != UINT32_MAX)
 			{
-				BuildPointShadowViews(LightingInputs, Candidate.PointLightl, LightItem,
-				                      ShadowLightIndex, PointCubeCounter);
+				BuildPointShadowViews(
+					LightingInputs,
+					Candidate.PointLightl,
+					LightItem,
+					ShadowLightIndex,
+					PointCubeCounter);
 
 				if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount == 6)
 				{
@@ -1872,6 +2308,7 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 		LightingInputs.LocalLights.push_back(LightItem);
 	}
+
 	if (bHasAmbientLight && AmbientIntensitySum > 0.0f)
 	{
 		LightingInputs.Ambient.Color     = AmbientRadiance / AmbientIntensitySum;
