@@ -331,6 +331,11 @@ namespace
 		return IsFinite(Matrix) && Matrix.IsInvertible(1.0e-7f);
 	}
 
+	bool IsUsablePSMMatrix(const FMatrix& Matrix)
+	{
+		return IsFinite(Matrix) && Matrix.IsInvertible(1.0e-12f);
+	}
+
 	struct FPSMBoundsWS
 	{
 		FVector Min    = FVector(FLT_MAX, FLT_MAX, FLT_MAX);
@@ -690,16 +695,280 @@ namespace
 		bool    bOrthographicPP     = false;
 	};
 
+	struct FPostPerspectivePointSet
+	{
+		FVector Points[16];
+		uint32  Count = 0;
+		FVector Min   = FVector(FLT_MAX, FLT_MAX, FLT_MAX);
+		FVector Max   = FVector(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+
+		void Add(const FVector& Point)
+		{
+			if (Count >= 16 || !IsFinite(Point))
+			{
+				return;
+			}
+
+			Points[Count++] = Point;
+
+			Min.X = (std::min)(Min.X, Point.X);
+			Min.Y = (std::min)(Min.Y, Point.Y);
+			Min.Z = (std::min)(Min.Z, Point.Z);
+
+			Max.X = (std::max)(Max.X, Point.X);
+			Max.Y = (std::max)(Max.Y, Point.Y);
+			Max.Z = (std::max)(Max.Z, Point.Z);
+		}
+
+		FVector GetCenter() const
+		{
+			return (Min + Max) * 0.5f;
+		}
+	};
+
+	bool AddPostPerspectivePoint(
+		const FMatrix& WorldToPostPerspective,
+		const FVector& PointWS,
+		FPostPerspectivePointSet& OutPointSet)
+	{
+		const FVector4 Clip =
+				FVector4(PointWS.X, PointWS.Y, PointWS.Z, 1.0f) *
+				WorldToPostPerspective;
+
+		if (!IsFinite(Clip) || Clip.W <= 1.0e-6f)
+		{
+			return false;
+		}
+
+		const float InvW = 1.0f / Clip.W;
+
+		const FVector PointPP(
+			Clip.X * InvW,
+			Clip.Y * InvW,
+			Clip.Z * InvW);
+
+		if (!IsFinite(PointPP))
+		{
+			return false;
+		}
+
+		OutPointSet.Add(PointPP);
+		return true;
+	}
+
+	bool BuildPostPerspectivePointSet(
+		const FMatrix&      VirtualView,
+		const FMatrix&      VirtualProjection,
+		const FVector       FrustumCornersWS[8],
+		const FPSMBoundsWS& PotentialCasterBoundsWS,
+		FPostPerspectivePointSet& OutPointSet)
+	{
+		const FMatrix WorldToPostPerspective =
+				VirtualView * VirtualProjection;
+
+		for (int i = 0; i < 8; ++i)
+		{
+			if (!AddPostPerspectivePoint(
+				WorldToPostPerspective,
+				FrustumCornersWS[i],
+				OutPointSet))
+			{
+				return false;
+			}
+		}
+
+		if (PotentialCasterBoundsWS.bValid)
+		{
+			for (int i = 0; i < 8; ++i)
+			{
+				if (!AddPostPerspectivePoint(
+					WorldToPostPerspective,
+					PotentialCasterBoundsWS.GetCorner(i),
+					OutPointSet))
+				{
+					return false;
+				}
+			}
+		}
+
+		return OutPointSet.Count > 0;
+	}
+
+	FMatrix MakePerspectiveSlopeLH(
+		float MinSlopeY,
+		float MaxSlopeY,
+		float MinSlopeZ,
+		float MaxSlopeZ,
+		float NearZ,
+		float FarZ)
+	{
+		const float SlopeSpanY =
+				(std::max)(MaxSlopeY - MinSlopeY, 1.0e-6f);
+
+		const float SlopeSpanZ =
+				(std::max)(MaxSlopeZ - MinSlopeZ, 1.0e-6f);
+
+		const float ScaleY  = 2.0f / SlopeSpanY;
+		const float OffsetY = -(MaxSlopeY + MinSlopeY) / SlopeSpanY;
+
+		const float ScaleZ  = 2.0f / SlopeSpanZ;
+		const float OffsetZ = -(MaxSlopeZ + MinSlopeZ) / SlopeSpanZ;
+
+		const float DepthScale =
+				FarZ / (FarZ - NearZ);
+
+		const float DepthOffset =
+				-NearZ * FarZ / (FarZ - NearZ);
+
+		return FMatrix(
+			OffsetY, OffsetZ, DepthScale, 1.0f,
+			ScaleY, 0.0f, 0.0f, 0.0f,
+			0.0f, ScaleZ, 0.0f, 0.0f,
+			0.0f, 0.0f, DepthOffset, 0.0f);
+	}
+
+	bool FitOrthographicPostPerspectiveProjection(
+		const FPostPerspectivePointSet& PointSetPP,
+		const FMatrix&                  ViewPP,
+		FMatrix&                        OutProjectionPP)
+	{
+		float MinDepthX = FLT_MAX;
+		float MaxDepthX = -FLT_MAX;
+		float MaxAbsY   = 0.0f;
+		float MaxAbsZ   = 0.0f;
+
+		for (uint32 i = 0; i < PointSetPP.Count; ++i)
+		{
+			const FVector PointLS =
+					ViewPP.TransformPosition(PointSetPP.Points[i]);
+
+			if (!IsFinite(PointLS))
+			{
+				return false;
+			}
+
+			MinDepthX = (std::min)(MinDepthX, PointLS.X);
+			MaxDepthX = (std::max)(MaxDepthX, PointLS.X);
+			MaxAbsY   = (std::max)(MaxAbsY, std::fabs(PointLS.Y));
+			MaxAbsZ   = (std::max)(MaxAbsZ, std::fabs(PointLS.Z));
+		}
+
+		const float DepthPadding =
+				(std::max)((MaxDepthX - MinDepthX) * 0.01f, 1.0e-4f);
+
+		const float NearPP = MinDepthX - DepthPadding;
+		const float FarPP  =
+				(std::max)(MaxDepthX + DepthPadding, NearPP + 1.0e-4f);
+
+		const float WidthPP =
+				(std::max)(MaxAbsY * 2.02f, 1.0e-4f);
+
+		const float HeightPP =
+				(std::max)(MaxAbsZ * 2.02f, 1.0e-4f);
+
+		OutProjectionPP =
+				FMatrix::MakeOrthographicLH(
+					WidthPP,
+					HeightPP,
+					NearPP,
+					FarPP);
+
+		return IsUsableProjectionMatrix(OutProjectionPP);
+	}
+
+	bool FitPerspectivePostPerspectiveProjection(
+		const FPostPerspectivePointSet& PointSetPP,
+		const FMatrix&                  ViewPP,
+		FMatrix&                        OutProjectionPP)
+	{
+		constexpr float MinPositiveDepth = 1.0e-5f;
+		constexpr float SlopePadding     = 1.01f;
+
+		float MinDepthX = FLT_MAX;
+		float MaxDepthX = -FLT_MAX;
+		float MinSlopeY = FLT_MAX;
+		float MaxSlopeY = -FLT_MAX;
+		float MinSlopeZ = FLT_MAX;
+		float MaxSlopeZ = -FLT_MAX;
+
+		for (uint32 i = 0; i < PointSetPP.Count; ++i)
+		{
+			const FVector PointLS =
+					ViewPP.TransformPosition(PointSetPP.Points[i]);
+
+			if (!IsFinite(PointLS) || PointLS.X <= MinPositiveDepth)
+			{
+				return false;
+			}
+
+			const float InvDepthX = 1.0f / PointLS.X;
+			const float SlopeY    = PointLS.Y * InvDepthX;
+			const float SlopeZ    = PointLS.Z * InvDepthX;
+
+			if (!IsFinite(SlopeY) || !IsFinite(SlopeZ))
+			{
+				return false;
+			}
+
+			MinDepthX = (std::min)(MinDepthX, PointLS.X);
+			MaxDepthX = (std::max)(MaxDepthX, PointLS.X);
+			MinSlopeY = (std::min)(MinSlopeY, SlopeY);
+			MaxSlopeY = (std::max)(MaxSlopeY, SlopeY);
+			MinSlopeZ = (std::min)(MinSlopeZ, SlopeZ);
+			MaxSlopeZ = (std::max)(MaxSlopeZ, SlopeZ);
+		}
+
+		if (!IsFinite(MinDepthX) || !IsFinite(MaxDepthX) ||
+			MaxDepthX <= MinDepthX)
+		{
+			return false;
+		}
+
+		const float DepthPadding =
+				(std::max)((MaxDepthX - MinDepthX) * 0.01f, 1.0e-5f);
+
+		float NearPP = MinDepthX - DepthPadding;
+		if (NearPP <= MinPositiveDepth || NearPP >= MinDepthX)
+		{
+			NearPP = (std::max)(MinPositiveDepth, MinDepthX * 0.5f);
+		}
+
+		const float FarPP =
+				(std::max)(MaxDepthX + DepthPadding, NearPP + 1.0e-4f);
+
+		const float SlopeCenterY = (MinSlopeY + MaxSlopeY) * 0.5f;
+		const float SlopeCenterZ = (MinSlopeZ + MaxSlopeZ) * 0.5f;
+		const float SlopeHalfY =
+				(std::max)((MaxSlopeY - MinSlopeY) * 0.5f * SlopePadding, 1.0e-6f);
+		const float SlopeHalfZ =
+				(std::max)((MaxSlopeZ - MinSlopeZ) * 0.5f * SlopePadding, 1.0e-6f);
+
+		MinSlopeY = SlopeCenterY - SlopeHalfY;
+		MaxSlopeY = SlopeCenterY + SlopeHalfY;
+		MinSlopeZ = SlopeCenterZ - SlopeHalfZ;
+		MaxSlopeZ = SlopeCenterZ + SlopeHalfZ;
+
+		OutProjectionPP =
+				MakePerspectiveSlopeLH(
+					MinSlopeY,
+					MaxSlopeY,
+					MinSlopeZ,
+					MaxSlopeZ,
+					NearPP,
+					FarPP);
+
+		return IsFinite(OutProjectionPP) &&
+				OutProjectionPP.IsInvertible(1.0e-12f);
+	}
+
 	bool BuildPostPerspectiveInfo(
 		const FMatrix&               VirtualView,
 		const FMatrix&               VirtualProjection,
+		const FVector                FrustumCornersWS[8],
+		const FPSMBoundsWS&          PotentialCasterBoundsWS,
 		const FVector&               LightSourceDirectionWS,
 		FPostPerspectiveBuildResult& OutResult)
 	{
-		const FVector CubeCenterPP(0.0f, 0.0f, 0.5f);
-		const float   CubeRadiusPP = 1.5f;
-		const float   MinDepthSpan = 0.1f;
-
 		const FVector SafeLightSourceDirectionWS =
 				LightSourceDirectionWS.GetSafeNormal();
 
@@ -707,6 +976,20 @@ namespace
 		{
 			return false;
 		}
+
+		FPostPerspectivePointSet PointSetPP;
+		if (!BuildPostPerspectivePointSet(
+			VirtualView,
+			VirtualProjection,
+			FrustumCornersWS,
+			PotentialCasterBoundsWS,
+			PointSetPP))
+		{
+			return false;
+		}
+
+		const FVector CenterPP =
+				PointSetPP.GetCenter();
 
 		const FVector EyeLightDirection =
 				VirtualView.TransformVector(SafeLightSourceDirectionWS);
@@ -749,41 +1032,31 @@ namespace
 			}
 
 			const FVector LightPositionPP =
-					CubeCenterPP + LightDirectionPP * (2.0f * CubeRadiusPP);
+					CenterPP + LightDirectionPP;
 
 			const FVector LookDirectionPP =
-					CubeCenterPP - LightPositionPP;
+					CenterPP - LightPositionPP;
 
 			const float DistToCenter =
 					LookDirectionPP.Size();
 
-			if (!IsFinite(DistToCenter) || DistToCenter <= CubeRadiusPP)
+			if (!IsFinite(DistToCenter) || DistToCenter <= 1.0e-6f)
 			{
 				return false;
 			}
 
-			const float NearPP =
-					(std::max)(MinDepthSpan, DistToCenter - CubeRadiusPP);
-
-			const float FarPP =
-					(std::max)(NearPP + MinDepthSpan, DistToCenter + CubeRadiusPP);
-
 			OutResult.ViewPP =
 					FMatrix::MakeViewLookAtLH(
 						LightPositionPP,
-						CubeCenterPP,
+						CenterPP,
 						ChooseStableUpVector(LookDirectionPP));
-
-			OutResult.ProjectionPP =
-					FMatrix::MakeOrthographicLH(
-						CubeRadiusPP * 2.0f,
-						CubeRadiusPP * 2.0f,
-						NearPP,
-						FarPP);
 
 			return
 					IsUsableProjectionMatrix(OutResult.ViewPP) &&
-					IsUsableProjectionMatrix(OutResult.ProjectionPP);
+					FitOrthographicPostPerspectiveProjection(
+						PointSetPP,
+						OutResult.ViewPP,
+						OutResult.ProjectionPP);
 		}
 
 		const float InvW = 1.0f / LightPP.W;
@@ -798,59 +1071,31 @@ namespace
 			return false;
 		}
 
-		FVector LookAtCubePP =
-				CubeCenterPP - LightPositionPP;
+		FVector LookToCenterPP =
+				CenterPP - LightPositionPP;
 
 		const float DistLookAtCubePP =
-				LookAtCubePP.Size();
+				LookToCenterPP.Size();
 
 		if (!IsFinite(DistLookAtCubePP) || DistLookAtCubePP <= 1.0e-4f)
 		{
 			return false;
 		}
 
-		LookAtCubePP /= DistLookAtCubePP;
-
-		float FovPP =
-				2.0f * std::atan(CubeRadiusPP / DistLookAtCubePP);
-
-		FovPP =
-				FMath::Clamp(
-					FovPP,
-					FMath::DegreesToRadians(1.0f),
-					FMath::DegreesToRadians(175.0f));
-
-		float NearPP = 0.0f;
-		float FarPP  = 0.0f;
-
-		if (bLightIsBehindEye)
-		{
-			NearPP = (std::max)(MinDepthSpan, DistLookAtCubePP - CubeRadiusPP);
-			FarPP  = NearPP;
-			NearPP = -NearPP;
-		}
-		else
-		{
-			NearPP = (std::max)(MinDepthSpan, DistLookAtCubePP - CubeRadiusPP);
-			FarPP  = (std::max)(NearPP + MinDepthSpan, DistLookAtCubePP + CubeRadiusPP);
-		}
+		LookToCenterPP /= DistLookAtCubePP;
 
 		OutResult.ViewPP =
 				FMatrix::MakeViewLookAtLH(
 					LightPositionPP,
-					CubeCenterPP,
-					ChooseStableUpVector(LookAtCubePP));
-
-		OutResult.ProjectionPP =
-				FMatrix::MakePerspectiveFovLH(
-					FovPP,
-					1.0f,
-					NearPP,
-					FarPP);
+					CenterPP,
+					ChooseStableUpVector(LookToCenterPP));
 
 		return
 				IsUsableProjectionMatrix(OutResult.ViewPP) &&
-				IsUsableProjectionMatrix(OutResult.ProjectionPP);
+				FitPerspectivePostPerspectiveProjection(
+					PointSetPP,
+					OutResult.ViewPP,
+					OutResult.ProjectionPP);
 	}
 
 	bool ValidateShadowProjectionForCascade(
@@ -878,7 +1123,7 @@ namespace
 					FVector4(Corner.X, Corner.Y, Corner.Z, 1.0f) *
 					ViewProjection;
 
-			if (!IsFinite(Clip) || std::fabs(Clip.W) <= 1.0e-5f)
+			if (!IsFinite(Clip) || Clip.W <= 1.0e-5f)
 			{
 				return false;
 			}
@@ -904,19 +1149,9 @@ namespace
 				return false;
 			}
 
-			if (!bInversePerspective)
+			if (NDC.Z < -0.02f || NDC.Z > 1.02f)
 			{
-				if (NDC.Z < -0.02f || NDC.Z > 1.02f)
-				{
-					return false;
-				}
-			}
-			else
-			{
-				if (NDC.Z < -16.0f || NDC.Z > 16.0f)
-				{
-					return false;
-				}
+				return false;
 			}
 
 			MinX     = (std::min)(MinX, NDC.X);
@@ -986,6 +1221,8 @@ namespace
 		if (!BuildPostPerspectiveInfo(
 			VirtualView,
 			VirtualProjection,
+			FrustumCornersWS,
+			PotentialCasterBoundsWS,
 			LightSourceDirectionWS,
 			PPResult))
 		{
@@ -998,8 +1235,8 @@ namespace
 		const FMatrix PSMViewProjection =
 				VirtualView * PSMProjection;
 
-		if (!IsUsableProjectionMatrix(PSMProjection) ||
-			!IsUsableProjectionMatrix(PSMViewProjection))
+		if (!IsUsablePSMMatrix(PSMProjection) ||
+			!IsUsablePSMMatrix(PSMViewProjection))
 		{
 			return false;
 		}
