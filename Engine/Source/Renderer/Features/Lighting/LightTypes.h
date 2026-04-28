@@ -147,3 +147,9 @@ struct FLightClusterGlobalCB
 	float LogZScale = 0.0f;
 	float LogZBias  = 0.0f;
 };
+enum class ELightMobility : uint8
+{
+	Static = 0,
+	Stationary = 1,
+	Movable = 2,
+};

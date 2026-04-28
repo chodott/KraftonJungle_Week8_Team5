@@ -1,7 +1,7 @@
 #pragma once
 
 #include <d3d11.h>
-
+#include "Renderer/Features/Lighting/LightTypes.h"
 #include "CoreMinimal.h"
 
 namespace ShadowConfig
@@ -70,12 +70,16 @@ struct FShadowLightRenderItem
 	float Sharpen    = 0.0f;
 
 	uint32 CubeArrayIndex = UINT32_MAX;
+	ELightMobility Mobility = ELightMobility::Movable;
 
 	FVector PositionWS  = FVector::ZeroVector;
 	FVector DirectionWS = FVector(1.0f, 0.0f, 0.0f);
 
 	FVector4 Params0 = FVector4(0, 0, 0, 0);
 	FVector4 Params1 = FVector4(0, 0, 0, 0);
+
+	ELightMobility Mobility = ELightMobility::Movable;
+	bool bCacheDirty = true;
 };
 
 struct FShadowViewRenderItem

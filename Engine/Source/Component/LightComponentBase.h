@@ -1,6 +1,6 @@
 #pragma once
 #include "SceneComponent.h"
-
+#include "Renderer/Features/Lighting/LightTypes.h"
 class ENGINE_API ULightComponentBase : public USceneComponent
 {
 public:
@@ -20,6 +20,6 @@ public:
 
 protected:
 	void MarkTransformDirty() override;
-
+	ELightMobility Mobility = ELightMobility::Movable;
 	bool bCastShadows = true;
 };

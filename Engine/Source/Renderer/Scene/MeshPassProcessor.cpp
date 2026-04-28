@@ -72,7 +72,8 @@ void FMeshPassProcessor::ExecutePass(
 	const bool bIsShadowPass = (PassType == EMeshPassType::ShadowVSM);
 	const FVector LightPosWS = SceneViewData.View.CameraPosition;
 	const float   LightRange = SceneViewData.View.FarZ;
-
+	uint32 CulledCount = 0;
+	uint32 KeptCount = 0;
 	for (const FMeshBatch& Batch : SceneViewData.MeshInputs.Batches)
 	{
 		if (!Batch.Mesh || !Batch.Material || !ShouldDrawInPass(Batch, PassType))
@@ -105,13 +106,17 @@ void FMeshPassProcessor::ExecutePass(
 			const float MaxDist = Batch.WorldBounds.Radius + LightRange + 1.0f;  // 1유닛 안전 마진
 			if (Delta.SizeSquared() > MaxDist * MaxDist)
 			{
+				++CulledCount;
 				continue;
 			}
 		}
-
+		++KeptCount;
 		Batches.push_back(&Batch);
 	}
-
+	if (bIsShadowPass)
+	{
+		UE_LOG("Shadow culling: %u kept, %u culled", KeptCount, CulledCount);
+	}
 	if (Batches.empty())
 	{
 		return;
