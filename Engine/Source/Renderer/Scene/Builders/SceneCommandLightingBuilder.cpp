@@ -414,6 +414,23 @@ namespace
 		return A + (B - A) * T;
 	}
 
+	float SmoothStep01(float Edge0, float Edge1, float X)
+	{
+		if (std::abs(Edge1 - Edge0) <= 1.0e-6f)
+		{
+			return (X >= Edge1) ? 1.0f : 0.0f;
+		}
+
+		const float T = FMath::Clamp((X - Edge0) / (Edge1 - Edge0), 0.0f, 1.0f);
+		return T * T * (3.0f - 2.0f * T);
+	}
+
+	float ComputePSMFrontFacingT(float Dot)
+	{
+		// Smoothly replaces the old Dot > 0.10 / Dot > 0.35 branches.
+		return SmoothStep01(0.05f, 0.45f, Dot);
+	}
+
 	float ComputePSMSideToAlignedT(float Dot)
 	{
 		return FMath::Clamp((std::abs(Dot) - 0.18f) / 0.37f, 0.0f, 1.0f);
@@ -502,18 +519,18 @@ namespace
 		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
 		const float AbsDot = std::abs(Dot);
 		const float SideToAlignedT = ComputePSMSideToAlignedT(Dot);
+		const float FrontT = ComputePSMFrontFacingT(Dot);
 		const float Range = (std::max)(1.0f, SplitFar - SplitNear);
 
-		float SlideBack = 0.0f;
-		if (Dot > 0.35f)
-		{
-			SlideBack = (std::min)(100.0f, Range * 0.25f) * SideToAlignedT;
-		}
-		else if (Dot > 0.10f)
-		{
-			const float SoftT = FMath::Clamp((Dot - 0.10f) / 0.25f, 0.0f, 1.0f);
-			SlideBack = (std::min)(50.0f, Range * 0.10f) * SoftT * SideToAlignedT;
-		}
+		// The previous implementation had a visible discontinuity at Dot ~= 0.35.
+		// Keep the same rough strength envelope, but make it a single continuous curve.
+		const float MaxAbsoluteSlide = LerpFloat(50.0f, 100.0f, FrontT);
+		const float RangeScale = LerpFloat(0.10f, 0.25f, FrontT);
+
+		float SlideBack =
+			(std::min)(MaxAbsoluteSlide, Range * RangeScale)
+			* FrontT
+			* SideToAlignedT;
 
 		if (CascadeIndex == 0)
 		{
@@ -538,9 +555,12 @@ namespace
 
 			SlideBack = QuantizePSMValue(SlideBack, 0.25f);
 		}
-		else if (AbsDot < 0.18f)
+		else
 		{
-			SlideBack = 0.0f;
+			// Avoid the old AbsDot < 0.18 hard off switch. SideToAlignedT already suppresses the value;
+			// this extra fade only prevents side-view over-pull without creating a one-frame pop.
+			const float SideFade = SmoothStep01(0.10f, 0.22f, AbsDot);
+			SlideBack *= SideFade;
 		}
 
 		return SlideBack;
@@ -559,6 +579,7 @@ namespace
 		const float Range = (std::max)(1.0f, SplitFar - SplitNear);
 		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
 		const float SideToAlignedT = ComputePSMSideToAlignedT(Dot);
+		const float FrontT = ComputePSMFrontFacingT(Dot);
 
 		float NearMargin = (std::max)(1.0f, Range * 0.02f);
 		float FarMargin = NearMargin;
@@ -573,10 +594,12 @@ namespace
 			NearMargin = LerpFloat(SideNearMargin, AlignedNearMargin, SideToAlignedT);
 			FarMargin = LerpFloat(SideFarMargin, AlignedFarMargin, SideToAlignedT);
 
-			if (Dot > 0.35f)
-			{
-				NearMargin = (std::max)(NearMargin, FMath::Clamp(Range * 0.045f, 0.35f, 2.0f));
-			}
+			// Smooth front-facing caster room instead of the old Dot > 0.35 jump.
+			const float FrontNearMargin = FMath::Clamp(
+				Range * LerpFloat(0.015f, 0.045f, FrontT),
+				0.15f,
+				2.0f);
+			NearMargin = (std::max)(NearMargin, FrontNearMargin * FrontT);
 		}
 		else
 		{
@@ -585,15 +608,9 @@ namespace
 			NearMargin = LerpFloat(BaseNearMargin, NearMargin, SideToAlignedT);
 			FarMargin = LerpFloat(BaseFarMargin, FarMargin, SideToAlignedT);
 
-			if (Dot > 0.35f)
-			{
-				NearMargin = (std::max)(NearMargin, Range * 0.12f);
-			}
-			else if (Dot > 0.10f)
-			{
-				const float SoftT = FMath::Clamp((Dot - 0.10f) / 0.25f, 0.0f, 1.0f);
-				NearMargin = (std::max)(NearMargin, Range * LerpFloat(0.015f, 0.06f, SoftT));
-			}
+			// Smoothly replaces both Dot > 0.10 and Dot > 0.35 branches.
+			const float ExtraNearScale = LerpFloat(0.015f, 0.12f, FrontT);
+			NearMargin = (std::max)(NearMargin, Range * ExtraNearScale * FrontT);
 		}
 
 		OutNear = (std::max)(0.01f, SplitNear + VirtualSlideBack - NearMargin);
@@ -619,7 +636,9 @@ namespace
 		const FVector4 EyeLightDir = FVector4(LightToSourceDirWS, 0.0f) * VCView;
 		const FVector4 LightPPH = EyeLightDir * VCProjection;
 
-		const float WEpsilon = 1.0e-3f;
+		// Keep a small ortho-like band around the PSM singularity. Outside this band,
+		// use a softened W so LightPPH.W close to zero does not explode the PP light position.
+		const float WEpsilon = 1.5e-3f;
 		const bool bOrthoLike = std::abs(LightPPH.W) <= WEpsilon;
 
 		if (bOrthoLike)
@@ -651,7 +670,13 @@ namespace
 			return Result;
 		}
 
-		const float InvW = 1.0f / LightPPH.W;
+		const float AbsW = std::abs(LightPPH.W);
+		const float WSign = (LightPPH.W < 0.0f) ? -1.0f : 1.0f;
+		const float WSoft = 0.004f;
+		const float SafeAbsW = std::sqrt(AbsW * AbsW + WSoft * WSoft);
+		const float SafeW = WSign * SafeAbsW;
+		const float InvW = 1.0f / SafeW;
+
 		const FVector LightPositionPP(
 			LightPPH.X * InvW,
 			LightPPH.Y * InvW,
@@ -706,17 +731,19 @@ namespace
 		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
 		const float AlignT = FMath::Clamp((std::abs(Dot) - 0.15f) / 0.85f, 0.0f, 1.0f);
 		const float SideToAlignedT = ComputePSMSideToAlignedT(Dot);
+		const float FrontBiasT = SmoothStep01(-0.05f, 0.10f, Dot);
+		const float FrontPeterT = FMath::Clamp((Dot - 0.20f) / 0.80f, 0.0f, 1.0f);
 
 		const float UserCascadeBias = DirLight->GetCascadeBias(CascadeIndex);
 		const float UserCascadeSlopeBias = DirLight->GetCascadeSlopeBias(CascadeIndex);
 
-		float AutoConstantBias = LerpFloat(0.000004f, 0.000025f, AlignT);
-		float AutoSlopeBias = LerpFloat(0.00045f, 0.0025f, AlignT);
+		float AutoConstantBias = LerpFloat(0.0000010f, 0.000010f, AlignT);
+		float AutoSlopeBias = LerpFloat(0.00030f, 0.0012f, AlignT);
 
 		if (CascadeIndex == 0)
 		{
-			AutoConstantBias = LerpFloat(0.0000008f, 0.0000060f, AlignT);
-			AutoSlopeBias = LerpFloat(0.00045f, 0.00200f, AlignT);
+			AutoConstantBias = LerpFloat(0.00000025f, 0.0000020f, AlignT);
+			AutoSlopeBias = LerpFloat(0.00028f, 0.00100f, AlignT);
 
 			OutConstantBias = (std::min)(
 				(std::max)(UserCascadeBias, AutoConstantBias),
@@ -739,25 +766,23 @@ namespace
 				0.0060f);
 		}
 
-		if (Dot > 0.0f)
-		{
-			OutConstantBias *= (CascadeIndex == 0) ? 1.00f : 1.10f;
-			OutSlopeBias *= (CascadeIndex == 0) ? 1.25f : 1.20f;
-		}
+		// Do not add more bias when looking along the light direction; that is the contact-separation case.
+		OutConstantBias *= LerpFloat(1.0f, 0.75f, FrontBiasT);
+		OutSlopeBias *= LerpFloat(
+			1.0f,
+			(CascadeIndex == 0) ? 0.90f : 0.85f,
+			FrontBiasT);
 
-		if (bInversePP)
-		{
-			OutConstantBias *= (CascadeIndex == 0) ? 1.00f : 1.18f;
-			OutSlopeBias *= (CascadeIndex == 0) ? 1.45f : 1.35f;
-		}
+		// Inverse PP is already projection-sensitive. Increasing bias here causes visible peter panning.
+		(void)bInversePP;
 
 		if (SideToAlignedT < 1.0f)
 		{
-			const float BiasReleaseT = SideToAlignedT * SideToAlignedT;
+			const float BiasReleaseT = SideToAlignedT * SideToAlignedT * SideToAlignedT;
 
 			const float SideConstantCap = (CascadeIndex == 0)
-				? 0.0000012f
-				: 0.0000022f * (1.0f + 0.06f * static_cast<float>(CascadeIndex));
+				? 0.00000025f
+				: 0.00000070f * (1.0f + 0.04f * static_cast<float>(CascadeIndex));
 
 			const float AlignedConstantCap = (CascadeIndex == 0)
 				? 0.0000075f
@@ -767,8 +792,8 @@ namespace
 			OutConstantBias = (std::min)(OutConstantBias, ConstantCap);
 
 			const float SideSlopeCap = (CascadeIndex == 0)
-				? 0.00100f
-				: 0.00105f * (1.0f + 0.08f * static_cast<float>(CascadeIndex));
+				? 0.00035f
+				: 0.00048f * (1.0f + 0.06f * static_cast<float>(CascadeIndex));
 
 			const float AlignedSlopeCap = (CascadeIndex == 0)
 				? 0.0030f
@@ -778,13 +803,38 @@ namespace
 			OutSlopeBias = (std::min)(OutSlopeBias, SlopeCap);
 		}
 
-		const float CascadeDepth = (std::max)(1.0f, SplitFar - SplitNear);
-		const float AlignedNormalBias = (CascadeIndex == 0)
-			? 0.0f
-			: CascadeDepth * 0.000018f;
+		if (FrontPeterT > 0.0f)
+		{
+			const float FrontConstantCap = (CascadeIndex == 0)
+				? 0.00000020f
+				: 0.00000055f * (1.0f + 0.04f * static_cast<float>(CascadeIndex));
 
-		const float NormalReleaseT = FMath::Clamp((SideToAlignedT - 0.80f) / 0.20f, 0.0f, 1.0f);
-		OutNormalBias = AlignedNormalBias * NormalReleaseT;
+			const float FrontSlopeCap = (CascadeIndex == 0)
+				? 0.00045f
+				: 0.00058f * (1.0f + 0.05f * static_cast<float>(CascadeIndex));
+
+			OutConstantBias = (std::min)(OutConstantBias, FrontConstantCap);
+			OutSlopeBias = (std::min)(OutSlopeBias, FrontSlopeCap);
+		}
+
+		// Angle-independent contact clamp.
+		// If peter panning is visible regardless of view/light angle, the baseline compare bias is too high.
+		// Keep constant bias extremely small; let slope bias handle acne.
+		const float ContactConstantCap = (CascadeIndex == 0)
+			? 0.00000001f
+			: 0.00000006f * (1.0f + 0.03f * static_cast<float>(CascadeIndex));
+
+		const float ContactSlopeCap = (CascadeIndex == 0)
+			? 0.000012f
+			: 0.000016f * (1.0f + 0.04f * static_cast<float>(CascadeIndex));
+
+		OutConstantBias = (std::min)(OutConstantBias, ContactConstantCap);
+		OutSlopeBias = (std::min)(OutSlopeBias, ContactSlopeCap);
+
+		// Keep normal bias disabled for directional PSM until the shader applies it as a true world-position offset.
+		(void)SplitNear;
+		(void)SplitFar;
+		OutNormalBias = 0.0f;
 	}
 
 	FCascadePSMResult BuildCascadePSMMatrix(
@@ -867,8 +917,8 @@ namespace
 		ShadowLight.LightType = EShadowLightType::Directional;
 		ShadowLight.PositionWS = FVector::ZeroVector;
 		ShadowLight.DirectionWS = LightItem.DirectionWS;
-		ShadowLight.Bias = 0.000001f;
-		ShadowLight.SlopeBias = 0.001f;
+		ShadowLight.Bias = 0.0f;
+		ShadowLight.SlopeBias = 0.0f;
 		ShadowLight.NormalBias = 0.0f;
 		ShadowLight.Sharpen = 0.0f;
 		ShadowLight.ESMExponent = DirLight->GetShadowESMExponent();
