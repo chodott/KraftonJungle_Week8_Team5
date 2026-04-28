@@ -203,6 +203,11 @@ namespace
 		static const FVector CubeFaceUp[6] = {{ 0, 1, 0 }, { 0, 1, 0 }, { 0, 0, -1 }, { 0, 0, 1 },{ 0, 1, 0 }, { 0, 1, 0 },	};
 		FShadowLightRenderItem& ShadowLight = Inputs.ShadowLights[ShadowLightIndex];
 		ShadowLight.PositionWS = LightItem.PositionWS;
+		ShadowLight.Mobility = Point->GetMobility();
+		ShadowLight.bCacheDirty = Point->IsCacheDirty();
+		// dirty 읽었으니 컴포넌트 측은 즉시 reset — 다음 프레임에 또 캐시 갱신 안 되도록.
+		Point->ResetShadowCacheDirty();
+
 		ShadowLight.Bias       = Point->GetShadowBias();
 		ShadowLight.SlopeBias  = Point->GetShadowSlopeBias();
 		ShadowLight.Sharpen    = Point->GetShadowSharpen();

@@ -1,11 +1,16 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Component/ActorComponent.h"
+#include "Renderer/Features/Lighting/LightTypes.h"  // ELightMobility
 
 class ENGINE_API USceneComponent : public UActorComponent
 {
 public:
 	DECLARE_RTTI(USceneComponent, UActorComponent)
+
+	// Mobility — 정적 캐싱 등 그림자 시스템에 사용. 라이트/메시 공통.
+	ELightMobility GetMobility() const { return Mobility; }
+	virtual void   SetMobility(ELightMobility InMobility) { Mobility = InMobility; }
 
 	/** 부모 기준 상대 트랜스폼 전체를 반환한다. */
 	const FTransform& GetRelativeTransform() const { return RelativeTransform; }
@@ -40,6 +45,8 @@ public:
 protected:
 	/** 자신과 자식들의 월드 트랜스폼 캐시를 무효화한다. */
 	virtual void MarkTransformDirty();
+
+	ELightMobility Mobility = ELightMobility::Movable;
 
 private:
 	/** 부모 트랜스폼까지 반영해 월드 변환 행렬 캐시를 다시 만든다. */

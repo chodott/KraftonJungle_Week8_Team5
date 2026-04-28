@@ -78,7 +78,6 @@ struct FShadowLightRenderItem
 	FVector4 Params0 = FVector4(0, 0, 0, 0);
 	FVector4 Params1 = FVector4(0, 0, 0, 0);
 
-	ELightMobility Mobility = ELightMobility::Movable;
 	bool bCacheDirty = true;
 };
 

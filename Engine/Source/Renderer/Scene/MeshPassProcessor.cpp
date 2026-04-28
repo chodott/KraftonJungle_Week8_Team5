@@ -102,6 +102,18 @@ void FMeshPassProcessor::ExecutePass(
 		// 그림자 패스 거리 컬링 — 라이트 영향 반경 밖이면 스킵
 		if (bIsShadowPass)
 		{
+			// 정적/동적 필터
+			if (SceneViewData.View.bShadowStaticOnly && !Batch.bIsStatic)
+			{
+				++CulledCount;
+				continue;
+			}
+			if (SceneViewData.View.bShadowDynamicOnly && Batch.bIsStatic)
+			{
+				++CulledCount;
+				continue;
+			}
+
 			const FVector Delta = Batch.WorldBounds.Center - LightPosWS;
 			const float MaxDist = Batch.WorldBounds.Radius + LightRange + 1.0f;  // 1유닛 안전 마진
 			if (Delta.SizeSquared() > MaxDist * MaxDist)

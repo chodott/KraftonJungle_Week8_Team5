@@ -180,6 +180,20 @@ void FShadowRenderFeature::Release()
 	SafeRelease(ShadowMomentsCubeArray);
 	SafeRelease(ShadowMomentsCubeArraySRV);
 
+	// Stationary 캐시 자원
+	for (ID3D11DepthStencilView*& DSV : ShadowCacheDepthCubeDSVs)
+	{
+		SafeRelease(DSV);
+	}
+	for (ID3D11RenderTargetView*& RTV : ShadowCacheMomentsCubeRTVs)
+	{
+		SafeRelease(RTV);
+	}
+	SafeRelease(ShadowCacheDepthCubeSRV);
+	SafeRelease(ShadowCacheMomentsCubeSRV);
+	SafeRelease(ShadowCacheDepthCube);
+	SafeRelease(ShadowCacheMomentsCube);
+
 	bMomentsBlurValid      = false;
 	bShadowDepthArrayDirty = true;
 }
@@ -362,6 +376,65 @@ bool FShadowRenderFeature::EnsureMomentsAtlas(const FRenderer& Renderer, uint32 
 			}
 			SafeRelease(ShadowMomentsCubeArray);
 			bShadowDepthArrayDirty = true;
+			return false;
+		}
+	}
+
+	////////////////////////////////////////////////////////////////////
+	// Stationary Chche only cube texture(Depth + Moments)
+
+
+	// Cache Depth Cube
+	D3D11_TEXTURE2D_DESC CacheDepthDesc = {};
+	CacheDepthDesc.Width              = ShadowDepthArrayResolution;
+	CacheDepthDesc.Height             = ShadowDepthArrayResolution;
+	CacheDepthDesc.MipLevels          = 1;
+	CacheDepthDesc.ArraySize          = ShadowConfig::MaxShadowViews;
+	CacheDepthDesc.Format             = DXGI_FORMAT_R32_TYPELESS;
+	CacheDepthDesc.SampleDesc.Count   = 1;
+	CacheDepthDesc.Usage              = D3D11_USAGE_DEFAULT;
+	CacheDepthDesc.BindFlags          = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+	CacheDepthDesc.MiscFlags          = D3D11_RESOURCE_MISC_TEXTURECUBE;
+
+	if (FAILED(Device->CreateTexture2D(&CacheDepthDesc, nullptr, &ShadowCacheDepthCube)) || !ShadowCacheDepthCube)
+	{
+		return false;
+	}
+
+	for (uint32 Slice = 0; Slice < ShadowConfig::MaxShadowViews; ++Slice)
+	{
+		D3D11_DEPTH_STENCIL_VIEW_DESC DSVDesc = {};
+		DSVDesc.Format                         = DXGI_FORMAT_D32_FLOAT;
+		DSVDesc.ViewDimension                  = D3D11_DSV_DIMENSION_TEXTURE2DARRAY;
+		DSVDesc.Texture2DArray.MipSlice        = 0;
+		DSVDesc.Texture2DArray.FirstArraySlice = Slice;
+		DSVDesc.Texture2DArray.ArraySize       = 1;
+
+		if (FAILED(Device->CreateDepthStencilView(ShadowCacheDepthCube, &DSVDesc, &ShadowCacheDepthCubeDSVs[Slice])))
+		{
+			return false;
+		}
+	}
+
+	// Cache Moments Cube — 모멘트 큐브와 동일 디스크립션 재사용
+	D3D11_TEXTURE2D_DESC CacheMomentsDesc = CubeTextureDesc;
+
+	if (FAILED(Device->CreateTexture2D(&CacheMomentsDesc, nullptr, &ShadowCacheMomentsCube)) || !ShadowCacheMomentsCube)
+	{
+		return false;
+	}
+
+	for (uint32 Slice = 0; Slice < ShadowConfig::MaxShadowViews; ++Slice)
+	{
+		D3D11_RENDER_TARGET_VIEW_DESC RTVDesc       = {};
+		RTVDesc.Format                              = CacheMomentsDesc.Format;
+		RTVDesc.ViewDimension                       = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
+		RTVDesc.Texture2DArray.MipSlice             = 0;
+		RTVDesc.Texture2DArray.FirstArraySlice      = Slice;
+		RTVDesc.Texture2DArray.ArraySize            = 1;
+
+		if (FAILED(Device->CreateRenderTargetView(ShadowCacheMomentsCube, &RTVDesc, &ShadowCacheMomentsCubeRTVs[Slice])))
+		{
 			return false;
 		}
 	}
@@ -765,6 +838,67 @@ void FShadowRenderFeature::RenderShadowViews(
 	//현재 매프레임 아틀라스 배치 초기화 중. 개선 필요
 	ShadowAtlasAllocator->Reset();
 
+	////////////////////////////////////////////////////////////////////
+	// 단계 A — Stationary 라이트의 캐시 갱신 패스 (필요 시에만)
+	////////////////////////////////////////////////////////////////////
+	for (uint32 LightIdx = 0; LightIdx < SceneViewData.LightingInputs.ShadowLights.size(); ++LightIdx)
+	{
+		FShadowLightRenderItem& Light = SceneViewData.LightingInputs.ShadowLights[LightIdx];
+
+		if (Light.LightType != EShadowLightType::Point)               continue;
+		if (Light.Mobility  == ELightMobility::Movable)               continue;
+		if (!Light.bCacheDirty)                                       continue;
+		if (Light.ViewCount != 6)                                     continue;
+
+		for (uint32 F = 0; F < 6; ++F)
+		{
+			const uint32 ViewIdx = Light.FirstViewIndex + F;
+			if (ViewIdx >= SceneViewData.LightingInputs.ShadowViews.size()) break;
+
+			const FShadowViewRenderItem& CacheView = SceneViewData.LightingInputs.ShadowViews[ViewIdx];
+			const uint32 Slice = CacheView.ArraySlice;
+
+			ID3D11RenderTargetView* CacheRTV = ShadowCacheMomentsCubeRTVs[Slice];
+			ID3D11DepthStencilView* CacheDSV = ShadowCacheDepthCubeDSVs[Slice];
+
+			DeviceContext->ClearRenderTargetView(CacheRTV, ClearMoments);
+			DeviceContext->ClearDepthStencilView(CacheDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+			// View 정보 설정
+			SceneViewData.View.View                  = CacheView.View;
+			SceneViewData.View.Projection            = CacheView.Projection;
+			SceneViewData.View.ViewProjection        = CacheView.ViewProjection;
+			SceneViewData.View.InverseView           = CacheView.View.GetInverse();
+			SceneViewData.View.InverseProjection     = CacheView.Projection.GetInverse();
+			SceneViewData.View.InverseViewProjection = CacheView.ViewProjection.GetInverse();
+			SceneViewData.View.CameraPosition        = CacheView.PositionWS;
+			SceneViewData.View.NearZ                 = CacheView.NearZ;
+			SceneViewData.View.FarZ                  = CacheView.FarZ;
+			SceneViewData.View.bOrthographic         = false;
+			SceneViewData.View.Viewport              = BuildShadowViewport(0, 0, ShadowDepthArrayResolution);
+			SceneViewData.View.bShadowStaticOnly     = true;   // 정적 메시만 그림
+			SceneViewData.View.bShadowDynamicOnly    = false;
+
+			BeginPass(
+				Renderer,
+				CacheRTV,
+				CacheDSV,
+				SceneViewData.View.Viewport,
+				SceneViewData.Frame,
+				SceneViewData.View);
+
+			Processor.ExecutePass(
+				Renderer,
+				Targets,
+				SceneViewData,
+				EMeshPassType::ShadowVSM);
+		}
+
+		Light.bCacheDirty = false;
+
+		// 컴포넌트 측 dirty 플래그도 reset 필요 — SourceLightIndex로 LocalLights 역참조
+		// 또는 별도 매핑 필요. 일단 다음 프레임에 다시 캐시 갱신 안 되도록 컴포넌트 측에서 처리.
+	}
 
 	for (uint32 ViewIndex = 0; ViewIndex < ShadowViewCount; ++ViewIndex)
 	{
@@ -799,14 +933,41 @@ void FShadowRenderFeature::RenderShadowViews(
 			break;
 		}
 		case EShadowLightType::Point:
+		{
+			const FShadowLightRenderItem& Light =
+				SceneViewData.LightingInputs.ShadowLights[ShadowView.ShadowLightIndex];
 
-			ShadowDSV = ShadowDepthCubeDSVs[ShadowView.ArraySlice];
+			ShadowDSV  = ShadowDepthCubeDSVs[ShadowView.ArraySlice];
 			MomentsRTV = ShadowMomentsCubeRTVs[ShadowView.ArraySlice];
-			DeviceContext->ClearRenderTargetView(MomentsRTV, ClearMoments);
-			DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+			if (Light.Mobility == ELightMobility::Movable)
+			{
+				// Movable: 처음부터 모든 메시 그리기 (기존 동작)
+				DeviceContext->ClearRenderTargetView(MomentsRTV, ClearMoments);
+				DeviceContext->ClearDepthStencilView(ShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+				SceneViewData.View.bShadowDynamicOnly = false;
+				SceneViewData.View.bShadowStaticOnly  = false;
+			}
+			else
+			{
+				// Stationary/Static: 캐시에서 슬라이스 복사 후 동적 메시만 추가
+				DeviceContext->CopySubresourceRegion(
+					ShadowDepthCubeArray,    ShadowView.ArraySlice, 0, 0, 0,
+					ShadowCacheDepthCube,    ShadowView.ArraySlice, nullptr);
+				DeviceContext->CopySubresourceRegion(
+					ShadowMomentsCubeArray,  ShadowView.ArraySlice, 0, 0, 0,
+					ShadowCacheMomentsCube,  ShadowView.ArraySlice, nullptr);
+
+				// Clear 안 함 — 캐시 데이터 보존
+				SceneViewData.View.bShadowDynamicOnly = true;   // 동적 메시만 추가 그리기
+				SceneViewData.View.bShadowStaticOnly  = false;
+			}
+
 			ShadowViewport = BuildShadowViewport(0, 0, ShadowDepthArrayResolution);
 			break;
 		}
+		}
+
 
 		SceneViewData.View.View                  = ShadowView.View;
 		SceneViewData.View.Projection            = ShadowView.Projection;

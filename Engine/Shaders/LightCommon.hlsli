@@ -341,6 +341,67 @@ float ReduceLightBleeding(float pMax, float amount)
 {
 	return saturate((pMax - amount) / max(1.0f - amount, 1.0e-5f));
 }
+float SampleShadowViewPointPCF(FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L)
+{
+    uint cubeIndex = (uint)shadowLight.Params0.w;
+    float3 lightToSurface = worldPos - shadowLight.PositionType.xyz;
+
+    // 면 판정
+    float3 absDir = abs(lightToSurface);
+    uint faceIndex = 0;
+    if (absDir.x >= absDir.y && absDir.x >= absDir.z)
+        faceIndex = (lightToSurface.x > 0) ? 0 : 1;
+    else if (absDir.y >= absDir.z)
+        faceIndex = (lightToSurface.y > 0) ? 2 : 3;
+    else
+        faceIndex = (lightToSurface.z > 0) ? 4 : 5;
+
+    FShadowViewGPU view = ShadowViews[shadowLight.FirstViewIndex + faceIndex];
+    float4 clip = mul(float4(worldPos, 1.0f), view.LightViewProjection);
+    if (clip.w <= 0.0f) return 1.0f;
+    
+    float compareDepth = saturate(clip.z / clip.w);
+    float bias = ComputeShadowBias(shadowLight, N, L);
+    compareDepth = saturate(compareDepth - bias);
+
+    // 큐브 PCF — 방향벡터를 면 평면 안에서 미세하게 흔들어 9번 샘플링
+    // 큐브에선 텍셀 단위 오프셋이 까다로우니 작은 각도 변위로 근사
+    float3 axisU, axisV;
+    if (abs(lightToSurface.x) > abs(lightToSurface.y) && abs(lightToSurface.x) > abs(lightToSurface.z))
+    {
+        axisU = float3(0, 1, 0);
+        axisV = float3(0, 0, 1);
+    }
+    else if (abs(lightToSurface.y) > abs(lightToSurface.z))
+    {
+        axisU = float3(1, 0, 0);
+        axisV = float3(0, 0, 1);
+    }
+    else
+    {
+        axisU = float3(1, 0, 0);
+        axisV = float3(0, 1, 0);
+    }
+
+    float dist = length(lightToSurface);
+    float offsetScale = dist * 0.005f;  // 거리에 비례한 미세 변위
+
+    float visibility = 0.0f;
+    [unroll]
+    for (int y = -1; y <= 1; ++y)
+    {
+        [unroll]
+        for (int x = -1; x <= 1; ++x)
+        {
+            float3 sampleDir = lightToSurface + axisU * (x * offsetScale) + axisV * (y * offsetScale);
+            visibility += ShadowDepthCubeArray.SampleCmpLevelZero(
+                ShadowSampler,
+                float4(sampleDir, (float)cubeIndex),
+                compareDepth);
+        }
+    }
+    return visibility / 9.0f;
+}
 float SampleShadowViewPointVSM(FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L) // TODO Point
 {
 	uint cubeIndex = (uint) shadowLight.Params0.w;
@@ -516,6 +577,8 @@ float EvaluateShadow(
 		FShadowViewGPU firstView = ShadowViews[shadowLight.FirstViewIndex];
 		if (firstView.FilterMode == 2u)  // VSM
 			return SampleShadowViewPointVSM(shadowLight, worldPos, N, L);
+		else if (firstView.FilterMode == 1u)
+			return SampleShadowViewPointPCF(shadowLight, worldPos, N, L);
 		else
 			return SampleShadowViewPoint(shadowLight, worldPos, N, L);
 	} 

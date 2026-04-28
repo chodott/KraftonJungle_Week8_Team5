@@ -85,4 +85,6 @@ struct ENGINE_API FMeshBatch
 
 	FVector WorldBoundingSphereCenter;
 	float WorldBoundingSphereRadius;
+
+	bool bIsStatic = false;
 };
