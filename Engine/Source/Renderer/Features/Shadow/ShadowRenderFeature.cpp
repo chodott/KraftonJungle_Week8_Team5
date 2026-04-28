@@ -292,6 +292,7 @@ bool FShadowRenderFeature::RenderShadows(
 	}
 
 	RenderShadowViews(Renderer, Processor, Targets, SceneViewData);
+	RenderDirectionalShadows(Renderer, Processor, Targets, SceneViewData);
 	RenderShadowAtlasPreviews(Renderer, SceneViewData);
 
 	if (DebugViewMode != EShadowDebugViewMode::None)
