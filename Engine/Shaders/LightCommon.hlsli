@@ -341,12 +341,20 @@ float ReduceLightBleeding(float pMax, float amount)
 {
 	return saturate((pMax - amount) / max(1.0f - amount, 1.0e-5f));
 }
-float SampleShadowViewPointPCF(FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L)
+float SampleShadowViewPointPCF(FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L) // 혹은 svPosition 포함된 버전
 {
-    uint cubeIndex = (uint)shadowLight.Params0.w;
-    float3 lightToSurface = worldPos - shadowLight.PositionType.xyz;
+	 float3 L_dir = normalize(shadowLight.PositionType.xyz - worldPos);
 
-    // 면 판정
+	float normalBiasMultiplier = 0.1f;
+
+	float slopeScale = 1.0f - saturate(dot(N, L_dir));
+	float3 biasedWorldPos = worldPos + N * (normalBiasMultiplier * slopeScale);
+
+
+	uint cubeIndex = (uint)shadowLight.Params0.w;
+	float3 lightToSurface = biasedWorldPos - shadowLight.PositionType.xyz;
+
+
     float3 absDir = abs(lightToSurface);
     uint faceIndex = 0;
     if (absDir.x >= absDir.y && absDir.x >= absDir.z)
@@ -357,50 +365,61 @@ float SampleShadowViewPointPCF(FShadowLightGPU shadowLight, float3 worldPos, flo
         faceIndex = (lightToSurface.z > 0) ? 4 : 5;
 
     FShadowViewGPU view = ShadowViews[shadowLight.FirstViewIndex + faceIndex];
-    float4 clip = mul(float4(worldPos, 1.0f), view.LightViewProjection);
+    float4 clip = mul(float4(biasedWorldPos, 1.0f), view.LightViewProjection); // 여기도 biasedWorldPos 사용
     if (clip.w <= 0.0f) return 1.0f;
-    
+
     float compareDepth = saturate(clip.z / clip.w);
     float bias = ComputeShadowBias(shadowLight, N, L);
     compareDepth = saturate(compareDepth - bias);
 
-    // 큐브 PCF — 방향벡터를 면 평면 안에서 미세하게 흔들어 9번 샘플링
-    // 큐브에선 텍셀 단위 오프셋이 까다로우니 작은 각도 변위로 근사
-    float3 axisU, axisV;
-    if (abs(lightToSurface.x) > abs(lightToSurface.y) && abs(lightToSurface.x) > abs(lightToSurface.z))
-    {
-        axisU = float3(0, 1, 0);
-        axisV = float3(0, 0, 1);
-    }
-    else if (abs(lightToSurface.y) > abs(lightToSurface.z))
-    {
-        axisU = float3(1, 0, 0);
-        axisV = float3(0, 0, 1);
-    }
-    else
-    {
-        axisU = float3(1, 0, 0);
-        axisV = float3(0, 1, 0);
-    }
+
+    // 1. 월드 좌표 기반의 의사 난수(Pseudo-random) 노이즈 생성 (0.0 ~ 1.0)
+    float noise = frac(sin(dot(worldPos, float3(12.9898f, 78.233f, 37.719f))) * 43758.5453f);
+    
+    // 2. 빛 방향을 기준으로 회전할 수직 기저 벡터(Tangent, Bitangent) 생성
+    float3 L_norm = normalize(lightToSurface);
+    float3 up = abs(L_norm.z) < 0.999f ? float3(0.0f, 0.0f, 1.0f) : float3(1.0f, 0.0f, 0.0f);
+    float3 tangent = normalize(cross(up, L_norm));
+    float3 bitangent = cross(L_norm, tangent);
+
+    // 3. 노이즈 값을 라디안(Angle)으로 변환하여 2D 회전 행렬 생성
+    float s, c;
+    sincos(noise * 6.2831853f, s, c); // 2 * PI
+    float2x2 rotationMatrix = float2x2(c, -s, s, c);
+
+    // 4. 2D Poisson Disk 샘플 (8개로 최적화)
+    const float2 poissonDisk[8] = {
+        float2(-0.8406283f,  0.4287514f),
+        float2(-0.4709848f, -0.6695281f),
+        float2( 0.0076249f, -0.1583569f),
+        float2( 0.1691238f,  0.8679075f),
+        float2( 0.6974795f, -0.6094580f),
+        float2( 0.8427953f,  0.3013238f),
+        float2(-0.7634493f, -0.1873136f),
+        float2( 0.3800631f,  0.2238478f)
+    };
 
     float dist = length(lightToSurface);
-    float offsetScale = dist * 0.005f;  // 거리에 비례한 미세 변위
+    float offsetScale = dist * 0.005f; // 그림자 번짐 정도 (필요에 따라 조절)
 
     float visibility = 0.0f;
+    
     [unroll]
-    for (int y = -1; y <= 1; ++y)
+    for (int i = 0; i < 8; ++i)
     {
-        [unroll]
-        for (int x = -1; x <= 1; ++x)
-        {
-            float3 sampleDir = lightToSurface + axisU * (x * offsetScale) + axisV * (y * offsetScale);
-            visibility += ShadowDepthCubeArray.SampleCmpLevelZero(
-                ShadowSampler,
-                float4(sampleDir, (float)cubeIndex),
-                compareDepth);
-        }
+        // 디스크의 2D 좌표를 무작위로 회전
+        float2 rotatedOffset = mul(rotationMatrix, poissonDisk[i]);
+        
+        // 회전된 2D 오프셋을 3D 공간의 탄젠트 평면에 매핑하여 최종 샘플 방향 계산
+        float3 sampleDir = lightToSurface + (tangent * rotatedOffset.x + bitangent * rotatedOffset.y) * offsetScale;
+        
+        visibility += ShadowDepthCubeArray.SampleCmpLevelZero(
+            ShadowSampler,
+            float4(sampleDir, (float)cubeIndex),
+            compareDepth);
     }
-    return visibility / 9.0f;
+    
+    return visibility / 8.0f;
 }
 float SampleShadowViewPointVSM(FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L) // TODO Point
 {
