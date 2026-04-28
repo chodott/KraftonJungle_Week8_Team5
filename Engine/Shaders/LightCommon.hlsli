@@ -210,6 +210,7 @@ struct FShadowLightGPU
 	float4 PositionType;
 	float4 DirectionBias;
 	float4 Params0;
+	float4 Params1;
 };
 
 struct FShadowViewGPU
@@ -556,6 +557,40 @@ float SampleShadowViewVSM(
 	return saturate(pMax);
 }
 
+float SampleShadowViewESM(
+	FShadowLightGPU shadowLight,
+	FShadowViewGPU shadowView,
+	float3 worldPos,
+	float3 N,
+	float3 L)
+{
+	float2 uv;
+	float compareDepth;
+	if (!ComputeShadowCoords(shadowView, worldPos, uv, compareDepth))
+	{
+		return 1.0f;
+	}
+	
+	float bias = ComputeShadowBias(shadowLight, N, L);
+	compareDepth = saturate(compareDepth - bias);
+
+	FAtlasTile tile = GetAtlasTile(shadowView);
+	uv = ToAtlasUV(uv, tile);
+	uv = ClampAtlasUV(uv, tile);
+
+	float esmSample = ShadowMomentsTexture.SampleLevel(
+		LinearClampSampler,
+		uv,
+		0.0f
+	).r;
+	
+	const float k = 30; //shadowLight.Params1.x;
+	
+	float shadowTerm = esmSample * exp(-k * compareDepth);
+
+	return saturate(shadowTerm);
+}
+
 float SampleShadowViewRawDepth(
 	FShadowLightGPU shadowLight,
 	FShadowViewGPU shadowView,
@@ -617,7 +652,7 @@ float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, flo
 	float2 baseUV = ToAtlasUV(uv, tile);
 	baseUV = ClampAtlasUV(baseUV, tile);
 
-    // Filter Mode에 따른 분기 (0: Raw, 1: PCF, 2: VSM) 
+    // Filter Mode에 따른 분기 (0: Raw, 1: PCF, 2: VSM, 3: ESM) 
     if (view.FilterMode == 1u) // PCF
     {
         float visibility = 0.0f;
@@ -774,9 +809,13 @@ float EvaluateSpotShadow(
 	{
 		return SampleShadowViewRawDepth(shadowLight, view, worldPos, N, L);
 	}
-	if (view.FilterMode == 1u) // PCF
+	else if (view.FilterMode == 1u) // PCF
 	{
 		return SampleShadowViewPCF(shadowLight, view, worldPos, N, L);
+	}
+	else if(view.FilterMode == 3u) // ESM
+	{
+		return SampleShadowViewESM(shadowLight, view, worldPos, N, L);
 	}
 	else // VSM
 	{

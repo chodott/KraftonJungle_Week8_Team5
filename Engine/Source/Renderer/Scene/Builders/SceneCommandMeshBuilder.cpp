@@ -126,7 +126,8 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 							static_cast<uint32>(EMeshPassMask::DepthPrepass) |
 							static_cast<uint32>(EMeshPassMask::GBuffer) |
 							static_cast<uint32>(EMeshPassMask::ForwardOpaque) |
-							static_cast<uint32>(EMeshPassMask::ShadowVSM);
+							static_cast<uint32>(EMeshPassMask::ShadowVSM) |
+							static_cast<uint32>(EMeshPassMask::ShadowESM);
 					if (bCanPick)
 					{
 						Batch.PassMask |= static_cast<uint32>(EMeshPassMask::EditorPicking);
@@ -208,7 +209,8 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 							static_cast<uint32>(EMeshPassMask::DepthPrepass) |
 							static_cast<uint32>(EMeshPassMask::GBuffer) |
 							static_cast<uint32>(EMeshPassMask::ForwardOpaque) |
-							static_cast<uint32>(EMeshPassMask::ShadowVSM);
+							static_cast<uint32>(EMeshPassMask::ShadowVSM)|
+							static_cast<uint32>(EMeshPassMask::ShadowESM);
 					if (bCanPick)
 					{
 						Batch.PassMask |= static_cast<uint32>(EMeshPassMask::EditorPicking);

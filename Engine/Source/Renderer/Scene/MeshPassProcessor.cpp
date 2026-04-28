@@ -98,6 +98,11 @@ void FMeshPassProcessor::ExecutePass(
 		{
 			continue;
 		}
+		if (PassType == EMeshPassType::ShadowESM && Batch.Material->GetPassShaders(EMaterialPassType::ShadowESM) == nullptr)
+		{
+			continue;
+		}
+
 
 		// 그림자 패스 거리 컬링 — 라이트 영향 반경 밖이면 스킵
 		if (bIsShadowPass)
@@ -307,6 +312,7 @@ void FMeshPassProcessor::ExecutePass(
 
 		if (PassType == EMeshPassType::DepthPrepass ||
 			PassType == EMeshPassType::ShadowVSM ||
+			PassType == EMeshPassType::ShadowESM ||
 			PassType == EMeshPassType::GBuffer ||
 			PassType == EMeshPassType::ForwardOpaque ||
 			PassType == EMeshPassType::EditorPicking ||
@@ -322,7 +328,8 @@ void FMeshPassProcessor::ExecutePass(
 		}
 
 		if (PassType == EMeshPassType::EditorPicking ||
-			PassType == EMeshPassType::ShadowVSM)
+			PassType == EMeshPassType::ShadowVSM ||
+			PassType == EMeshPassType::ShadowESM)
 		{
 			FBlendStateOption BlendOpt = Batch->Material->GetBlendOption();
 			BlendOpt.BlendEnable       = false;
@@ -383,6 +390,8 @@ EMaterialPassType FMeshPassProcessor::ToMaterialPassType(EMeshPassType PassType)
 		return EMaterialPassType::EditorPrimitive;
 	case EMeshPassType::ShadowVSM:
 		return EMaterialPassType::ShadowVSM;
+	case EMeshPassType::ShadowESM:
+		return EMaterialPassType::ShadowESM;
 	case EMeshPassType::ForwardOpaque:
 	default:
 		return EMaterialPassType::ForwardOpaque;
@@ -411,6 +420,8 @@ bool FMeshPassProcessor::ShouldDrawInPass(const FMeshBatch& Batch, EMeshPassType
 		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::EditorPrimitive);
 	case EMeshPassType::ShadowVSM:
 		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ShadowVSM);
+	case EMeshPassType::ShadowESM:
+		return EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ShadowESM);
 	default:
 		return false;
 	}

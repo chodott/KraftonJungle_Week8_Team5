@@ -23,6 +23,7 @@ void ULightComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateCont
 	DuplicatedLightComponent->ShadowBias            = ShadowBias;
 	DuplicatedLightComponent->ShadowSlopeBias       = ShadowSlopeBias;
 	DuplicatedLightComponent->ShadowSharpen         = ShadowSharpen;
+	DuplicatedLightComponent->ShadowESMExponent		= ShadowESMExponent;
 }
 
 void ULightComponent::SetIntensity(float NewIntensity)
@@ -125,6 +126,16 @@ void ULightComponent::SetShadowSharpen(float NewSharpen)
 		return;
 	}
 	ShadowSharpen = NewSharpen;
+	NotifyOwnerLightPropertyChanged();
+}
+
+void ULightComponent::SetShadowESMExponent(float NewExponent)
+{
+	if (ShadowESMExponent == NewExponent)
+	{
+		return;
+	}
+	ShadowESMExponent = std::max(0.0f, NewExponent);
 	NotifyOwnerLightPropertyChanged();
 }
 
