@@ -226,6 +226,37 @@ Texture2D<float2>				DirShadowMomentsTexture		: register(t29); // VSM
 SamplerComparisonState            ShadowSampler      : register(s8); // PCF
 SamplerState                      LinearClampSampler : register(s9); // VSM
 
+struct FAtlasTile
+{
+	float2 Offset;
+	float Scale;
+	float TexelSize;
+};
+
+float2 ToAtlasUV(float2 localUV, FAtlasTile tile)
+{
+	return localUV * tile.Scale + tile.Offset;
+}
+
+float2 ClampAtlasUV(float2 atlasUV, FAtlasTile tile)
+{
+	float2 minUV = tile.Offset + tile.TexelSize * 0.5f;
+	float2 maxUV = tile.Offset + tile.Scale - tile.TexelSize * 0.5f;
+	return clamp(atlasUV, minUV, maxUV);
+}
+
+FAtlasTile GetAtlasTile(FShadowViewGPU view)
+{
+	FAtlasTile tile;
+	float atlasSize = max(view.ViewParams.z, 1.0e-6f);
+
+	tile.Offset = view.AtlasUV.xy / atlasSize;
+	tile.Scale = view.AtlasUV.z / atlasSize;
+	tile.TexelSize = view.ViewParams.w;
+
+	return tile;
+}
+
 float ComputeShadowBias(
 	FShadowLightGPU shadowLight,
 	float3 N,
@@ -290,16 +321,10 @@ float SampleShadowViewPCF(
 	float bias = ComputeShadowBias(shadowLight, N, L);
 	compareDepth = saturate(compareDepth - bias);
 
-	float atlasSize = shadowView.ViewParams.z;
-	float tileSize  = shadowView.AtlasUV.z;
+	FAtlasTile tile = GetAtlasTile(shadowView);
+	uv = ToAtlasUV(uv, tile);
+	uv = ClampAtlasUV(uv, tile);
 
-	float2 tileOffset = shadowView.AtlasUV.xy / atlasSize;
-	float tileScale  = shadowView.AtlasUV.z / atlasSize;
-
-	float2 baseUV = uv * tileScale + tileOffset;
-	
-	float texelSize = shadowView.ViewParams.w;
-	
 	float visibility = 0.0f;
 
 	[unroll]
@@ -308,12 +333,9 @@ float SampleShadowViewPCF(
 		[unroll]
 		for (int x = -1; x <= 1; ++x)
 		{
-			float2 tapUV = baseUV + float2(x, y) * texelSize;
+			float2 tapUV = uv + float2(x, y) * tile.TexelSize;
 
-			float2 minUV = tileOffset + texelSize * 0.5f;
-			float2 maxUV = tileOffset + tileScale - texelSize * 0.5f;
-
-			tapUV = clamp(tapUV, minUV, maxUV);
+			tapUV = ClampAtlasUV(tapUV, tile);
 			visibility += ShadowDepth.SampleCmpLevelZero(
 				ShadowSampler,
 				tapUV,
@@ -411,19 +433,13 @@ float SampleShadowViewVSM(
 	float bias = ComputeShadowBias(shadowLight, N, L);
 	compareDepth = saturate(compareDepth - bias);
 
-	float atlasSize = shadowView.ViewParams.z;
-	float tileSize  = shadowView.AtlasUV.z;
-
-	float2 tileOffset = shadowView.AtlasUV.xy / atlasSize;
-	float tileScale  = shadowView.AtlasUV.z / atlasSize;
-
-	float2 baseUV = uv * tileScale + tileOffset;
-	
-	float texelSize = shadowView.ViewParams.w;
+	FAtlasTile tile = GetAtlasTile(shadowView);
+	uv = ToAtlasUV(uv, tile);
+	uv = ClampAtlasUV(uv, tile);
 
 	float2 moments = ShadowMomentsTexture.SampleLevel(
 		LinearClampSampler,
-		baseUV,
+		uv,
 		0.0f
 	).rg;
 
@@ -458,17 +474,13 @@ float SampleShadowViewRawDepth(
 	float bias = ComputeShadowBias(shadowLight, N, L);
 	compareDepth = saturate(compareDepth - bias);
 
-	float viewportScale = max(shadowView.ViewParams.z, 1.0e-6f);
-	float2 texelSize    = shadowView.ViewParams.w.xx;
-
-	float2 scaledUV = uv * viewportScale;
-	float2 minUV    = texelSize * 0.5f;
-	float2 maxUV    = viewportScale.xx - texelSize * 0.5f;
-	scaledUV        = clamp(scaledUV, minUV, maxUV);
+	FAtlasTile tile = GetAtlasTile(shadowView);
+	float2 baseUV = ToAtlasUV(uv, tile);
+	baseUV = ClampAtlasUV(baseUV, tile);
 
 	float rawDepth = ShadowDepth.SampleLevel(
 		LinearClampSampler,
-		scaledUV,
+		baseUV,
 		0.0f
 	).r;
 
@@ -501,14 +513,9 @@ float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, flo
     float variableBias = clamp(slopeBias * slope, 0.0f, baseBias * 10.0f);
     float compareDepth = saturate(ndc.z) - (baseBias + variableBias);
 
-
-	float atlasSize = view.ViewParams.z;
-	float tileSize  = view.AtlasUV.z;
-
-	float2 tileOffset = view.AtlasUV.xy / atlasSize;
-	float tileScale  = view.AtlasUV.z / atlasSize;
-	float2 baseUV = uv * tileScale + tileOffset;
-	float texelSize = view.ViewParams.w;
+	FAtlasTile tile = GetAtlasTile(view);
+	float2 baseUV = ToAtlasUV(uv, tile);
+	baseUV = ClampAtlasUV(baseUV, tile);
 
     // 5. Filter Mode에 따른 분기 (0: Raw, 1: PCF, 2: VSM) 
     if (view.FilterMode == 1u) // PCF
@@ -520,12 +527,8 @@ float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, flo
             [unroll]
             for (int x = -1; x <= 1; ++x)
             {
-				float2 tapUV = baseUV + float2(x, y) * texelSize;
+				float2 tapUV = baseUV + float2(x, y) * tile.TexelSize;
 
-				float2 minUV = tileOffset + texelSize * 0.5f;
-				float2 maxUV = tileOffset + tileScale - texelSize * 0.5f;
-
-				tapUV = clamp(tapUV, minUV, maxUV);
                 visibility += DirShadowDepthTexture.SampleCmpLevelZero(
 					ShadowSampler, 
 					tapUV, 
@@ -650,7 +653,7 @@ float3 DebugDirectionalShadow(uint shadowIndex, float3 worldPos, float viewDepth
     uv.y = -ndc.y * 0.5f + 0.5f;
 
     // 정상 범위 안에 있다면, GPU 텍스처에 찍혀있는 깊이 값(Raw Depth)을 그대로 가져와서 화면에 출력합니다.
-    float rawDepth = DirShadowDepthArray.SampleLevel(LinearClampSampler, float3(uv, (float) view.ArraySlice), 0.0f).r;
+    float rawDepth = DirShadowDepthTexture.SampleLevel(LinearClampSampler, uv, 0.0f).r;
     
     return float3(rawDepth, rawDepth, rawDepth); // ⚪⚫ 흑백: 텍스처 내부 데이터 출력
 }
