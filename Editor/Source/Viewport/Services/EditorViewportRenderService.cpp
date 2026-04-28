@@ -245,8 +245,11 @@ void FEditorViewportRenderService::RenderAll(
 		const FVector CameraPosition = ViewMatrix.GetInverse().GetTranslation();
 		BuildSceneRenderPacket(Engine, EntryWorld, Frustum, Entry.LocalState.ShowFlags, ScenePacket);
 
+		// 파일럿 모드 중에는 기즈모를 숨김
+		const bool bIsPiloting = EditorEngine && EditorEngine->IsPilotingLight();
 		if (bCanShowEditorSelection && SelectedActor && SelectedActor->GetWorld() == EntryWorld &&
-			SelectedActor->GetComponentByClass<USkyComponent>() == nullptr)
+			SelectedActor->GetComponentByClass<USkyComponent>() == nullptr &&
+			!bIsPiloting)
 		{
 			Gizmo.BuildMeshBatches(SelectedActor, &Entry, AdditionalMeshBatches);
 		}

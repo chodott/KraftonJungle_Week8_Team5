@@ -20,6 +20,10 @@
 #include "Renderer/GPUStats.h"
 #include "Camera/Camera.h"
 #include "Component/CameraComponent.h"
+#include "Component/LightComponentBase.h"
+#include "Component/DirectionalLightComponent.h"
+#include "Math/MathUtility.h"
+#include <cmath>
 #include "Component/BillboardComponent.h"
 #include "Component/LineBatchComponent.h"
 #include "Component/SpringArmComponent.h"
@@ -1960,3 +1964,130 @@ void FEditorEngine::RefreshSelectedBillboardTint()
 	}
 }
 #endif
+
+// ─── Pilot Light ─────────────────────────────────────────────────────────────
+
+void FEditorEngine::StartPilotLight(ULightComponentBase* LightComponent)
+{
+	if (!LightComponent)
+	{
+		return;
+	}
+
+	PilotedLightComponent = LightComponent;
+	bPilotDirectionalOnly  = LightComponent->IsA(UDirectionalLightComponent::StaticClass());
+
+	UWorld* World = GetActiveWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	FCamera* Cam = World->GetCamera();
+	if (!Cam)
+	{
+		return;
+	}
+
+	// 카메라를 라이트 시점에 스냅
+	if (bPilotDirectionalOnly)
+	{
+		// 방향광: 위치는 그대로, 발광 방향으로만 회전
+		const FVector Dir = LightComponent->GetEmissionDirectionWS().GetSafeNormal();
+		const float Pitch = FMath::RadiansToDegrees(std::asinf(FMath::Clamp(Dir.Z, -1.0f, 1.0f)));
+		const float Yaw   = FMath::RadiansToDegrees(std::atan2f(Dir.Y, Dir.X));
+		Cam->SetRotation(Yaw, Pitch);
+	}
+	else
+	{
+		// Spot / Point: 라이트 원점으로 이동, 방향으로 회전
+		const FVector Pos = LightComponent->GetWorldLocation();
+		const FVector Dir = LightComponent->GetEmissionDirectionWS().GetSafeNormal();
+		const float Pitch = FMath::RadiansToDegrees(std::asinf(FMath::Clamp(Dir.Z, -1.0f, 1.0f)));
+		const float Yaw   = FMath::RadiansToDegrees(std::atan2f(Dir.Y, Dir.X));
+		Cam->SetPosition(Pos);
+		Cam->SetRotation(Yaw, Pitch);
+	}
+
+	// LocalState도 즉시 맞춰둔다
+	FViewportEntry* PerspEntry = ViewportRegistry.FindEntryByType(EViewportType::Perspective);
+	if (PerspEntry)
+	{
+		PerspEntry->LocalState.Position = Cam->GetPosition();
+		PerspEntry->LocalState.Rotation = FRotator(Cam->GetPitch(), Cam->GetYaw(), 0.0f);
+	}
+}
+
+void FEditorEngine::StopPilotLight()
+{
+	PilotedLightComponent = nullptr;
+	bPilotDirectionalOnly  = false;
+}
+
+void FEditorEngine::TickPilotMode()
+{
+	if (!PilotedLightComponent)
+	{
+		return;
+	}
+
+	// 파일럿 대상 액터가 삭제된 경우 자동 해제
+	AActor* Owner = PilotedLightComponent->GetOwner();
+	if (!Owner || Owner->IsPendingKill())
+	{
+		StopPilotLight();
+		return;
+	}
+
+	UWorld* World = GetActiveWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	FCamera* Cam = World->GetCamera();
+	if (!Cam)
+	{
+		return;
+	}
+
+	USceneComponent* Root = Owner->GetRootComponent();
+	if (!Root)
+	{
+		return;
+	}
+
+	// 현재 카메라 트랜스폼을 읽어 라이트에 적용
+	const FVector CamPos   = Cam->GetPosition();
+	const float   CamYaw   = Cam->GetYaw();
+	const float   CamPitch = Cam->GetPitch();
+	const FRotator NewRot(CamPitch, CamYaw, 0.0f);
+
+	// 부모 컴포넌트가 있는 경우 로컬 공간으로 변환
+	FTransform RelTransform = Root->GetRelativeTransform();
+
+	if (!bPilotDirectionalOnly)
+	{
+		if (USceneComponent* AttachParent = Root->GetAttachParent())
+		{
+			const FMatrix ParentInverse = AttachParent->GetWorldTransform().GetInverse();
+			RelTransform.SetTranslation(ParentInverse.TransformPosition(CamPos));
+		}
+		else
+		{
+			RelTransform.SetTranslation(CamPos);
+		}
+	}
+
+	{
+		FQuat NewQuat = NewRot.Quaternion().GetNormalized();
+		if (USceneComponent* AttachParent = Root->GetAttachParent())
+		{
+			const FQuat ParentWorldQuat = FTransform(AttachParent->GetWorldTransform()).GetRotation();
+			NewQuat = (NewQuat * ParentWorldQuat.Inverse()).GetNormalized();
+		}
+		RelTransform.SetRotation(NewQuat);
+	}
+
+	Root->SetRelativeTransform(RelTransform);
+}

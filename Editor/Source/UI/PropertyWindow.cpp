@@ -2715,73 +2715,49 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 
 	if (Engine)
 	{
-		FEditorViewportRegistry& Registry = Engine->GetViewportRegistry();
-		FViewportEntry* PerspEntry = Registry.FindEntryByType(EViewportType::Perspective);
+		const bool bIsAmbient = LightComponent->IsA(UAmbientLightComponent::StaticClass());
 
-		const bool bIsAmbient     = LightComponent->IsA(UAmbientLightComponent::StaticClass());
-		const bool bIsDirectional = LightComponent->IsA(UDirectionalLightComponent::StaticClass());
-		const bool bIsSpot        = LightComponent->IsA(USpotLightComponent::StaticClass());
-
-		if (PerspEntry && !bIsAmbient)
+		if (!bIsAmbient)
 		{
 			ImGui::Text("Camera");
 			ImGui::NextColumn();
-			if (ImGui::Button("Match Camera to Light"))
+
+			const bool bThisIsPiloted =
+				Engine->IsPilotingLight() &&
+				Engine->GetPilotedLightComponent() == LightComponent;
+
+			if (bThisIsPiloted)
 			{
-				// --- Compute new camera position and rotation ---
-				FVector  NewPos   = PerspEntry->LocalState.Position;   // default: keep current pos
-				float    PitchDeg = PerspEntry->LocalState.Rotation.Pitch;
-				float    YawDeg   = PerspEntry->LocalState.Rotation.Yaw;
-
-				if (bIsDirectional)
+	
+				ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.7f, 0.2f, 0.2f, 1.0f));
+				ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+				ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.5f, 0.1f, 0.1f, 1.0f));
+				if (ImGui::Button("Eject  [Piloting]"))
 				{
-					// Directional lights are at infinite distance.
-					// Unreal: keep the camera position, only rotate to match the light direction.
-					const FVector LightDir = LightComponent->GetEmissionDirectionWS().GetSafeNormal();
-					PitchDeg = FMath::RadiansToDegrees(std::asinf(FMath::Clamp(LightDir.Z, -1.0f, 1.0f)));
-					YawDeg   = FMath::RadiansToDegrees(std::atan2f(LightDir.Y, LightDir.X));
+					Engine->StopPilotLight();
 				}
-				else
+				ImGui::PopStyleColor(3);
+				ImGui::SameLine();
+				ImGui::TextDisabled("(?)");
+				if (ImGui::IsItemHovered())
 				{
-					// Spot / Point: move camera to the light's world position.
-					const FVector LightPos = LightComponent->GetWorldLocation();
-					const FVector LightDir = LightComponent->GetEmissionDirectionWS().GetSafeNormal();
-
-					// Pull the camera back slightly so the transform gizmo
-					// (which sits exactly at the light origin) stays in view and
-					// doesn't clip through the near plane.
-					constexpr float GizmoOffset = 3.0f;
-					if (bIsSpot)
-					{
-						// Spot has a clear emission direction — back up along it.
-						NewPos   = LightPos - LightDir * GizmoOffset;
-						PitchDeg = FMath::RadiansToDegrees(std::asinf(FMath::Clamp(LightDir.Z, -1.0f, 1.0f)));
-						YawDeg   = FMath::RadiansToDegrees(std::atan2f(LightDir.Y, LightDir.X));
-					}
-					else
-					{
-						// Point light: omnidirectional — back up along current camera forward
-						// so the gizmo remains visible without changing the viewing direction.
-						const FVector CurFwd = PerspEntry->LocalState.Rotation.Vector().GetSafeNormal();
-						NewPos = LightPos - CurFwd * GizmoOffset;
-					}
+					ImGui::SetTooltip(
+						"Piloting: camera movement drives the light transform.\n"
+						"Press Eject to stop.");
 				}
-
-				// Apply to LocalState and to the underlying FCamera.
-				// The input service syncs LocalState FROM FCamera every frame, so
-				// writing only to LocalState would be overwritten immediately.
-				PerspEntry->LocalState.Position = NewPos;
-				PerspEntry->LocalState.Rotation = FRotator(PitchDeg, YawDeg, 0.0f);
-
-				UWorld* ActiveWorld = Engine->GetActiveWorld();
-				if (ActiveWorld)
+			}
+			else
+			{
+				if (ImGui::Button("Pilot Light"))
 				{
-					FCamera* EditorCamera = ActiveWorld->GetCamera();
-					if (EditorCamera)
-					{
-						EditorCamera->SetPosition(NewPos);
-						EditorCamera->SetRotation(YawDeg, PitchDeg);
-					}
+					Engine->StartPilotLight(LightComponent);
+				}
+				if (ImGui::IsItemHovered())
+				{
+					ImGui::SetTooltip(
+						"Snap the editor camera to this light's view.\n"
+						"While piloting, WASD/RMB moves the light itself.\n"
+						"Directional: rotation only.  Spot/Point: full transform.");
 				}
 			}
 		}

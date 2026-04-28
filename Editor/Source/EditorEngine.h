@@ -13,6 +13,7 @@ class APlayerCameraActor;
 class UBillboardComponent;
 class FEditorViewportClient;
 class FShowFlags;
+class ULightComponentBase;
 
 /**
  * 에디터 모드용 엔진 진입점이다.
@@ -102,6 +103,14 @@ public:
 	// 초기 에디터 오버레이 UI를 생성한다.
 	void CreateInitUI();
 
+	// 선택한 라이트 컴포넌트를 파일럿한다. 카메라 이동이 라이트 트랜스폼에 즉시 반영된다
+	void StartPilotLight(ULightComponentBase* LightComponent);
+	void StopPilotLight();
+	bool IsPilotingLight() const { return PilotedLightComponent != nullptr; }
+	ULightComponentBase* GetPilotedLightComponent() const { return PilotedLightComponent; }
+	// 카메라→라이트 트랜스폼 동기화를 한 프레임 실행한다 (ViewportClient::Tick 에서 호출)
+	void TickPilotMode();
+
 	bool IsPIEActive() const { return bIsPIEActive; }
 	bool IsPIEPaused() const { return bIsPIEPaused; }
 	bool IsPIEInputCaptured() const { return bIsPIEInputCaptured; }
@@ -190,6 +199,10 @@ private:
 	void RefreshLightGizmoSelectionVisibility();
 	void RefreshSelectedBillboardTint();
 	// 선택된 액터의 BVH를 디버그 라인 요청에 추가한다.
+
+	// Pilot 모드 상태 — nullptr 이면 비활성
+	ULightComponentBase* PilotedLightComponent = nullptr;
+	bool                 bPilotDirectionalOnly  = false; // 방향광은 회전만 적용
 
 	FEditorUI EditorUI;
 	std::unique_ptr<FPreviewViewportClient> PreviewViewportClient;

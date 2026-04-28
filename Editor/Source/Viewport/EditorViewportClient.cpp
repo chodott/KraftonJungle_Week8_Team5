@@ -229,8 +229,13 @@ void FEditorViewportClient::Tick(FEngine* Engine, float DeltaTime)
 {
 	IViewportClient::Tick(Engine, DeltaTime);
 	FEditorEngine* EditorEngine = static_cast<FEditorEngine*>(Engine);
-	// 移대찓???대퉬寃뚯씠?섍낵 酉고룷???낅젰 ?곹깭???꾩슜 ?쒕퉬?ㅺ? ?대떦?쒕떎.
+
 	InputService.TickCameraNavigation(Engine, EditorEngine, ViewportRegistry, Gizmo);
+	// 입력 처리 후 카메라 결과를 파일럿 중인 라이트에 반영한다.
+	if (EditorEngine)
+	{
+		EditorEngine->TickPilotMode();
+	}
 }
 
 void FEditorViewportClient::HandleMessage(FEngine* Engine, HWND Hwnd, UINT Msg, WPARAM WParam, LPARAM LParam)
