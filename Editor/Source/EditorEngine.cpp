@@ -1237,7 +1237,8 @@ void FEditorEngine::InitEditorConsole()
 
 		if (std::strcmp(CommandLine, "shadow_filter Raw") == 0 ||
 		    std::strcmp(CommandLine, "shadow_filter PCF") == 0 ||
-		    std::strcmp(CommandLine, "shadow_filter VSM") == 0)
+		    std::strcmp(CommandLine, "shadow_filter VSM") == 0 ||
+			std::strcmp(CommandLine, "shadow_filter ESM") == 0)
 		{
 			FRenderer* Renderer = GetRenderer();
 			if (Renderer)
@@ -1248,6 +1249,8 @@ void FEditorEngine::InitEditorConsole()
 					EShadowFilterMode Mode = EShadowFilterMode::VSM;
 					if (std::strcmp(ModeStr, "Raw") == 0) Mode = EShadowFilterMode::Raw;
 					else if (std::strcmp(ModeStr, "PCF") == 0) Mode = EShadowFilterMode::PCF;
+					else if (std::strcmp(ModeStr, "VSM") == 0) Mode = EShadowFilterMode::VSM;
+					else if (std::strcmp(ModeStr, "ESM") == 0) Mode = EShadowFilterMode::ESM;
 					Shadow->SetGlobalFilterMode(Mode);
 					FEngineLog::Get().Log("Shadow filter mode: %s", ModeStr);
 				}

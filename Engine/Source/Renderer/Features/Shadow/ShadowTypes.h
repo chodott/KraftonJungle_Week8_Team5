@@ -51,6 +51,7 @@ enum class EShadowFilterMode : uint32
 	Raw = 0u,
 	PCF = 1u,
 	VSM = 2u,
+	ESM = 3u,
 };
 
 enum class EShadowLightType : uint32
@@ -81,6 +82,7 @@ struct FShadowLightRenderItem
 	float SlopeBias  = 0.001f;
 	float NormalBias = 0.0f;
 	float Sharpen    = 0.0f;
+	float ESMExponent = 0.0f;
 
 	uint32 CubeArrayIndex = UINT32_MAX;
 	ELightMobility Mobility = ELightMobility::Movable;
@@ -140,6 +142,8 @@ struct FShadowLightGPU
 	FVector4 DirectionBias;
 
 	FVector4 Params0;
+
+	FVector4 Params1;	//x: ESM exponent
 };
 
 

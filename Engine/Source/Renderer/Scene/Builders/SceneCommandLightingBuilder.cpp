@@ -309,6 +309,7 @@ namespace
 		ShadowLight.SlopeBias   = Spot->GetShadowSlopeBias();
 		ShadowLight.NormalBias  = 0.0f;
 		ShadowLight.Sharpen     = Spot->GetShadowSharpen();
+		ShadowLight.ESMExponent = Spot->GetShadowESMExponent();
 
 		const FVector DirectionWS = LightItem.DirectionWS.GetSafeNormal();
 
@@ -375,11 +376,12 @@ namespace
 		ShadowLight.SlopeBias = 0.001f;
 		ShadowLight.NormalBias = 0.0f;
 		ShadowLight.Sharpen = 0.0f;
+		ShadowLight.ESMExponent = DirLight->GetShadowESMExponent();
 
 		uint32 CascadeCount = DirLight->GetCascadeCount();
 		CascadeCount = (std::min)(CascadeCount, ShadowConfig::MaxDirCascade);
 
-		TArray<float> FrustumSplits = FCasCade::CalculateCascadeSplits(CascadeCount, View.NearZ, View.FarZ, DirLight->GetSplitLambda());
+		TArray<float> FrustumSplits = FCasCade::CalculateCascadeSplits(CascadeCount, View.NearZ, DirLight->GetShadowFarZ(), DirLight->GetSplitLambda());
 		
 		if (FrustumSplits.size() < 2)
 		{
@@ -463,7 +465,7 @@ namespace
 
 			// -2000으로 두면 VSM의 빛샘현상이 너무 심하게 나타남.
 			// float BoxNear = -SphereRadius - 2000.0f; 
-			float BoxNear = -SphereRadius;
+			float BoxNear = -SphereRadius - 100.0f;
 			float BoxFar = SphereRadius;
 
 			FShadowViewRenderItem ViewItem;
@@ -499,6 +501,7 @@ namespace
 		ShadowLight.SlopeBias  = Point->GetShadowSlopeBias();
 		ShadowLight.Sharpen    = Point->GetShadowSharpen();
 		ShadowLight.CubeArrayIndex = CubeArrayIndex;
+		ShadowLight.ESMExponent = Point->GetShadowESMExponent();
 
 		const float NearZ = ShadowConfig::DefaultNearZ;
 		const float FarZ = (std::max)(LightItem.Range, NearZ + 0.001f);
