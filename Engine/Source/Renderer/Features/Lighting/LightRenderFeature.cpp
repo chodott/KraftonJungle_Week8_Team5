@@ -391,6 +391,10 @@ std::shared_ptr<FVertexShaderHandle> FLightRenderFeature::GetCurrentVSHandle(
 	{
 		return WorldNormalVariants[Variant].VertexHandle;
 	}
+	if (RenderMode == ERenderMode::CSMCascadeDebug)
+	{
+		return PhongVariants[Variant].VertexHandle;
+	}
 	switch (CurrentLightingModel)
 	{
 	case ELightingModel::Lambert: return LambertVariants[Variant].VertexHandle;
@@ -406,6 +410,10 @@ std::shared_ptr<FPixelShaderHandle> FLightRenderFeature::GetCurrentPSHandle(
 {
 	const uint32 Variant = ToShaderVariantIndex(bHasNormalMap, bEnableShadows);
 	if (RenderMode == ERenderMode::WorldNormal)
+	{
+		return WorldNormalVariants[Variant].PixelHandle;
+	}
+	if (RenderMode == ERenderMode::CSMCascadeDebug)
 	{
 		return WorldNormalVariants[Variant].PixelHandle;
 	}
