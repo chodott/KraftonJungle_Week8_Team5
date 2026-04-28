@@ -4,6 +4,7 @@
 
 struct FRect;
 class FRenderer;
+class AActor;
 
 struct FObjectEntry
 {
@@ -24,7 +25,7 @@ enum class EStatWindowMode : uint8
 class FStatWindow
 {
 public:
-	void Render(const FRect& AreaRect, EStatWindowMode Mode, FRenderer* Renderer = nullptr);
+	void Render(const FRect& AreaRect, EStatWindowMode Mode, FRenderer* Renderer = nullptr, AActor* SelectedActor = nullptr);
 	void SetObjectCount(uint32 InCount) { ObjectCount = InCount; }
 	void SetHeapUsage(uint32 InBytes) { HeapUsageBytes = InBytes; }
 
@@ -34,7 +35,7 @@ private:
 	void RenderDecalStats(FRenderer* Renderer);
 	void RenderFogStats(FRenderer* Renderer);
 	void RenderGPUStats(FRenderer* Renderer);
-	void RenderLightStats(FRenderer* Renderer);
+	void RenderLightStats(FRenderer* Renderer, AActor* SelectedActor);
 
 	uint32 ObjectCount = 0;
 	uint32 HeapUsageBytes = 0;

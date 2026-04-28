@@ -16,6 +16,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "Math/Cascade.h"
+
 namespace
 {
 	FVector ToLightRGB(const FLinearColor& Color)
@@ -102,7 +104,7 @@ namespace
 
 	uint32 AddShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, const FShadowViewRenderItem& InView)
 	{
-		if (Inputs.ShadowViews.size() >= ShadowConfig::MaxSpotShadowViews)
+		if (Inputs.ShadowViews.size() >= ShadowConfig::MaxShadowViews)
 			return UINT32_MAX;
 
 		FShadowViewRenderItem View = InView;
@@ -123,6 +125,42 @@ namespace
 
 		return ViewIndex;
 	}
+	float ComputeSpotScreenCoverage(
+		const FVector& CameraPosition,
+		const FVector& LightPosition,
+		const FVector& LightDirection,
+		float Range,
+		float OuterConeAngleDeg)
+	{
+		const float SafeRange = (std::max)(Range, 0.0f);
+		const float HalfRange = SafeRange * 0.5f;
+
+		const float OuterAngleRad = FMath::DegreesToRadians(
+			FMath::Clamp(OuterConeAngleDeg, 1.0f, 80.0f));
+
+		const float ConeEndRadius = std::tan(OuterAngleRad) * SafeRange;
+
+		const FVector BoundsCenter = LightPosition + LightDirection.GetSafeNormal() * HalfRange;
+		const float BoundsRadius = std::sqrt(HalfRange * HalfRange + ConeEndRadius * ConeEndRadius);
+
+		const float Distance = (CameraPosition - BoundsCenter).Size();
+		const float SafeDistance = (std::max)(Distance - BoundsRadius, 1.0f);
+
+		const float ProjectedRadius = BoundsRadius / SafeDistance;
+
+		return FMath::Clamp(ProjectedRadius * ProjectedRadius, 0.0f, 1.0f);
+	}
+
+	uint32 QuantizeShadowResolution(uint32 Resolution)
+	{
+		if (Resolution >= 2048) return 2048;
+		if (Resolution >= 1024) return 1024;
+		if (Resolution >= 512)  return 512;
+		if (Resolution >= 256)  return 256;
+		if (Resolution >= 128)  return 128;
+		return 64;
+	}
+
 	uint32 AddPointShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, uint32 ExplicitArraySlice, const FShadowViewRenderItem& InView) 
 	{
 		FShadowViewRenderItem View = InView;
@@ -139,14 +177,56 @@ namespace
 		Light.LightType = EShadowLightType::Point;
 
 		return ViewIndex;
-
 	}
+
+	uint32 AllocateDirShadowLight(FSceneLightingInputs& Inputs, EShadowLightType LightType, uint32 SourceLightIndex)
+	{
+		if (Inputs.DirShadowLights.size() >= ShadowConfig::MaxShadowLights)
+		{
+			return UINT32_MAX;
+		}
+
+		FShadowLightRenderItem Item = {};
+		Item.LightType = LightType;
+		Item.SourceLightIndex = SourceLightIndex;
+		Item.ShadowIndex = static_cast<uint32>(Inputs.DirShadowLights.size());
+		Inputs.DirShadowLights.push_back(Item);
+
+		return Item.ShadowIndex;
+	}
+
+	uint32 AddDirShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, const FShadowViewRenderItem& InView)
+	{
+		if (Inputs.DirShadowViews.size() >= ShadowConfig::MaxDirCascade)
+		{
+			return UINT32_MAX;
+		}
+
+		FShadowViewRenderItem View = InView;
+		View.ShadowLightIndex = ShadowLightIndex;
+		View.ArraySlice = static_cast<uint32>(Inputs.DirShadowViews.size());
+
+		const uint32 ViewIndex = static_cast<uint32>(Inputs.DirShadowViews.size());
+		Inputs.DirShadowViews.push_back(std::move(View));
+
+		FShadowLightRenderItem& ShadowLight = Inputs.DirShadowLights[ShadowLightIndex];
+		if (ShadowLight.ViewCount == 0)
+		{
+			ShadowLight.FirstViewIndex = ViewIndex;
+		}
+		++ShadowLight.ViewCount;
+
+		return ViewIndex;
+	}
+
+
 	void BuildSpotShadowViews(
 		FSceneLightingInputs&        Inputs,
 		const USpotLightComponent*   Spot,
 		const FLocalLightRenderItem& LightItem,
 		uint32                       LocalLightIndex,
-		uint32                       ShadowLightIndex)
+		uint32                       ShadowLightIndex,
+		const FVector&				 CameraPosition)
 	{
 		FShadowLightRenderItem& ShadowLight = Inputs.ShadowLights[ShadowLightIndex];
 
@@ -172,12 +252,19 @@ namespace
 		const float OuterHalfAngleDeg = FMath::Clamp(Spot->GetOuterConeAngle(), 1.0f, 80.0f);
 		const float FullFovRad        = FMath::DegreesToRadians(OuterHalfAngleDeg * 2.0f);
 
+		const float Coverage = ComputeSpotScreenCoverage(CameraPosition, LightItem.PositionWS, LightItem.DirectionWS,
+			LightItem.Range, Spot->GetOuterConeAngle());
+		float ResolutionScale = Spot->GetShadowResolutionScale();
+
+		float ResolutionFactor = std::sqrt(Coverage) * ResolutionScale;
+		uint32 RequestedResolution = QuantizeShadowResolution(static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionFactor));
+
 		FShadowViewRenderItem View;
 		View.ProjectionType      = EShadowProjectionType::Perspective;
 		View.PositionWS          = LightItem.PositionWS;
 		View.NearZ               = NearZ;
 		View.FarZ                = FarZ;
-		View.RequestedResolution = Spot->GetShadowMapResolution();
+		View.SourceActor         = Spot->GetOwner();
 
 		View.View = FMatrix::MakeViewLookAtLH(
 			LightItem.PositionWS,
@@ -194,9 +281,134 @@ namespace
 		View.LightType = EShadowLightType::Spot;
 
 		View.Viewport = {};
+		View.RequestedResolution = QuantizeShadowResolution(RequestedResolution);
 
 		AddShadowView(Inputs, ShadowLightIndex, View);
 	}
+
+	void BuildDirectionalShadowViews(
+		FSceneLightingInputs& Inputs,
+		const UDirectionalLightComponent* DirLight,
+		FDirectionalLightRenderItem& LightItem,
+		uint32 ShadowLightIndex,
+		const FViewContext& View)
+	{
+		FShadowLightRenderItem& ShadowLight = Inputs.DirShadowLights[ShadowLightIndex];
+		ShadowLight.LightType = EShadowLightType::Directional;
+		ShadowLight.PositionWS = FVector::ZeroVector;
+		ShadowLight.DirectionWS = LightItem.DirectionWS;
+		ShadowLight.Bias = 0.000001f;
+		ShadowLight.SlopeBias = 0.001f;
+		ShadowLight.NormalBias = 0.0f;
+		ShadowLight.Sharpen = 0.0f;
+
+		uint32 CascadeCount = DirLight->GetCascadeCount();
+		CascadeCount = (std::min)(CascadeCount, ShadowConfig::MaxDirCascade);
+
+		TArray<float> FrustumSplits = FCasCade::CalculateCascadeSplits(CascadeCount, View.NearZ, View.FarZ, 0.9f);
+		
+		if (FrustumSplits.size() < 2)
+		{
+			return;
+		}
+
+		LightItem.CascadeSplits = FVector4(
+			FrustumSplits.size() > 1 ? FrustumSplits[1] : 0.0f,
+			FrustumSplits.size() > 2 ? FrustumSplits[2] : 0.0f,
+			FrustumSplits.size() > 3 ? FrustumSplits[3] : 0.0f,
+			FrustumSplits.size() > 4 ? FrustumSplits[4] : 0.0f
+		);
+
+		FVector UpVector = (std::abs(LightItem.DirectionWS.Z) > 0.999f) ? FVector::YAxisVector : FVector::ZAxisVector;
+
+		FMatrix CameraInvView = View.InverseView;
+		FMatrix CameraInvProj = View.InverseProjection;
+
+		// NDC좌표상 각 꼭짓점
+		FVector4 NDC_Corners[4] = {
+			FVector4(-1.0f,  1.0f, 1.0f, 1.0f), FVector4(1.0f,  1.0f, 1.0f, 1.0f),
+			FVector4(1.0f, -1.0f, 1.0f, 1.0f), FVector4(-1.0f, -1.0f, 1.0f, 1.0f)
+		};
+
+		// 절두체 4개의 변
+		FVector ViewRays[4];
+		for (int j = 0; j < 4; j++)
+		{
+			FVector4 ViewCorner = NDC_Corners[j] * CameraInvProj;
+			float InvW = 1.0f / ViewCorner.W;
+			FVector Ray = FVector(ViewCorner.X * InvW, ViewCorner.Y * InvW, ViewCorner.Z * InvW);
+
+			ViewRays[j] = Ray * (1.0f / Ray.X);
+		}
+		
+		// 절두체 별
+		for (uint32 i = 0; i < CascadeCount; i++)
+		{
+			float NearSplit = FrustumSplits[i];
+			float FarSplit = FrustumSplits[i + 1];
+
+			FVector FrustumCornersWS[8];
+			for (int j = 0; j < 4; j++)
+			{
+				FVector NearVS = ViewRays[j] * NearSplit;
+				FVector FarVS = ViewRays[j] * FarSplit;
+
+				FrustumCornersWS[j] = CameraInvView.TransformPosition(NearVS);
+				FrustumCornersWS[j + 4] = CameraInvView.TransformPosition(FarVS);
+			}
+
+			FVector FrustumCenter = FVector::ZeroVector;
+			for (int j = 0; j < 8; j++) { FrustumCenter += FrustumCornersWS[j]; }
+			FrustumCenter /= 8.0f;
+
+			float SphereRadius = 0.0f;
+			for (int j = 0; j < 8; j++)
+			{
+				SphereRadius = (std::max)(SphereRadius, FVector::Dist(FrustumCenter, FrustumCornersWS[j]));
+			}
+
+			// 부동 소수점 오차
+			SphereRadius = std::ceil(SphereRadius * 16.0f) / 16.0f;
+
+			float BoxWidth = SphereRadius * 2.0f;
+			float BoxHeight = SphereRadius * 2.0f;
+
+			float WorldUnitsPerTexel = BoxWidth / ShadowConfig::DirShadowDepthResolution;
+
+			// Texel 작업을 위함. Sanpping 현상 완화
+			// 빛을 0, 0, 0으로 두고, 이를 기반으로 위치를 Texel화 -> floor를 이용
+			FMatrix TempShadowView = FMatrix::MakeViewLookAtLH(FVector::ZeroVector, LightItem.DirectionWS, UpVector);
+			FVector CenterLS = TempShadowView.TransformPosition(FrustumCenter);
+
+			CenterLS.Y = std::floor(CenterLS.Y / WorldUnitsPerTexel) * WorldUnitsPerTexel;
+			CenterLS.Z = std::floor(CenterLS.Z / WorldUnitsPerTexel) * WorldUnitsPerTexel;
+
+			// 다시 절두체의 중심을 world세계로 변환. -> 이를 이용해서 View Proj행렬 계산.
+			FVector SnappedCenterWS = TempShadowView.GetInverse().TransformPosition(CenterLS);
+			FVector LightPosition = SnappedCenterWS;
+
+			// -2000으로 두면 VSM의 빛샘현상이 너무 심하게 나타남.
+			// float BoxNear = -SphereRadius - 2000.0f; 
+			float BoxNear = -SphereRadius;
+			float BoxFar = SphereRadius;
+
+			FShadowViewRenderItem ViewItem;
+			ViewItem.ProjectionType = EShadowProjectionType::Orthographic;
+			ViewItem.PositionWS = FrustumCenter;
+			ViewItem.NearZ = BoxNear;
+			ViewItem.FarZ = BoxFar;
+			ViewItem.RequestedResolution = ShadowConfig::DirShadowDepthResolution;
+
+			ViewItem.BiasParams = { DirLight->GetShadowBias(), DirLight->GetShadowSlopeBias(), 0.0f, 0.0f };
+			ViewItem.View = FMatrix::MakeViewLookAtLH(LightPosition, LightPosition + LightItem.DirectionWS, UpVector);
+			ViewItem.Projection = FMatrix::MakeOrthographicLH(BoxWidth, BoxHeight, BoxNear, BoxFar);
+			ViewItem.ViewProjection = ViewItem.View * ViewItem.Projection;
+			ViewItem.Viewport = {};
+
+			AddDirShadowView(Inputs, ShadowLightIndex, ViewItem);
+		}
+	}
+
 	void BuildPointShadowViews(FSceneLightingInputs& Inputs,const UPointLightComponent* Point, const FLocalLightRenderItem& LightItem,uint32 ShadowLightIndex, uint32 CubeArrayIndex)
 	{
 		static const FVector CubeFaceLook[6] = {{ 1, 0, 0 }, { -1, 0, 0 },	{ 0, 1, 0 }, { 0,-1, 0 },{0, 0, 1 },{ 0, 0, -1 },};
@@ -236,7 +448,7 @@ namespace
 				FMath::DegreesToRadians(90.0f), 1.0f, NearZ, FarZ);
 
 			View.ViewProjection = View.View * View.Projection;
-			View.FilterMode = EShadowFilterMode::VSM;
+			View.FilterMode = EShadowFilterMode::Raw; 
 			View.LightType = EShadowLightType::Point;
 
 			AddPointShadowView(Inputs, ShadowLightIndex, BaseSlice + F, View);
@@ -250,6 +462,7 @@ namespace
 	}
 
 }
+
 
 void FSceneCommandLightingBuilder::BuildLightingInputs(
 	const FSceneCommandBuildContext& BuildContext,
@@ -340,6 +553,14 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 					DirectionalLightItem = Candidate;
 					StrongestDirectional = Candidate.Intensity;
 					bHasDirectionalLight = true;
+
+					LightingInputs.DirShadowLights.clear();
+					LightingInputs.DirShadowViews.clear();
+					const uint32 ShadowLightIndex = AllocateDirShadowLight(LightingInputs, EShadowLightType::Directional, 0);
+					if (ShadowLightIndex != UINT32_MAX)
+					{
+						BuildDirectionalShadowViews(LightingInputs, Directional, DirectionalLightItem, ShadowLightIndex, View);
+					}
 				}
 				continue;
 			}
@@ -360,7 +581,7 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 					if (ShadowLightIndex != UINT32_MAX)
 					{
-						BuildSpotShadowViews(LightingInputs, Spot, LightItem, LocalLightIndex, ShadowLightIndex);
+						BuildSpotShadowViews(LightingInputs, Spot, LightItem, LocalLightIndex, ShadowLightIndex, View.CameraPosition);
 						if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount > 0)
 						{
 							LightItem.ShadowIndex = ShadowLightIndex;

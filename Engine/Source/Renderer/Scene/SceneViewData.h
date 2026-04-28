@@ -68,6 +68,8 @@ struct ENGINE_API FDirectionalLightRenderItem
 	FVector Color = FVector::OneVector;
 	uint32  Flags = 0;
 
+	FVector4 CascadeSplits;
+
 	uint32 ShadowIndex = UINT32_MAX;
 };
 
@@ -80,6 +82,9 @@ struct ENGINE_API FSceneLightingInputs
 	TArray<FShadowLightRenderItem> ShadowLights;
 	TArray<FShadowViewRenderItem>  ShadowViews;
 
+	TArray<FShadowLightRenderItem> DirShadowLights;
+	TArray<FShadowViewRenderItem>  DirShadowViews;
+
 	TArray<uint32> ObjectLightIndices;
 
 	void Clear()
@@ -89,6 +94,8 @@ struct ENGINE_API FSceneLightingInputs
 		DirectionalLights.clear();
 		ShadowLights.clear();
 		ShadowViews.clear();
+		DirShadowLights.clear();
+		DirShadowViews.clear();
 		ObjectLightIndices.clear();
 	}
 };

@@ -19,7 +19,7 @@ void ULightComponent::DuplicateShallow(UObject* DuplicatedObject, FDuplicateCont
 	DuplicatedLightComponent->Intensity             = Intensity;
 	DuplicatedLightComponent->IntensityUnits        = IntensityUnits;
 	DuplicatedLightComponent->bVisible              = bVisible;
-	DuplicatedLightComponent->ShadowMapResolution = ShadowMapResolution;
+	DuplicatedLightComponent->ShadowResolutionScale = ShadowResolutionScale;
 	DuplicatedLightComponent->ShadowBias            = ShadowBias;
 	DuplicatedLightComponent->ShadowSlopeBias       = ShadowSlopeBias;
 	DuplicatedLightComponent->ShadowSharpen         = ShadowSharpen;
@@ -88,13 +88,13 @@ void ULightComponent::SetVisible(bool bNewVisible)
 	NotifyOwnerLightPropertyChanged();
 }
 
-void ULightComponent::SetShadowMapResolution(uint32 NewResolution)
+void ULightComponent::SetShadowResolutionScale(float NewResolutionScale)
 {
-	if (ShadowMapResolution == NewResolution)
+	if (ShadowResolutionScale == NewResolutionScale)
 	{
 		return;
 	}
-	ShadowMapResolution = NewResolution;
+	ShadowResolutionScale = NewResolutionScale;
 	NotifyOwnerLightPropertyChanged();
 }
 
@@ -152,7 +152,7 @@ void ULightComponent::Serialize(FArchive& Ar)
 	Ar.Serialize("LightColor", Color);
 	Ar.Serialize("IntensityUnits", Units);
 	Ar.Serialize("bVisible", bVisible);
-	Ar.Serialize("ShadowMapResolution", ShadowMapResolution);
+	Ar.Serialize("ShadowResolutionScale", ShadowResolutionScale);
 	Ar.Serialize("ShadowBias", ShadowBias);
 	Ar.Serialize("ShadowSlopeBias", ShadowSlopeBias);
 	Ar.Serialize("ShadowSharpen", ShadowSharpen);
@@ -162,7 +162,7 @@ void ULightComponent::Serialize(FArchive& Ar)
 		LightColor     = FLinearColor(Color.X, Color.Y, Color.Z, Color.W);
 		IntensityUnits = static_cast<ELightUnits>(Units);
 
-		ShadowMapResolution = FMath::Clamp(ShadowMapResolution, 0u, ShadowConfig::MaxShadowMapResolution);
+		ShadowResolutionScale = FMath::Clamp(ShadowResolutionScale, 0.0f, static_cast<float>(ShadowConfig::MaxShadowMapResolution));
 		ShadowBias          = (std::max)(0.0f, ShadowBias);
 		ShadowSlopeBias     = (std::max)(0.0f, ShadowSlopeBias);
 		ShadowSharpen       = FMath::Clamp(ShadowSharpen, 0.0f, 1.0f);

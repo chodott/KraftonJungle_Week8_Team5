@@ -195,12 +195,16 @@ void FMeshPassProcessor::ExecutePass(
 	const bool           bApplyLighting = (Feature != nullptr && (PassType == EMeshPassType::ForwardOpaque || PassType == EMeshPassType::ForwardMeshDecal)
 		&& SceneViewData.RenderMode != ERenderMode::Unlit
 		&& SceneViewData.RenderMode != ERenderMode::Wireframe);
+	const bool bHasLocalShadows = !SceneViewData.LightingInputs.ShadowLights.empty()
+		&& !SceneViewData.LightingInputs.ShadowViews.empty();
+
+	const bool bHasDirShadows = !SceneViewData.LightingInputs.DirShadowLights.empty()
+		&& !SceneViewData.LightingInputs.DirShadowViews.empty();
 	const bool           bUseShadowVariant = bApplyLighting
 		&& (SceneViewData.RenderMode == ERenderMode::Lit_Gouraud ||
 			SceneViewData.RenderMode == ERenderMode::Lit_Lambert ||
 			SceneViewData.RenderMode == ERenderMode::Lit_Phong)
-		&& !SceneViewData.LightingInputs.ShadowLights.empty()
-		&& !SceneViewData.LightingInputs.ShadowViews.empty();
+		&& (bHasLocalShadows || bHasDirShadows);
 
 	if (bApplyLighting)
 	{

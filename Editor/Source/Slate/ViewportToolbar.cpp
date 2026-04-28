@@ -54,7 +54,8 @@ namespace
 			"Wireframe",
 			"SceneDepth",
 			"World Normal",
-			"LightCullingHeatmap"
+			"LightCullingHeatmap",
+			"CSMCascadeDebug"
 		};
 		return Options;
 	}

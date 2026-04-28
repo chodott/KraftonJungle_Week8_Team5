@@ -53,6 +53,31 @@ public:
 		return LocalShadowDepthAtlasSRV;
 	}
 
+	ID3D11ShaderResourceView* GetLocalShadowMomentsAtlasSRV() const
+	{
+		return LocalShadowMomentsAtlasSRV;
+	}
+
+	ID3D11ShaderResourceView* GetDirShadowDepthAtlasSRV() const
+	{
+		return DirShadowDepthAtlasSRV;
+	}
+
+	ID3D11ShaderResourceView* GetDirShadowMomentsAtlasSRV() const
+	{
+		return DirShadowMomentsAtlasSRV;
+	}
+
+	ID3D11ShaderResourceView* GetLocalShadowAtlasPreviewSRV() const
+	{
+		return LocalShadowAtlasPreviewSRV ? LocalShadowAtlasPreviewSRV : LocalShadowDepthAtlasSRV;
+	}
+
+	ID3D11ShaderResourceView* GetDirShadowAtlasPreviewSRV() const
+	{
+		return DirShadowAtlasPreviewSRV ? DirShadowAtlasPreviewSRV : DirShadowDepthAtlasSRV;
+	}
+
 	bool RenderShadows(FRenderer& Renderer, const FMeshPassProcessor& Processor, FSceneRenderTargets& Targets, FSceneViewData& SceneViewData);
 
 	void SetDebugViewMode(EShadowDebugViewMode InMode)
@@ -85,6 +110,16 @@ public:
 		return DebugAvailableSlices;
 	}
 
+	const TArray<FShadowViewRenderItem>& GetLastDirectionalShadowViews() const
+	{
+		return CachedDirShadowViews;
+	}
+
+	const TArray<FShadowViewRenderItem>& GetLastLocalShadowViews() const
+	{
+		return CachedLocalShadowViews;
+	}
+
 	void SetDebugViewportOverlayEnabled(bool bEnabled)
 	{
 		bDebugViewportOverlayEnabled = bEnabled;
@@ -104,6 +139,10 @@ private:
 
 	bool EnsureShadowBuffers(FRenderer& Renderer, uint32 ShadowLightCount, uint32 ShadowViewCount);
 
+	bool EnsureDirMomentsAtlas(const FRenderer& Renderer, uint32 RequiredResolution);
+	bool EnsureDirShadowDepthAtlas(FRenderer& Renderer, uint32 RequiredResolution);
+	bool EnsureDirShadowBuffers(FRenderer& Renderer, uint32 ShadowLightCount, uint32 ShadowViewCount);
+
 	bool EnsureDynamicStructuredBufferSRV(
 		FRenderer&                 Renderer,
 		uint32                     ElementStride,
@@ -116,22 +155,45 @@ private:
 	void UploadShadowBuffers(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 
 	void RenderShadowViews(FRenderer& Renderer, const FMeshPassProcessor& Processor, FSceneRenderTargets& Targets, FSceneViewData& SceneViewData);
+	void RenderDirectionalShadows(FRenderer& Renderer, const FMeshPassProcessor& Processor, FSceneRenderTargets& Targets, FSceneViewData& SceneViewData);
 
 	uint32         ResolveShadowViewResolution(uint32 RequestedResolution) const;
 	uint32         ComputeRequiredShadowDepthArrayResolution(const FSceneViewData& SceneViewData) const;
 	D3D11_VIEWPORT BuildShadowViewport(int X, int Y, int Size) const;
 	bool           EnsureDebugPreviewResources(FRenderer& Renderer);
 	bool           RenderDebugPreview(FRenderer& Renderer, FSceneRenderTargets& Targets, const FSceneViewData& SceneViewData);
+	bool           EnsureAtlasPreviewTexture(
+		FRenderer& Renderer,
+		uint32 Size,
+		ID3D11Texture2D*& Texture,
+		ID3D11RenderTargetView*& RTV,
+		ID3D11ShaderResourceView*& SRV);
+	bool           RenderAtlasPreview(
+		FRenderer& Renderer,
+		const FSceneViewData& SceneViewData,
+		ID3D11ShaderResourceView* SourceSRV,
+		uint32 Size,
+		ID3D11RenderTargetView* TargetRTV);
+	void           RenderShadowAtlasPreviews(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 
 	ID3D11Texture2D*          ShadowDebugPreviewTexture = nullptr;
 	ID3D11RenderTargetView*   ShadowDebugPreviewRTV     = nullptr;
 	ID3D11ShaderResourceView* ShadowDebugPreviewSRV     = nullptr;
+
+	ID3D11Texture2D*          LocalShadowAtlasPreviewTexture = nullptr;
+	ID3D11RenderTargetView*   LocalShadowAtlasPreviewRTV     = nullptr;
+	ID3D11ShaderResourceView* LocalShadowAtlasPreviewSRV     = nullptr;
+
+	ID3D11Texture2D*          DirShadowAtlasPreviewTexture = nullptr;
+	ID3D11RenderTargetView*   DirShadowAtlasPreviewRTV     = nullptr;
+	ID3D11ShaderResourceView* DirShadowAtlasPreviewSRV     = nullptr;
 
 	ID3D11SamplerState* ShadowDebugSampler = nullptr;
 	ID3D11Buffer*       ShadowDebugCB      = nullptr;
 
 	std::shared_ptr<FVertexShaderHandle> ShadowDebugVS = nullptr;
 	std::shared_ptr<FPixelShaderHandle>  ShadowDebugPS = nullptr;;
+	std::shared_ptr<FPixelShaderHandle>  ShadowAtlasPreviewPS = nullptr;
 
 	//Spot
 	ID3D11Texture2D*		  LocalShadowDepthAtlas						   = nullptr;
@@ -164,18 +226,38 @@ private:
 	ID3D11Buffer*             ShadowViewBuffer    = nullptr;
 	ID3D11ShaderResourceView* ShadowViewBufferSRV = nullptr;
 
+	//Directional
+	ID3D11Texture2D*			DirShadowDepthAtlas		= nullptr;
+	ID3D11ShaderResourceView*	DirShadowDepthAtlasSRV	= nullptr;
+	ID3D11DepthStencilView*		DirShadowDepthAtlasDSV = nullptr;
+
+	ID3D11Texture2D*			DirShadowMomentsAtlas	= nullptr;
+	ID3D11RenderTargetView*		DirShadowMomentsAtlasRTV = nullptr;
+	ID3D11ShaderResourceView*	DirShadowMomentsAtlasSRV = nullptr;
+
+	ID3D11Buffer*				DirShadowLightBuffer	= nullptr;
+	ID3D11ShaderResourceView*	DirShadowLightBufferSRV	= nullptr;
+
+	ID3D11Buffer*				DirShadowViewBuffer		= nullptr;
+	ID3D11ShaderResourceView*	DirShadowViewBufferSRV = nullptr;
+
+
 	ID3D11SamplerState*  ShadowComparisonSampler    = nullptr;
 	ID3D11SamplerState*  ShadowLinearSampler        = nullptr;
 	uint32               DefaultShadowMapResolution = ShadowConfig::DefaultShadowMapResolution;
 	uint32               ShadowDepthArrayResolution = ShadowConfig::DefaultShadowMapResolution;
-	bool                 bShadowDepthArrayDirty     = true;
+	bool                 bShadowDepthArrayDirty = true;
+	bool                 bDirShadowDepthArrayDirty     = true;
 	bool                 bMomentsBlurValid          = false;
 	EShadowFilterMode    GlobalFilterMode           = EShadowFilterMode::VSM;
 	EShadowDebugViewMode DebugViewMode              = EShadowDebugViewMode::None;
 	uint32               DebugViewSlice             = 0;
 	float                DebugVarianceExposure      = 5000.0f;;
 	TArray<uint32>       DebugAvailableSlices;
+	TArray<FShadowViewRenderItem> CachedLocalShadowViews;
+	TArray<FShadowViewRenderItem> CachedDirShadowViews;
 	bool                 bDebugViewportOverlayEnabled = false;
 
 	FShadowAtlasAllocator* ShadowAtlasAllocator;
+	FShadowAtlasAllocator* DirShadowAtlasAllocator;
 };
