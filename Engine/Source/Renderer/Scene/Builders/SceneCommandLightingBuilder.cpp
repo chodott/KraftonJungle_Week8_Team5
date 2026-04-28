@@ -12,14 +12,11 @@
 #include "World/World.h"
 
 #include "Renderer/Features/Shadow/ShadowAtlasAllocator.h"
-#include "Debug/EngineLog.h"
 
 #include <algorithm>
-#include <cfloat>
 #include <cmath>
 
 #include "Math/Cascade.h"
-
 
 namespace
 {
@@ -61,13 +58,8 @@ namespace
 		L.Intensity       = C->GetEffectiveIntensity();
 		L.Flags           = 0;
 
-		const float InnerAngleRad =
-				FMath::DegreesToRadians(
-					FMath::Clamp(C->GetInnerConeAngle(), 0.0f, 89.0f));
-
-		const float OuterAngleRad =
-				FMath::DegreesToRadians(
-					FMath::Clamp(C->GetOuterConeAngle(), 0.0f, 89.0f));
+		const float InnerAngleRad = FMath::DegreesToRadians(FMath::Clamp(C->GetInnerConeAngle(), 0.0f, 89.0f));
+		const float OuterAngleRad = FMath::DegreesToRadians(FMath::Clamp(C->GetOuterConeAngle(), 0.0f, 89.0f));
 
 		L.InnerAngleCos = std::cos(InnerAngleRad);
 		L.OuterAngleCos = std::cos(OuterAngleRad);
@@ -77,6 +69,7 @@ namespace
 			std::swap(L.InnerAngleCos, L.OuterAngleCos);
 		}
 
+		// conservative sphere
 		L.CullCenterWS = L.PositionWS + L.DirectionWS * (L.Range * 0.5f);
 		L.CullRadius   = L.Range;
 
@@ -93,10 +86,7 @@ namespace
 		return L;
 	}
 
-	uint32 AllocalteShadowLight(
-		FSceneLightingInputs& Inputs,
-		EShadowLightType      LightType,
-		uint32                SourceLightIndex)
+	uint32 AllocalteShadowLight(FSceneLightingInputs& Inputs, EShadowLightType LightType, uint32 SourceLightIndex)
 	{
 		if (Inputs.ShadowLights.size() >= ShadowConfig::MaxShadowLights)
 		{
@@ -107,33 +97,24 @@ namespace
 		Item.LightType              = LightType;
 		Item.SourceLightIndex       = SourceLightIndex;
 		Item.ShadowIndex            = static_cast<uint32>(Inputs.ShadowLights.size());
-
 		Inputs.ShadowLights.push_back(Item);
 
 		return Item.ShadowIndex;
 	}
 
-	uint32 AddShadowView(
-		FSceneLightingInputs&        Inputs,
-		uint32                       ShadowLightIndex,
-		const FShadowViewRenderItem& InView)
+	uint32 AddShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, const FShadowViewRenderItem& InView)
 	{
 		if (Inputs.ShadowViews.size() >= ShadowConfig::MaxShadowViews)
-		{
 			return UINT32_MAX;
-		}
 
 		FShadowViewRenderItem View = InView;
-		View.ShadowLightIndex      = ShadowLightIndex;
-		View.ArraySlice            = static_cast<uint32>(Inputs.ShadowViews.size());
+		View.ShadowLightIndex = ShadowLightIndex;
+		View.ArraySlice = static_cast<uint32>(Inputs.ShadowViews.size());
 
-		const uint32 ViewIndex =
-				static_cast<uint32>(Inputs.ShadowViews.size());
-
+		const uint32 ViewIndex = static_cast<uint32>(Inputs.ShadowViews.size());
 		Inputs.ShadowViews.push_back(std::move(View));
 
-		FShadowLightRenderItem& ShadowLight =
-				Inputs.ShadowLights[ShadowLightIndex];
+		FShadowLightRenderItem& ShadowLight = Inputs.ShadowLights[ShadowLightIndex];
 
 		if (ShadowLight.ViewCount == 0)
 		{
@@ -144,113 +125,130 @@ namespace
 
 		return ViewIndex;
 	}
-
 	float ComputeSpotScreenCoverage(
-		const FVector& CameraPosition,
 		const FVector& LightPosition,
 		const FVector& LightDirection,
-		float          Range,
-		float          OuterConeAngleDeg)
+		float Range,
+		float OuterConeAngleDeg,
+		const FMatrix& ViewProj)
 	{
 		const float SafeRange = (std::max)(Range, 0.0f);
-		const float HalfRange = SafeRange * 0.5f;
+		const FVector Direction = LightDirection.GetSafeNormal();
+		if (Direction.IsNearlyZero())
+		{
+			return 0.0f;
+		}
 
-		const float OuterAngleRad =
-				FMath::DegreesToRadians(
-					FMath::Clamp(OuterConeAngleDeg, 1.0f, 80.0f));
+		const float OuterAngleRad = FMath::DegreesToRadians(
+			FMath::Clamp(OuterConeAngleDeg, 1.0f, 80.0f));
 
-		const float ConeEndRadius =
-				std::tan(OuterAngleRad) * SafeRange;
+		const float ConeEndRadius = std::tan(OuterAngleRad) * SafeRange;
+		const FVector EndCenter = LightPosition + Direction * SafeRange;
 
-		const FVector BoundsCenter =
-				LightPosition + LightDirection.GetSafeNormal() * HalfRange;
+		FVector Up = FVector(0.0f, 0.0f, 1.0f);
+		if (std::abs(FVector::DotProduct(Direction, Up)) > 0.95f)
+		{
+			Up = FVector(0.0f, 1.0f, 0.0f);
+		}
 
-		const float BoundsRadius =
-				std::sqrt(HalfRange * HalfRange + ConeEndRadius * ConeEndRadius);
+		const FVector Right = FVector::CrossProduct(Up, Direction).GetSafeNormal();
+		const FVector ConeUp = FVector::CrossProduct(Direction, Right).GetSafeNormal();
 
-		const float Distance =
-				(CameraPosition - BoundsCenter).Size();
+		float MinX = FLT_MAX;
+		float MinY = FLT_MAX;
+		float MaxX = -FLT_MAX;
+		float MaxY = -FLT_MAX;
 
-		const float SafeDistance =
-				(std::max)(Distance - BoundsRadius, 1.0f);
+		int32 ProjectedCount = 0;
 
-		const float ProjectedRadius =
-				BoundsRadius / SafeDistance;
+		auto AddProjectedPoint = [&](const FVector& WorldPos)
+			{
+				const FVector4 Clip = ViewProj.TransformVector4(FVector4(WorldPos, 1.0f));
 
-		return FMath::Clamp(
-			ProjectedRadius * ProjectedRadius,
-			0.0f,
-			1.0f);
+				// Near plane 뒤에 있는 점은 일단 제외.
+				// 완전 정확하게 하려면 near clipping이 필요하지만, shadow resolution 용도면 이 정도로 충분.
+				if (Clip.W <= 1.0e-4f)
+					return;
+
+				const float InvW = 1.0f / Clip.W;
+				const float NdcX = Clip.X * InvW;
+				const float NdcY = Clip.Y * InvW;
+
+				MinX = std::min(MinX, NdcX);
+				MinY = std::min(MinY, NdcY);
+				MaxX = std::max(MaxX, NdcX);
+				MaxY = std::max(MaxY, NdcY);
+
+				++ProjectedCount;
+			};
+
+		AddProjectedPoint(LightPosition);
+		AddProjectedPoint(EndCenter);
+
+		constexpr int32 SegmentCount = 12;
+
+		for (int32 i = 0; i < SegmentCount; ++i)
+		{
+			const float T = (2.0f * FMath::PI * i) / SegmentCount;
+
+			const FVector P =
+				EndCenter
+				+ Right * std::cos(T) * ConeEndRadius
+				+ ConeUp * std::sin(T) * ConeEndRadius;
+
+			AddProjectedPoint(P);
+		}
+
+		if (ProjectedCount == 0)
+			return 0.0f;
+
+		MinX = FMath::Clamp(MinX, -1.0f, 1.0f);
+		MinY = FMath::Clamp(MinY, -1.0f, 1.0f);
+		MaxX = FMath::Clamp(MaxX, -1.0f, 1.0f);
+		MaxY = FMath::Clamp(MaxY, -1.0f, 1.0f);
+
+		const float Width = std::max(0.0f, MaxX - MinX);
+		const float Height = std::max(0.0f, MaxY - MinY);
+
+		const float Coverage = (Width * Height) * 0.25f;
+
+		return FMath::Clamp(Coverage, 0.0f, 1.0f);
 	}
 
 	uint32 QuantizeShadowResolution(uint32 Resolution)
 	{
-		if (Resolution >= 2048)
-		{
-			return 2048;
-		}
-		if (Resolution >= 1024)
-		{
-			return 1024;
-		}
-		if (Resolution >= 512)
-		{
-			return 512;
-		}
-		if (Resolution >= 256)
-		{
-			return 256;
-		}
-		if (Resolution >= 128)
-		{
-			return 128;
-		}
+		if (Resolution >= 2048) return 2048;
+		if (Resolution >= 1024) return 1024;
+		if (Resolution >= 512)  return 512;
+		if (Resolution >= 256)  return 256;
+		if (Resolution >= 128)  return 128;
 		return 64;
 	}
-
 	uint32 QuantizeDiraShadowResolution(uint32 Resolution)
 	{
-		if (Resolution >= 4096)
-		{
-			return 4096;
-		}
-
+		if (Resolution >= 4096) return 4096;
 		return QuantizeShadowResolution(Resolution);
 	}
 
-	uint32 AddPointShadowView(
-		FSceneLightingInputs&        Inputs,
-		uint32                       ShadowLightIndex,
-		uint32                       ExplicitArraySlice,
-		const FShadowViewRenderItem& InView)
+	uint32 AddPointShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, uint32 ExplicitArraySlice, const FShadowViewRenderItem& InView) 
 	{
 		FShadowViewRenderItem View = InView;
-		View.ShadowLightIndex      = ShadowLightIndex;
-		View.ArraySlice            = ExplicitArraySlice;
+		View.ShadowLightIndex = ShadowLightIndex;
+		View.ArraySlice = ExplicitArraySlice;
 
-		const uint32 ViewIndex =
-				static_cast<uint32>(Inputs.ShadowViews.size());
-
+		uint32 ViewIndex = static_cast<uint32>(Inputs.ShadowViews.size());
 		Inputs.ShadowViews.push_back(std::move(View));
 
-		FShadowLightRenderItem& Light =
-				Inputs.ShadowLights[ShadowLightIndex];
-
+		FShadowLightRenderItem& Light = Inputs.ShadowLights[ShadowLightIndex];
 		if (Light.ViewCount == 0)
-		{
 			Light.FirstViewIndex = ViewIndex;
-		}
-
-		++Light.ViewCount;
+		Light.ViewCount++;
 		Light.LightType = EShadowLightType::Point;
 
 		return ViewIndex;
 	}
 
-	uint32 AllocateDirShadowLight(
-		FSceneLightingInputs& Inputs,
-		EShadowLightType      LightType,
-		uint32                SourceLightIndex)
+	uint32 AllocateDirShadowLight(FSceneLightingInputs& Inputs, EShadowLightType LightType, uint32 SourceLightIndex)
 	{
 		if (Inputs.DirShadowLights.size() >= ShadowConfig::MaxShadowLights)
 		{
@@ -258,19 +256,15 @@ namespace
 		}
 
 		FShadowLightRenderItem Item = {};
-		Item.LightType              = LightType;
-		Item.SourceLightIndex       = SourceLightIndex;
-		Item.ShadowIndex            = static_cast<uint32>(Inputs.DirShadowLights.size());
-
+		Item.LightType = LightType;
+		Item.SourceLightIndex = SourceLightIndex;
+		Item.ShadowIndex = static_cast<uint32>(Inputs.DirShadowLights.size());
 		Inputs.DirShadowLights.push_back(Item);
 
 		return Item.ShadowIndex;
 	}
 
-	uint32 AddDirShadowView(
-		FSceneLightingInputs&        Inputs,
-		uint32                       ShadowLightIndex,
-		const FShadowViewRenderItem& InView)
+	uint32 AddDirShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, const FShadowViewRenderItem& InView)
 	{
 		if (Inputs.DirShadowViews.size() >= ShadowConfig::MaxDirCascade)
 		{
@@ -278,1326 +272,22 @@ namespace
 		}
 
 		FShadowViewRenderItem View = InView;
-		View.ShadowLightIndex      = ShadowLightIndex;
-		View.ArraySlice            = static_cast<uint32>(Inputs.DirShadowViews.size());
+		View.ShadowLightIndex = ShadowLightIndex;
+		View.ArraySlice = static_cast<uint32>(Inputs.DirShadowViews.size());
 
-		const uint32 ViewIndex =
-				static_cast<uint32>(Inputs.DirShadowViews.size());
-
+		const uint32 ViewIndex = static_cast<uint32>(Inputs.DirShadowViews.size());
 		Inputs.DirShadowViews.push_back(std::move(View));
 
-		FShadowLightRenderItem& ShadowLight =
-				Inputs.DirShadowLights[ShadowLightIndex];
-
+		FShadowLightRenderItem& ShadowLight = Inputs.DirShadowLights[ShadowLightIndex];
 		if (ShadowLight.ViewCount == 0)
 		{
 			ShadowLight.FirstViewIndex = ViewIndex;
 		}
-
 		++ShadowLight.ViewCount;
 
 		return ViewIndex;
 	}
 
-	bool IsFinite(float Value)
-	{
-		return std::isfinite(Value);
-	}
-
-	bool IsFinite(const FVector& Value)
-	{
-		return
-				IsFinite(Value.X) &&
-				IsFinite(Value.Y) &&
-				IsFinite(Value.Z);
-	}
-
-	bool IsFinite(const FVector4& Value)
-	{
-		return
-				IsFinite(Value.X) &&
-				IsFinite(Value.Y) &&
-				IsFinite(Value.Z) &&
-				IsFinite(Value.W);
-	}
-
-	bool IsFinite(const FMatrix& Matrix)
-	{
-		for (int Row = 0; Row < 4; ++Row)
-		{
-			for (int Col = 0; Col < 4; ++Col)
-			{
-				if (!IsFinite(Matrix[Row][Col]))
-				{
-					return false;
-				}
-			}
-		}
-
-		return true;
-	}
-
-	bool IsUsableProjectionMatrix(const FMatrix& Matrix)
-	{
-		return IsFinite(Matrix) && Matrix.IsInvertible(1.0e-7f);
-	}
-
-	bool IsUsablePSMMatrix(const FMatrix& Matrix)
-	{
-		return IsFinite(Matrix) && Matrix.IsInvertible(1.0e-12f);
-	}
-
-	struct FPSMBoundsWS
-	{
-		FVector Min    = FVector(FLT_MAX, FLT_MAX, FLT_MAX);
-		FVector Max    = FVector(-FLT_MAX, -FLT_MAX, -FLT_MAX);
-		bool    bValid = false;
-
-		void Expand(const FVector& Point)
-		{
-			if (!IsFinite(Point))
-			{
-				return;
-			}
-
-			Min.X = (std::min)(Min.X, Point.X);
-			Min.Y = (std::min)(Min.Y, Point.Y);
-			Min.Z = (std::min)(Min.Z, Point.Z);
-
-			Max.X = (std::max)(Max.X, Point.X);
-			Max.Y = (std::max)(Max.Y, Point.Y);
-			Max.Z = (std::max)(Max.Z, Point.Z);
-
-			bValid = true;
-		}
-
-		void Expand(const FPSMBoundsWS& Other)
-		{
-			if (!Other.bValid)
-			{
-				return;
-			}
-
-			Expand(Other.Min);
-			Expand(Other.Max);
-		}
-
-		FVector GetCorner(int Index) const
-		{
-			return FVector(
-				(Index & 1) ? Max.X : Min.X,
-				(Index & 2) ? Max.Y : Min.Y,
-				(Index & 4) ? Max.Z : Min.Z);
-		}
-	};
-
-	FPSMBoundsWS BuildBoundsFromCornersWS(const FVector CornersWS[8])
-	{
-		FPSMBoundsWS Bounds;
-
-		for (int i = 0; i < 8; ++i)
-		{
-			Bounds.Expand(CornersWS[i]);
-		}
-
-		return Bounds;
-	}
-
-	FPSMBoundsWS BuildPotentialCasterBoundsWS(
-		const FPSMBoundsWS& ReceiverBoundsWS,
-		const FVector&      LightSourceDirectionWS,
-		float               MaxCasterDistance)
-	{
-		FPSMBoundsWS Bounds = ReceiverBoundsWS;
-
-		if (!ReceiverBoundsWS.bValid)
-		{
-			return Bounds;
-		}
-
-		const FVector SafeLightSourceDirectionWS =
-				LightSourceDirectionWS.GetSafeNormal();
-
-		if (SafeLightSourceDirectionWS.IsNearlyZero())
-		{
-			return Bounds;
-		}
-
-		const FVector Offset =
-				SafeLightSourceDirectionWS * MaxCasterDistance;
-
-		for (int i = 0; i < 8; ++i)
-		{
-			Bounds.Expand(ReceiverBoundsWS.GetCorner(i) + Offset);
-		}
-
-		return Bounds;
-	}
-
-	bool ComputeBoundsDepthRangeX(
-		const FPSMBoundsWS& Bounds,
-		const FVector&      CameraPositionWS,
-		const FVector&      CameraForwardWS,
-		float&              OutMinDepthX,
-		float&              OutMaxDepthX)
-	{
-		if (!Bounds.bValid)
-		{
-			return false;
-		}
-
-		const FVector SafeForwardWS =
-				CameraForwardWS.GetSafeNormal();
-
-		if (SafeForwardWS.IsNearlyZero())
-		{
-			return false;
-		}
-
-		OutMinDepthX = FLT_MAX;
-		OutMaxDepthX = -FLT_MAX;
-
-		for (int i = 0; i < 8; ++i)
-		{
-			const FVector ToCorner =
-					Bounds.GetCorner(i) - CameraPositionWS;
-
-			const float DepthX =
-					FVector::DotProduct(ToCorner, SafeForwardWS);
-
-			OutMinDepthX = (std::min)(OutMinDepthX, DepthX);
-			OutMaxDepthX = (std::max)(OutMaxDepthX, DepthX);
-		}
-
-		return IsFinite(OutMinDepthX) && IsFinite(OutMaxDepthX);
-	}
-
-	float ComputeReceiverFitNearX(
-		const FPSMBoundsWS& ReceiverBoundsWS,
-		const FViewContext& View,
-		const FVector&      CameraForwardWS,
-		float               NearSplit,
-		float               FarSplit)
-	{
-		float ReceiverMinDepthX = 0.0f;
-		float ReceiverMaxDepthX = 0.0f;
-
-		if (!ComputeBoundsDepthRangeX(
-			ReceiverBoundsWS,
-			View.CameraPosition,
-			CameraForwardWS,
-			ReceiverMinDepthX,
-			ReceiverMaxDepthX))
-		{
-			return NearSplit;
-		}
-
-		if (ReceiverMaxDepthX < NearSplit || ReceiverMinDepthX > FarSplit)
-		{
-			return NearSplit;
-		}
-
-		constexpr float SafetyMargin = 2.0f;
-
-		const float FitNearX =
-				FMath::Clamp(
-					ReceiverMinDepthX - SafetyMargin,
-					NearSplit,
-					FarSplit - 1.0f);
-
-		return (std::max)(NearSplit, FitNearX);
-	}
-
-	bool ExtractPerspectiveSettings(
-		const FMatrix& Projection,
-		float&         OutFovY,
-		float&         OutAspectRatio)
-	{
-		const float XScale = Projection[1][0];
-		const float YScale = Projection[2][1];
-
-		if (!IsFinite(XScale) || !IsFinite(YScale) ||
-			std::fabs(XScale) <= 1.0e-6f ||
-			std::fabs(YScale) <= 1.0e-6f)
-		{
-			return false;
-		}
-
-		OutFovY        = 2.0f * std::atan(1.0f / YScale);
-		OutAspectRatio = YScale / XScale;
-
-		return
-				IsFinite(OutFovY) &&
-				IsFinite(OutAspectRatio) &&
-				OutFovY > FMath::DegreesToRadians(1.0f) &&
-				OutFovY < FMath::DegreesToRadians(179.0f) &&
-				OutAspectRatio > 1.0e-4f;
-	}
-
-	FVector ChooseStableUpVector(const FVector& LookDirection)
-	{
-		const FVector SafeLook =
-				LookDirection.GetSafeNormal();
-
-		FVector UpVector = FVector::ZAxisVector;
-
-		if (std::fabs(FVector::DotProduct(UpVector, SafeLook)) > 0.99f)
-		{
-			UpVector = FVector::YAxisVector;
-		}
-
-		return UpVector;
-	}
-
-	float SmoothStep01(float Value)
-	{
-		const float T = FMath::Clamp(Value, 0.0f, 1.0f);
-		return T * T * (3.0f - 2.0f * T);
-	}
-
-	float ComputeVirtualSlideBack(
-		float          NearSplit,
-		float          FarSplit,
-		float          VirtualNearWorldDepthX,
-		const FVector& CameraForwardWS,
-		const FVector& LightSourceDirectionWS)
-	{
-		const FVector SafeCameraForwardWS =
-				CameraForwardWS.GetSafeNormal();
-
-		const FVector SafeLightSourceDirectionWS =
-				LightSourceDirectionWS.GetSafeNormal();
-
-		if (SafeCameraForwardWS.IsNearlyZero() ||
-			SafeLightSourceDirectionWS.IsNearlyZero())
-		{
-			return 0.0f;
-		}
-
-		const float ParallelAmount =
-				std::fabs(
-					FVector::DotProduct(
-						SafeCameraForwardWS,
-						SafeLightSourceDirectionWS));
-
-		const float SlideWeight =
-				SmoothStep01((ParallelAmount - 0.55f) / 0.45f);
-
-		const float CascadeDepth =
-				(std::max)(FarSplit - NearSplit, 0.0f);
-
-		const float HeuristicSlide =
-				FMath::Clamp(CascadeDepth * 0.5f, 10.0f, 100.0f) *
-				SlideWeight;
-
-		constexpr float SafeVirtualNearMargin = 1.0f;
-
-		const float RequiredSlideForPositiveNear =
-				(std::max)(
-					0.0f,
-					SafeVirtualNearMargin - VirtualNearWorldDepthX);
-
-		return (std::max)(HeuristicSlide, RequiredSlideForPositiveNear);
-	}
-
-	bool BuildVirtualCameraForCascade(
-		const FViewContext& View,
-		const FPSMBoundsWS& ReceiverBoundsWS,
-		const FPSMBoundsWS& PotentialCasterBoundsWS,
-		const FVector&      LightSourceDirectionWS,
-		float               NearSplit,
-		float               FarSplit,
-		FMatrix&            OutVirtualView,
-		FMatrix&            OutVirtualProjection,
-		FVector&            OutVirtualCameraPositionWS,
-		float&              OutVirtualNear,
-		float&              OutVirtualFar)
-	{
-		float FovY        = 0.0f;
-		float AspectRatio = 1.0f;
-
-		if (!ExtractPerspectiveSettings(View.Projection, FovY, AspectRatio))
-		{
-			return false;
-		}
-
-		const FVector CameraForwardWS =
-				View.InverseView.TransformVector(FVector::ForwardVector).GetSafeNormal();
-
-		const FVector CameraUpWS =
-				View.InverseView.TransformVector(FVector::ZAxisVector).GetSafeNormal();
-
-		if (CameraForwardWS.IsNearlyZero() || CameraUpWS.IsNearlyZero())
-		{
-			return false;
-		}
-
-		const float ReceiverFitNearX =
-				ComputeReceiverFitNearX(
-					ReceiverBoundsWS,
-					View,
-					CameraForwardWS,
-					NearSplit,
-					FarSplit);
-
-		float CasterMinDepthX = ReceiverFitNearX;
-		float CasterMaxDepthX = FarSplit;
-
-		float PotentialMinDepthX = 0.0f;
-		float PotentialMaxDepthX = 0.0f;
-
-		if (ComputeBoundsDepthRangeX(
-			PotentialCasterBoundsWS,
-			View.CameraPosition,
-			CameraForwardWS,
-			PotentialMinDepthX,
-			PotentialMaxDepthX))
-		{
-			CasterMinDepthX = (std::min)(CasterMinDepthX, PotentialMinDepthX);
-			CasterMaxDepthX = (std::max)(CasterMaxDepthX, PotentialMaxDepthX);
-		}
-
-		const float VirtualNearWorldDepthX = CasterMinDepthX;
-
-		const float SlideBack =
-				ComputeVirtualSlideBack(
-					NearSplit,
-					FarSplit,
-					VirtualNearWorldDepthX,
-					CameraForwardWS,
-					LightSourceDirectionWS);
-
-		OutVirtualCameraPositionWS =
-				View.CameraPosition - CameraForwardWS * SlideBack;
-
-		OutVirtualNear =
-				VirtualNearWorldDepthX + SlideBack;
-
-		OutVirtualFar =
-				(std::max)(FarSplit, CasterMaxDepthX) + SlideBack;
-
-		constexpr float SafeVirtualNearMargin = 1.0f;
-
-		OutVirtualNear =
-				(std::max)(OutVirtualNear, SafeVirtualNearMargin);
-
-		if (OutVirtualFar <= OutVirtualNear + 1.0e-3f)
-		{
-			return false;
-		}
-
-		OutVirtualView =
-				FMatrix::MakeViewLookAtLH(
-					OutVirtualCameraPositionWS,
-					OutVirtualCameraPositionWS + CameraForwardWS,
-					CameraUpWS);
-
-		OutVirtualProjection =
-				FMatrix::MakePerspectiveFovLH(
-					FovY,
-					AspectRatio,
-					OutVirtualNear,
-					OutVirtualFar);
-
-		return
-				IsUsableProjectionMatrix(OutVirtualView) &&
-				IsUsableProjectionMatrix(OutVirtualProjection);
-	}
-
-	struct FPostPerspectiveBuildResult
-	{
-		FMatrix ViewPP              = FMatrix::Identity;
-		FMatrix ProjectionPP        = FMatrix::Identity;
-		bool    bInversePerspective = false;
-		bool    bOrthographicPP     = false;
-	};
-
-	struct FPostPerspectivePointSet
-	{
-		FVector Points[16];
-		uint32  Count = 0;
-		FVector Min   = FVector(FLT_MAX, FLT_MAX, FLT_MAX);
-		FVector Max   = FVector(-FLT_MAX, -FLT_MAX, -FLT_MAX);
-
-		void Add(const FVector& Point)
-		{
-			if (Count >= 16 || !IsFinite(Point))
-			{
-				return;
-			}
-
-			Points[Count++] = Point;
-
-			Min.X = (std::min)(Min.X, Point.X);
-			Min.Y = (std::min)(Min.Y, Point.Y);
-			Min.Z = (std::min)(Min.Z, Point.Z);
-
-			Max.X = (std::max)(Max.X, Point.X);
-			Max.Y = (std::max)(Max.Y, Point.Y);
-			Max.Z = (std::max)(Max.Z, Point.Z);
-		}
-
-		FVector GetCenter() const
-		{
-			return (Min + Max) * 0.5f;
-		}
-	};
-
-	bool AddPostPerspectiveReceiverPoint(
-		const FMatrix&            WorldToPostPerspective,
-		const FVector&            PointWS,
-		FPostPerspectivePointSet& OutPointSet)
-	{
-		const FVector4 Clip =
-				FVector4(PointWS.X, PointWS.Y, PointWS.Z, 1.0f) *
-				WorldToPostPerspective;
-
-		if (!IsFinite(Clip) || Clip.W <= 1.0e-6f)
-		{
-			UE_LOG(
-				"[PSM][ReceiverPoint] reject ws=(%.6f %.6f %.6f) clip=(%.6f %.6f %.6f %.6f)",
-				PointWS.X,
-				PointWS.Y,
-				PointWS.Z,
-				Clip.X,
-				Clip.Y,
-				Clip.Z,
-				Clip.W);
-
-			return false;
-		}
-
-		const float InvW = 1.0f / Clip.W;
-
-		const FVector PointPP(
-			Clip.X * InvW,
-			Clip.Y * InvW,
-			Clip.Z * InvW);
-
-		if (!IsFinite(PointPP))
-		{
-			UE_LOG(
-				"[PSM][ReceiverPoint] reject non-finite pp ws=(%.6f %.6f %.6f)",
-				PointWS.X,
-				PointWS.Y,
-				PointWS.Z);
-
-			return false;
-		}
-
-		OutPointSet.Add(PointPP);
-		return true;
-	}
-
-	bool AddPostPerspectiveCasterPoint(
-		const FMatrix&            WorldToPostPerspective,
-		const FVector&            PointWS,
-		FPostPerspectivePointSet& OutPointSet)
-	{
-		const FVector4 Clip =
-				FVector4(PointWS.X, PointWS.Y, PointWS.Z, 1.0f) *
-				WorldToPostPerspective;
-
-		constexpr float MinCasterClipW = 1.0f;
-
-		if (!IsFinite(Clip) || Clip.W <= MinCasterClipW || Clip.Z <= 0.0f)
-		{
-			UE_LOG(
-				"[PSM][CasterPoint] skip near-plane caster ws=(%.6f %.6f %.6f) clip=(%.6f %.6f %.6f %.6f)",
-				PointWS.X,
-				PointWS.Y,
-				PointWS.Z,
-				Clip.X,
-				Clip.Y,
-				Clip.Z,
-				Clip.W);
-
-			return true;
-		}
-
-		const float InvW = 1.0f / Clip.W;
-
-		const FVector PointPP(
-			Clip.X * InvW,
-			Clip.Y * InvW,
-			Clip.Z * InvW);
-
-		if (!IsFinite(PointPP))
-		{
-			UE_LOG(
-				"[PSM][CasterPoint] reject non-finite pp ws=(%.6f %.6f %.6f)",
-				PointWS.X,
-				PointWS.Y,
-				PointWS.Z);
-
-			return false;
-		}
-
-		OutPointSet.Add(PointPP);
-		return true;
-	}
-
-	bool BuildReceiverPostPerspectivePointSet(
-		const FMatrix&            VirtualView,
-		const FMatrix&            VirtualProjection,
-		const FVector             FrustumCornersWS[8],
-		FPostPerspectivePointSet& OutPointSet)
-	{
-		const FMatrix WorldToPostPerspective =
-				VirtualView * VirtualProjection;
-
-		for (int i = 0; i < 8; ++i)
-		{
-			if (!AddPostPerspectiveReceiverPoint(
-				WorldToPostPerspective,
-				FrustumCornersWS[i],
-				OutPointSet))
-			{
-				UE_LOG("[PSM][ReceiverSet] failed at corner=%d", i);
-				return false;
-			}
-		}
-
-		UE_LOG(
-			"[PSM][ReceiverSet] count=%u min=(%.6f %.6f %.6f) max=(%.6f %.6f %.6f)",
-			OutPointSet.Count,
-			OutPointSet.Min.X,
-			OutPointSet.Min.Y,
-			OutPointSet.Min.Z,
-			OutPointSet.Max.X,
-			OutPointSet.Max.Y,
-			OutPointSet.Max.Z);
-
-		return OutPointSet.Count > 0;
-	}
-
-	bool BuildBoundsPostPerspectivePointSet(
-		const FMatrix&            VirtualView,
-		const FMatrix&            VirtualProjection,
-		const FPSMBoundsWS&       BoundsWS,
-		FPostPerspectivePointSet& OutPointSet)
-	{
-		if (!BoundsWS.bValid)
-		{
-			return false;
-		}
-
-		const FMatrix WorldToPostPerspective =
-				VirtualView * VirtualProjection;
-
-		for (int i = 0; i < 8; ++i)
-		{
-			if (!AddPostPerspectiveCasterPoint(
-				WorldToPostPerspective,
-				BoundsWS.GetCorner(i),
-				OutPointSet))
-			{
-				UE_LOG("[PSM][CasterSet] failed at corner=%d", i);
-				return false;
-			}
-		}
-
-		UE_LOG(
-			"[PSM][CasterSet] count=%u min=(%.6f %.6f %.6f) max=(%.6f %.6f %.6f)",
-			OutPointSet.Count,
-			OutPointSet.Min.X,
-			OutPointSet.Min.Y,
-			OutPointSet.Min.Z,
-			OutPointSet.Max.X,
-			OutPointSet.Max.Y,
-			OutPointSet.Max.Z);
-
-		return OutPointSet.Count > 0;
-	}
-
-	FMatrix MakePerspectiveSlopeLH(
-		float MinSlopeY,
-		float MaxSlopeY,
-		float MinSlopeZ,
-		float MaxSlopeZ,
-		float NearZ,
-		float FarZ)
-	{
-		const float SlopeSpanY =
-				(std::max)(MaxSlopeY - MinSlopeY, 1.0e-6f);
-
-		const float SlopeSpanZ =
-				(std::max)(MaxSlopeZ - MinSlopeZ, 1.0e-6f);
-
-		const float ScaleY  = 2.0f / SlopeSpanY;
-		const float OffsetY = -(MaxSlopeY + MinSlopeY) / SlopeSpanY;
-
-		const float ScaleZ  = 2.0f / SlopeSpanZ;
-		const float OffsetZ = -(MaxSlopeZ + MinSlopeZ) / SlopeSpanZ;
-
-		const float DepthScale =
-				FarZ / (FarZ - NearZ);
-
-		const float DepthOffset =
-				-NearZ * FarZ / (FarZ - NearZ);
-
-		return FMatrix(
-			OffsetY, OffsetZ, DepthScale, 1.0f,
-			ScaleY, 0.0f, 0.0f, 0.0f,
-			0.0f, ScaleZ, 0.0f, 0.0f,
-			0.0f, 0.0f, DepthOffset, 0.0f);
-	}
-
-	bool FitOrthographicPostPerspectiveProjection(
-		const FPostPerspectivePointSet& ReceiverSetPP,
-		const FPostPerspectivePointSet* CasterDepthSetPP,
-		const FMatrix&                  ViewPP,
-		FMatrix&                        OutProjectionPP)
-	{
-		float MinDepthX = FLT_MAX;
-		float MaxDepthX = -FLT_MAX;
-		float MaxAbsY   = 0.0f;
-		float MaxAbsZ   = 0.0f;
-
-		auto AccumulateDepthOnly =
-				[&](const FVector& PointPP) -> bool
-		{
-			const FVector PointLS =
-					ViewPP.TransformPosition(PointPP);
-
-			if (!IsFinite(PointLS))
-			{
-				return false;
-			}
-
-			MinDepthX = (std::min)(MinDepthX, PointLS.X);
-			MaxDepthX = (std::max)(MaxDepthX, PointLS.X);
-
-			return true;
-		};
-
-		auto AccumulateReceiver =
-				[&](const FVector& PointPP) -> bool
-		{
-			const FVector PointLS =
-					ViewPP.TransformPosition(PointPP);
-
-			if (!IsFinite(PointLS))
-			{
-				return false;
-			}
-
-			MinDepthX = (std::min)(MinDepthX, PointLS.X);
-			MaxDepthX = (std::max)(MaxDepthX, PointLS.X);
-			MaxAbsY   = (std::max)(MaxAbsY, std::fabs(PointLS.Y));
-			MaxAbsZ   = (std::max)(MaxAbsZ, std::fabs(PointLS.Z));
-
-			return true;
-		};
-
-		for (uint32 i = 0; i < ReceiverSetPP.Count; ++i)
-		{
-			if (!AccumulateReceiver(ReceiverSetPP.Points[i]))
-			{
-				return false;
-			}
-		}
-
-		if (CasterDepthSetPP)
-		{
-			for (uint32 i = 0; i < CasterDepthSetPP->Count; ++i)
-			{
-				if (!AccumulateDepthOnly(CasterDepthSetPP->Points[i]))
-				{
-					return false;
-				}
-			}
-		}
-
-		if (!IsFinite(MinDepthX) || !IsFinite(MaxDepthX) ||
-			MaxDepthX <= MinDepthX)
-		{
-			UE_LOG(
-				"[PSM][FitOrthoPP] invalid depth min=%.6f max=%.6f",
-				MinDepthX,
-				MaxDepthX);
-
-			return false;
-		}
-
-		const float DepthPadding =
-				(std::max)((MaxDepthX - MinDepthX) * 0.01f, 1.0e-4f);
-
-		const float NearPP =
-				MinDepthX - DepthPadding;
-
-		const float FarPP =
-				(std::max)(MaxDepthX + DepthPadding, NearPP + 1.0e-4f);
-
-		const float WidthPP =
-				(std::max)(MaxAbsY * 2.02f, 1.0e-4f);
-
-		const float HeightPP =
-				(std::max)(MaxAbsZ * 2.02f, 1.0e-4f);
-
-		UE_LOG(
-			"[PSM][FitOrthoPP] near=%.6f far=%.6f width=%.6f height=%.6f receiverCount=%u casterCount=%u",
-			NearPP,
-			FarPP,
-			WidthPP,
-			HeightPP,
-			ReceiverSetPP.Count,
-			CasterDepthSetPP ? CasterDepthSetPP->Count : 0);
-
-		OutProjectionPP =
-				FMatrix::MakeOrthographicLH(
-					WidthPP,
-					HeightPP,
-					NearPP,
-					FarPP);
-
-		return IsUsableProjectionMatrix(OutProjectionPP);
-	}
-
-	bool FitPerspectivePostPerspectiveProjection(
-		const FPostPerspectivePointSet& ReceiverSetPP,
-		const FPostPerspectivePointSet* CasterDepthSetPP,
-		const FMatrix&                  ViewPP,
-		FMatrix&                        OutProjectionPP)
-	{
-		constexpr float MinPositiveDepth = 1.0e-5f;
-		constexpr float SlopePadding     = 1.03f;
-
-		float MinDepthX = FLT_MAX;
-		float MaxDepthX = -FLT_MAX;
-
-		float MinSlopeY = FLT_MAX;
-		float MaxSlopeY = -FLT_MAX;
-		float MinSlopeZ = FLT_MAX;
-		float MaxSlopeZ = -FLT_MAX;
-
-		auto AccumulateDepthOnly =
-				[&](const FVector& PointPP) -> bool
-		{
-			const FVector PointLS =
-					ViewPP.TransformPosition(PointPP);
-
-			if (!IsFinite(PointLS) || PointLS.X <= MinPositiveDepth)
-			{
-				return false;
-			}
-
-			MinDepthX = (std::min)(MinDepthX, PointLS.X);
-			MaxDepthX = (std::max)(MaxDepthX, PointLS.X);
-
-			return true;
-		};
-
-		auto AccumulateReceiver =
-				[&](const FVector& PointPP) -> bool
-		{
-			const FVector PointLS =
-					ViewPP.TransformPosition(PointPP);
-
-			if (!IsFinite(PointLS) || PointLS.X <= MinPositiveDepth)
-			{
-				return false;
-			}
-
-			MinDepthX = (std::min)(MinDepthX, PointLS.X);
-			MaxDepthX = (std::max)(MaxDepthX, PointLS.X);
-
-			const float InvDepthX = 1.0f / PointLS.X;
-			const float SlopeY    = PointLS.Y * InvDepthX;
-			const float SlopeZ    = PointLS.Z * InvDepthX;
-
-			if (!IsFinite(SlopeY) || !IsFinite(SlopeZ))
-			{
-				return false;
-			}
-
-			MinSlopeY = (std::min)(MinSlopeY, SlopeY);
-			MaxSlopeY = (std::max)(MaxSlopeY, SlopeY);
-			MinSlopeZ = (std::min)(MinSlopeZ, SlopeZ);
-			MaxSlopeZ = (std::max)(MaxSlopeZ, SlopeZ);
-
-			return true;
-		};
-
-		for (uint32 i = 0; i < ReceiverSetPP.Count; ++i)
-		{
-			if (!AccumulateReceiver(ReceiverSetPP.Points[i]))
-			{
-				return false;
-			}
-		}
-
-		if (CasterDepthSetPP)
-		{
-			for (uint32 i = 0; i < CasterDepthSetPP->Count; ++i)
-			{
-				if (!AccumulateDepthOnly(CasterDepthSetPP->Points[i]))
-				{
-					return false;
-				}
-			}
-		}
-
-		if (!IsFinite(MinDepthX) || !IsFinite(MaxDepthX) ||
-			!IsFinite(MinSlopeY) || !IsFinite(MaxSlopeY) ||
-			!IsFinite(MinSlopeZ) || !IsFinite(MaxSlopeZ) ||
-			MaxDepthX <= MinDepthX)
-		{
-			UE_LOG(
-				"[PSM][FitPerspectivePP] invalid range depth=(%.6f %.6f) slopeY=(%.6f %.6f) slopeZ=(%.6f %.6f)",
-				MinDepthX,
-				MaxDepthX,
-				MinSlopeY,
-				MaxSlopeY,
-				MinSlopeZ,
-				MaxSlopeZ);
-
-			return false;
-		}
-
-		const float DepthRatio =
-				MaxDepthX / (std::max)(MinDepthX, MinPositiveDepth);
-
-		if (DepthRatio > 512.0f)
-		{
-			UE_LOG(
-				"[PSM][FitPerspectivePP] reject depth ratio min=%.6f max=%.6f ratio=%.6f receiverCount=%u casterCount=%u",
-				MinDepthX,
-				MaxDepthX,
-				DepthRatio,
-				ReceiverSetPP.Count,
-				CasterDepthSetPP ? CasterDepthSetPP->Count : 0);
-
-			return false;
-		}
-
-		const float DepthPadding =
-				(std::max)((MaxDepthX - MinDepthX) * 0.01f, 1.0e-5f);
-
-		float NearPP = MinDepthX - DepthPadding;
-		if (NearPP <= MinPositiveDepth || NearPP >= MinDepthX)
-		{
-			NearPP = (std::max)(MinPositiveDepth, MinDepthX * 0.5f);
-		}
-
-		const float FarPP =
-				(std::max)(MaxDepthX + DepthPadding, NearPP + 1.0e-4f);
-
-		const float SlopeCenterY = (MinSlopeY + MaxSlopeY) * 0.5f;
-		const float SlopeCenterZ = (MinSlopeZ + MaxSlopeZ) * 0.5f;
-
-		const float SlopeHalfY =
-				(std::max)((MaxSlopeY - MinSlopeY) * 0.5f * SlopePadding, 1.0e-6f);
-
-		const float SlopeHalfZ =
-				(std::max)((MaxSlopeZ - MinSlopeZ) * 0.5f * SlopePadding, 1.0e-6f);
-
-		UE_LOG(
-			"[PSM][FitPerspectivePP] near=%.6f far=%.6f depthRatio=%.6f slopeY=(%.6f %.6f) slopeZ=(%.6f %.6f) receiverCount=%u casterCount=%u",
-			NearPP,
-			FarPP,
-			DepthRatio,
-			SlopeCenterY - SlopeHalfY,
-			SlopeCenterY + SlopeHalfY,
-			SlopeCenterZ - SlopeHalfZ,
-			SlopeCenterZ + SlopeHalfZ,
-			ReceiverSetPP.Count,
-			CasterDepthSetPP ? CasterDepthSetPP->Count : 0);
-
-		OutProjectionPP =
-				MakePerspectiveSlopeLH(
-					SlopeCenterY - SlopeHalfY,
-					SlopeCenterY + SlopeHalfY,
-					SlopeCenterZ - SlopeHalfZ,
-					SlopeCenterZ + SlopeHalfZ,
-					NearPP,
-					FarPP);
-
-		return IsFinite(OutProjectionPP) &&
-				OutProjectionPP.IsInvertible(1.0e-12f);
-	}
-
-	bool BuildPostPerspectiveInfo(
-		const FMatrix&               VirtualView,
-		const FMatrix&               VirtualProjection,
-		const FVector                FrustumCornersWS[8],
-		const FPSMBoundsWS&          PotentialCasterBoundsWS,
-		const FVector&               LightRayDirectionWS,
-		FPostPerspectiveBuildResult& OutResult)
-	{
-		const FVector SafeLightRayDirectionWS =
-				LightRayDirectionWS.GetSafeNormal();
-
-		if (SafeLightRayDirectionWS.IsNearlyZero())
-		{
-			UE_LOG("[PSM][BuildPostPerspectiveInfo] reject zero LightRayDirectionWS");
-			return false;
-		}
-
-		FPostPerspectivePointSet ReceiverSetPP;
-
-		if (!BuildReceiverPostPerspectivePointSet(
-			VirtualView,
-			VirtualProjection,
-			FrustumCornersWS,
-			ReceiverSetPP))
-		{
-			UE_LOG("[PSM][BuildPostPerspectiveInfo] receiver point set failed");
-			return false;
-		}
-
-		FPostPerspectivePointSet  CasterDepthSetPP;
-		FPostPerspectivePointSet* CasterDepthSetPtr = nullptr;
-
-		if (BuildBoundsPostPerspectivePointSet(
-			VirtualView,
-			VirtualProjection,
-			PotentialCasterBoundsWS,
-			CasterDepthSetPP))
-		{
-			CasterDepthSetPtr = &CasterDepthSetPP;
-		}
-
-		const FVector CenterPP =
-				ReceiverSetPP.GetCenter();
-
-		const FVector EyeLightDirection =
-				VirtualView.TransformVector(SafeLightRayDirectionWS);
-
-		const FVector4 LightPP =
-				FVector4(
-					EyeLightDirection.X,
-					EyeLightDirection.Y,
-					EyeLightDirection.Z,
-					0.0f) *
-				VirtualProjection;
-
-		if (!IsFinite(LightPP))
-		{
-			UE_LOG("[PSM][BuildPostPerspectiveInfo] reject non-finite LightPP");
-			return false;
-		}
-
-		constexpr float OrthographicPPWThreshold = 5.0e-2f;
-
-		const bool bLightIsBehindEye =
-				LightPP.W < 0.0f;
-
-		const bool bUseOrthographicPP =
-				std::fabs(LightPP.W) <= OrthographicPPWThreshold;
-
-		OutResult.bInversePerspective =
-				bLightIsBehindEye && !bUseOrthographicPP;
-
-		OutResult.bOrthographicPP =
-				bUseOrthographicPP;
-
-		UE_LOG(
-			"[PSM][BuildPostPerspectiveInfo] LightRayWS=(%.6f %.6f %.6f) EyeLight=(%.6f %.6f %.6f) LightPP=(%.6f %.6f %.6f %.6f) absW=%.6f mode=%s",
-			SafeLightRayDirectionWS.X,
-			SafeLightRayDirectionWS.Y,
-			SafeLightRayDirectionWS.Z,
-			EyeLightDirection.X,
-			EyeLightDirection.Y,
-			EyeLightDirection.Z,
-			LightPP.X,
-			LightPP.Y,
-			LightPP.Z,
-			LightPP.W,
-			std::fabs(LightPP.W),
-			bUseOrthographicPP ? "OrthoPP" : (OutResult.bInversePerspective ? "InversePerspectivePP" : "PerspectivePP"));
-
-		if (bUseOrthographicPP)
-		{
-			FVector LightDirectionPP(
-				LightPP.X,
-				LightPP.Y,
-				LightPP.Z);
-
-			LightDirectionPP =
-					LightDirectionPP.GetSafeNormal();
-
-			if (LightDirectionPP.IsNearlyZero())
-			{
-				return false;
-			}
-
-			const FVector LightPositionPP =
-					CenterPP + LightDirectionPP;
-
-			const FVector LookDirectionPP =
-					CenterPP - LightPositionPP;
-
-			const float DistToCenter =
-					LookDirectionPP.Size();
-
-			if (!IsFinite(DistToCenter) || DistToCenter <= 1.0e-6f)
-			{
-				return false;
-			}
-
-			OutResult.ViewPP =
-					FMatrix::MakeViewLookAtLH(
-						LightPositionPP,
-						CenterPP,
-						ChooseStableUpVector(LookDirectionPP));
-
-			return
-					IsUsableProjectionMatrix(OutResult.ViewPP) &&
-					FitOrthographicPostPerspectiveProjection(
-						ReceiverSetPP,
-						CasterDepthSetPtr,
-						OutResult.ViewPP,
-						OutResult.ProjectionPP);
-		}
-
-		if (std::fabs(LightPP.W) < OrthographicPPWThreshold)
-		{
-			UE_LOG(
-				"[PSM][BuildPostPerspectiveInfo] reject unstable PerspectivePP W=%.9f",
-				LightPP.W);
-
-			return false;
-		}
-
-		const float InvW = 1.0f / LightPP.W;
-
-		const FVector LightPositionPP(
-			LightPP.X * InvW,
-			LightPP.Y * InvW,
-			LightPP.Z * InvW);
-
-		if (!IsFinite(LightPositionPP))
-		{
-			return false;
-		}
-
-		FVector LookToCenterPP =
-				CenterPP - LightPositionPP;
-
-		const float DistLookAtCubePP =
-				LookToCenterPP.Size();
-
-		if (!IsFinite(DistLookAtCubePP) || DistLookAtCubePP <= 1.0e-4f)
-		{
-			return false;
-		}
-
-		LookToCenterPP /= DistLookAtCubePP;
-
-		OutResult.ViewPP =
-				FMatrix::MakeViewLookAtLH(
-					LightPositionPP,
-					CenterPP,
-					ChooseStableUpVector(LookToCenterPP));
-
-		return
-				IsUsableProjectionMatrix(OutResult.ViewPP) &&
-				FitPerspectivePostPerspectiveProjection(
-					ReceiverSetPP,
-					CasterDepthSetPtr,
-					OutResult.ViewPP,
-					OutResult.ProjectionPP);
-	}
-
-	bool ValidateShadowProjectionForCascade(
-		const FMatrix& ViewProjection,
-		const FVector  FrustumCornersWS[8],
-		bool           bInversePerspective)
-	{
-		float MinX     = FLT_MAX;
-		float MaxX     = -FLT_MAX;
-		float MinY     = FLT_MAX;
-		float MaxY     = -FLT_MAX;
-		float MinDepth = FLT_MAX;
-		float MaxDepth = -FLT_MAX;
-
-		for (int CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
-		{
-			const FVector& Corner = FrustumCornersWS[CornerIndex];
-
-			if (!IsFinite(Corner))
-			{
-				return false;
-			}
-
-			const FVector4 Clip =
-					FVector4(Corner.X, Corner.Y, Corner.Z, 1.0f) *
-					ViewProjection;
-
-			if (!IsFinite(Clip) || Clip.W <= 1.0e-5f)
-			{
-				return false;
-			}
-
-			const float InvW = 1.0f / Clip.W;
-
-			const FVector NDC(
-				Clip.X * InvW,
-				Clip.Y * InvW,
-				Clip.Z * InvW);
-
-			if (!IsFinite(NDC))
-			{
-				return false;
-			}
-
-			const float XYMargin =
-					bInversePerspective ? 1.08f : 1.02f;
-
-			if (NDC.X < -XYMargin || NDC.X > XYMargin ||
-				NDC.Y < -XYMargin || NDC.Y > XYMargin)
-			{
-				return false;
-			}
-
-			if (NDC.Z < -0.02f || NDC.Z > 1.02f)
-			{
-				return false;
-			}
-
-			MinX     = (std::min)(MinX, NDC.X);
-			MaxX     = (std::max)(MaxX, NDC.X);
-			MinY     = (std::min)(MinY, NDC.Y);
-			MaxY     = (std::max)(MaxY, NDC.Y);
-			MinDepth = (std::min)(MinDepth, NDC.Z);
-			MaxDepth = (std::max)(MaxDepth, NDC.Z);
-		}
-
-		const float MinXYSpan = 1.0e-2f;
-
-		const float MinDepthSpan =
-				bInversePerspective ? 1.0e-6f : 1.0e-4f;
-
-		return
-				IsFinite(MinX) &&
-				IsFinite(MaxX) &&
-				IsFinite(MinY) &&
-				IsFinite(MaxY) &&
-				IsFinite(MinDepth) &&
-				IsFinite(MaxDepth) &&
-				(MaxX - MinX) > MinXYSpan &&
-				(MaxY - MinY) > MinXYSpan &&
-				std::fabs(MaxDepth - MinDepth) > MinDepthSpan;
-	}
-
-	bool TryBuildCascadePSMView(
-		uint32                       CascadeIndex,
-		const FViewContext&          View,
-		const FPSMBoundsWS&          ReceiverBoundsWS,
-		const FPSMBoundsWS&          PotentialCasterBoundsWS,
-		const FVector&               LightRayDirectionWS,
-		const FVector&               LightSourceDirectionWS,
-		float                        NearSplit,
-		float                        FarSplit,
-		const FVector                FrustumCornersWS[8],
-		const FShadowViewRenderItem& StableCascadeView,
-		FShadowViewRenderItem&       OutView)
-	{
-		if (View.bOrthographic || FarSplit <= NearSplit + 1.0e-3f)
-		{
-			return false;
-		}
-
-		FMatrix VirtualView             = FMatrix::Identity;
-		FMatrix VirtualProjection       = FMatrix::Identity;
-		FVector VirtualCameraPositionWS = View.CameraPosition;
-		float   VirtualNear             = NearSplit;
-		float   VirtualFar              = FarSplit;
-
-		if (!BuildVirtualCameraForCascade(
-			View,
-			ReceiverBoundsWS,
-			PotentialCasterBoundsWS,
-			LightSourceDirectionWS,
-			NearSplit,
-			FarSplit,
-			VirtualView,
-			VirtualProjection,
-			VirtualCameraPositionWS,
-			VirtualNear,
-			VirtualFar))
-		{
-			UE_LOG(
-				"[PSM][TryBuildCascadePSMView] cascade=%u BuildVirtualCameraForCascade failed",
-				CascadeIndex);
-
-			return false;
-		}
-
-		FPostPerspectiveBuildResult PPResult;
-
-		if (!BuildPostPerspectiveInfo(
-			VirtualView,
-			VirtualProjection,
-			FrustumCornersWS,
-			PotentialCasterBoundsWS,
-			LightRayDirectionWS,
-			PPResult))
-		{
-			UE_LOG(
-				"[PSM][TryBuildCascadePSMView] cascade=%u BuildPostPerspectiveInfo failed",
-				CascadeIndex);
-
-			return false;
-		}
-
-		const FMatrix PSMProjection =
-				VirtualProjection * PPResult.ViewPP * PPResult.ProjectionPP;
-
-		const FMatrix PSMViewProjection =
-				VirtualView * PSMProjection;
-
-		if (!IsUsablePSMMatrix(PSMProjection) ||
-			!IsUsablePSMMatrix(PSMViewProjection))
-		{
-			UE_LOG(
-				"[PSM][TryBuildCascadePSMView] cascade=%u unusable matrix",
-				CascadeIndex);
-
-			return false;
-		}
-
-		if (!ValidateShadowProjectionForCascade(
-			PSMViewProjection,
-			FrustumCornersWS,
-			PPResult.bInversePerspective))
-		{
-			UE_LOG(
-				"[PSM][TryBuildCascadePSMView] cascade=%u validation failed inv=%d",
-				CascadeIndex,
-				PPResult.bInversePerspective ? 1 : 0);
-
-			return false;
-		}
-
-		OutView                = StableCascadeView;
-		OutView.ProjectionType = EShadowProjectionType::Perspective;
-		OutView.PositionWS     = VirtualCameraPositionWS;
-		OutView.NearZ          = VirtualNear;
-		OutView.FarZ           = VirtualFar;
-		OutView.View           = VirtualView;
-		OutView.Projection     = PSMProjection;
-		OutView.ViewProjection = PSMViewProjection;
-
-		OutView.PSMVirtualViewProjection =
-				VirtualView * VirtualProjection;
-
-		OutView.bUsePSMClip = true;
-
-		OutView.BiasParams.W =
-				PPResult.bInversePerspective ? 2.0f : 1.0f;
-
-		UE_LOG(
-			"[PSM][TryBuildCascadePSMView] SUCCESS cascade=%u mode=%s near=%.6f far=%.6f usePSMClip=%d",
-			CascadeIndex,
-			PPResult.bOrthographicPP ? "OrthoPP" : (PPResult.bInversePerspective ? "InversePerspectivePP" : "PerspectivePP"),
-			VirtualNear,
-			VirtualFar,
-			OutView.bUsePSMClip ? 1 : 0);
-
-		return true;
-	}
 
 	void BuildSpotShadowViews(
 		FSceneLightingInputs&        Inputs,
@@ -1605,10 +295,9 @@ namespace
 		const FLocalLightRenderItem& LightItem,
 		uint32                       LocalLightIndex,
 		uint32                       ShadowLightIndex,
-		const FVector&               CameraPosition)
+		const FMatrix&				 ViewProjMatrix)
 	{
-		FShadowLightRenderItem& ShadowLight =
-				Inputs.ShadowLights[ShadowLightIndex];
+		FShadowLightRenderItem& ShadowLight = Inputs.ShadowLights[ShadowLightIndex];
 
 		ShadowLight.LightType   = EShadowLightType::Spot;
 		ShadowLight.PositionWS  = LightItem.PositionWS;
@@ -1616,13 +305,13 @@ namespace
 		ShadowLight.Mobility    = Spot->GetMobility();
 		ShadowLight.bCacheDirty = Spot->IsCacheDirty();
 		Spot->ResetShadowCacheDirty();
-		ShadowLight.Bias       = Spot->GetShadowBias();
-		ShadowLight.SlopeBias  = Spot->GetShadowSlopeBias();
-		ShadowLight.NormalBias = 0.0f;
-		ShadowLight.Sharpen    = Spot->GetShadowSharpen();
+		ShadowLight.Bias        = Spot->GetShadowBias();
+		ShadowLight.SlopeBias   = Spot->GetShadowSlopeBias();
+		ShadowLight.NormalBias  = 0.0f;
+		ShadowLight.Sharpen     = Spot->GetShadowSharpen();
+		ShadowLight.ESMExponent = Spot->GetShadowESMExponent();
 
-		const FVector DirectionWS =
-				LightItem.DirectionWS.GetSafeNormal();
+		const FVector DirectionWS = LightItem.DirectionWS.GetSafeNormal();
 
 		FVector UpWS = FVector::UpVector;
 		if (std::abs(FVector::DotProduct(DirectionWS, UpWS)) > 0.98f)
@@ -1631,144 +320,152 @@ namespace
 		}
 
 		const float NearZ = ShadowConfig::DefaultNearZ;
-		const float FarZ  =
-				(std::max)(LightItem.Range, NearZ + 0.001f);
+		const float FarZ  = (std::max)(LightItem.Range, NearZ + 0.001f);
 
-		const float OuterHalfAngleDeg =
-				FMath::Clamp(Spot->GetOuterConeAngle(), 1.0f, 80.0f);
+		const float OuterHalfAngleDeg = FMath::Clamp(Spot->GetOuterConeAngle(), 1.0f, 80.0f);
+		const float FullFovRad        = FMath::DegreesToRadians(OuterHalfAngleDeg * 2.0f);
 
-		const float FullFovRad =
-				FMath::DegreesToRadians(OuterHalfAngleDeg * 2.0f);
-
-		const float Coverage =
-				ComputeSpotScreenCoverage(
-					CameraPosition,
-					LightItem.PositionWS,
-					LightItem.DirectionWS,
-					LightItem.Range,
-					Spot->GetOuterConeAngle());
-
-		const float ResolutionScale =
-				Spot->GetShadowResolutionScale();
-
-		const float ResolutionFactor =
-				std::sqrt(Coverage) * ResolutionScale;
-
-		const uint32 RequestedResolution =
-				QuantizeShadowResolution(
-					static_cast<uint32>(
-						ShadowConfig::DefaultShadowMapResolution *
-						ResolutionFactor));
-
-		FShadowViewRenderItem View;
-		View.ProjectionType = EShadowProjectionType::Perspective;
-		View.PositionWS     = LightItem.PositionWS;
-		View.NearZ          = NearZ;
-		View.FarZ           = FarZ;
-		View.SourceActor    = Spot->GetOwner();
-
-		View.PSMVirtualViewProjection = FMatrix::Identity;
-		View.bUsePSMClip              = false;
-
-		View.View =
-				FMatrix::MakeViewLookAtLH(
-					LightItem.PositionWS,
-					LightItem.PositionWS + DirectionWS,
-					UpWS);
-
-		View.Projection =
-				FMatrix::MakePerspectiveFovLH(
-					FullFovRad,
-					1.0f,
-					NearZ,
-					FarZ);
-
-		View.ViewProjection =
-				View.View * View.Projection;
-
-		View.LightType           = EShadowLightType::Spot;
-		View.Viewport            = {};
-		View.RequestedResolution = RequestedResolution;
-
-		AddShadowView(Inputs, ShadowLightIndex, View);
-	}
-
-	void BuildDirectionalShadowViews(
-		FSceneLightingInputs&             Inputs,
-		const UDirectionalLightComponent* DirLight,
-		FDirectionalLightRenderItem&      LightItem,
-		uint32                            ShadowLightIndex,
-		const FViewContext&               View)
-	{
-		FShadowLightRenderItem& ShadowLight =
-				Inputs.DirShadowLights[ShadowLightIndex];
-
-		ShadowLight.LightType   = EShadowLightType::Directional;
-		ShadowLight.PositionWS  = FVector::ZeroVector;
-		ShadowLight.DirectionWS = LightItem.DirectionWS;
-		ShadowLight.Bias        = DirLight->GetShadowBias();
-		ShadowLight.SlopeBias   = DirLight->GetShadowSlopeBias();
-		ShadowLight.NormalBias  = 0.0f;
-		ShadowLight.Sharpen     = DirLight->GetShadowSharpen();
-
-		uint32 CascadeCount = DirLight->GetCascadeCount();
-		CascadeCount        =
-				(std::min)(CascadeCount, ShadowConfig::MaxDirCascade);
-
-		TArray<float> FrustumSplits =
-				FCasCade::CalculateCascadeSplits(
-					CascadeCount,
-					View.NearZ,
-					View.FarZ,
-					DirLight->GetSplitLambda());
-
-		if (FrustumSplits.size() < 2)
+		const float Coverage = ComputeSpotScreenCoverage(LightItem.PositionWS, LightItem.DirectionWS,LightItem.Range, Spot->GetOuterConeAngle(), ViewProjMatrix);
+		if(Coverage <= 0.0f)
 		{
 			return;
 		}
 
-		LightItem.CascadeSplits = FVector4(
-			FrustumSplits.size() > 1 ? FrustumSplits[1] : 0.0f,
-			FrustumSplits.size() > 2 ? FrustumSplits[2] : 0.0f,
-			FrustumSplits.size() > 3 ? FrustumSplits[3] : 0.0f,
-			FrustumSplits.size() > 4 ? FrustumSplits[4] : 0.0f
-		);
+		float ResolutionFactor = std::sqrt(Coverage) * Spot->GetShadowResolutionScale();
+		uint32 RequestedResolution = QuantizeShadowResolution(static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionFactor));
 
-		const FVector LightRayDirectionWS =
-				LightItem.DirectionWS.GetSafeNormal();
+		FShadowViewRenderItem View;
+		View.ProjectionType      = EShadowProjectionType::Perspective;
+		View.PositionWS          = LightItem.PositionWS;
+		View.NearZ               = NearZ;
+		View.FarZ                = FarZ;
+		View.SourceActor         = Spot->GetOwner();
 
-		const FVector LightSourceDirectionWS =
-				-LightRayDirectionWS;
+		View.View = FMatrix::MakeViewLookAtLH(
+			LightItem.PositionWS,
+			LightItem.PositionWS + DirectionWS,
+			UpWS);
 
-		FVector UpVector =
-				(std::abs(LightRayDirectionWS.Z) > 0.999f)
-					? FVector::YAxisVector
-					: FVector::ZAxisVector;
+		View.Projection = FMatrix::MakePerspectiveFovLH(
+			FullFovRad,
+			1.0f,
+			NearZ,
+			FarZ);
 
-		const FMatrix CameraInvView = View.InverseView;
-		const FMatrix CameraInvProj = View.InverseProjection;
+		View.ViewProjection = View.View * View.Projection;
+		View.LightType = EShadowLightType::Spot;
 
-		FVector4 NDC_Corners[4] = {
-			FVector4(-1.0f, 1.0f, 1.0f, 1.0f),
-			FVector4(1.0f, 1.0f, 1.0f, 1.0f),
-			FVector4(1.0f, -1.0f, 1.0f, 1.0f),
+		View.Viewport = {};
+		View.RequestedResolution = QuantizeShadowResolution(RequestedResolution);
+
+		AddShadowView(Inputs, ShadowLightIndex, View);
+	}
+
+
+	// -----------------------------------------------------------------------------
+	// Cascade Perspective Shadow Map (PSM)
+	// -----------------------------------------------------------------------------
+	// Engine convention used here:
+	//   - DirectX NDC: x,y = [-1, 1], z = [0, 1]
+	//   - X-depth view space: view-space X is forward/depth
+	//   - Row-vector matrices: World * View * Projection
+	// Therefore the PSM matrix is:
+	//   VCView * VCProj * PPView * PPProj
+	// instead of the column-vector order often shown in PSM articles.
+
+	struct FPSMFrustumBasis
+	{
+		FVector UnitDepthRays[4];
+		float FovYRad = FMath::DegreesToRadians(60.0f);
+		float Aspect = 1.0f;
+	};
+
+	struct FPostPerspectiveShadowCamera
+	{
+		FMatrix View;
+		FMatrix Projection;
+		bool bOrthographic = false;
+		bool bInversePerspective = false;
+	};
+
+	struct FCascadePSMResult
+	{
+		float SplitNear = 0.0f;
+		float SplitFar = 0.0f;
+		float VCNear = 0.0f;
+		float VCFar = 0.0f;
+		float VirtualSlideBack = 0.0f;
+
+		FMatrix VCView;
+		FMatrix VCProjection;
+		FMatrix PPView;
+		FMatrix PPProjection;
+		FMatrix PSM;
+
+		bool bPPOrthographic = false;
+		bool bInversePP = false;
+
+		float ConstantBias = 0.00001f;
+		float SlopeBias = 0.001f;
+		float NormalBias = 0.0f;
+	};
+
+	FVector TransformDirectionRow(const FMatrix& Matrix, const FVector& Direction)
+	{
+		const FVector4 V = FVector4(Direction, 0.0f) * Matrix;
+		return FVector(V.X, V.Y, V.Z);
+	}
+
+	float VectorLength(const FVector& V)
+	{
+		return std::sqrt((std::max)(0.0f, V.SizeSquared()));
+	}
+
+	float LerpFloat(float A, float B, float T)
+	{
+		return A + (B - A) * T;
+	}
+
+	float QuantizePSMDepth(float Value)
+	{
+		// PSM is very sensitive to tiny near/far changes. Quantization reduces shimmer.
+		const float Step = 1.0f / 16.0f;
+		return std::floor(Value / Step) * Step;
+	}
+
+	FVector GetCameraPositionWS(const FViewContext& View)
+	{
+		return View.InverseView.TransformPosition(FVector::ZeroVector);
+	}
+
+	FVector GetCameraForwardWS_XDepth(const FViewContext& View)
+	{
+		return TransformDirectionRow(View.InverseView, FVector(1.0f, 0.0f, 0.0f)).GetSafeNormal();
+	}
+
+	FVector GetCameraUpWS_XDepth(const FViewContext& View)
+	{
+		return TransformDirectionRow(View.InverseView, FVector(0.0f, 0.0f, 1.0f)).GetSafeNormal();
+	}
+
+	FPSMFrustumBasis ExtractCameraFrustumBasis_XDepth_DX(const FMatrix& InverseProjection)
+	{
+		FPSMFrustumBasis Out;
+
+		const FVector4 NdcFarCorners[4] =
+		{
+			FVector4(-1.0f,  1.0f, 1.0f, 1.0f),
+			FVector4( 1.0f,  1.0f, 1.0f, 1.0f),
+			FVector4( 1.0f, -1.0f, 1.0f, 1.0f),
 			FVector4(-1.0f, -1.0f, 1.0f, 1.0f)
 		};
 
-		FVector ViewRays[4];
-		bool    bValidViewRays = true;
+		float MaxAbsY = 0.0f;
+		float MaxAbsZ = 0.0f;
 
-		for (int j = 0; j < 4; ++j)
+		for (int32 CornerIndex = 0; CornerIndex < 4; ++CornerIndex)
 		{
-			FVector4 ViewCorner =
-					NDC_Corners[j] * CameraInvProj;
-
-			if (std::fabs(ViewCorner.W) <= 1.0e-6f)
-			{
-				bValidViewRays = false;
-				break;
-			}
-
+			FVector4 ViewCorner = NdcFarCorners[CornerIndex] * InverseProjection;
 			const float InvW = 1.0f / ViewCorner.W;
 
 			FVector Ray(
@@ -1776,275 +473,413 @@ namespace
 				ViewCorner.Y * InvW,
 				ViewCorner.Z * InvW);
 
-			if (std::fabs(Ray.X) <= 1.0e-6f)
+			if (std::abs(Ray.X) < 1.0e-6f)
 			{
-				bValidViewRays = false;
-				break;
+				Ray.X = (Ray.X < 0.0f) ? -1.0e-6f : 1.0e-6f;
 			}
 
-			ViewRays[j] = Ray * (1.0f / Ray.X);
+			Ray = Ray * (1.0f / Ray.X);
+			Out.UnitDepthRays[CornerIndex] = Ray;
+
+			MaxAbsY = (std::max)(MaxAbsY, std::abs(Ray.Y));
+			MaxAbsZ = (std::max)(MaxAbsZ, std::abs(Ray.Z));
 		}
 
-		if (!bValidViewRays)
+		MaxAbsZ = (std::max)(MaxAbsZ, 1.0e-6f);
+		Out.FovYRad = 2.0f * std::atan(MaxAbsZ);
+		Out.Aspect = (std::max)(0.001f, MaxAbsY / MaxAbsZ);
+		return Out;
+	}
+
+	float ComputeVirtualSlideBackForCascade(
+		const FVector& CameraForwardWS,
+		const FVector& LightDirectionWS,
+		float SplitNear,
+		float SplitFar)
+	{
+		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
+		const float Range = (std::max)(1.0f, SplitFar - SplitNear);
+
+		// The blog recommends sliding the virtual camera back in unstable view-light-aligned cases.
+		// Keep this conservative because too much slide-back shrinks geometry in post-perspective space.
+		if (Dot > 0.35f)
+		{
+			return (std::min)(100.0f, Range * 0.25f);
+		}
+		if (Dot > -0.10f)
+		{
+			return (std::min)(50.0f, Range * 0.10f);
+		}
+		return 0.0f;
+	}
+
+	void ComputeCascadeVirtualCameraRange(
+		const FVector& CameraForwardWS,
+		const FVector& LightDirectionWS,
+		float SplitNear,
+		float SplitFar,
+		float VirtualSlideBack,
+		float& OutNear,
+		float& OutFar)
+	{
+		// Patch1-based receiver fitting, with a small blog-style potential caster extension.
+		// Patch2 expanded this too aggressively and lowered effective PSM precision.
+		const float Range = (std::max)(1.0f, SplitFar - SplitNear);
+		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
+
+		float NearMargin = (std::max)(1.0f, Range * 0.02f);
+		float FarMargin = NearMargin;
+
+		if (Dot > 0.35f)
+		{
+			NearMargin = (std::max)(NearMargin, Range * 0.12f);
+		}
+		else if (Dot > -0.10f)
+		{
+			NearMargin = (std::max)(NearMargin, Range * 0.06f);
+		}
+
+		OutNear = (std::max)(0.01f, SplitNear + VirtualSlideBack - NearMargin);
+		OutFar = (std::max)(OutNear + 1.0f, SplitFar + VirtualSlideBack + FarMargin);
+
+		OutNear = (std::max)(0.01f, QuantizePSMDepth(OutNear));
+		OutFar = (std::max)(OutNear + 1.0f, QuantizePSMDepth(OutFar));
+	}
+
+	FPostPerspectiveShadowCamera BuildPostPerspectiveShadowCamera_DX_Row_XDepth(
+		const FMatrix& VCView,
+		const FMatrix& VCProjection,
+		const FVector& LightDirectionWS)
+	{
+		FPostPerspectiveShadowCamera Result;
+
+		// DirectX post-perspective volume: x/y [-1,1], z [0,1].
+		const FVector PPCenter(0.0f, 0.0f, 0.5f);
+		const float PPRadius = 1.5f;
+
+		// Current light DirectionWS is the emission direction. For the light camera position,
+		// use the direction toward the light source.
+		const FVector LightToSourceDirWS = -LightDirectionWS.GetSafeNormal();
+
+		const FVector4 EyeLightDir = FVector4(LightToSourceDirWS, 0.0f) * VCView;
+		const FVector4 LightPPH = EyeLightDir * VCProjection;
+
+		// Keep Patch1 behavior, but use a tiny dead-zone around w=0.
+		// Patch2's broad ortho band made too many cases use an over-fitted PP camera.
+		const float WEpsilon = 1.0e-3f;
+		const bool bOrthoLike = std::abs(LightPPH.W) <= WEpsilon;
+
+		if (bOrthoLike)
+		{
+			FVector LightDirPP(LightPPH.X, LightPPH.Y, LightPPH.Z);
+			if (LightDirPP.IsNearlyZero())
+			{
+				LightDirPP = FVector(1.0f, 0.0f, 0.0f);
+			}
+			LightDirPP = LightDirPP.GetSafeNormal();
+
+			const FVector LightPositionPP = PPCenter + LightDirPP * (PPRadius * 2.0f);
+			const FVector ForwardPP = (PPCenter - LightPositionPP).GetSafeNormal();
+
+			FVector UpPP = FVector::ZAxisVector;
+			if (std::abs(FVector::DotProduct(ForwardPP, UpPP)) > 0.99f)
+			{
+				UpPP = FVector::YAxisVector;
+			}
+
+			const float DistToCenter = VectorLength(PPCenter - LightPositionPP);
+			const float NearPP = (std::max)(0.001f, DistToCenter - PPRadius);
+			const float FarPP = (std::max)(NearPP + 0.001f, DistToCenter + PPRadius);
+
+			Result.View = FMatrix::MakeViewLookAtLH(LightPositionPP, PPCenter, UpPP);
+			Result.Projection = FMatrix::MakeOrthographicLH(PPRadius * 2.0f, PPRadius * 2.0f, NearPP, FarPP);
+			Result.bOrthographic = true;
+			Result.bInversePerspective = false;
+			return Result;
+		}
+
+		const float InvW = 1.0f / LightPPH.W;
+		const FVector LightPositionPP(
+			LightPPH.X * InvW,
+			LightPPH.Y * InvW,
+			LightPPH.Z * InvW);
+
+		const FVector ToCenter = PPCenter - LightPositionPP;
+		const float DistToCenter = (std::max)(0.001f, VectorLength(ToCenter));
+		const FVector ForwardPP = ToCenter * (1.0f / DistToCenter);
+
+		FVector UpPP = FVector::ZAxisVector;
+		if (std::abs(FVector::DotProduct(ForwardPP, UpPP)) > 0.99f)
+		{
+			UpPP = FVector::YAxisVector;
+		}
+
+		const float FovPP = 2.0f * std::atan(PPRadius / DistToCenter);
+		const float AspectPP = 1.0f;
+
+		Result.View = FMatrix::MakeViewLookAtLH(LightPositionPP, PPCenter, UpPP);
+		Result.bOrthographic = false;
+
+		if (LightPPH.W < 0.0f)
+		{
+			// Perspective Projection Matrix Trick from the blog:
+			// put near on the negative side and far on the positive side so the usual
+			// LESS/LESS_EQUAL compare can still record the intended depth ordering.
+			// If MakePerspectiveFovLH asserts NearZ > 0, add a separate AllowNegativeNear variant.
+			// Blog version: NearPP = max(0.1, DistToCenter - CubeRadius),
+			// FarPP = NearPP, then Near = -NearPP. Patch2 expanded this too much,
+			// crushing depth precision and making shadows almost disappear.
+			const float Plane = (std::max)(0.1f, DistToCenter - PPRadius);
+			Result.Projection = FMatrix::MakePerspectiveFovLH(FovPP, AspectPP, -Plane, Plane);
+			Result.bInversePerspective = true;
+		}
+		else
+		{
+			const float NearPP = (std::max)(0.1f, DistToCenter - PPRadius);
+			const float FarPP = (std::max)(NearPP + 0.001f, DistToCenter + PPRadius);
+			Result.Projection = FMatrix::MakePerspectiveFovLH(FovPP, AspectPP, NearPP, FarPP);
+			Result.bInversePerspective = false;
+		}
+
+		return Result;
+	}
+
+	void ComputeCascadePSMBias(
+		const FVector& CameraForwardWS,
+		const FVector& LightDirectionWS,
+		uint32 CascadeIndex,
+		float SplitNear,
+		float SplitFar,
+		bool bInversePP,
+		const UDirectionalLightComponent* DirLight,
+		float& OutConstantBias,
+		float& OutSlopeBias,
+		float& OutNormalBias)
+	{
+		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
+		const float AlignT = FMath::Clamp((std::abs(Dot) - 0.15f) / 0.85f, 0.0f, 1.0f);
+		const float CascadeScale = 1.0f + 0.25f * static_cast<float>(CascadeIndex);
+
+		const float UserCascadeBias = DirLight->GetCascadeBias(CascadeIndex);
+		const float UserCascadeSlopeBias = DirLight->GetCascadeSlopeBias(CascadeIndex);
+
+		OutConstantBias = (std::max)(UserCascadeBias, LerpFloat(0.000006f, 0.00004f, AlignT)) * CascadeScale;
+		OutSlopeBias = (std::max)(UserCascadeSlopeBias, LerpFloat(0.0005f, 0.0030f, AlignT)) * CascadeScale;
+
+		if (Dot > 0.0f)
+		{
+			OutConstantBias *= 1.15f;
+			OutSlopeBias *= 1.15f;
+		}
+
+		if (bInversePP)
+		{
+			OutConstantBias *= 1.35f;
+			OutSlopeBias *= 1.35f;
+		}
+
+		const float CascadeDepth = (std::max)(1.0f, SplitFar - SplitNear);
+		OutNormalBias = CascadeDepth * 0.00005f;
+	}
+
+	FCascadePSMResult BuildCascadePSMMatrix(
+		const FViewContext& View,
+		const FVector& LightDirectionWS,
+		float SplitNear,
+		float SplitFar,
+		uint32 CascadeIndex,
+		const UDirectionalLightComponent* DirLight)
+	{
+		FCascadePSMResult Result;
+		Result.SplitNear = SplitNear;
+		Result.SplitFar = SplitFar;
+
+		const FPSMFrustumBasis Basis = ExtractCameraFrustumBasis_XDepth_DX(View.InverseProjection);
+		const FVector CameraPositionWS = GetCameraPositionWS(View);
+		const FVector CameraForwardWS = GetCameraForwardWS_XDepth(View);
+		const FVector CameraUpWS = GetCameraUpWS_XDepth(View);
+
+		Result.VirtualSlideBack = ComputeVirtualSlideBackForCascade(CameraForwardWS, LightDirectionWS, SplitNear, SplitFar);
+		ComputeCascadeVirtualCameraRange(
+			CameraForwardWS,
+			LightDirectionWS,
+			SplitNear,
+			SplitFar,
+			Result.VirtualSlideBack,
+			Result.VCNear,
+			Result.VCFar);
+
+		const FVector VCPositionWS = CameraPositionWS - CameraForwardWS * Result.VirtualSlideBack;
+		const FVector VCTargetWS = CameraPositionWS + CameraForwardWS;
+
+		Result.VCView = FMatrix::MakeViewLookAtLH(VCPositionWS, VCTargetWS, CameraUpWS);
+		Result.VCProjection = FMatrix::MakePerspectiveFovLH(Basis.FovYRad, Basis.Aspect, Result.VCNear, Result.VCFar);
+
+		const FPostPerspectiveShadowCamera PPCamera = BuildPostPerspectiveShadowCamera_DX_Row_XDepth(
+			Result.VCView,
+			Result.VCProjection,
+			LightDirectionWS);
+
+		Result.PPView = PPCamera.View;
+		Result.PPProjection = PPCamera.Projection;
+		Result.bPPOrthographic = PPCamera.bOrthographic;
+		Result.bInversePP = PPCamera.bInversePerspective;
+
+		// Row-vector PSM order.
+		Result.PSM = Result.VCView * Result.VCProjection * Result.PPView * Result.PPProjection;
+
+		ComputeCascadePSMBias(
+			CameraForwardWS,
+			LightDirectionWS,
+			CascadeIndex,
+			SplitNear,
+			SplitFar,
+			Result.bInversePP,
+			DirLight,
+			Result.ConstantBias,
+			Result.SlopeBias,
+			Result.NormalBias);
+
+		return Result;
+	}
+
+	void BuildDirectionalShadowViews(
+		FSceneLightingInputs& Inputs,
+		const UDirectionalLightComponent* DirLight,
+		FDirectionalLightRenderItem& LightItem,
+		uint32 ShadowLightIndex,
+		const FViewContext& View)
+	{
+		FShadowLightRenderItem& ShadowLight = Inputs.DirShadowLights[ShadowLightIndex];
+		ShadowLight.LightType = EShadowLightType::Directional;
+		ShadowLight.PositionWS = FVector::ZeroVector;
+		ShadowLight.DirectionWS = LightItem.DirectionWS;
+		ShadowLight.Bias = 0.000001f;
+		ShadowLight.SlopeBias = 0.001f;
+		ShadowLight.NormalBias = 0.0f;
+		ShadowLight.Sharpen = 0.0f;
+		ShadowLight.ESMExponent = DirLight->GetShadowESMExponent();
+
+		uint32 CascadeCount = DirLight->GetCascadeCount();
+		CascadeCount = (std::min)(CascadeCount, ShadowConfig::MaxDirCascade);
+
+		TArray<float> FrustumSplits = FCasCade::CalculateCascadeSplits(
+			CascadeCount,
+			View.NearZ,
+			DirLight->GetShadowFarZ(),
+			DirLight->GetSplitLambda());
+
+		if (FrustumSplits.size() < 2)
 		{
 			return;
 		}
 
-		const uint32 MaxPSMCascadeCount = 2;
+		// Main pass must still select cascade by the original camera X-depth.
+		LightItem.CascadeSplits = FVector4(
+			FrustumSplits.size() > 1 ? FrustumSplits[1] : 0.0f,
+			FrustumSplits.size() > 2 ? FrustumSplits[2] : 0.0f,
+			FrustumSplits.size() > 3 ? FrustumSplits[3] : 0.0f,
+			FrustumSplits.size() > 4 ? FrustumSplits[4] : 0.0f
+		);
 
-		for (uint32 i = 0; i < CascadeCount; ++i)
+		const float ResolutionScale = DirLight->GetShadowResolutionScale();
+		const uint32 RequestedResolution = QuantizeDiraShadowResolution(
+			static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionScale));
+
+		for (uint32 CascadeIndex = 0; CascadeIndex < CascadeCount; ++CascadeIndex)
 		{
-			const float NearSplit = FrustumSplits[i];
-			const float FarSplit  = FrustumSplits[i + 1];
+			const float SplitNear = FrustumSplits[CascadeIndex];
+			const float SplitFar = FrustumSplits[CascadeIndex + 1];
 
-			FVector FrustumCornersWS[8];
-
-			for (int j = 0; j < 4; ++j)
-			{
-				const FVector NearVS =
-						ViewRays[j] * NearSplit;
-
-				const FVector FarVS =
-						ViewRays[j] * FarSplit;
-
-				FrustumCornersWS[j] =
-						CameraInvView.TransformPosition(NearVS);
-
-				FrustumCornersWS[j + 4] =
-						CameraInvView.TransformPosition(FarVS);
-			}
-
-			FVector FrustumCenter = FVector::ZeroVector;
-			for (int j = 0; j < 8; ++j)
-			{
-				FrustumCenter += FrustumCornersWS[j];
-			}
-			FrustumCenter /= 8.0f;
-
-			float SphereRadius = 0.0f;
-			for (int j = 0; j < 8; ++j)
-			{
-				SphereRadius =
-						(std::max)(
-							SphereRadius,
-							FVector::Dist(FrustumCenter, FrustumCornersWS[j]));
-			}
-
-			SphereRadius =
-					std::ceil(SphereRadius * 16.0f) / 16.0f;
-
-			const float BoxWidth  = SphereRadius * 2.0f;
-			const float BoxHeight = SphereRadius * 2.0f;
-
-			const float WorldUnitsPerTexel =
-					BoxWidth / ShadowConfig::DirShadowDepthResolution;
-
-			FMatrix TempShadowView =
-					FMatrix::MakeViewLookAtLH(
-						FVector::ZeroVector,
-						LightRayDirectionWS,
-						UpVector);
-
-			FVector CenterLS =
-					TempShadowView.TransformPosition(FrustumCenter);
-
-			CenterLS.Y =
-					std::floor(CenterLS.Y / WorldUnitsPerTexel) *
-					WorldUnitsPerTexel;
-
-			CenterLS.Z =
-					std::floor(CenterLS.Z / WorldUnitsPerTexel) *
-					WorldUnitsPerTexel;
-
-			const FVector SnappedCenterWS =
-					TempShadowView.GetInverse().TransformPosition(CenterLS);
-
-			const FVector LightPosition =
-					SnappedCenterWS;
-
-			const float BoxNear = -SphereRadius;
-			const float BoxFar  = SphereRadius;
+			const FCascadePSMResult PSM = BuildCascadePSMMatrix(
+				View,
+				LightItem.DirectionWS,
+				SplitNear,
+				SplitFar,
+				CascadeIndex,
+				DirLight);
 
 			FShadowViewRenderItem ViewItem;
-			ViewItem.ProjectionType = EShadowProjectionType::Orthographic;
-			ViewItem.PositionWS     = FrustumCenter;
-			ViewItem.NearZ          = BoxNear;
-			ViewItem.FarZ           = BoxFar;
+			ViewItem.LightType = EShadowLightType::Directional;
+			ViewItem.ProjectionType = PSM.bPPOrthographic
+				? EShadowProjectionType::Orthographic
+				: EShadowProjectionType::Perspective;
 
-			ViewItem.PSMVirtualViewProjection = FMatrix::Identity;
-			ViewItem.bUsePSMClip              = false;
+			ViewItem.PositionWS = GetCameraPositionWS(View);
+			ViewItem.NearZ = PSM.VCNear;
+			ViewItem.FarZ = PSM.VCFar;
 
-			const float ResolutionScale =
-					DirLight->GetShadowResolutionScale();
+			// PSM is not a normal light View/Projection pair.
+			// Keep ViewProjection authoritative; Projection is the remaining chain for code paths
+			// that still multiply View * Projection.
+			ViewItem.View = PSM.VCView;
+			ViewItem.Projection = PSM.VCProjection * PSM.PPView * PSM.PPProjection;
+			ViewItem.ViewProjection = PSM.PSM;
 
-			const uint32 RequestedResolution =
-					QuantizeDiraShadowResolution(
-						static_cast<uint32>(
-							ShadowConfig::DefaultShadowMapResolution *
-							ResolutionScale));
-
-			ViewItem.RequestedResolution =
-					RequestedResolution;
-
-			ViewItem.BiasParams = {
-				DirLight->GetCascadeBias(i),
-				DirLight->GetCascadeSlopeBias(i),
-				0.0f,
-				0.0f
-			};
-
-			ViewItem.View =
-					FMatrix::MakeViewLookAtLH(
-						LightPosition,
-						LightPosition + LightRayDirectionWS,
-						UpVector);
-
-			ViewItem.Projection =
-					FMatrix::MakeOrthographicLH(
-						BoxWidth,
-						BoxHeight,
-						BoxNear,
-						BoxFar);
-
-			ViewItem.ViewProjection =
-					ViewItem.View * ViewItem.Projection;
+			ViewItem.RequestedResolution = RequestedResolution;
+			ViewItem.BiasParams = FVector4(
+				PSM.ConstantBias,
+				PSM.SlopeBias,
+				PSM.NormalBias,
+				PSM.bInversePP ? 1.0f : 0.0f);
 
 			ViewItem.Viewport = {};
 
-			const FPSMBoundsWS CascadeReceiverBoundsWS =
-					BuildBoundsFromCornersWS(FrustumCornersWS);
-
-			const float CasterSearchDistance =
-					FMath::Clamp(
-						(FarSplit - NearSplit) * 2.0f,
-						100.0f,
-						2000.0f);
-
-			const FPSMBoundsWS PotentialCasterBoundsWS =
-					BuildPotentialCasterBoundsWS(
-						CascadeReceiverBoundsWS,
-						LightSourceDirectionWS,
-						CasterSearchDistance);
-
-			const bool bTryPSMForThisCascade =
-					i < MaxPSMCascadeCount;
-
-			FShadowViewRenderItem PSMViewItem;
-
-			if (bTryPSMForThisCascade &&
-				TryBuildCascadePSMView(
-					i,
-					View,
-					CascadeReceiverBoundsWS,
-					PotentialCasterBoundsWS,
-					LightRayDirectionWS,
-					LightSourceDirectionWS,
-					NearSplit,
-					FarSplit,
-					FrustumCornersWS,
-					ViewItem,
-					PSMViewItem))
-			{
-				ViewItem = PSMViewItem;
-			}
-
-			AddDirShadowView(
-				Inputs,
-				ShadowLightIndex,
-				ViewItem);
+			AddDirShadowView(Inputs, ShadowLightIndex, ViewItem);
 		}
 	}
 
-	void BuildPointShadowViews(
-		FSceneLightingInputs&        Inputs,
-		const UPointLightComponent*  Point,
-		const FLocalLightRenderItem& LightItem,
-		uint32                       ShadowLightIndex,
-		uint32                       CubeArrayIndex)
+	void BuildPointShadowViews(FSceneLightingInputs& Inputs,const UPointLightComponent* Point, const FLocalLightRenderItem& LightItem,uint32 ShadowLightIndex, uint32 CubeArrayIndex)
 	{
-		static const FVector CubeFaceLook[6] = {
-			{ 1, 0, 0 },
-			{ -1, 0, 0 },
-			{ 0, 1, 0 },
-			{ 0, -1, 0 },
-			{ 0, 0, 1 },
-			{ 0, 0, -1 },
-		};
-
-		static const FVector CubeFaceUp[6] = {
-			{ 0, 1, 0 },
-			{ 0, 1, 0 },
-			{ 0, 0, -1 },
-			{ 0, 0, 1 },
-			{ 0, 1, 0 },
-			{ 0, 1, 0 },
-		};
-
-		FShadowLightRenderItem& ShadowLight =
-				Inputs.ShadowLights[ShadowLightIndex];
-
-		ShadowLight.PositionWS  = LightItem.PositionWS;
-		ShadowLight.Mobility    = Point->GetMobility();
+		static const FVector CubeFaceLook[6] = {{ 1, 0, 0 }, { -1, 0, 0 },	{ 0, 1, 0 }, { 0,-1, 0 },{0, 0, 1 },{ 0, 0, -1 },};
+		static const FVector CubeFaceUp[6] = {{ 0, 1, 0 }, { 0, 1, 0 }, { 0, 0, -1 }, { 0, 0, 1 },{ 0, 1, 0 }, { 0, 1, 0 },	};
+		FShadowLightRenderItem& ShadowLight = Inputs.ShadowLights[ShadowLightIndex];
+		ShadowLight.PositionWS = LightItem.PositionWS;
+		ShadowLight.Mobility = Point->GetMobility();
 		ShadowLight.bCacheDirty = Point->IsCacheDirty();
 		Point->ResetShadowCacheDirty();
-		ShadowLight.Bias           = Point->GetShadowBias();
-		ShadowLight.SlopeBias      = Point->GetShadowSlopeBias();
-		ShadowLight.Sharpen        = Point->GetShadowSharpen();
+		ShadowLight.Bias       = Point->GetShadowBias();
+		ShadowLight.SlopeBias  = Point->GetShadowSlopeBias();
+		ShadowLight.Sharpen    = Point->GetShadowSharpen();
 		ShadowLight.CubeArrayIndex = CubeArrayIndex;
+		ShadowLight.ESMExponent = Point->GetShadowESMExponent();
 
 		const float NearZ = ShadowConfig::DefaultNearZ;
-		const float FarZ  =
-				(std::max)(LightItem.Range, NearZ + 0.001f);
+		const float FarZ = (std::max)(LightItem.Range, NearZ + 0.001f);
 
-		const uint32 BaseSlice =
-				ShadowConfig::PointShadowSliceOffset + CubeArrayIndex * 6;
+		const uint32 BaseSlice = ShadowConfig::PointShadowSliceOffset + CubeArrayIndex * 6;
 
 		for (uint32 F = 0; F < 6; ++F)
 		{
 			FShadowViewRenderItem View;
-			View.ProjectionType      = EShadowProjectionType::Perspective;
-			View.PositionWS          = LightItem.PositionWS;
-			View.NearZ               = NearZ;
-			View.FarZ                = FarZ;
-			View.RequestedResolution =
-					ShadowConfig::DefaultShadowMapResolution;
+			View.ProjectionType = EShadowProjectionType::Perspective;
+			View.PositionWS = LightItem.PositionWS;
+			View.NearZ = NearZ;
+			View.FarZ = FarZ;
+			View.RequestedResolution = ShadowConfig::DefaultShadowMapResolution;
 
-			View.PSMVirtualViewProjection = FMatrix::Identity;
-			View.bUsePSMClip              = false;
+			View.View = FMatrix::MakeViewLookAtLH(
+				LightItem.PositionWS,
+				LightItem.PositionWS + CubeFaceLook[F],
+				CubeFaceUp[F]);	
 
-			View.View =
-					FMatrix::MakeViewLookAtLH(
-						LightItem.PositionWS,
-						LightItem.PositionWS + CubeFaceLook[F],
-						CubeFaceUp[F]);
+			View.Projection = FMatrix::MakePerspectiveFovLH(
+				FMath::DegreesToRadians(90.0f), 1.0f, NearZ, FarZ);
 
-			View.Projection =
-					FMatrix::MakePerspectiveFovLH(
-						FMath::DegreesToRadians(90.0f),
-						1.0f,
-						NearZ,
-						FarZ);
+			View.ViewProjection = View.View * View.Projection;
+			View.FilterMode = EShadowFilterMode::Raw; 
+			View.LightType = EShadowLightType::Point;
 
-			View.ViewProjection =
-					View.View * View.Projection;
-
-			View.FilterMode = EShadowFilterMode::Raw;
-			View.LightType  = EShadowLightType::Point;
-
-			AddPointShadowView(
-				Inputs,
-				ShadowLightIndex,
-				BaseSlice + F,
-				View);
+			AddPointShadowView(Inputs, ShadowLightIndex, BaseSlice + F, View);
 		}
-	}
 
-	float ComputeShadowPriority(
-		const FVector& LightPos,
-		const FVector& CameraPos)
+	}
+	float ComputeShadowPriority(const FVector& LightPos, const FVector& CameraPos)
 	{
 		return (LightPos - CameraPos).SizeSquared();
+
 	}
+
 }
 
 
@@ -2056,10 +891,7 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 {
 	(void)Packet;
 	(void)View;
-
-	FSceneLightingInputs& LightingInputs =
-			OutSceneViewData.LightingInputs;
-
+	FSceneLightingInputs& LightingInputs = OutSceneViewData.LightingInputs;
 	LightingInputs.Clear();
 
 	LightingInputs.Ambient.Color     = FVector::OneVector;
@@ -2070,14 +902,15 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 		return;
 	}
 
+
+	//temp Condidtate colletion vector
 	struct FPointShadowCandidate
 	{
 		const UPointLightComponent* PointLightl = nullptr;
-		FLocalLightRenderItem       LightItem;
-		uint32                      LocalLightIndex = 0;
-		float                       SortKey         = 0.0f;
+		FLocalLightRenderItem LightItem;
+		uint32 LocalLightIndex = 0;
+		float SortKey = 0.0f;
 	};
-
 	std::vector<FPointShadowCandidate> ShadowCandidates;
 	ShadowCandidates.reserve(16);
 
@@ -2088,9 +921,7 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 	float                       StrongestDirectional = -1.0f;
 	FDirectionalLightRenderItem DirectionalLightItem;
 
-	const TArray<AActor*> Actors =
-			BuildContext.World->GetAllActors();
-
+	const TArray<AActor*> Actors = BuildContext.World->GetAllActors();
 	LightingInputs.LocalLights.reserve(Actors.size());
 
 	for (AActor* Actor : Actors)
@@ -2109,17 +940,13 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 			if (Component->IsA(UAmbientLightComponent::StaticClass()))
 			{
-				const UAmbientLightComponent* Ambient =
-						static_cast<UAmbientLightComponent*>(Component);
-
+				const UAmbientLightComponent* Ambient = static_cast<UAmbientLightComponent*>(Component);
 				if (!Ambient->GetVisible())
 				{
 					continue;
 				}
 
-				const float EffectiveIntensity =
-						Ambient->GetEffectiveIntensity();
-
+				const float EffectiveIntensity = Ambient->GetEffectiveIntensity();
 				if (EffectiveIntensity <= 0.0f)
 				{
 					continue;
@@ -2133,20 +960,14 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 			if (Component->IsA(UDirectionalLightComponent::StaticClass()))
 			{
-				const UDirectionalLightComponent* Directional =
-						static_cast<UDirectionalLightComponent*>(Component);
-
-				if (!Directional->GetVisible() ||
-					Directional->GetEffectiveIntensity() <= 0.0f)
+				const UDirectionalLightComponent* Directional = static_cast<UDirectionalLightComponent*>(Component);
+				if (!Directional->GetVisible() || Directional->GetEffectiveIntensity() <= 0.0f)
 				{
 					continue;
 				}
 
-				const FDirectionalLightRenderItem Candidate =
-						BuildDirectionalLight(Directional);
-
-				if (!bHasDirectionalLight ||
-					Candidate.Intensity > StrongestDirectional)
+				const FDirectionalLightRenderItem Candidate = BuildDirectionalLight(Directional);
+				if (!bHasDirectionalLight || Candidate.Intensity > StrongestDirectional)
 				{
 					DirectionalLightItem = Candidate;
 					StrongestDirectional = Candidate.Intensity;
@@ -2154,66 +975,37 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 					LightingInputs.DirShadowLights.clear();
 					LightingInputs.DirShadowViews.clear();
-
+					
 					if (Directional->IsCastingShadows())
 					{
-						const uint32 ShadowLightIndex =
-								AllocateDirShadowLight(
-									LightingInputs,
-									EShadowLightType::Directional,
-									0);
-
+						const uint32 ShadowLightIndex = AllocateDirShadowLight(LightingInputs, EShadowLightType::Directional, 0);
 						if (ShadowLightIndex != UINT32_MAX)
 						{
-							BuildDirectionalShadowViews(
-								LightingInputs,
-								Directional,
-								DirectionalLightItem,
-								ShadowLightIndex,
-								View);
+							BuildDirectionalShadowViews(LightingInputs, Directional, DirectionalLightItem, ShadowLightIndex, View);
 						}
 					}
 				}
-
 				continue;
 			}
 
 			if (Component->IsA(USpotLightComponent::StaticClass()))
 			{
-				const USpotLightComponent* Spot =
-						static_cast<USpotLightComponent*>(Component);
-
-				if (!Spot->GetVisible() ||
-					Spot->GetEffectiveIntensity() <= 0.0f ||
-					Spot->GetAttenuationRadius() <= 0.0f)
+				
+				const USpotLightComponent* Spot = static_cast<USpotLightComponent*>(Component);
+				if (!Spot->GetVisible() || Spot->GetEffectiveIntensity() <= 0.0f || Spot->GetAttenuationRadius() <= 0.0f)
 				{
 					continue;
 				}
 
-				FLocalLightRenderItem LightItem =
-						BuildSpotLight(Spot);
-
-				const uint32 LocalLightIndex =
-						static_cast<uint32>(LightingInputs.LocalLights.size());
-
+				FLocalLightRenderItem LightItem       = BuildSpotLight(Spot);
+				const uint32          LocalLightIndex = static_cast<uint32>(LightingInputs.LocalLights.size());
 				if (Spot->IsCastingShadows())
 				{
-					const uint32 ShadowLightIndex =
-							AllocalteShadowLight(
-								LightingInputs,
-								EShadowLightType::Spot,
-								LocalLightIndex);
+					const uint32 ShadowLightIndex = AllocalteShadowLight(LightingInputs, EShadowLightType::Spot, LocalLightIndex);
 
 					if (ShadowLightIndex != UINT32_MAX)
 					{
-						BuildSpotShadowViews(
-							LightingInputs,
-							Spot,
-							LightItem,
-							LocalLightIndex,
-							ShadowLightIndex,
-							View.CameraPosition);
-
+						BuildSpotShadowViews(LightingInputs, Spot, LightItem, LocalLightIndex, ShadowLightIndex, View.ViewProjection);
 						if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount > 0)
 						{
 							LightItem.ShadowIndex = ShadowLightIndex;
@@ -2227,76 +1019,54 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 			if (Component->IsA(UPointLightComponent::StaticClass()))
 			{
-				const UPointLightComponent* Point =
-						static_cast<UPointLightComponent*>(Component);
-
-				if (!Point->GetVisible() ||
-					Point->GetEffectiveIntensity() <= 0.0f ||
-					Point->GetAttenuationRadius() <= 0.0f)
-				{
+				const UPointLightComponent* Point = static_cast<UPointLightComponent*>(Component);
+				if (!Point->GetVisible() || Point->GetEffectiveIntensity() <= 0.0f
+					|| Point->GetAttenuationRadius() <= 0.0f)
 					continue;
-				}
 
-				FLocalLightRenderItem LightItem =
-						BuildPointLight(Point);
-
-				const uint32 LocalLightIndex =
-						static_cast<uint32>(LightingInputs.LocalLights.size());
+				FLocalLightRenderItem LightItem = BuildPointLight(Point);
+				const uint32 LocalLightIndex = static_cast<uint32>(LightingInputs.LocalLights.size());
 
 				if (Point->IsCastingShadows())
 				{
+					// 후보로만 수집 등록은 정렬 후 2차 패스에서
 					FPointShadowCandidate Candidate;
-					Candidate.PointLightl     = Point;
-					Candidate.LightItem       = LightItem;
+					Candidate.PointLightl = Point;
+					Candidate.LightItem = LightItem;
 					Candidate.LocalLightIndex = LocalLightIndex;
-					Candidate.SortKey         =
-							ComputeShadowPriority(
-								LightItem.PositionWS,
-								OutSceneViewData.View.CameraPosition);
-
+					Candidate.SortKey = ComputeShadowPriority(LightItem.PositionWS, OutSceneViewData.View.CameraPosition);
 					ShadowCandidates.push_back(Candidate);
+			
 				}
 				else
 				{
 					LightingInputs.LocalLights.push_back(LightItem);
 				}
-
 				continue;
 			}
 		}
 	}
-
-	std::sort(
-		ShadowCandidates.begin(),
-		ShadowCandidates.end(),
+	std::sort(ShadowCandidates.begin(), ShadowCandidates.end(),
 		[](const FPointShadowCandidate& A, const FPointShadowCandidate& B)
-		{
-			return A.SortKey < B.SortKey;
-		});
+	{;
+	return A.SortKey < B.SortKey;
+	});
 
 	uint32 PointCubeCounter = 0;
 
 	for (FPointShadowCandidate& Candidate : ShadowCandidates)
 	{
-		FLocalLightRenderItem LightItem =
-				Candidate.LightItem;
+		FLocalLightRenderItem LightItem = Candidate.LightItem;
 
 		if (PointCubeCounter < ShadowConfig::MaxPointShadowCubes)
 		{
-			const uint32 ShadowLightIndex =
-					AllocalteShadowLight(
-						LightingInputs,
-						EShadowLightType::Point,
-						Candidate.LocalLightIndex);
+			const uint32 ShadowLightIndex = AllocalteShadowLight(
+				LightingInputs, EShadowLightType::Point, Candidate.LocalLightIndex);
 
 			if (ShadowLightIndex != UINT32_MAX)
 			{
-				BuildPointShadowViews(
-					LightingInputs,
-					Candidate.PointLightl,
-					LightItem,
-					ShadowLightIndex,
-					PointCubeCounter);
+				BuildPointShadowViews(LightingInputs, Candidate.PointLightl, LightItem,
+					ShadowLightIndex, PointCubeCounter);
 
 				if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount == 6)
 				{
@@ -2308,7 +1078,6 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 		LightingInputs.LocalLights.push_back(LightItem);
 	}
-
 	if (bHasAmbientLight && AmbientIntensitySum > 0.0f)
 	{
 		LightingInputs.Ambient.Color     = AmbientRadiance / AmbientIntensitySum;

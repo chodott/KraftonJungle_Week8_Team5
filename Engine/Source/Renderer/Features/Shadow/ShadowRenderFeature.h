@@ -20,7 +20,7 @@ enum class EShadowDebugViewMode : uint32
 	VSMVariance = 3
 };
 
-class FShadowRenderFeature
+class ENGINE_API FShadowRenderFeature
 {
 public:
 	~FShadowRenderFeature();
@@ -45,6 +45,8 @@ public:
 	void BindShadowResources(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 
 	void UnbindShadowResources(FRenderer& Renderer);
+
+	void ClearShadowAtlasState(FRenderer& Renderer);
 
 	void Release();
 
@@ -105,7 +107,7 @@ public:
 	{
 		return ShadowDebugPreviewSRV;
 	}
-
+	ID3D11ShaderResourceView* GetPointLightFacePreviewSRV(ID3D11Device* Device, ID3D11DeviceContext* Context, uint32 ArraySlice);
 	const TArray<uint32>& GetDebugAvailableSlices() const
 	{
 		return DebugAvailableSlices;
@@ -139,6 +141,8 @@ private:
 	bool EnsureShadowDepthAtlas(FRenderer& Renderer, uint32 RequiredResolution);
 
 	bool EnsureShadowBuffers(FRenderer& Renderer, uint32 ShadowLightCount, uint32 ShadowViewCount);
+	bool EnsureESMConstantBuffer(FRenderer& Renderer);
+	void UpdateESMConstantBuffer(ID3D11DeviceContext* DeviceContext, float ESMExponent);
 
 	bool EnsureDirMomentsAtlas(const FRenderer& Renderer, uint32 RequiredResolution);
 	bool EnsureDirShadowDepthAtlas(FRenderer& Renderer, uint32 RequiredResolution);
@@ -230,6 +234,8 @@ private:
 	ID3D11ShaderResourceView* ShadowMomentsCubeArraySRV = nullptr;
 	ID3D11RenderTargetView* ShadowMomentsCubeRTVs[ShadowConfig::MaxShadowViews] = {};
 
+	ID3D11Buffer*			  ShadowESMConstantBuffer = nullptr;
+
 	ID3D11Buffer*             ShadowLightBuffer    = nullptr;
 	ID3D11ShaderResourceView* ShadowLightBufferSRV = nullptr;
 
@@ -251,6 +257,8 @@ private:
 	ID3D11Buffer*				DirShadowViewBuffer		= nullptr;
 	ID3D11ShaderResourceView*	DirShadowViewBufferSRV = nullptr;
 
+	ID3D11Texture2D*			PointDebugTexture		= nullptr;
+	ID3D11ShaderResourceView*	PointDebugSRV			= nullptr;
 
 	ID3D11SamplerState*  ShadowComparisonSampler    = nullptr;
 	ID3D11SamplerState*  ShadowLinearSampler        = nullptr;

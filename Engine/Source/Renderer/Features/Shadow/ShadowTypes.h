@@ -11,35 +11,35 @@ namespace ShadowConfig
 	static constexpr uint32 MaxShadowLights = 16;
 
 
-	static constexpr uint32 MaxSpotShadowViews  = 8;
-	static constexpr uint32 MaxPointShadowCubes = 4;
-	static constexpr uint32 MaxShadowViews      = MaxSpotShadowViews + MaxPointShadowCubes * 6;
-	static constexpr uint32 MaxDirCascade       = 4;
+	static constexpr uint32 MaxSpotShadowViews		   = 8;
+	static constexpr uint32 MaxPointShadowCubes        = 4;
+	static constexpr uint32 MaxShadowViews = MaxSpotShadowViews + MaxPointShadowCubes * 6;
+	static constexpr uint32 MaxDirCascade = 4;
 
 	static constexpr uint32 PointShadowSliceOffset = MaxSpotShadowViews;
 
-	static constexpr uint32 DefaultShadowMapResolution  = 512;
+	static constexpr uint32 DefaultShadowMapResolution = 512;
 	static constexpr uint32 MaxLocalShadowMapResolution = 2048;
-	static constexpr uint32 MinShadowMapResolution      = 64;
-	static constexpr uint32 MaxShadowMapResolution      = 4096;
-	static constexpr uint32 DirShadowDepthResolution    = 4096;
+	static constexpr uint32 MinShadowMapResolution     = 64;
+	static constexpr uint32 MaxShadowMapResolution     = 4096;
+	static constexpr uint32 DirShadowDepthResolution = 4096;
 	static constexpr uint32 DirMaxShadowDepthResolution = 8192;
-	static constexpr float  DefaultNearZ                = 0.05f;
+	static constexpr float  DefaultNearZ               = 0.05f;
 }
 
 namespace ShadowSlots
 {
-	static constexpr uint32 ShadowLightSRV   = 20;
-	static constexpr uint32 ShadowViewSRV    = 21;
-	static constexpr uint32 ShadowMapSRV     = 22;
-	static constexpr uint32 ShadowMomentsSRV = 23;
+	static constexpr uint32 ShadowLightSRV      = 20;
+	static constexpr uint32 ShadowViewSRV       = 21;
+	static constexpr uint32 ShadowMapSRV        = 22;
+	static constexpr uint32 ShadowMomentsSRV    = 23;
 
-	static constexpr uint32 ShadowCubeSRV       = 24;
+	static constexpr uint32 ShadowCubeSRV		= 24;
 	static constexpr uint32 ShadowMomentCubeSRV = 25;
 
-	static constexpr uint32 DirShadowLightSRV   = 26;
-	static constexpr uint32 DirShadowViewSRV    = 27;
-	static constexpr uint32 DirShadowMapSRV     = 28;
+	static constexpr uint32 DirShadowLightSRV = 26;
+	static constexpr uint32 DirShadowViewSRV = 27;
+	static constexpr uint32 DirShadowMapSRV = 28;
 	static constexpr uint32 DirShadowMomentsSRV = 29;
 
 	static constexpr uint32 ShadowSampler       = 8;
@@ -51,6 +51,7 @@ enum class EShadowFilterMode : uint32
 	Raw = 0u,
 	PCF = 1u,
 	VSM = 2u,
+	ESM = 3u,
 };
 
 enum class EShadowLightType : uint32
@@ -81,9 +82,10 @@ struct FShadowLightRenderItem
 	float SlopeBias  = 0.001f;
 	float NormalBias = 0.0f;
 	float Sharpen    = 0.0f;
+	float ESMExponent = 0.0f;
 
-	uint32         CubeArrayIndex = UINT32_MAX;
-	ELightMobility Mobility       = ELightMobility::Movable;
+	uint32 CubeArrayIndex = UINT32_MAX;
+	ELightMobility Mobility = ELightMobility::Movable;
 
 	FVector PositionWS  = FVector::ZeroVector;
 	FVector DirectionWS = FVector(1.0f, 0.0f, 0.0f);
@@ -112,15 +114,13 @@ struct FShadowViewRenderItem
 	float NearZ = ShadowConfig::DefaultNearZ;
 	float FarZ  = 1000.0f;
 
-	bool              bAtlasAllocated       = false;
-	uint32            AllocatedResolution   = 0;
-	uint32            RequestedResolution   = 0;
-	float             ShadowResolutionScale = 1.0f;
-	EShadowFilterMode FilterMode            = EShadowFilterMode::VSM;
+	bool			  bAtlasAllocated     = false;
+	uint32			  AllocatedResolution = 0;
+	uint32            RequestedResolution = 0;
+	float			  ShadowResolutionScale = 1.0f;
+	EShadowFilterMode FilterMode          = EShadowFilterMode::VSM;
 
-	FVector AtlasUV                  = FVector::ZeroVector;
-	FMatrix PSMVirtualViewProjection = FMatrix::Identity;
-	bool    bUsePSMClip              = false;
+	FVector AtlasUV = FVector::ZeroVector;
 
 	D3D11_VIEWPORT Viewport = {};
 
@@ -132,16 +132,18 @@ struct FShadowViewRenderItem
 
 struct FShadowLightGPU
 {
-	uint32 LightType      = 0;
+	uint32 LightType = 0;
 	uint32 FirstViewIndex = 0;
-	uint32 ViewCount      = 0;
-	uint32 Flags          = 0;
+	uint32 ViewCount = 0;
+	uint32 Flags = 0;
 
 	FVector4 PositionType;
 
 	FVector4 DirectionBias;
 
 	FVector4 Params0;
+
+	FVector4 Params1;	//x: ESM exponent
 };
 
 
@@ -149,14 +151,14 @@ struct FShadowViewGPU
 {
 	FMatrix LightViewProjection;
 
-	uint32 ArraySlice     = 0;
+	uint32 ArraySlice = 0;
 	uint32 ProjectionType = 0;
-	uint32 FilterMode     = 0;
-	uint32 Pad0           = 0;
+	uint32 FilterMode = 0;
+	uint32 Pad0 = 0;
 
 	FVector4 ViewParams;
 	FVector4 BiasParams;
-
+	
 	FVector AtlasUV; // X,Y: UV offset, Z: UV scale
 	float   Pad1 = 0.0f;
 };

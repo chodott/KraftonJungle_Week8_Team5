@@ -28,6 +28,7 @@ enum class EMeshPassType : uint32
 	EditorGrid,
 	EditorPrimitive,
 	ShadowVSM,
+	ShadowESM,
 	Count,
 };
 
@@ -43,6 +44,7 @@ enum class EMeshPassMask : uint32
 	EditorGrid         = 1u << 6,
 	EditorPrimitive    = 1u << 7,
 	ShadowVSM          = 1u << 8,
+	ShadowESM          = 1u << 9,
 };
 
 inline uint32 operator|(EMeshPassMask A, EMeshPassMask B)
