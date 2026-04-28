@@ -699,14 +699,47 @@ void FEditorViewportInputService::TickCameraNavigation(
 
 		FocusedEntry->LocalState.Rotation.Yaw += DeltaX * Sensitivity;
 		FocusedEntry->LocalState.Rotation.Pitch -= DeltaY * Sensitivity;
-		if (FocusedEntry->LocalState.Rotation.Pitch > 89.0f)
+		FocusedEntry->LocalState.Rotation.Pitch = std::clamp(FocusedEntry->LocalState.Rotation.Pitch, -89.0f, 89.0f);
+
+		const float DeltaTime = EditorEngine->GetDeltaTime();
+		float Speed = 5.0f;
+		if (ULevel* Scene = GetViewportScene(FocusedEntry))
 		{
-			FocusedEntry->LocalState.Rotation.Pitch = 89.0f;
+			if (FCamera* Cam = Scene->GetCamera())
+			{
+				Speed = Cam->GetSpeed();
+			}
 		}
-		if (FocusedEntry->LocalState.Rotation.Pitch < -89.0f)
+
+		const FVector Forward = FocusedEntry->LocalState.Rotation.Vector().GetSafeNormal();
+		const FVector Right = FVector::CrossProduct(FVector::UpVector, Forward).GetSafeNormal();
+		FVector MoveDelta = FVector::ZeroVector;
+
+		if (Input->IsKeyDown('W')) MoveDelta += Forward;
+		if (Input->IsKeyDown('S')) MoveDelta -= Forward;
+		if (Input->IsKeyDown('D')) MoveDelta += Right;
+		if (Input->IsKeyDown('A')) MoveDelta -= Right;
+		if (Input->IsKeyDown('E')) MoveDelta += FVector::UpVector;
+		if (Input->IsKeyDown('Q')) MoveDelta -= FVector::UpVector;
+
+		if (!MoveDelta.IsNearlyZero())
 		{
-			FocusedEntry->LocalState.Rotation.Pitch = -89.0f;
+			FocusedEntry->LocalState.Position += MoveDelta.GetSafeNormal() * (Speed * DeltaTime);
 		}
+
+		// 파일럿 모드 중이라면 Camera 객체에도 즉시 반영하여 TickPilotMode가 올바른 값을 읽게 함
+		if (EditorEngine->IsPilotingLight())
+		{
+			if (ULevel* Scene = GetViewportScene(FocusedEntry))
+			{
+				if (FCamera* Cam = Scene->GetCamera())
+				{
+					Cam->SetPosition(FocusedEntry->LocalState.Position);
+					Cam->SetRotation(FocusedEntry->LocalState.Rotation.Yaw, FocusedEntry->LocalState.Rotation.Pitch);
+				}
+			}
+		}
+
 		return;
 	}
 

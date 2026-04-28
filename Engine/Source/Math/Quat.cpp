@@ -467,8 +467,11 @@ FMatrix FQuat::ToMatrix() const noexcept
 FRotator FQuat::Rotator() const noexcept
 {
 	const FMatrix RotationMatrix = ToMatrix();
-	const float ClampedPitchSin = std::clamp(RotationMatrix.M[2][0], -1.0f, 1.0f);
-	const float PitchRadians = std::asin(ClampedPitchSin);
+
+	// Row-major R = Rx * Ry * Rz (Roll * Pitch * Yaw)
+	// M[0][2] = sin(Pitch)
+	const float PitchSin = std::clamp(RotationMatrix.M[0][2], -1.0f, 1.0f);
+	const float PitchRadians = std::asin(PitchSin);
 	const float CosPitch = std::cos(PitchRadians);
 
 	float YawRadians = 0.0f;
@@ -476,12 +479,20 @@ FRotator FQuat::Rotator() const noexcept
 
 	if (std::fabs(CosPitch) > 1.e-6f)
 	{
-		YawRadians = std::atan2(-RotationMatrix.M[1][0], RotationMatrix.M[0][0]);
-		RollRadians = std::atan2(-RotationMatrix.M[2][1], RotationMatrix.M[2][2]);
+		// M[0][0] = cos(Pitch) * cos(Yaw)
+		// M[0][1] = cos(Pitch) * sin(Yaw)
+		YawRadians = std::atan2(RotationMatrix.M[0][1], RotationMatrix.M[0][0]);
+
+		// M[1][2] = sin(Roll) * cos(Pitch)
+		// M[2][2] = cos(Roll) * cos(Pitch)
+		RollRadians = std::atan2(RotationMatrix.M[1][2], RotationMatrix.M[2][2]);
 	}
 	else
 	{
-		YawRadians = std::atan2(RotationMatrix.M[0][1], RotationMatrix.M[1][1]);
+		// Gimbal lock
+		// Rx * Rz when Pitch = 90
+		YawRadians = 0.0f;
+		RollRadians = std::atan2(-RotationMatrix.M[1][0], RotationMatrix.M[1][1]);
 	}
 
 	FRotator Result(
