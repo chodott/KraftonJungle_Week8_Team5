@@ -222,9 +222,9 @@ FRotator FRotator::GetInverse() const noexcept
 FQuat FRotator::Quaternion() const noexcept
 {
 	const FMatrix RotationMatrix =
-		FMatrix::MakeRotationZ(FMath::DegreesToRadians(Yaw))
+		FMatrix::MakeRotationX(FMath::DegreesToRadians(Roll))
 		* FMatrix::MakeRotationY(FMath::DegreesToRadians(Pitch))
-		* FMatrix::MakeRotationX(FMath::DegreesToRadians(Roll));
+		* FMatrix::MakeRotationZ(FMath::DegreesToRadians(Yaw));
 
 	return FQuat(DirectX::XMQuaternionRotationMatrix(RotationMatrix.ToXMMatrix())).GetNormalized();
 }

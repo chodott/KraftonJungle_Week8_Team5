@@ -31,6 +31,7 @@
 #include "Component/UUIDBillboardComponent.h"
 #include "Core/ConsoleVariableManager.h"
 #include "Core/Engine.h"
+#include "Input/InputManager.h"
 #include "Debug/EngineLog.h"
 #include "Asset/ObjManager.h"
 #include "Core/Paths.h"
@@ -2058,36 +2059,70 @@ void FEditorEngine::TickPilotMode()
 	}
 
 	// 현재 카메라 트랜스폼을 읽어 라이트에 적용
-	const FVector CamPos   = Cam->GetPosition();
-	const float   CamYaw   = Cam->GetYaw();
-	const float   CamPitch = Cam->GetPitch();
-	const FRotator NewRot(CamPitch, CamYaw, 0.0f);
+	FInputManager* Input = GetInputManager();
+	const bool bIsNavigating = Input && Input->IsMouseButtonDown(FInputManager::MOUSE_RIGHT);
 
-	// 부모 컴포넌트가 있는 경우 로컬 공간으로 변환
-	FTransform RelTransform = Root->GetRelativeTransform();
-
-	if (!bPilotDirectionalOnly)
+	if (bIsNavigating)
 	{
-		if (USceneComponent* AttachParent = Root->GetAttachParent())
+		const FVector CamPos   = Cam->GetPosition();
+		const float   CamYaw   = Cam->GetYaw();
+		const float   CamPitch = Cam->GetPitch();
+		const FRotator NewRot(CamPitch, CamYaw, 0.0f);
+
+		// 부모 컴포넌트가 있는 경우 로컬 공간으로 변환
+		FTransform RelTransform = Root->GetRelativeTransform();
+
+		if (!bPilotDirectionalOnly)
 		{
-			const FMatrix ParentInverse = AttachParent->GetWorldTransform().GetInverse();
-			RelTransform.SetTranslation(ParentInverse.TransformPosition(CamPos));
+			if (USceneComponent* AttachParent = Root->GetAttachParent())
+			{
+				const FMatrix ParentInverse = AttachParent->GetWorldTransform().GetInverse();
+				RelTransform.SetTranslation(ParentInverse.TransformPosition(CamPos));
+			}
+			else
+			{
+				RelTransform.SetTranslation(CamPos);
+			}
+		}
+
+		{
+			FQuat NewQuat = NewRot.Quaternion().GetNormalized();
+			if (USceneComponent* AttachParent = Root->GetAttachParent())
+			{
+				const FQuat ParentWorldQuat = FTransform(AttachParent->GetWorldTransform()).GetRotation();
+				NewQuat = (NewQuat * ParentWorldQuat.Inverse()).GetNormalized();
+			}
+			RelTransform.SetRotation(NewQuat);
+		}
+
+		Root->SetRelativeTransform(RelTransform);
+	}
+	else
+	{
+		// 사용자가 카메라를 조작하고 있지 않다면, 기즈모/프로퍼티 패널 등 외부에서 변경된 액터의 트랜스폼을 뷰포트 카메라가 추적합니다.
+		if (bPilotDirectionalOnly)
+		{
+			const FVector Dir = PilotedLightComponent->GetEmissionDirectionWS().GetSafeNormal();
+			const float Pitch = FMath::RadiansToDegrees(std::asinf(FMath::Clamp(Dir.Z, -1.0f, 1.0f)));
+			const float Yaw   = FMath::RadiansToDegrees(std::atan2f(Dir.Y, Dir.X));
+			Cam->SetRotation(Yaw, Pitch);
 		}
 		else
 		{
-			RelTransform.SetTranslation(CamPos);
+			const FVector Pos = PilotedLightComponent->GetWorldLocation();
+			const FVector Dir = PilotedLightComponent->GetEmissionDirectionWS().GetSafeNormal();
+			const float Pitch = FMath::RadiansToDegrees(std::asinf(FMath::Clamp(Dir.Z, -1.0f, 1.0f)));
+			const float Yaw   = FMath::RadiansToDegrees(std::atan2f(Dir.Y, Dir.X));
+			Cam->SetPosition(Pos);
+			Cam->SetRotation(Yaw, Pitch);
 		}
-	}
 
-	{
-		FQuat NewQuat = NewRot.Quaternion().GetNormalized();
-		if (USceneComponent* AttachParent = Root->GetAttachParent())
+		// LocalState 동기화
+		FViewportEntry* PerspEntry = ViewportRegistry.FindEntryByType(EViewportType::Perspective);
+		if (PerspEntry)
 		{
-			const FQuat ParentWorldQuat = FTransform(AttachParent->GetWorldTransform()).GetRotation();
-			NewQuat = (NewQuat * ParentWorldQuat.Inverse()).GetNormalized();
+			PerspEntry->LocalState.Position = Cam->GetPosition();
+			PerspEntry->LocalState.Rotation = FRotator(Cam->GetPitch(), Cam->GetYaw(), 0.0f);
 		}
-		RelTransform.SetRotation(NewQuat);
 	}
-
-	Root->SetRelativeTransform(RelTransform);
 }

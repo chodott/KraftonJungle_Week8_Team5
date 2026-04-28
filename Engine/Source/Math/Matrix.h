@@ -568,9 +568,9 @@ public:
 		const float SinAngle = std::sin(AngleRad);
 
 		return FMatrix(
-			CosAngle, 0.f, -SinAngle, 0.f,
+			CosAngle, 0.f, SinAngle, 0.f,
 			0.f, 1.f, 0.f, 0.f,
-			SinAngle, 0.f, CosAngle, 0.f,
+			-SinAngle, 0.f, CosAngle, 0.f,
 			0.f, 0.f, 0.f, 1.f
 		);
 	}

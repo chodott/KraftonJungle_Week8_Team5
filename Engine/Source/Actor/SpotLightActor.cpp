@@ -39,7 +39,7 @@ void ASpotLightActor::PostSpawnInitialize()
 {
 	SpotLightComponent = FObjectFactory::ConstructObject<USpotLightComponent>(this, "SpotLightComponent");
 	AddOwnedComponent(SpotLightComponent);
-	SpotLightComponent->SetRelativeTransform(FTransform(FRotator(90.f, 0.0f, 0.0), FVector::ZeroVector, FVector::OneVector));
+	SpotLightComponent->SetRelativeTransform(FTransform(FRotator(-90.f, 0.0f, 0.0), FVector::ZeroVector, FVector::OneVector));
 
 	IconBillboardComponent = FObjectFactory::ConstructObject<UBillboardComponent>(this, "BillboardComponent");
 	if (IconBillboardComponent)
