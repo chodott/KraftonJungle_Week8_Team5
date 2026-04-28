@@ -1143,19 +1143,26 @@ void FShadowRenderFeature::RenderShadowViews(
 		return;
 	}
 
+	if (!LocalShadowDepthAtlasSRV)
+	{
+		return;
+	}
+
 	const uint32 ShadowViewCount = (std::min)(
 		static_cast<uint32>(SceneViewData.LightingInputs.ShadowViews.size()),
 		ShadowConfig::MaxShadowViews);
+
+	const FViewContext OriginalView    = SceneViewData.View;
+	static const float ClearMoments[4] = { 1.0f, 1.0f, 0.0f, 0.0f };
+	DeviceContext->ClearDepthStencilView(LocalShadowDepthAtlasDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	DeviceContext->ClearRenderTargetView(LocalShadowMomentsAtlasRTV, ClearMoments);
+
+	ShadowAtlasAllocator->Reset();
 
 	if (ShadowViewCount == 0)
 	{
 		return;
 	}
-
-	const FViewContext OriginalView    = SceneViewData.View;
-	static const float ClearMoments[4] = { 1.0f, 1.0f, 0.0f, 0.0f };
-
-	ShadowAtlasAllocator->Reset();
 
 	std::vector<uint32> RenderOrder;
 	RenderOrder.reserve(ShadowViewCount);
@@ -1178,9 +1185,6 @@ void FShadowRenderFeature::RenderShadowViews(
 			return A < B; // point는 기존 순서 유지
 		});
 
-	// 메인 아틀라스를 먼저 클리어 (이후 Spot 캐시 클리어용으로도 활용)
-	DeviceContext->ClearDepthStencilView(LocalShadowDepthAtlasDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
-	DeviceContext->ClearRenderTargetView(LocalShadowMomentsAtlasRTV, ClearMoments);
 
 	// Spot Light 아틀라스 할당
 	for (uint32 ViewIndex : RenderOrder)
@@ -1444,24 +1448,22 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 		return;
 	}
 
+	DirShadowAtlasAllocator->Reset();
+	const FViewContext OriginalView = SceneViewData.View;
+	static const float ClearMoments[4] = { 1.0f, 1.0f, 0.0f, 0.0f };
+	DeviceContext->ClearRenderTargetView(DirShadowMomentsAtlasRTV, ClearMoments);
+	DeviceContext->ClearDepthStencilView(DirShadowDepthAtlasDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
 	if (!HasShadowVSMCaster(SceneViewData))
 	{
 		return;
 	}
 
-	const FViewContext OriginalView = SceneViewData.View;
-	static const float ClearMoments[4] = { 1.0f, 1.0f, 0.0f, 0.0f };
-
-ID3D11DepthStencilView* DirShadowDSV = DirShadowDepthAtlasDSV;
+	ID3D11DepthStencilView* DirShadowDSV = DirShadowDepthAtlasDSV;
 	if (!DirShadowDSV)
 	{
 		return;
 	}
-
-	DeviceContext->ClearRenderTargetView(DirShadowMomentsAtlasRTV, ClearMoments);
-	DeviceContext->ClearDepthStencilView(DirShadowDepthAtlasDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
-
-	DirShadowAtlasAllocator->Reset();
 
 	for (uint32 ViewIndex = 0; ViewIndex < DirShadowViewCount; ++ViewIndex)
 	{
