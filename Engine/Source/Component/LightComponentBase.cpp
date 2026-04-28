@@ -22,7 +22,10 @@ FVector ULightComponentBase::GetDirectionToLightWS() const
 void ULightComponentBase::MarkTransformDirty()
 {
 	USceneComponent::MarkTransformDirty();
-
+	if (Mobility != ELightMobility::Static)
+	{
+		bShadowCacheDirty = true;
+	}
 	if (AActor* Owner = GetOwner())
 	{
 		if (ULevel* Level = Owner->GetLevel())
@@ -32,6 +35,17 @@ void ULightComponentBase::MarkTransformDirty()
 	}
 }
 
+
+void ULightComponentBase::SetMobility(ELightMobility InMobility)
+{
+	if (Mobility == InMobility) return;
+	Mobility = InMobility;
+	if (AActor* Owner = GetOwner())
+	{
+		if (ULevel* Level = Owner->GetLevel())
+			Level->MarkSpatialDirty();
+	}
+}
 
 void ULightComponentBase::SetCastingShadows(bool bNewCastShadows)
 {

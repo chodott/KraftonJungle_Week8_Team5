@@ -2658,7 +2658,7 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 		LightComponent->SetIntensity(Intensity);
 	}
 
-	float ShadowResolutionScale = (int)LightComponent->GetShadowResolutionScale();
+	float ShadowResolutionScale = LightComponent->GetShadowResolutionScale();
 	ImGui::Text("Shadow Map Resolution");
 	ImGui::NextColumn();
 	if (ImGui::DragFloat("Shadow Map Resolution", &ShadowResolutionScale, 1.0f, 0.0f, 10.0f, "%.3f"))

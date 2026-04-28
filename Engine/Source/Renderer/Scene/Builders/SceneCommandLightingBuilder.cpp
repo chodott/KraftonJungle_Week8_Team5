@@ -233,6 +233,9 @@ namespace
 		ShadowLight.LightType   = EShadowLightType::Spot;
 		ShadowLight.PositionWS  = LightItem.PositionWS;
 		ShadowLight.DirectionWS = LightItem.DirectionWS;
+		ShadowLight.Mobility    = Spot->GetMobility();
+		ShadowLight.bCacheDirty = Spot->IsCacheDirty();
+		Spot->ResetShadowCacheDirty();
 		ShadowLight.Bias        = Spot->GetShadowBias();
 		ShadowLight.SlopeBias   = Spot->GetShadowSlopeBias();
 		ShadowLight.NormalBias  = 0.0f;
@@ -415,6 +418,9 @@ namespace
 		static const FVector CubeFaceUp[6] = {{ 0, 1, 0 }, { 0, 1, 0 }, { 0, 0, -1 }, { 0, 0, 1 },{ 0, 1, 0 }, { 0, 1, 0 },	};
 		FShadowLightRenderItem& ShadowLight = Inputs.ShadowLights[ShadowLightIndex];
 		ShadowLight.PositionWS = LightItem.PositionWS;
+		ShadowLight.Mobility = Point->GetMobility();
+		ShadowLight.bCacheDirty = Point->IsCacheDirty();
+		Point->ResetShadowCacheDirty();
 		ShadowLight.Bias       = Point->GetShadowBias();
 		ShadowLight.SlopeBias  = Point->GetShadowSlopeBias();
 		ShadowLight.Sharpen    = Point->GetShadowSharpen();
@@ -450,6 +456,11 @@ namespace
 		}
 
 	}
+	float ComputeShadowPriority(const FVector& LightPos, const FVector& CameraPos)
+	{
+		return (LightPos - CameraPos).SizeSquared();
+
+	}
 
 }
 
@@ -467,12 +478,23 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 	LightingInputs.Ambient.Color     = FVector::OneVector;
 	LightingInputs.Ambient.Intensity = 0.0f;
-	uint32 PointCubeCounter = 0;
 
 	if (!BuildContext.World)
 	{
 		return;
 	}
+
+
+	//temp Condidtate colletion vector
+	struct FPointShadowCandidate
+	{
+		const UPointLightComponent* PointLightl = nullptr;
+		FLocalLightRenderItem LightItem;
+		uint32 LocalLightIndex = 0;
+		float SortKey = 0.0f;
+	};
+	std::vector<FPointShadowCandidate> ShadowCandidates;
+	ShadowCandidates.reserve(16);
 
 	FVector                     AmbientRadiance      = FVector::ZeroVector;
 	float                       AmbientIntensitySum  = 0.0f;
@@ -535,10 +557,14 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 					LightingInputs.DirShadowLights.clear();
 					LightingInputs.DirShadowViews.clear();
-					const uint32 ShadowLightIndex = AllocateDirShadowLight(LightingInputs, EShadowLightType::Directional, 0);
-					if (ShadowLightIndex != UINT32_MAX)
+					
+					if (Directional->IsCastingShadows())
 					{
-						BuildDirectionalShadowViews(LightingInputs, Directional, DirectionalLightItem, ShadowLightIndex, View);
+						const uint32 ShadowLightIndex = AllocateDirShadowLight(LightingInputs, EShadowLightType::Directional, 0);
+						if (ShadowLightIndex != UINT32_MAX)
+						{
+							BuildDirectionalShadowViews(LightingInputs, Directional, DirectionalLightItem, ShadowLightIndex, View);
+						}
 					}
 				}
 				continue;
@@ -582,30 +608,57 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 				FLocalLightRenderItem LightItem = BuildPointLight(Point);
 				const uint32 LocalLightIndex = static_cast<uint32>(LightingInputs.LocalLights.size());
 
-				if (Point->IsCastingShadows() && PointCubeCounter < ShadowConfig::MaxPointShadowCubes)
+				if (Point->IsCastingShadows())
 				{
-					const uint32 ShadowLightIndex = AllocalteShadowLight(
-						LightingInputs, EShadowLightType::Point, LocalLightIndex);
-
-					if (ShadowLightIndex != UINT32_MAX)
-					{
-						BuildPointShadowViews(LightingInputs, Point, LightItem,
-							ShadowLightIndex, PointCubeCounter);
-
-						if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount == 6)
-						{
-							LightItem.ShadowIndex = ShadowLightIndex;
-							++PointCubeCounter;
-						}
-					}
+					// 후보로만 수집 등록은 정렬 후 2차 패스에서
+					FPointShadowCandidate Candidate;
+					Candidate.PointLightl = Point;
+					Candidate.LightItem = LightItem;
+					Candidate.LocalLightIndex = LocalLightIndex;
+					Candidate.SortKey = ComputeShadowPriority(LightItem.PositionWS, OutSceneViewData.View.CameraPosition);
+					ShadowCandidates.push_back(Candidate);
+			
 				}
-
-				LightingInputs.LocalLights.push_back(LightItem);
+				else
+				{
+					LightingInputs.LocalLights.push_back(LightItem);
+				}
 				continue;
 			}
 		}
 	}
+	std::sort(ShadowCandidates.begin(), ShadowCandidates.end(),
+		[](const FPointShadowCandidate& A, const FPointShadowCandidate& B)
+	{;
+	return A.SortKey < B.SortKey;
+	});
 
+	uint32 PointCubeCounter = 0;
+
+	for (FPointShadowCandidate& Candidate : ShadowCandidates)
+	{
+		FLocalLightRenderItem LightItem = Candidate.LightItem;
+
+		if (PointCubeCounter < ShadowConfig::MaxPointShadowCubes)
+		{
+			const uint32 ShadowLightIndex = AllocalteShadowLight(
+				LightingInputs, EShadowLightType::Point, Candidate.LocalLightIndex);
+
+			if (ShadowLightIndex != UINT32_MAX)
+			{
+				BuildPointShadowViews(LightingInputs, Candidate.PointLightl, LightItem,
+					ShadowLightIndex, PointCubeCounter);
+
+				if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount == 6)
+				{
+					LightItem.ShadowIndex = ShadowLightIndex;
+					++PointCubeCounter;
+				}
+			}
+		}
+
+		LightingInputs.LocalLights.push_back(LightItem);
+	}
 	if (bHasAmbientLight && AmbientIntensitySum > 0.0f)
 	{
 		LightingInputs.Ambient.Color     = AmbientRadiance / AmbientIntensitySum;
