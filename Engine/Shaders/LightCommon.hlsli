@@ -226,6 +226,37 @@ Texture2D<float2>				DirShadowMomentsTexture		: register(t29); // VSM
 SamplerComparisonState            ShadowSampler      : register(s8); // PCF
 SamplerState                      LinearClampSampler : register(s9); // VSM
 
+struct FAtlasTile
+{
+	float2 Offset;
+	float Scale;
+	float TexelSize;
+};
+
+float2 ToAtlasUV(float2 localUV, FAtlasTile tile)
+{
+	return localUV * tile.Scale + tile.Offset;
+}
+
+float2 ClampAtlasUV(float2 atlasUV, FAtlasTile tile)
+{
+	float2 minUV = tile.Offset + tile.TexelSize * 0.5f;
+	float2 maxUV = tile.Offset + tile.Scale - tile.TexelSize * 0.5f;
+	return clamp(atlasUV, minUV, maxUV);
+}
+
+FAtlasTile GetAtlasTile(FShadowViewGPU view)
+{
+	FAtlasTile tile;
+	float atlasSize = max(view.ViewParams.z, 1.0e-6f);
+
+	tile.Offset = view.AtlasUV.xy / atlasSize;
+	tile.Scale = view.AtlasUV.z / atlasSize;
+	tile.TexelSize = view.ViewParams.w;
+
+	return tile;
+}
+
 float ComputeShadowBias(
 	FShadowLightGPU shadowLight,
 	float3 N,
@@ -290,16 +321,10 @@ float SampleShadowViewPCF(
 	float bias = ComputeShadowBias(shadowLight, N, L);
 	compareDepth = saturate(compareDepth - bias);
 
-	float atlasSize = shadowView.ViewParams.z;
-	float tileSize  = shadowView.AtlasUV.z;
+	FAtlasTile tile = GetAtlasTile(shadowView);
+	uv = ToAtlasUV(uv, tile);
+	uv = ClampAtlasUV(uv, tile);
 
-	float2 tileOffset = shadowView.AtlasUV.xy / atlasSize;
-	float tileScale  = shadowView.AtlasUV.z / atlasSize;
-
-	float2 baseUV = uv * tileScale + tileOffset;
-	
-	float texelSize = shadowView.ViewParams.w;
-	
 	float visibility = 0.0f;
 
 	[unroll]
@@ -308,12 +333,9 @@ float SampleShadowViewPCF(
 		[unroll]
 		for (int x = -1; x <= 1; ++x)
 		{
-			float2 tapUV = baseUV + float2(x, y) * texelSize;
+			float2 tapUV = uv + float2(x, y) * tile.TexelSize;
 
-			float2 minUV = tileOffset + texelSize * 0.5f;
-			float2 maxUV = tileOffset + tileScale - texelSize * 0.5f;
-
-			tapUV = clamp(tapUV, minUV, maxUV);
+			tapUV = ClampAtlasUV(tapUV, tile);
 			visibility += ShadowDepth.SampleCmpLevelZero(
 				ShadowSampler,
 				tapUV,
@@ -352,6 +374,86 @@ float SampleShadowViewPoint(FShadowLightGPU shadowLight, float3 worldPos, float3
 float ReduceLightBleeding(float pMax, float amount)
 {
 	return saturate((pMax - amount) / max(1.0f - amount, 1.0e-5f));
+}
+float SampleShadowViewPointPCF(FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L) // 혹은 svPosition 포함된 버전
+{
+	 float3 L_dir = normalize(shadowLight.PositionType.xyz - worldPos);
+
+	float normalBiasMultiplier = 0.1f;
+
+	float slopeScale = 1.0f - saturate(dot(N, L_dir));
+	float3 biasedWorldPos = worldPos + N * (normalBiasMultiplier * slopeScale);
+
+
+	uint cubeIndex = (uint)shadowLight.Params0.w;
+	float3 lightToSurface = biasedWorldPos - shadowLight.PositionType.xyz;
+
+
+    float3 absDir = abs(lightToSurface);
+    uint faceIndex = 0;
+    if (absDir.x >= absDir.y && absDir.x >= absDir.z)
+        faceIndex = (lightToSurface.x > 0) ? 0 : 1;
+    else if (absDir.y >= absDir.z)
+        faceIndex = (lightToSurface.y > 0) ? 2 : 3;
+    else
+        faceIndex = (lightToSurface.z > 0) ? 4 : 5;
+
+    FShadowViewGPU view = ShadowViews[shadowLight.FirstViewIndex + faceIndex];
+    float4 clip = mul(float4(biasedWorldPos, 1.0f), view.LightViewProjection); // 여기도 biasedWorldPos 사용
+    if (clip.w <= 0.0f) return 1.0f;
+
+    float compareDepth = saturate(clip.z / clip.w);
+    float bias = ComputeShadowBias(shadowLight, N, L);
+    compareDepth = saturate(compareDepth - bias);
+
+
+    // 1. 월드 좌표 기반의 의사 난수(Pseudo-random) 노이즈 생성 (0.0 ~ 1.0)
+    float noise = frac(sin(dot(worldPos, float3(12.9898f, 78.233f, 37.719f))) * 43758.5453f);
+    
+    // 2. 빛 방향을 기준으로 회전할 수직 기저 벡터(Tangent, Bitangent) 생성
+    float3 L_norm = normalize(lightToSurface);
+    float3 up = abs(L_norm.z) < 0.999f ? float3(0.0f, 0.0f, 1.0f) : float3(1.0f, 0.0f, 0.0f);
+    float3 tangent = normalize(cross(up, L_norm));
+    float3 bitangent = cross(L_norm, tangent);
+
+    // 3. 노이즈 값을 라디안(Angle)으로 변환하여 2D 회전 행렬 생성
+    float s, c;
+    sincos(noise * 6.2831853f, s, c); // 2 * PI
+    float2x2 rotationMatrix = float2x2(c, -s, s, c);
+
+    // 4. 2D Poisson Disk 샘플 (8개로 최적화)
+    const float2 poissonDisk[8] = {
+        float2(-0.8406283f,  0.4287514f),
+        float2(-0.4709848f, -0.6695281f),
+        float2( 0.0076249f, -0.1583569f),
+        float2( 0.1691238f,  0.8679075f),
+        float2( 0.6974795f, -0.6094580f),
+        float2( 0.8427953f,  0.3013238f),
+        float2(-0.7634493f, -0.1873136f),
+        float2( 0.3800631f,  0.2238478f)
+    };
+
+    float dist = length(lightToSurface);
+    float offsetScale = dist * 0.005f; // 그림자 번짐 정도 (필요에 따라 조절)
+
+    float visibility = 0.0f;
+    
+    [unroll]
+    for (int i = 0; i < 8; ++i)
+    {
+        // 디스크의 2D 좌표를 무작위로 회전
+        float2 rotatedOffset = mul(rotationMatrix, poissonDisk[i]);
+        
+        // 회전된 2D 오프셋을 3D 공간의 탄젠트 평면에 매핑하여 최종 샘플 방향 계산
+        float3 sampleDir = lightToSurface + (tangent * rotatedOffset.x + bitangent * rotatedOffset.y) * offsetScale;
+        
+        visibility += ShadowDepthCubeArray.SampleCmpLevelZero(
+            ShadowSampler,
+            float4(sampleDir, (float)cubeIndex),
+            compareDepth);
+    }
+    
+    return visibility / 8.0f;
 }
 float SampleShadowViewPointVSM(FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L) // TODO Point
 {
@@ -411,19 +513,13 @@ float SampleShadowViewVSM(
 	float bias = ComputeShadowBias(shadowLight, N, L);
 	compareDepth = saturate(compareDepth - bias);
 
-	float atlasSize = shadowView.ViewParams.z;
-	float tileSize  = shadowView.AtlasUV.z;
-
-	float2 tileOffset = shadowView.AtlasUV.xy / atlasSize;
-	float tileScale  = shadowView.AtlasUV.z / atlasSize;
-
-	float2 baseUV = uv * tileScale + tileOffset;
-	
-	float texelSize = shadowView.ViewParams.w;
+	FAtlasTile tile = GetAtlasTile(shadowView);
+	uv = ToAtlasUV(uv, tile);
+	uv = ClampAtlasUV(uv, tile);
 
 	float2 moments = ShadowMomentsTexture.SampleLevel(
 		LinearClampSampler,
-		baseUV,
+		uv,
 		0.0f
 	).rg;
 
@@ -458,17 +554,13 @@ float SampleShadowViewRawDepth(
 	float bias = ComputeShadowBias(shadowLight, N, L);
 	compareDepth = saturate(compareDepth - bias);
 
-	float viewportScale = max(shadowView.ViewParams.z, 1.0e-6f);
-	float2 texelSize    = shadowView.ViewParams.w.xx;
-
-	float2 scaledUV = uv * viewportScale;
-	float2 minUV    = texelSize * 0.5f;
-	float2 maxUV    = viewportScale.xx - texelSize * 0.5f;
-	scaledUV        = clamp(scaledUV, minUV, maxUV);
+	FAtlasTile tile = GetAtlasTile(shadowView);
+	float2 baseUV = ToAtlasUV(uv, tile);
+	baseUV = ClampAtlasUV(baseUV, tile);
 
 	float rawDepth = ShadowDepth.SampleLevel(
 		LinearClampSampler,
-		scaledUV,
+		baseUV,
 		0.0f
 	).r;
 
@@ -501,14 +593,9 @@ float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, flo
     float variableBias = clamp(slopeBias * slope, 0.0f, baseBias * 10.0f);
     float compareDepth = saturate(ndc.z) - (baseBias + variableBias);
 
-
-	float atlasSize = view.ViewParams.z;
-	float tileSize  = view.AtlasUV.z;
-
-	float2 tileOffset = view.AtlasUV.xy / atlasSize;
-	float tileScale  = view.AtlasUV.z / atlasSize;
-	float2 baseUV = uv * tileScale + tileOffset;
-	float texelSize = view.ViewParams.w;
+	FAtlasTile tile = GetAtlasTile(view);
+	float2 baseUV = ToAtlasUV(uv, tile);
+	baseUV = ClampAtlasUV(baseUV, tile);
 
     // 5. Filter Mode에 따른 분기 (0: Raw, 1: PCF, 2: VSM) 
     if (view.FilterMode == 1u) // PCF
@@ -520,12 +607,8 @@ float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, flo
             [unroll]
             for (int x = -1; x <= 1; ++x)
             {
-				float2 tapUV = baseUV + float2(x, y) * texelSize;
+				float2 tapUV = baseUV + float2(x, y) * tile.TexelSize;
 
-				float2 minUV = tileOffset + texelSize * 0.5f;
-				float2 maxUV = tileOffset + tileScale - texelSize * 0.5f;
-
-				tapUV = clamp(tapUV, minUV, maxUV);
                 visibility += DirShadowDepthTexture.SampleCmpLevelZero(
 					ShadowSampler, 
 					tapUV, 
@@ -650,19 +733,7 @@ float EvaluateDirectionalShadow(uint shadowIndex, float3 worldPos, float3 N, flo
     uv.y = -ndc.y * 0.5f + 0.5f;
 
     // 정상 범위 안에 있다면, GPU 텍스처에 찍혀있는 깊이 값(Raw Depth)을 그대로 가져와서 화면에 출력합니다.
-    float atlasSize = view.ViewParams.z;
-    float tileSize  = view.AtlasUV.z;
-
-    float2 tileOffset = view.AtlasUV.xy / atlasSize;
-    float tileScale  = tileSize / atlasSize;
-    float texelSize  = view.ViewParams.w;
-
-    float2 baseUV = uv * tileScale + tileOffset;
-    float2 minUV = tileOffset + texelSize * 0.5f;
-    float2 maxUV = tileOffset + tileScale - texelSize * 0.5f;
-    baseUV = clamp(baseUV, minUV, maxUV);
-
-    float rawDepth = DirShadowDepthTexture.SampleLevel(LinearClampSampler, baseUV, 0.0f).r;
+    float rawDepth = DirShadowDepthTexture.SampleLevel(LinearClampSampler, uv, 0.0f).r;
     
     return float3(rawDepth, rawDepth, rawDepth); // ⚪⚫ 흑백: 텍스처 내부 데이터 출력
 }*/
@@ -718,6 +789,8 @@ float EvaluateShadow(
 		FShadowViewGPU firstView = ShadowViews[shadowLight.FirstViewIndex];
 		if (firstView.FilterMode == 2u)  // VSM
 			return SampleShadowViewPointVSM(shadowLight, worldPos, N, L);
+		else if (firstView.FilterMode == 1u)
+			return SampleShadowViewPointPCF(shadowLight, worldPos, N, L);
 		else
 			return SampleShadowViewPoint(shadowLight, worldPos, N, L);
 	} 

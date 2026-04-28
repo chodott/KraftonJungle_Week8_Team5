@@ -1,7 +1,7 @@
 #pragma once
 
 #include <d3d11.h>
-
+#include "Renderer/Features/Lighting/LightTypes.h"
 #include "CoreMinimal.h"
 
 class AActor;
@@ -82,12 +82,15 @@ struct FShadowLightRenderItem
 	float Sharpen    = 0.0f;
 
 	uint32 CubeArrayIndex = UINT32_MAX;
+	ELightMobility Mobility = ELightMobility::Movable;
 
 	FVector PositionWS  = FVector::ZeroVector;
 	FVector DirectionWS = FVector(1.0f, 0.0f, 0.0f);
 
 	FVector4 Params0 = FVector4(0, 0, 0, 0);
 	FVector4 Params1 = FVector4(0, 0, 0, 0);
+
+	bool bCacheDirty = true;
 };
 
 struct FShadowViewRenderItem
@@ -126,10 +129,10 @@ struct FShadowViewRenderItem
 
 struct FShadowLightGPU
 {
-	uint32 LightType;
-	uint32 FirstViewIndex;
-	uint32 ViewCount;
-	uint32 Flags;
+	uint32 LightType = 0;
+	uint32 FirstViewIndex = 0;
+	uint32 ViewCount = 0;
+	uint32 Flags = 0;
 
 	FVector4 PositionType;
 
@@ -143,14 +146,14 @@ struct FShadowViewGPU
 {
 	FMatrix LightViewProjection;
 
-	uint32 ArraySlice;
-	uint32 ProjectionType;
-	uint32 FilterMode;
-	uint32 Pad0;
+	uint32 ArraySlice = 0;
+	uint32 ProjectionType = 0;
+	uint32 FilterMode = 0;
+	uint32 Pad0 = 0;
 
 	FVector4 ViewParams;
 	FVector4 BiasParams;
 	
 	FVector AtlasUV; // X,Y: UV offset, Z: UV scale
-	float   Pad1;
+	float   Pad1 = 0.0f;
 };

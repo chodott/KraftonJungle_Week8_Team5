@@ -82,4 +82,9 @@ struct ENGINE_API FMeshBatch
 
 	uint32 LocalLightListOffset = 0;
 	uint32 LocalLightListCount  = 0;
+
+	FVector WorldBoundingSphereCenter;
+	float WorldBoundingSphereRadius = 0.0f;
+
+	bool bIsStatic = false;
 };

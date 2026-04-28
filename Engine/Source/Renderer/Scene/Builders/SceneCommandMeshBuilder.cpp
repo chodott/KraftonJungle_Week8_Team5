@@ -60,6 +60,7 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 		}
 
 		const int32 SectionCount = TargetMesh->GetNumSection();
+		const bool  bIsStaticMesh = (PrimitiveComponent->GetMobility() == ELightMobility::Static);
 		if (SectionCount <= 0)
 		{
 			FMeshBatch Batch;
@@ -68,6 +69,7 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			Batch.WorldBounds        = WorldBounds;
 			Batch.SourceComponent    = PrimitiveComponent;
 			Batch.DistanceSqToCamera = (WorldBounds.Center - OutSceneViewData.View.CameraPosition).SizeSquared();
+			Batch.bIsStatic          = bIsStaticMesh;
 			if (MeshComponent)
 			{
 				std::shared_ptr<FMaterial> Material = MeshComponent->GetMaterial(0);
@@ -148,6 +150,7 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 			Batch.SectionIndex       = static_cast<uint32>(SectionIndex);
 			Batch.IndexStart         = Section.StartIndex;
 			Batch.IndexCount         = Section.IndexCount;
+			Batch.bIsStatic          = bIsStaticMesh;
 
 			if (MeshComponent)
 			{
