@@ -460,9 +460,12 @@ bool FShadowRenderFeature::RenderShadows(
 	uint64 CubeMomentsBytes = 0;
 	for (int i = 0; i < (int)EShadowResolutionClass::Count; ++i)
 	{
-		CubeDepthBytes += TextureBytes(PointShadowResources[i].DepthArray, 4);
-		CubeMomentsBytes += TextureBytes(PointShadowResources[i].MomentsArray, 8);
+		const FPointShadowPoolResource& Pool = PointShadowPool.GetPool(static_cast<EShadowResolutionClass>(i));
+		CubeDepthBytes += TextureBytes(Pool.DepthArray, 4);
+		CubeMomentsBytes += TextureBytes(Pool.MomentsArray, 8);
 	}
+	CubeDepthBytes += TextureBytes(ShadowCacheDepthCube, 4);
+	CubeMomentsBytes += TextureBytes(ShadowCacheMomentsCube, 8);
 	ShadowStatsCache.CubeDepthArrayBytes   = CubeDepthBytes;
 	ShadowStatsCache.CubeMomentsArrayBytes = CubeMomentsBytes;
 	ShadowStatsCache.TotalShadowMemoryBytes =
