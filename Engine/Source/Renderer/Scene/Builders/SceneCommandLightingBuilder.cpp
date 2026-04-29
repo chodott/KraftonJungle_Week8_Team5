@@ -165,8 +165,6 @@ namespace
 			{
 				const FVector4 Clip = ViewProj.TransformVector4(FVector4(WorldPos, 1.0f));
 
-				// Near plane 뒤에 있는 점은 일단 제외.
-				// 완전 정확하게 하려면 near clipping이 필요하지만, shadow resolution 용도면 이 정도로 충분.
 				if (Clip.W <= 1.0e-4f)
 					return;
 
@@ -456,17 +454,17 @@ namespace
 		return View.InverseView.TransformPosition(FVector::ZeroVector);
 	}
 
-	FVector GetCameraForwardWS_XDepth(const FViewContext& View)
+	FVector GetCameraForwardWS(const FViewContext& View)
 	{
 		return TransformDirectionRow(View.InverseView, FVector(1.0f, 0.0f, 0.0f)).GetSafeNormal();
 	}
 
-	FVector GetCameraUpWS_XDepth(const FViewContext& View)
+	FVector GetCameraUpWS(const FViewContext& View)
 	{
 		return TransformDirectionRow(View.InverseView, FVector(0.0f, 0.0f, 1.0f)).GetSafeNormal();
 	}
 
-	FPSMFrustumBasis ExtractCameraFrustumBasis_XDepth_DX(const FMatrix& InverseProjection)
+	FPSMFrustumBasis ExtractCameraFrustumBasis(const FMatrix& InverseProjection)
 	{
 		FPSMFrustumBasis Out;
 
@@ -522,8 +520,6 @@ namespace
 		const float FrontT = ComputePSMFrontFacingT(Dot);
 		const float Range = (std::max)(1.0f, SplitFar - SplitNear);
 
-		// The previous implementation had a visible discontinuity at Dot ~= 0.35.
-		// Keep the same rough strength envelope, but make it a single continuous curve.
 		const float MaxAbsoluteSlide = LerpFloat(40.0f, 757.0f, FrontT);
 		const float RangeScale = LerpFloat(0.075f, 0.18f, FrontT);
 
@@ -557,8 +553,6 @@ namespace
 		}
 		else
 		{
-			// Avoid the old AbsDot < 0.18 hard off switch. SideToAlignedT already suppresses the value;
-			// this extra fade only prevents side-view over-pull without creating a one-frame pop.
 			const float SideFade = SmoothStep01(0.10f, 0.22f, AbsDot);
 			SlideBack *= SideFade;
 		}
@@ -594,7 +588,6 @@ namespace
 			NearMargin = LerpFloat(SideNearMargin, AlignedNearMargin, SideToAlignedT);
 			FarMargin = LerpFloat(SideFarMargin, AlignedFarMargin, SideToAlignedT);
 
-			// Smooth front-facing caster room instead of the old Dot > 0.35 jump.
 			const float FrontNearMargin = FMath::Clamp(
 				Range * LerpFloat(0.015f, 0.045f, FrontT),
 				0.15f,
@@ -608,7 +601,6 @@ namespace
 			NearMargin = LerpFloat(BaseNearMargin, NearMargin, SideToAlignedT);
 			FarMargin = LerpFloat(BaseFarMargin, FarMargin, SideToAlignedT);
 
-			// Smoothly replaces both Dot > 0.10 and Dot > 0.35 branches.
 			const float ExtraNearScale = LerpFloat(0.015f, 0.12f, FrontT);
 			NearMargin = (std::max)(NearMargin, Range * ExtraNearScale * FrontT);
 		}
@@ -620,7 +612,7 @@ namespace
 		OutFar = (std::max)(OutNear + 1.0f, QuantizePSMDepth(OutFar));
 	}
 
-	FPostPerspectiveShadowCamera BuildPostPerspectiveShadowCamera_DX_Row_XDepth(
+	FPostPerspectiveShadowCamera BuildPostPerspectiveShadowCamera(
 		const FMatrix& VCView,
 		const FMatrix& VCProjection,
 		const FVector& LightDirectionWS,
@@ -636,8 +628,6 @@ namespace
 		const FVector4 EyeLightDir = FVector4(LightToSourceDirWS, 0.0f) * VCView;
 		const FVector4 LightPPH = EyeLightDir * VCProjection;
 
-		// Keep a small ortho-like band around the PSM singularity. Outside this band,
-		// use a softened W so LightPPH.W close to zero does not explode the PP light position.
 		const float WEpsilon = 1.5e-3f;
 		const bool bOrthoLike = std::abs(LightPPH.W) <= WEpsilon;
 
@@ -766,14 +756,12 @@ namespace
 				0.0060f);
 		}
 
-		// Do not add more bias when looking along the light direction; that is the contact-separation case.
 		OutConstantBias *= LerpFloat(1.0f, 0.75f, FrontBiasT);
 		OutSlopeBias *= LerpFloat(
 			1.0f,
 			(CascadeIndex == 0) ? 0.90f : 0.85f,
 			FrontBiasT);
 
-		// Inverse PP is already projection-sensitive. Increasing bias here causes visible peter panning.
 		(void)bInversePP;
 
 		if (SideToAlignedT < 1.0f)
@@ -817,9 +805,6 @@ namespace
 			OutSlopeBias = (std::min)(OutSlopeBias, FrontSlopeCap);
 		}
 
-		// Angle-independent contact clamp.
-		// If peter panning is visible regardless of view/light angle, the baseline compare bias is too high.
-		// Keep constant bias extremely small; let slope bias handle acne.
 		const float ContactConstantCap = (CascadeIndex == 0)
 			? 0.00000001f
 			: 0.00000006f * (1.0f + 0.03f * static_cast<float>(CascadeIndex));
@@ -849,10 +834,10 @@ namespace
 		Result.SplitNear = SplitNear;
 		Result.SplitFar = SplitFar;
 
-		const FPSMFrustumBasis Basis = ExtractCameraFrustumBasis_XDepth_DX(View.InverseProjection);
+		const FPSMFrustumBasis Basis = ExtractCameraFrustumBasis(View.InverseProjection);
 		const FVector CameraPositionWS = GetCameraPositionWS(View);
-		const FVector CameraForwardWS = GetCameraForwardWS_XDepth(View);
-		const FVector CameraUpWS = GetCameraUpWS_XDepth(View);
+		const FVector CameraForwardWS = GetCameraForwardWS(View);
+		const FVector CameraUpWS = GetCameraUpWS(View);
 
 		Result.VirtualSlideBack = ComputeVirtualSlideBackForCascade(
 			CameraForwardWS,
@@ -877,7 +862,7 @@ namespace
 		Result.VCView = FMatrix::MakeViewLookAtLH(VCPositionWS, VCTargetWS, CameraUpWS);
 		Result.VCProjection = FMatrix::MakePerspectiveFovLH(Basis.FovYRad, Basis.Aspect, Result.VCNear, Result.VCFar);
 
-		const FPostPerspectiveShadowCamera PPCamera = BuildPostPerspectiveShadowCamera_DX_Row_XDepth(
+		const FPostPerspectiveShadowCamera PPCamera = BuildPostPerspectiveShadowCamera(
 			Result.VCView,
 			Result.VCProjection,
 			LightDirectionWS,
@@ -937,11 +922,6 @@ namespace
 			return;
 		}
 
-		// The first cascade is the most stable for near contact shadows.
-		// If the shader starts blending cascade 1 before the first split, cascade 1 can
-		// erase or offset cascade 0 contact shadows because each cascade has its own PSM.
-		// Push only the advertised cascade-0 -> cascade-1 boundary slightly farther out,
-		// and also build cascade 0 to that farther boundary so it remains valid there.
 		TArray<float> SelectionSplits = FrustumSplits;
 		if (CascadeCount > 1 && FrustumSplits.size() > 2)
 		{
