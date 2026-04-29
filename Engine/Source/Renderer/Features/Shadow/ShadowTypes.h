@@ -12,7 +12,7 @@ namespace ShadowConfig
 
 
 	static constexpr uint32 MaxSpotShadowViews		   = 8;
-	static constexpr uint32 MaxPointShadowCubes        = 4;
+	static constexpr uint32 MaxPointShadowCubes        = 8;
 	static constexpr uint32 MaxShadowViews = MaxSpotShadowViews + MaxPointShadowCubes * 6;
 	static constexpr uint32 MaxDirCascade = 4;
 
@@ -34,13 +34,12 @@ namespace ShadowSlots
 	static constexpr uint32 ShadowMapSRV        = 22;
 	static constexpr uint32 ShadowMomentsSRV    = 23;
 
-	static constexpr uint32 ShadowCubeSRV		= 24;
-	static constexpr uint32 ShadowMomentCubeSRV = 25;
-
 	static constexpr uint32 DirShadowLightSRV = 26;
 	static constexpr uint32 DirShadowViewSRV = 27;
 	static constexpr uint32 DirShadowMapSRV = 28;
 	static constexpr uint32 DirShadowMomentsSRV = 29;
+
+	static constexpr uint32 ShadowCubeSRV = 30;
 
 	static constexpr uint32 ShadowSampler       = 8;
 	static constexpr uint32 ShadowLinearSampler = 9;

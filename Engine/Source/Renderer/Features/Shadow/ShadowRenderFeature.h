@@ -6,6 +6,9 @@
 
 #include "Renderer/Resources/Shader/ShaderHandles.h"
 
+//구조체 분리 이후 소스 파일 이동 예정
+#include "PointShadowPoolManager.h"
+
 struct FSceneViewData;
 struct FSceneRenderTargets;
 class FMeshPassProcessor;
@@ -225,14 +228,10 @@ private:
 	ID3D11ShaderResourceView* ShadowCacheMomentsCubeSRV = nullptr;
 	ID3D11DepthStencilView*   ShadowCacheDepthCubeDSVs[ShadowConfig::MaxShadowViews]   = {};
 	ID3D11RenderTargetView*   ShadowCacheMomentsCubeRTVs[ShadowConfig::MaxShadowViews] = {};
-	//PointCubeMap
-	ID3D11Texture2D*          ShadowDepthCubeArray                             = nullptr;
-	ID3D11ShaderResourceView* ShadowDepthCubeArraySRV					   = nullptr;
-	ID3D11DepthStencilView*   ShadowDepthCubeDSVs[ShadowConfig::MaxShadowViews] = {};
 
-	ID3D11Texture2D* ShadowMomentsCubeArray = nullptr;
-	ID3D11ShaderResourceView* ShadowMomentsCubeArraySRV = nullptr;
-	ID3D11RenderTargetView* ShadowMomentsCubeRTVs[ShadowConfig::MaxShadowViews] = {};
+	//PointCubeMap
+	PointShadowPoolManager PointShadowPool;
+	FPointShadowPoolResource PointShadowResources[(int)EShadowResolutionClass::Count];
 
 	ID3D11Buffer*			  ShadowESMConstantBuffer = nullptr;
 

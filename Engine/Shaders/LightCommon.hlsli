@@ -233,14 +233,21 @@ StructuredBuffer<FShadowViewGPU>  ShadowViews        : register(t21);
 
 Texture2D<float>             ShadowDepth   : register(t22); // PCF
 Texture2D<float2>            ShadowMomentsTexture : register(t23); // VSM
-TextureCubeArray<float>		     ShadowDepthCubeArray: register(t24);// Cube Map
-TextureCubeArray<float2>		     ShadowMomentsCubeArray: register(t25);// Cube Map VSM
 
 StructuredBuffer<FShadowLightGPU>	DirShadowLights : register(t26);
 StructuredBuffer<FShadowViewGPU>	DirShadowViews : register(t27);
 
 Texture2D<float>				DirShadowDepthTexture		: register(t28); // PCF
 Texture2D<float2>				DirShadowMomentsTexture		: register(t29); // VSM
+
+
+// 큐브맵 해상도 종류 추가 시 수정 필요(셰이더만 고치면 됨)
+TextureCubeArray<float>		     ShadowDepth256CubeArray: register(t30);// Cube Map
+TextureCubeArray<float>		     ShadowDepth512CubeArray: register(t31);// Cube Map
+TextureCubeArray<float>		     ShadowDepth1024CubeArray: register(t32);// Cube Map
+TextureCubeArray<float2>		     ShadowMoments256CubeArray: register(t33);// Cube Map
+TextureCubeArray<float2>		     ShadowMoments512CubeArray: register(t34);// Cube Map
+TextureCubeArray<float2>		     ShadowMoments1024CubeArray: register(t35);// Cube Map
 
 SamplerComparisonState            ShadowSampler      : register(s8); // PCF
 SamplerState                      LinearClampSampler : register(s9); // VSM
@@ -364,6 +371,58 @@ float SampleShadowViewPCF(
 
 	return visibility / 9.0f;
 }
+
+float SamplePointShadowDepth(FShadowViewGPU view, float3 sampleDir, uint cubeIndex)
+{
+	const float resolution = view.ViewParams.z;
+	const float4 cubeUV = float4(sampleDir, (float)cubeIndex);
+
+	if (resolution <= 256.5f)
+	{
+		return ShadowDepth256CubeArray.SampleLevel(LinearClampSampler, cubeUV, 0.0f).r;
+	}
+	if (resolution <= 512.5f)
+	{
+		return ShadowDepth512CubeArray.SampleLevel(LinearClampSampler, cubeUV, 0.0f).r;
+	}
+
+	return ShadowDepth1024CubeArray.SampleLevel(LinearClampSampler, cubeUV, 0.0f).r;
+}
+
+float SamplePointShadowDepthCmp(FShadowViewGPU view, float3 sampleDir, uint cubeIndex, float compareDepth)
+{
+	const float resolution = view.ViewParams.z;
+	const float4 cubeUV = float4(sampleDir, (float)cubeIndex);
+
+	if (resolution <= 256.5f)
+	{
+		return ShadowDepth256CubeArray.SampleCmpLevelZero(ShadowSampler, cubeUV, compareDepth);
+	}
+	if (resolution <= 512.5f)
+	{
+		return ShadowDepth512CubeArray.SampleCmpLevelZero(ShadowSampler, cubeUV, compareDepth);
+	}
+
+	return ShadowDepth1024CubeArray.SampleCmpLevelZero(ShadowSampler, cubeUV, compareDepth);
+}
+
+float2 SamplePointShadowMoments(FShadowViewGPU view, float3 sampleDir, uint cubeIndex)
+{
+	const float resolution = view.ViewParams.z;
+	const float4 cubeUV = float4(sampleDir, (float)cubeIndex);
+
+	if (resolution <= 256.5f)
+	{
+		return ShadowMoments256CubeArray.SampleLevel(LinearClampSampler, cubeUV, 0.0f).rg;
+	}
+	if (resolution <= 512.5f)
+	{
+		return ShadowMoments512CubeArray.SampleLevel(LinearClampSampler, cubeUV, 0.0f).rg;
+	}
+
+	return ShadowMoments1024CubeArray.SampleLevel(LinearClampSampler, cubeUV, 0.0f).rg;
+}
+
 float SampleShadowViewPoint(FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L) // TODO Point
 {
 	uint cubeIndex = (uint) shadowLight.Params0.w;
@@ -386,7 +445,7 @@ float SampleShadowViewPoint(FShadowLightGPU shadowLight, float3 worldPos, float3
 	if (shadowPos.w <= 0 || shadowPos.z < 0 || shadowPos.z > 1)
 		return 1.0f;
 	float bias = shadowLight.DirectionBias.w;
-	float rawDepth = ShadowDepthCubeArray.SampleLevel(LinearClampSampler,float4(lightToSurface, (float) cubeIndex),0.0f).r;
+	float rawDepth = SamplePointShadowDepth(view, lightToSurface, cubeIndex);
 	
 	return (shadowPos.z - bias <= rawDepth) ? 1.0f : 0.0f;
 }
@@ -466,10 +525,7 @@ float SampleShadowViewPointPCF(FShadowLightGPU shadowLight, float3 worldPos, flo
         // 회전된 2D 오프셋을 3D 공간의 탄젠트 평면에 매핑하여 최종 샘플 방향 계산
         float3 sampleDir = lightToSurface + (tangent * rotatedOffset.x + bitangent * rotatedOffset.y) * offsetScale;
         
-        visibility += ShadowDepthCubeArray.SampleCmpLevelZero(
-            ShadowSampler,
-            float4(sampleDir, (float)cubeIndex),
-            compareDepth);
+        visibility += SamplePointShadowDepthCmp(view, sampleDir, cubeIndex, compareDepth);
     }
     
     return visibility / 8.0f;
@@ -499,7 +555,7 @@ float SampleShadowViewPointVSM(FShadowLightGPU shadowLight, float3 worldPos, flo
     float bias = ComputeShadowBias(shadowLight, N, L);
     compareDepth = saturate(compareDepth - bias);
 	
-	float2 moments = ShadowMomentsCubeArray.SampleLevel(LinearClampSampler, float4(lightToSurface, (float)cubeIndex), 0.0f).rg;
+	float2 moments = SamplePointShadowMoments(view, lightToSurface, cubeIndex);
 
 	// Chebyshev (2D VSM과 동일)
 	float mean = moments.x;
@@ -539,7 +595,7 @@ float SampleShadowViewPointESM(FShadowLightGPU shadowLight, float3 worldPos, flo
     float bias = ComputeShadowBias(shadowLight, N, L);
     compareDepth = saturate(compareDepth - bias);
 	
-	float esmSample = ShadowMomentsCubeArray.SampleLevel(LinearClampSampler, float4(lightToSurface, (float)cubeIndex), 0.0f).r;
+	float esmSample = SamplePointShadowMoments(view, lightToSurface, cubeIndex).r;
 
 	const float k = max(shadowLight.Params1.x, 0.001f);
 	float shadowTerm = esmSample * exp(-k * compareDepth);
