@@ -12,7 +12,7 @@ namespace
 {
 	std::string NarrowPathForLog(const std::wstring& Path)
 	{
-		return std::filesystem::path(Path).string();
+		return FPaths::FromWide(Path);
 	}
 
 	std::string JoinPathsForLog(const std::vector<std::wstring>& Paths)

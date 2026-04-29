@@ -293,7 +293,7 @@ namespace
 			const FString& OverridePath = MeshComponent->GetNormalTextureOverride(MaterialIndex);
 			if (!OverridePath.empty())
 			{
-				CurrentPath = std::filesystem::path(OverridePath).lexically_normal();
+				CurrentPath = FPaths::ToPath(OverridePath).lexically_normal();
 			}
 		}
 
@@ -303,14 +303,14 @@ namespace
 			{
 				if (!NormalTexture->SourcePath.empty())
 				{
-					CurrentPath = std::filesystem::path(NormalTexture->SourcePath).lexically_normal();
+					CurrentPath = FPaths::ToPath(NormalTexture->SourcePath).lexically_normal();
 				}
 			}
 		}
 
 		const bool        bHasNormal   = CurrentMaterial->HasNormalTexture();
 		const std::string CurrentLabel = !CurrentPath.empty()
-			                                 ? CurrentPath.filename().string()
+			                                 ? FPaths::FromPath(CurrentPath.filename())
 			                                 : (bHasNormal ? "(Custom)" : "None");
 		bool bChanged = false;
 
@@ -332,16 +332,16 @@ namespace
 
 			for (const std::filesystem::path& Path : GetAvailableTexturePaths())
 			{
-				const std::string           Name           = Path.filename().string();
+				const std::string           Name           = FPaths::FromPath(Path.filename());
 				const std::filesystem::path NormalizedPath = Path.lexically_normal();
 				const bool                  bSelected      = (!CurrentPath.empty() && NormalizedPath == CurrentPath);
-				const std::string           PathId         = NormalizedPath.string();
+				const std::string           PathId         = FPaths::FromPath(NormalizedPath);
 				ImGui::PushID(PathId.c_str());
 				if (ImGui::Selectable(Name.c_str(), bSelected))
 				{
 					if (MeshComponent)
 					{
-						MeshComponent->SetNormalTextureOverride(MaterialIndex, Path.string());
+						MeshComponent->SetNormalTextureOverride(MaterialIndex, FPaths::FromPath(Path));
 					}
 					else
 					{
@@ -2367,12 +2367,12 @@ void FPropertyWindow::DrawLocalHeightFogComponentDetails(ULocalHeightFogComponen
 void FPropertyWindow::DrawBillboardComponentDetials(UBillboardComponent* BillboardComponent, FEditorEngine* Engine)
 {
 	std::wstring CurrentPath     = BillboardComponent->GetTexturePath();
-	std::string  CurrentFileName = std::filesystem::path(CurrentPath).filename().string();
+	std::string  CurrentFileName = FPaths::FromPath(std::filesystem::path(CurrentPath).filename());
 	if (ImGui::BeginCombo("Sprite", CurrentFileName.c_str()))
 	{
 		for (auto& Pair : Engine->GetRenderer()->GetBillboardRenderer().GetTextureCache())
 		{
-			std::string FileName  = std::filesystem::path(Pair.first).filename().string();
+			std::string FileName  = FPaths::FromPath(std::filesystem::path(Pair.first).filename());
 			bool        bSelected = (Pair.first == CurrentPath);
 			if (ImGui::Selectable(FileName.c_str(), bSelected))
 			{
@@ -2466,7 +2466,7 @@ void FPropertyWindow::DrawDecalComponentDetails(UDecalComponent* DecalComponent,
 	}
 	std::string CurrentLabel = CurrentPath.empty()
 		                           ? std::string("(None)")
-		                           : std::filesystem::path(CurrentPath).filename().string();
+		                           : FPaths::FromPath(std::filesystem::path(CurrentPath).filename());
 
 	if (ImGui::BeginCombo("Decal Texture", CurrentLabel.c_str()))
 	{
@@ -2492,10 +2492,10 @@ void FPropertyWindow::DrawDecalComponentDetails(UDecalComponent* DecalComponent,
 
 		for (const auto& Path : TextureFiles)
 		{
-			const std::string  Label     = Path.filename().string();
+			const std::string  Label     = FPaths::FromPath(Path.filename());
 			const std::wstring FullPath  = Path.wstring();
 			const bool         bSelected = (FullPath == CurrentPath);
-			const std::string  PathId    = Path.string();
+			const std::string  PathId    = FPaths::FromPath(Path);
 			ImGui::PushID(PathId.c_str());
 			if (ImGui::Selectable(Label.c_str(), bSelected))
 			{
