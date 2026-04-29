@@ -1,12 +1,19 @@
 #pragma once
 #include "LightComponent.h"
 
+enum class EDirectionalShadowProjectionMode : int32
+{
+	CSM = 0,
+	PSM = 1,
+};
+
 class ENGINE_API UDirectionalLightComponent : public ULightComponent
 {
 public:
 	DECLARE_RTTI(UDirectionalLightComponent, ULightComponent);
 	void PostConstruct() override;
 
+	EDirectionalShadowProjectionMode GetShadowProjectionMode() const { return ShadowProjectionMode; }
 	int32 GetCascadeCount() const { return CascadeCount; }
 	float GetShadowFarZ() const { return ShadowFarZ; }
 	float GetSplitLambda() const { return SplitLambda; }
@@ -14,6 +21,7 @@ public:
 	float GetCascadeBias(int32 Index) const { return CascadeBiases[Index]; }
 	float GetCascadeSlopeBias(int32 Index) const { return CascadeSlopeBiases[Index]; }
 
+	void SetShadowProjectionMode(EDirectionalShadowProjectionMode InProjectionMode);
 	void SetCascadeCount(int32 InCascadeCount);
 	void SetShadowFarZ(float InShadowFarZ);
 	void SetSplitLambda(float InSplitLambda);
@@ -29,6 +37,7 @@ protected:
 	float ComputePhotometricScale() const override;
 
 private:
+	EDirectionalShadowProjectionMode ShadowProjectionMode = EDirectionalShadowProjectionMode::CSM;
 	int32 CascadeCount = 0;
 	float ShadowFarZ = 0.0f;
 	float SplitLambda = 0.0f;

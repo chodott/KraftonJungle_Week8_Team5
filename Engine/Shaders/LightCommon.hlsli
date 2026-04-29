@@ -814,6 +814,11 @@ float EvaluateDirectionalShadow(uint shadowIndex, float3 worldPos, float3 N, flo
     
     FShadowLightGPU shadowLight = DirShadowLights[shadowIndex];
     if (shadowLight.ViewCount == 0u) return 1.0f;
+    if (shadowLight.ViewCount == 1u)
+    {
+        FShadowViewGPU singleView = DirShadowViews[shadowLight.FirstViewIndex];
+        return GetCascadeVisibility(singleView, shadowLight, worldPos, N, L);
+    }
     
     // Cascade 인덱스 판별
     float4 splits = Directional.CascadeSplits;

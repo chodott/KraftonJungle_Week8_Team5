@@ -3013,15 +3013,22 @@ void FPropertyWindow::DrawDirectionalLightComponentDetails(class UDirectionalLig
 	}
 
 	ImGui::Spacing();
-	ImGui::TextDisabled("Directional Light (CSM)");
+	ImGui::TextDisabled("Directional Light Shadow");
 
-	int cascadeCount = DirectionalLightComponent->GetCascadeCount();
-	ImGui::Text("Cascade Count");
+	int projectionMode = static_cast<int>(DirectionalLightComponent->GetShadowProjectionMode());
+	const char* ProjectionModeNames[] = { "CSM", "PSM" };
+	ImGui::Text("Shadow Projection");
 	ImGui::NextColumn();
-	if (ImGui::SliderInt("Cascade Count", &cascadeCount, 1, 4))
+	if (ImGui::Combo("Shadow Projection", &projectionMode, ProjectionModeNames, IM_ARRAYSIZE(ProjectionModeNames)))
 	{
-		DirectionalLightComponent->SetCascadeCount(cascadeCount);
+		DirectionalLightComponent->SetShadowProjectionMode(
+			projectionMode == static_cast<int>(EDirectionalShadowProjectionMode::PSM)
+				? EDirectionalShadowProjectionMode::PSM
+				: EDirectionalShadowProjectionMode::CSM);
 	}
+
+	const bool bUseCSM = DirectionalLightComponent->GetShadowProjectionMode() == EDirectionalShadowProjectionMode::CSM;
+
 
 	float shadowFarZ = DirectionalLightComponent->GetShadowFarZ();
 	ImGui::Text("Shadow Far Z");
@@ -3031,41 +3038,77 @@ void FPropertyWindow::DrawDirectionalLightComponentDetails(class UDirectionalLig
 		DirectionalLightComponent->SetShadowFarZ(shadowFarZ);
 	}
 
-	float splitLambda = DirectionalLightComponent->GetSplitLambda();
-	ImGui::Text("Split Lambda");
-	ImGui::NextColumn();
-	if (ImGui::SliderFloat("Split Lambda", &splitLambda, 0.0f, 1.0f, "%.3f"))
+	if (bUseCSM)
 	{
-		DirectionalLightComponent->SetSplitLambda(splitLambda);
-	}
-
-	ImGui::Separator();
-	ImGui::TextDisabled("Cascade Biases");
-
-	for (int i = 0; i < cascadeCount; ++i)
-	{
-		ImGui::PushID(i);
-		ImGui::Text("Cascade %d", i);
+		int cascadeCount = DirectionalLightComponent->GetCascadeCount();
+		ImGui::Text("Cascade Count");
 		ImGui::NextColumn();
+		if (ImGui::SliderInt("Cascade Count", &cascadeCount, 1, 4))
+		{
+			DirectionalLightComponent->SetCascadeCount(cascadeCount);
+		}
 
-		float bias = DirectionalLightComponent->GetCascadeBias(i);
-		if (ImGui::DragFloat("Bias", &bias, 0.0001f, 0.0f, 1.0f, "%.5f"))
-			DirectionalLightComponent->SetCascadeBias(i, bias);
-
-		float slopeBias = DirectionalLightComponent->GetCascadeSlopeBias(i);
-		if (ImGui::DragFloat("Slope Bias", &slopeBias, 0.001f, 0.0f, 10.0f, "%.4f"))
-			DirectionalLightComponent->SetCascadeSlopeBias(i, slopeBias);
+		float splitLambda = DirectionalLightComponent->GetSplitLambda();
+		ImGui::Text("Split Lambda");
+		ImGui::NextColumn();
+		if (ImGui::SliderFloat("Split Lambda", &splitLambda, 0.0f, 1.0f, "%.3f"))
+		{
+			DirectionalLightComponent->SetSplitLambda(splitLambda);
+		}
 
 		ImGui::Separator();
-		ImGui::PopID();
-	}
+		ImGui::TextDisabled("Cascade Biases");
 
-	float cascadeTransition = DirectionalLightComponent->GetCascadeTransitionValue();
-	ImGui::Text("Cascade Transition");
-	ImGui::NextColumn();
-	if (ImGui::DragFloat("Cascade Transition", &cascadeTransition, 0.001f, 0.0f, 1.0f, "%.3f"))
+		for (int i = 0; i < cascadeCount; ++i)
+		{
+			ImGui::PushID(i);
+			ImGui::Text("Cascade %d", i);
+			ImGui::NextColumn();
+
+			float bias = DirectionalLightComponent->GetCascadeBias(i);
+			if (ImGui::DragFloat("Bias", &bias, 0.000001f, 0.0f, 1.0f, "%.8f"))
+			{
+				DirectionalLightComponent->SetCascadeBias(i, bias);
+			}
+
+			float slopeBias = DirectionalLightComponent->GetCascadeSlopeBias(i);
+			if (ImGui::DragFloat("Slope Bias", &slopeBias, 0.00001f, 0.0f, 10.0f, "%.6f"))
+			{
+				DirectionalLightComponent->SetCascadeSlopeBias(i, slopeBias);
+			}
+
+			ImGui::Separator();
+			ImGui::PopID();
+		}
+
+		float cascadeTransition = DirectionalLightComponent->GetCascadeTransitionValue();
+		ImGui::Text("Cascade Transition");
+		ImGui::NextColumn();
+		if (ImGui::DragFloat("Cascade Transition", &cascadeTransition, 0.001f, 0.0f, 1.0f, "%.3f"))
+		{
+			DirectionalLightComponent->SetCascadeTransitionValue(cascadeTransition);
+		}
+	}
+	else
 	{
-		DirectionalLightComponent->SetCascadeTransitionValue(cascadeTransition);
+		ImGui::Separator();
+		ImGui::TextDisabled("PSM Bias");
+
+		float bias = DirectionalLightComponent->GetCascadeBias(0);
+		ImGui::Text("Bias");
+		ImGui::NextColumn();
+		if (ImGui::DragFloat("PSM Bias", &bias, 0.000001f, 0.0f, 1.0f, "%.8f"))
+		{
+			DirectionalLightComponent->SetCascadeBias(0, bias);
+		}
+
+		float slopeBias = DirectionalLightComponent->GetCascadeSlopeBias(0);
+		ImGui::Text("Slope Bias");
+		ImGui::NextColumn();
+		if (ImGui::DragFloat("PSM Slope Bias", &slopeBias, 0.00001f, 0.0f, 10.0f, "%.6f"))
+		{
+			DirectionalLightComponent->SetCascadeSlopeBias(0, slopeBias);
+		}
 	}
 }
 

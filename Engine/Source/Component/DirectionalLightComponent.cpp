@@ -1,5 +1,6 @@
 #include "DirectionalLightComponent.h"
 
+#include "Math/MathUtility.h"
 #include "Object/Class.h"
 #include "Serializer/Archive.h"
 
@@ -13,17 +14,28 @@ void UDirectionalLightComponent::PostConstruct()
 	Intensity = 2.0f;
 	ShadowResolutionScale = 8.0f;
 
+	ShadowProjectionMode = EDirectionalShadowProjectionMode::CSM;
 	CascadeCount = 4;
 	ShadowFarZ = 300.0f;
 	SplitLambda = 0.9f;
 	CascadeTransitionValue = 0.1f;
 }
 
+void UDirectionalLightComponent::SetShadowProjectionMode(EDirectionalShadowProjectionMode InProjectionMode)
+{
+	if (ShadowProjectionMode != InProjectionMode)
+	{
+		ShadowProjectionMode = InProjectionMode;
+		NotifyOwnerLightPropertyChanged();
+	}
+}
+
 void UDirectionalLightComponent::SetCascadeCount(int32 InCascadeCount)
 {
-	if (CascadeCount != InCascadeCount)
+	const int32 ClampedCascadeCount = FMath::Clamp(InCascadeCount, 1, 4);
+	if (CascadeCount != ClampedCascadeCount)
 	{
-		CascadeCount = InCascadeCount;
+		CascadeCount = ClampedCascadeCount;
 		NotifyOwnerLightPropertyChanged();
 	}
 }
@@ -77,6 +89,9 @@ void UDirectionalLightComponent::Serialize(FArchive& Ar)
 {
 	ULightComponent::Serialize(Ar);
 
+	int32 ProjectionModeValue = static_cast<int32>(ShadowProjectionMode);
+	Ar.Serialize("ShadowProjectionMode", ProjectionModeValue);
+
 	Ar.Serialize("CascadeCount", CascadeCount);
 	Ar.Serialize("ShadowFarZ", ShadowFarZ);
 	Ar.Serialize("SplitLambda", SplitLambda);
@@ -90,7 +105,12 @@ void UDirectionalLightComponent::Serialize(FArchive& Ar)
 
 	if (Ar.IsLoading())
 	{
-		CascadeCount = (std::max)(1, CascadeCount);
+		ShadowProjectionMode = ProjectionModeValue == static_cast<int32>(EDirectionalShadowProjectionMode::PSM)
+			? EDirectionalShadowProjectionMode::PSM
+			: EDirectionalShadowProjectionMode::CSM;
+		CascadeCount = FMath::Clamp(CascadeCount, 1, 4);
+		ShadowFarZ = (std::max)(ShadowFarZ, 1.0f);
+		SplitLambda = FMath::Clamp(SplitLambda, 0.0f, 1.0f);
 	}
 }
 

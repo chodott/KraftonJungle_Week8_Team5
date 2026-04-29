@@ -14,6 +14,7 @@
 #include "Renderer/Features/Shadow/ShadowAtlasAllocator.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <cmath>
 
 #include "Math/Cascade.h"
@@ -456,26 +457,20 @@ namespace
 		bool bInversePerspective = false;
 	};
 
-	struct FCascadePSMResult
+	struct FDirectionalShadowProjectionResult
 	{
 		float SplitNear = 0.0f;
 		float SplitFar = 0.0f;
-		float VCNear = 0.0f;
-		float VCFar = 0.0f;
-		float VirtualSlideBack = 0.0f;
 
-		FMatrix VCView;
-		FMatrix VCProjection;
-		FMatrix PPView;
-		FMatrix PPProjection;
-		FMatrix PSM;
+		FMatrix View = FMatrix::Identity;
+		FMatrix Projection = FMatrix::Identity;
+		FMatrix ViewProjection = FMatrix::Identity;
 
-		bool bPPOrthographic = false;
-		bool bInversePP = false;
-
-		float ConstantBias = 0.00001f;
-		float SlopeBias = 0.001f;
-		float NormalBias = 0.0f;
+		FVector PositionWS = FVector::ZeroVector;
+		float NearZ = ShadowConfig::DefaultNearZ;
+		float FarZ = 1000.0f;
+		EShadowProjectionType ProjectionType = EShadowProjectionType::Orthographic;
+		FVector4 BiasParams = FVector4(0.0f, 0.0f, 0.0f, 0.0f);
 	};
 
 	FVector TransformDirectionRow(const FMatrix& Matrix, const FVector& Direction)
@@ -589,15 +584,181 @@ namespace
 		return Out;
 	}
 
-	float ComputeVirtualSlideBackForCascade(
-		const FVector& CameraForwardWS,
+	float QuantizeToStep(float Value, float Step)
+	{
+		if (Step <= 0.0f)
+		{
+			return Value;
+		}
+
+		return std::floor(Value / Step + 0.5f) * Step;
+	}
+
+	void BuildCameraFrustumSliceCornersWS(
+		const FViewContext& View,
+		float SplitNear,
+		float SplitFar,
+		FVector OutCornersWS[8])
+	{
+		const FPSMFrustumBasis Basis = ExtractCameraFrustumBasis(View.InverseProjection);
+
+		for (int32 CornerIndex = 0; CornerIndex < 4; ++CornerIndex)
+		{
+			OutCornersWS[CornerIndex] = View.InverseView.TransformPosition(
+				Basis.UnitDepthRays[CornerIndex] * SplitNear);
+
+			OutCornersWS[CornerIndex + 4] = View.InverseView.TransformPosition(
+				Basis.UnitDepthRays[CornerIndex] * SplitFar);
+		}
+	}
+
+	FVector ComputeCornersCenter(const FVector CornersWS[8])
+	{
+		FVector Center = FVector::ZeroVector;
+		for (int32 CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
+		{
+			Center += CornersWS[CornerIndex];
+		}
+		return Center / 8.0f;
+	}
+
+	float ComputeCornersRadius(const FVector CornersWS[8], const FVector& CenterWS)
+	{
+		float Radius = 0.0f;
+		for (int32 CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
+		{
+			Radius = (std::max)(Radius, VectorLength(CornersWS[CornerIndex] - CenterWS));
+		}
+		return (std::max)(Radius, 1.0f);
+	}
+
+	void BuildLightBasis(
+		const FVector& LightDirectionWS,
+		FVector& OutForwardWS,
+		FVector& OutRightWS,
+		FVector& OutUpWS)
+	{
+		OutForwardWS = LightDirectionWS.GetSafeNormal();
+		if (OutForwardWS.IsNearlyZero())
+		{
+			OutForwardWS = FVector::ForwardVector;
+		}
+
+		OutUpWS = FVector::ZAxisVector;
+		if (std::abs(FVector::DotProduct(OutForwardWS, OutUpWS)) > 0.98f)
+		{
+			OutUpWS = FVector::YAxisVector;
+		}
+
+		OutRightWS = FVector::CrossProduct(OutUpWS, OutForwardWS).GetSafeNormal();
+		OutUpWS = FVector::CrossProduct(OutForwardWS, OutRightWS).GetSafeNormal();
+	}
+
+	void ComputeViewSpaceBounds(
+		const FVector CornersWS[8],
+		const FMatrix& ViewMatrix,
+		FVector& OutMin,
+		FVector& OutMax)
+	{
+		OutMin = FVector(FLT_MAX, FLT_MAX, FLT_MAX);
+		OutMax = FVector(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+
+		for (int32 CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
+		{
+			const FVector CornerVS = ViewMatrix.TransformPosition(CornersWS[CornerIndex]);
+			OutMin.X = (std::min)(OutMin.X, CornerVS.X);
+			OutMin.Y = (std::min)(OutMin.Y, CornerVS.Y);
+			OutMin.Z = (std::min)(OutMin.Z, CornerVS.Z);
+			OutMax.X = (std::max)(OutMax.X, CornerVS.X);
+			OutMax.Y = (std::max)(OutMax.Y, CornerVS.Y);
+			OutMax.Z = (std::max)(OutMax.Z, CornerVS.Z);
+		}
+	}
+
+	FDirectionalShadowProjectionResult BuildCSMShadowProjection(
+		const FViewContext& View,
 		const FVector& LightDirectionWS,
 		float SplitNear,
 		float SplitFar,
-		uint32 CascadeIndex)
+		uint32 CascadeIndex,
+		uint32 RequestedResolution,
+		const UDirectionalLightComponent* DirLight)
+	{
+		FDirectionalShadowProjectionResult Result;
+		Result.SplitNear = SplitNear;
+		Result.SplitFar = SplitFar;
+		Result.ProjectionType = EShadowProjectionType::Orthographic;
+
+		FVector CornersWS[8];
+		BuildCameraFrustumSliceCornersWS(View, SplitNear, SplitFar, CornersWS);
+
+		const FVector CenterWS = ComputeCornersCenter(CornersWS);
+		const float Radius = ComputeCornersRadius(CornersWS, CenterWS);
+
+		FVector LightForwardWS;
+		FVector LightRightWS;
+		FVector LightUpWS;
+		BuildLightBasis(LightDirectionWS, LightForwardWS, LightRightWS, LightUpWS);
+
+		const float InitialBackDistance = Radius + (std::max)(10.0f, Radius * 0.25f);
+		FVector LightPositionWS = CenterWS - LightForwardWS * InitialBackDistance;
+		FMatrix LightView = FMatrix::MakeViewLookAtLH(
+			LightPositionWS,
+			LightPositionWS + LightForwardWS,
+			LightUpWS);
+
+		FVector MinVS;
+		FVector MaxVS;
+		ComputeViewSpaceBounds(CornersWS, LightView, MinVS, MaxVS);
+
+		float ViewWidth = (std::max)(1.0f, MaxVS.Y - MinVS.Y);
+		float ViewHeight = (std::max)(1.0f, MaxVS.Z - MinVS.Z);
+		const float XYMargin = (std::max)(0.5f, (std::max)(ViewWidth, ViewHeight) * 0.05f);
+		ViewWidth += XYMargin * 2.0f;
+		ViewHeight += XYMargin * 2.0f;
+
+		float CenterY = (MinVS.Y + MaxVS.Y) * 0.5f;
+		float CenterZ = (MinVS.Z + MaxVS.Z) * 0.5f;
+
+		const float SafeResolution = static_cast<float>((std::max)(1u, RequestedResolution));
+		CenterY = QuantizeToStep(CenterY, ViewWidth / SafeResolution);
+		CenterZ = QuantizeToStep(CenterZ, ViewHeight / SafeResolution);
+
+		LightPositionWS += LightRightWS * CenterY + LightUpWS * CenterZ;
+		LightView = FMatrix::MakeViewLookAtLH(
+			LightPositionWS,
+			LightPositionWS + LightForwardWS,
+			LightUpWS);
+
+		ComputeViewSpaceBounds(CornersWS, LightView, MinVS, MaxVS);
+
+		const float DepthRange = (std::max)(1.0f, MaxVS.X - MinVS.X);
+		const float DepthMargin = (std::max)(10.0f, DepthRange * 0.25f);
+		const float NearZ = (std::max)(0.01f, MinVS.X - DepthMargin);
+		const float FarZ = (std::max)(NearZ + 1.0f, MaxVS.X + DepthMargin);
+
+		Result.PositionWS = LightPositionWS;
+		Result.NearZ = NearZ;
+		Result.FarZ = FarZ;
+		Result.View = LightView;
+		Result.Projection = FMatrix::MakeOrthographicLH(ViewWidth, ViewHeight, NearZ, FarZ);
+		Result.ViewProjection = Result.View * Result.Projection;
+		Result.BiasParams = FVector4(
+			DirLight->GetCascadeBias(CascadeIndex),
+			DirLight->GetCascadeSlopeBias(CascadeIndex),
+			0.0f,
+			0.0f);
+
+		return Result;
+	}
+
+	float ComputeVirtualSlideBackForPSM(
+		const FVector& CameraForwardWS,
+		const FVector& LightDirectionWS,
+		float SplitNear,
+		float SplitFar)
 	{
 		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
-		const float AbsDot = std::abs(Dot);
 		const float SideToAlignedT = ComputePSMSideToAlignedT(Dot);
 		const float FrontT = ComputePSMFrontFacingT(Dot);
 		const float Range = (std::max)(1.0f, SplitFar - SplitNear);
@@ -610,45 +771,34 @@ namespace
 			* FrontT
 			* SideToAlignedT;
 
-		if (CascadeIndex == 0)
-		{
-			const float TargetScale = LerpFloat(0.44f, 0.58f, SideToAlignedT);
-			const float TargetMin = LerpFloat(2.75f, 3.75f, SideToAlignedT);
-			const float TargetFarScale = LerpFloat(0.58f, 0.76f, SideToAlignedT);
+		const float TargetScale = LerpFloat(0.44f, 0.58f, SideToAlignedT);
+		const float TargetMin = LerpFloat(2.75f, 3.75f, SideToAlignedT);
+		const float TargetFarScale = LerpFloat(0.58f, 0.76f, SideToAlignedT);
 
-			const float TargetDepthAtSplitNear = FMath::Clamp(
-				Range * TargetScale,
-				TargetMin,
-				(std::max)(TargetMin, SplitFar * TargetFarScale));
+		const float TargetDepthAtSplitNear = FMath::Clamp(
+			Range * TargetScale,
+			TargetMin,
+			(std::max)(TargetMin, SplitFar * TargetFarScale));
 
-			const float RequiredSlide = (std::max)(0.0f, TargetDepthAtSplitNear - SplitNear);
-			const float MaxSlideAbs = LerpFloat(55.0f, 75.0f, SideToAlignedT);
-			const float MaxSlideRange = LerpFloat(0.85f, 1.10f, SideToAlignedT);
-			const float MaxSlide = (std::min)(MaxSlideAbs, Range * MaxSlideRange);
+		const float RequiredSlide = (std::max)(0.0f, TargetDepthAtSplitNear - SplitNear);
+		const float MaxSlideAbs = LerpFloat(55.0f, 75.0f, SideToAlignedT);
+		const float MaxSlideRange = LerpFloat(0.85f, 1.10f, SideToAlignedT);
+		const float MaxSlide = (std::min)(MaxSlideAbs, Range * MaxSlideRange);
 
-			SlideBack = FMath::Clamp(
-				(std::max)(SlideBack, RequiredSlide),
-				0.0f,
-				MaxSlide);
+		SlideBack = FMath::Clamp(
+			(std::max)(SlideBack, RequiredSlide),
+			0.0f,
+			MaxSlide);
 
-			SlideBack = QuantizePSMValue(SlideBack, 0.25f);
-		}
-		else
-		{
-			const float SideFade = SmoothStep01(0.10f, 0.22f, AbsDot);
-			SlideBack *= SideFade;
-		}
-
-		return SlideBack;
+		return QuantizePSMValue(SlideBack, 0.25f);
 	}
 
-	void ComputeCascadeVirtualCameraRange(
+	void ComputePSMVirtualCameraRange(
 		const FVector& CameraForwardWS,
 		const FVector& LightDirectionWS,
 		float SplitNear,
 		float SplitFar,
 		float VirtualSlideBack,
-		uint32 CascadeIndex,
 		float& OutNear,
 		float& OutFar)
 	{
@@ -660,45 +810,36 @@ namespace
 		float NearMargin = (std::max)(1.0f, Range * 0.02f);
 		float FarMargin = NearMargin;
 
-		if (CascadeIndex == 0)
-		{
-			const float SideNearMargin = FMath::Clamp(Range * 0.010f, 0.10f, 0.90f);
-			const float AlignedNearMargin = FMath::Clamp(Range * 0.015f, 0.15f, 1.25f);
-			const float SideFarMargin = FMath::Clamp(Range * 0.012f, 0.15f, 1.00f);
-			const float AlignedFarMargin = FMath::Clamp(Range * 0.018f, 0.20f, 1.50f);
+		const float SideNearMargin = FMath::Clamp(Range * 0.010f, 0.10f, 0.90f);
+		const float AlignedNearMargin = FMath::Clamp(Range * 0.015f, 0.15f, 1.25f);
+		const float SideFarMargin = FMath::Clamp(Range * 0.012f, 0.15f, 1.00f);
+		const float AlignedFarMargin = FMath::Clamp(Range * 0.018f, 0.20f, 1.50f);
 
-			NearMargin = LerpFloat(SideNearMargin, AlignedNearMargin, SideToAlignedT);
-			FarMargin = LerpFloat(SideFarMargin, AlignedFarMargin, SideToAlignedT);
+		NearMargin = LerpFloat(SideNearMargin, AlignedNearMargin, SideToAlignedT);
+		FarMargin = LerpFloat(SideFarMargin, AlignedFarMargin, SideToAlignedT);
 
-			const float FrontNearMargin = FMath::Clamp(
-				Range * LerpFloat(0.015f, 0.045f, FrontT),
-				0.15f,
-				2.0f);
-			NearMargin = (std::max)(NearMargin, FrontNearMargin * FrontT);
-		}
-		else
-		{
-			const float BaseNearMargin = (std::max)(0.35f, Range * 0.015f);
-			const float BaseFarMargin = (std::max)(0.35f, Range * 0.015f);
-			NearMargin = LerpFloat(BaseNearMargin, NearMargin, SideToAlignedT);
-			FarMargin = LerpFloat(BaseFarMargin, FarMargin, SideToAlignedT);
+		const float FrontNearMargin = FMath::Clamp(
+			Range * LerpFloat(0.015f, 0.045f, FrontT),
+			0.15f,
+			2.0f);
+		NearMargin = (std::max)(NearMargin, FrontNearMargin * FrontT);
+		
+		constexpr float PSMMinNearZ = 0.50f;
 
-			const float ExtraNearScale = LerpFloat(0.015f, 0.12f, FrontT);
-			NearMargin = (std::max)(NearMargin, Range * ExtraNearScale * FrontT);
-		}
+		const float RawNear = SplitNear + VirtualSlideBack - NearMargin;
+		const float RawFar = SplitFar + VirtualSlideBack + FarMargin;
 
-		OutNear = (std::max)(0.01f, SplitNear + VirtualSlideBack - NearMargin);
-		OutFar = (std::max)(OutNear + 1.0f, SplitFar + VirtualSlideBack + FarMargin);
+		OutNear = (std::max)(PSMMinNearZ, RawNear);
+		OutFar = (std::max)(OutNear + 1.0f, RawFar);
 
-		OutNear = (std::max)(0.01f, QuantizePSMDepth(OutNear));
+		OutNear = (std::max)(PSMMinNearZ, QuantizePSMDepth(OutNear));
 		OutFar = (std::max)(OutNear + 1.0f, QuantizePSMDepth(OutFar));
 	}
 
 	FPostPerspectiveShadowCamera BuildPostPerspectiveShadowCamera(
 		const FMatrix& VCView,
 		const FMatrix& VCProjection,
-		const FVector& LightDirectionWS,
-		uint32 CascadeIndex)
+		const FVector& LightDirectionWS)
 	{
 		FPostPerspectiveShadowCamera Result;
 
@@ -772,8 +913,7 @@ namespace
 
 		if (LightPPH.W < 0.0f)
 		{
-			const float MinPlane = (CascadeIndex == 0) ? 0.24f : 0.16f;
-			const float Plane = (std::max)(MinPlane, DistToCenter - PPRadius);
+			const float Plane = (std::max)(0.24f, DistToCenter - PPRadius);
 			Result.Projection = FMatrix::MakePerspectiveFovLH(FovPP, AspectPP, -Plane, Plane);
 			Result.bInversePerspective = true;
 		}
@@ -788,13 +928,9 @@ namespace
 		return Result;
 	}
 
-	void ComputeCascadePSMBias(
+	void ComputePSMBias(
 		const FVector& CameraForwardWS,
 		const FVector& LightDirectionWS,
-		uint32 CascadeIndex,
-		float SplitNear,
-		float SplitFar,
-		bool bInversePP,
 		const UDirectionalLightComponent* DirLight,
 		float& OutConstantBias,
 		float& OutSlopeBias,
@@ -806,113 +942,56 @@ namespace
 		const float FrontBiasT = SmoothStep01(-0.05f, 0.10f, Dot);
 		const float FrontPeterT = FMath::Clamp((Dot - 0.20f) / 0.80f, 0.0f, 1.0f);
 
-		const float UserCascadeBias = DirLight->GetCascadeBias(CascadeIndex);
-		const float UserCascadeSlopeBias = DirLight->GetCascadeSlopeBias(CascadeIndex);
+		const float UserCascadeBias = DirLight->GetCascadeBias(0);
+		const float UserCascadeSlopeBias = DirLight->GetCascadeSlopeBias(0);
 
-		float AutoConstantBias = LerpFloat(0.0000010f, 0.000010f, AlignT);
-		float AutoSlopeBias = LerpFloat(0.00030f, 0.0012f, AlignT);
+		const float AutoConstantBias = LerpFloat(0.00000025f, 0.0000020f, AlignT);
+		const float AutoSlopeBias = LerpFloat(0.00028f, 0.00100f, AlignT);
 
-		if (CascadeIndex == 0)
-		{
-			AutoConstantBias = LerpFloat(0.00000025f, 0.0000020f, AlignT);
-			AutoSlopeBias = LerpFloat(0.00028f, 0.00100f, AlignT);
+		OutConstantBias = (std::min)(
+			(std::max)(UserCascadeBias, AutoConstantBias),
+			0.0000075f);
 
-			OutConstantBias = (std::min)(
-				(std::max)(UserCascadeBias, AutoConstantBias),
-				0.0000075f);
-
-			OutSlopeBias = (std::min)(
-				(std::max)(UserCascadeSlopeBias, AutoSlopeBias),
-				0.0030f);
-		}
-		else
-		{
-			const float CascadeScale = 1.0f + 0.20f * static_cast<float>(CascadeIndex);
-
-			OutConstantBias = (std::min)(
-				(std::max)(UserCascadeBias, AutoConstantBias) * CascadeScale,
-				0.000060f);
-
-			OutSlopeBias = (std::min)(
-				(std::max)(UserCascadeSlopeBias, AutoSlopeBias) * CascadeScale,
-				0.0060f);
-		}
+		OutSlopeBias = (std::min)(
+			(std::max)(UserCascadeSlopeBias, AutoSlopeBias),
+			0.0030f);
 
 		OutConstantBias *= LerpFloat(1.0f, 0.75f, FrontBiasT);
 		OutSlopeBias *= LerpFloat(
 			1.0f,
-			(CascadeIndex == 0) ? 0.90f : 0.85f,
+			0.90f,
 			FrontBiasT);
-
-		(void)bInversePP;
 
 		if (SideToAlignedT < 1.0f)
 		{
 			const float BiasReleaseT = SideToAlignedT * SideToAlignedT * SideToAlignedT;
 
-			const float SideConstantCap = (CascadeIndex == 0)
-				? 0.00000025f
-				: 0.00000070f * (1.0f + 0.04f * static_cast<float>(CascadeIndex));
-
-			const float AlignedConstantCap = (CascadeIndex == 0)
-				? 0.0000075f
-				: 0.000060f;
-
-			const float ConstantCap = LerpFloat(SideConstantCap, AlignedConstantCap, BiasReleaseT);
+			const float ConstantCap = LerpFloat(0.00000025f, 0.0000075f, BiasReleaseT);
 			OutConstantBias = (std::min)(OutConstantBias, ConstantCap);
 
-			const float SideSlopeCap = (CascadeIndex == 0)
-				? 0.00035f
-				: 0.00048f * (1.0f + 0.06f * static_cast<float>(CascadeIndex));
-
-			const float AlignedSlopeCap = (CascadeIndex == 0)
-				? 0.0030f
-				: 0.0060f;
-
-			const float SlopeCap = LerpFloat(SideSlopeCap, AlignedSlopeCap, BiasReleaseT);
+			const float SlopeCap = LerpFloat(0.00035f, 0.0030f, BiasReleaseT);
 			OutSlopeBias = (std::min)(OutSlopeBias, SlopeCap);
 		}
 
 		if (FrontPeterT > 0.0f)
 		{
-			const float FrontConstantCap = (CascadeIndex == 0)
-				? 0.00000020f
-				: 0.00000055f * (1.0f + 0.04f * static_cast<float>(CascadeIndex));
-
-			const float FrontSlopeCap = (CascadeIndex == 0)
-				? 0.00045f
-				: 0.00058f * (1.0f + 0.05f * static_cast<float>(CascadeIndex));
-
-			OutConstantBias = (std::min)(OutConstantBias, FrontConstantCap);
-			OutSlopeBias = (std::min)(OutSlopeBias, FrontSlopeCap);
+			OutConstantBias = (std::min)(OutConstantBias, 0.00000020f);
+			OutSlopeBias = (std::min)(OutSlopeBias, 0.00045f);
 		}
 
-		const float ContactConstantCap = (CascadeIndex == 0)
-			? 0.00000001f
-			: 0.00000006f * (1.0f + 0.03f * static_cast<float>(CascadeIndex));
-
-		const float ContactSlopeCap = (CascadeIndex == 0)
-			? 0.000012f
-			: 0.000016f * (1.0f + 0.04f * static_cast<float>(CascadeIndex));
-
-		OutConstantBias = (std::min)(OutConstantBias, ContactConstantCap);
-		OutSlopeBias = (std::min)(OutSlopeBias, ContactSlopeCap);
-
-		// Keep normal bias disabled for directional PSM until the shader applies it as a true world-position offset.
-		(void)SplitNear;
-		(void)SplitFar;
+		OutConstantBias = (std::min)(OutConstantBias, 0.00000001f);
+		OutSlopeBias = (std::min)(OutSlopeBias, 0.000012f);
 		OutNormalBias = 0.0f;
 	}
 
-	FCascadePSMResult BuildCascadePSMMatrix(
+	FDirectionalShadowProjectionResult BuildPSMShadowProjection(
 		const FViewContext& View,
 		const FVector& LightDirectionWS,
 		float SplitNear,
 		float SplitFar,
-		uint32 CascadeIndex,
 		const UDirectionalLightComponent* DirLight)
 	{
-		FCascadePSMResult Result;
+		FDirectionalShadowProjectionResult Result;
 		Result.SplitNear = SplitNear;
 		Result.SplitFar = SplitFar;
 
@@ -921,53 +1000,60 @@ namespace
 		const FVector CameraForwardWS = GetCameraForwardWS(View);
 		const FVector CameraUpWS = GetCameraUpWS(View);
 
-		Result.VirtualSlideBack = ComputeVirtualSlideBackForCascade(
+		const float VirtualSlideBack = ComputeVirtualSlideBackForPSM(
+			CameraForwardWS,
+			LightDirectionWS,
+			SplitNear,
+			SplitFar);
+
+		float VCNear = 0.0f;
+		float VCFar = 0.0f;
+		ComputePSMVirtualCameraRange(
 			CameraForwardWS,
 			LightDirectionWS,
 			SplitNear,
 			SplitFar,
-			CascadeIndex);
+			VirtualSlideBack,
+			VCNear,
+			VCFar);
 
-		ComputeCascadeVirtualCameraRange(
-			CameraForwardWS,
-			LightDirectionWS,
-			SplitNear,
-			SplitFar,
-			Result.VirtualSlideBack,
-			CascadeIndex,
-			Result.VCNear,
-			Result.VCFar);
-
-		const FVector VCPositionWS = CameraPositionWS - CameraForwardWS * Result.VirtualSlideBack;
+		const FVector VCPositionWS = CameraPositionWS - CameraForwardWS * VirtualSlideBack;
 		const FVector VCTargetWS = CameraPositionWS + CameraForwardWS;
 
-		Result.VCView = FMatrix::MakeViewLookAtLH(VCPositionWS, VCTargetWS, CameraUpWS);
-		Result.VCProjection = FMatrix::MakePerspectiveFovLH(Basis.FovYRad, Basis.Aspect, Result.VCNear, Result.VCFar);
+		const FMatrix VCView = FMatrix::MakeViewLookAtLH(VCPositionWS, VCTargetWS, CameraUpWS);
+		const FMatrix VCProjection = FMatrix::MakePerspectiveFovLH(Basis.FovYRad, Basis.Aspect, VCNear, VCFar);
 
 		const FPostPerspectiveShadowCamera PPCamera = BuildPostPerspectiveShadowCamera(
-			Result.VCView,
-			Result.VCProjection,
-			LightDirectionWS,
-			CascadeIndex);
+			VCView,
+			VCProjection,
+			LightDirectionWS);
 
-		Result.PPView = PPCamera.View;
-		Result.PPProjection = PPCamera.Projection;
-		Result.bPPOrthographic = PPCamera.bOrthographic;
-		Result.bInversePP = PPCamera.bInversePerspective;
+		Result.PositionWS = CameraPositionWS;
+		Result.NearZ = VCNear;
+		Result.FarZ = VCFar;
+		Result.View = VCView;
+		Result.Projection = VCProjection * PPCamera.View * PPCamera.Projection;
+		Result.ViewProjection = Result.View * Result.Projection;
+		Result.ProjectionType = PPCamera.bOrthographic
+			? EShadowProjectionType::Orthographic
+			: EShadowProjectionType::Perspective;
 
-		Result.PSM = Result.VCView * Result.VCProjection * Result.PPView * Result.PPProjection;
-
-		ComputeCascadePSMBias(
+		float ConstantBias = 0.0f;
+		float SlopeBias = 0.0f;
+		float NormalBias = 0.0f;
+		ComputePSMBias(
 			CameraForwardWS,
 			LightDirectionWS,
-			CascadeIndex,
-			SplitNear,
-			SplitFar,
-			Result.bInversePP,
 			DirLight,
-			Result.ConstantBias,
-			Result.SlopeBias,
-			Result.NormalBias);
+			ConstantBias,
+			SlopeBias,
+			NormalBias);
+
+		Result.BiasParams = FVector4(
+			ConstantBias,
+			SlopeBias,
+			NormalBias,
+			PPCamera.bInversePerspective ? 1.0f : 0.0f);
 
 		return Result;
 	}
@@ -990,7 +1076,10 @@ namespace
 		ShadowLight.Sharpen = 0.0f;
 		ShadowLight.ESMExponent = DirLight->GetShadowESMExponent();
 
-		uint32 CascadeCount = DirLight->GetCascadeCount();
+		const bool bUsePSM = DirLight->GetShadowProjectionMode() == EDirectionalShadowProjectionMode::PSM;
+		uint32 CascadeCount = bUsePSM
+			? 1u
+			: static_cast<uint32>(DirLight->GetCascadeCount());
 		CascadeCount = (std::min)(CascadeCount, ShadowConfig::MaxDirCascade);
 
 		TArray<float> FrustumSplits = FCasCade::CalculateCascadeSplits(
@@ -1004,74 +1093,51 @@ namespace
 			return;
 		}
 
-		TArray<float> SelectionSplits = FrustumSplits;
-		if (CascadeCount > 1 && FrustumSplits.size() > 2)
-		{
-			const float Split0 = FrustumSplits[1];
-			const float Split1 = FrustumSplits[2];
-			const float PushRange = (std::max)(0.0f, Split1 - Split0);
-			const float Cascade0HoldRatio = 0.18f;
-			SelectionSplits[1] = (std::min)(
-				Split1 - 0.25f,
-				Split0 + PushRange * Cascade0HoldRatio);
-		}
-
 		LightItem.CascadeSplits = FVector4(
-			SelectionSplits.size() > 1 ? SelectionSplits[1] : 0.0f,
-			SelectionSplits.size() > 2 ? SelectionSplits[2] : 0.0f,
-			SelectionSplits.size() > 3 ? SelectionSplits[3] : 0.0f,
-			SelectionSplits.size() > 4 ? SelectionSplits[4] : 0.0f
+			FrustumSplits.size() > 1 ? FrustumSplits[1] : 0.0f,
+			FrustumSplits.size() > 2 ? FrustumSplits[2] : 0.0f,
+			FrustumSplits.size() > 3 ? FrustumSplits[3] : 0.0f,
+			FrustumSplits.size() > 4 ? FrustumSplits[4] : 0.0f
 		);
-
-		FVector UpVector = (std::abs(LightItem.DirectionWS.Z) > 0.999f) ? FVector::YAxisVector : FVector::ZAxisVector;
 
 		float ResolutionScale = DirLight->GetShadowResolutionScale();
 		uint32 RequestedResolution = QuantizeDiraShadowResolution(static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionScale));
-
-		FMatrix CameraInvView = View.InverseView;
-		FMatrix CameraInvProj = View.InverseProjection;
 
 		for (uint32 CascadeIndex = 0; CascadeIndex < CascadeCount; ++CascadeIndex)
 		{
 			const float SplitNear = FrustumSplits[CascadeIndex];
 			const float SplitFar = FrustumSplits[CascadeIndex + 1];
 
-			float BuildSplitNear = SplitNear;
-			float BuildSplitFar = SplitFar;
-			if (CascadeIndex == 0 && SelectionSplits.size() > 1)
-			{
-				// Keep cascade 0 valid up to the delayed public boundary.
-				BuildSplitFar = (std::max)(BuildSplitFar, SelectionSplits[1]);
-			}
-			
-			const FCascadePSMResult PSM = BuildCascadePSMMatrix(
-				View,
-				LightItem.DirectionWS,
-				BuildSplitNear,
-				BuildSplitFar,
-				CascadeIndex,
-				DirLight);
+			const FDirectionalShadowProjectionResult ShadowProjection = bUsePSM
+				? BuildPSMShadowProjection(
+					View,
+					LightItem.DirectionWS,
+					SplitNear,
+					SplitFar,
+					DirLight)
+				: BuildCSMShadowProjection(
+					View,
+					LightItem.DirectionWS,
+					SplitNear,
+					SplitFar,
+					CascadeIndex,
+					RequestedResolution,
+					DirLight);
 
 			FShadowViewRenderItem ViewItem;
 			ViewItem.LightType = EShadowLightType::Directional;
-			ViewItem.ProjectionType = PSM.bPPOrthographic
-				? EShadowProjectionType::Orthographic
-				: EShadowProjectionType::Perspective;
+			ViewItem.ProjectionType = ShadowProjection.ProjectionType;
 
-			ViewItem.PositionWS = GetCameraPositionWS(View);
-			ViewItem.NearZ = PSM.VCNear;
-			ViewItem.FarZ = PSM.VCFar;
+			ViewItem.PositionWS = ShadowProjection.PositionWS;
+			ViewItem.NearZ = ShadowProjection.NearZ;
+			ViewItem.FarZ = ShadowProjection.FarZ;
 
-			ViewItem.View = PSM.VCView;
-			ViewItem.Projection = PSM.VCProjection * PSM.PPView * PSM.PPProjection;
-			ViewItem.ViewProjection = PSM.PSM;
+			ViewItem.View = ShadowProjection.View;
+			ViewItem.Projection = ShadowProjection.Projection;
+			ViewItem.ViewProjection = ShadowProjection.ViewProjection;
 
 			ViewItem.RequestedResolution = RequestedResolution;
-			ViewItem.BiasParams = FVector4(
-				PSM.ConstantBias,
-				PSM.SlopeBias,
-				PSM.NormalBias,
-				PSM.bInversePP ? 1.0f : 0.0f);
+			ViewItem.BiasParams = ShadowProjection.BiasParams;
 
 			ViewItem.Viewport = {};
 
