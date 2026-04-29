@@ -1001,51 +1001,37 @@ namespace
 		const FVector CenterWS = ComputeCornersCenter(CornersWS);
 		const float Radius = ComputeCornersRadius(CornersWS, CenterWS);
 
-		FVector LightForwardWS;
-		FVector LightRightWS;
-		FVector LightUpWS;
+		FVector LightForwardWS, LightRightWS, LightUpWS;
 		BuildLightBasis(LightDirectionWS, LightForwardWS, LightRightWS, LightUpWS);
 
-		const float InitialBackDistance = Radius + (std::max)(10.0f, Radius * 0.25f);
-		FVector LightPositionWS = CenterWS - LightForwardWS * InitialBackDistance;
+		const float Diameter = Radius * 2.0f;
+		float ViewWidth = Diameter;
+		float ViewHeight = Diameter;
 
-		FMatrix LightView = FMatrix::MakeViewLookAtLH(
-			LightPositionWS,
-			LightPositionWS + LightForwardWS,
-			LightUpWS);
+		const float ShadowCasterPullback = 100.0f;
+		FVector LightPositionWS = CenterWS - LightForwardWS * (Radius + ShadowCasterPullback);
 
-		FVector MinVS;
-		FVector MaxVS;
-		ComputeViewSpaceBounds(CornersWS, LightView, MinVS, MaxVS);
-
-		float ViewWidth = (std::max)(1.0f, MaxVS.Y - MinVS.Y);
-		float ViewHeight = (std::max)(1.0f, MaxVS.Z - MinVS.Z);
-
-		const float XYMargin = (std::max)(0.5f, (std::max)(ViewWidth, ViewHeight) * 0.05f);
-
-		ViewWidth += XYMargin * 2.0f;
-		ViewHeight += XYMargin * 2.0f;
-
-		float CenterY = (MinVS.Y + MaxVS.Y) * 0.5f;
-		float CenterZ = (MinVS.Z + MaxVS.Z) * 0.5f;
+		FMatrix LightView = FMatrix::MakeViewLookAtLH(LightPositionWS, CenterWS, LightUpWS);
 
 		const float SafeResolution = static_cast<float>((std::max)(1u, RequestedResolution));
-		CenterY = QuantizeToStep(CenterY, ViewWidth / SafeResolution);
-		CenterZ = QuantizeToStep(CenterZ, ViewHeight / SafeResolution);
+		const float TexelSize = Diameter / SafeResolution;
 
-		LightPositionWS += LightRightWS * CenterY + LightUpWS * CenterZ;
+		FVector CenterVS = LightView.TransformPosition(CenterWS);
+		CenterVS.Y = std::floor(CenterVS.Y / TexelSize) * TexelSize;
+		CenterVS.Z = std::floor(CenterVS.Z / TexelSize) * TexelSize;
 
-		LightView = FMatrix::MakeViewLookAtLH(
-			LightPositionWS,
-			LightPositionWS + LightForwardWS,
-			LightUpWS);
+		LightPositionWS = CenterWS
+			+ LightRightWS * (CenterVS.Y - LightView.TransformPosition(CenterWS).Y)
+			+ LightUpWS * (CenterVS.Z - LightView.TransformPosition(CenterWS).Z)
+			- LightForwardWS * (Radius + ShadowCasterPullback);
 
+		LightView = FMatrix::MakeViewLookAtLH(LightPositionWS, LightPositionWS + LightForwardWS, LightUpWS);
+
+		FVector MinVS, MaxVS;
 		ComputeViewSpaceBounds(CornersWS, LightView, MinVS, MaxVS);
 
-		const float DepthRange = (std::max)(1.0f, MaxVS.X - MinVS.X);
-		const float DepthMargin = (std::max)(10.0f, DepthRange * 0.25f);
-		const float NearZ = (std::max)(0.01f, MinVS.X - DepthMargin);
-		const float FarZ = (std::max)(NearZ + 1.0f, MaxVS.X + DepthMargin);
+		const float NearZ = 0.01f;
+		const float FarZ = MaxVS.X + 10.0f;
 
 		Result.PositionWS = LightPositionWS;
 		Result.NearZ = NearZ;
@@ -1053,6 +1039,7 @@ namespace
 		Result.View = LightView;
 		Result.Projection = FMatrix::MakeOrthographicLH(ViewWidth, ViewHeight, NearZ, FarZ);
 		Result.ViewProjection = Result.View * Result.Projection;
+
 		Result.BiasParams = FVector4(
 			DirLight->GetCascadeBias(CascadeIndex),
 			DirLight->GetCascadeSlopeBias(CascadeIndex),
