@@ -165,6 +165,8 @@ namespace
 			{
 				const FVector4 Clip = ViewProj.TransformVector4(FVector4(WorldPos, 1.0f));
 
+				// Near plane 뒤에 있는 점은 일단 제외.
+				// 완전 정확하게 하려면 near clipping이 필요하지만, shadow resolution 용도면 이 정도로 충분.
 				if (Clip.W <= 1.0e-4f)
 					return;
 
@@ -941,9 +943,13 @@ namespace
 			SelectionSplits.size() > 4 ? SelectionSplits[4] : 0.0f
 		);
 
-		const float ResolutionScale = DirLight->GetShadowResolutionScale();
-		const uint32 RequestedResolution = QuantizeDiraShadowResolution(
-			static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionScale));
+		FVector UpVector = (std::abs(LightItem.DirectionWS.Z) > 0.999f) ? FVector::YAxisVector : FVector::ZAxisVector;
+
+		float ResolutionScale = DirLight->GetShadowResolutionScale();
+		uint32 RequestedResolution = QuantizeDiraShadowResolution(static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionScale));
+
+		FMatrix CameraInvView = View.InverseView;
+		FMatrix CameraInvProj = View.InverseProjection;
 
 		for (uint32 CascadeIndex = 0; CascadeIndex < CascadeCount; ++CascadeIndex)
 		{
@@ -1066,6 +1072,8 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 		return;
 	}
 
+
+	//temp Condidtate colletion vector
 	struct FPointShadowCandidate
 	{
 		const UPointLightComponent* PointLightl = nullptr;

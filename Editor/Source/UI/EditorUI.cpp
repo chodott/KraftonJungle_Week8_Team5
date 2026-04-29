@@ -987,6 +987,11 @@ void FEditorUI::Render()
 						{
 							Shadow->SetGlobalFilterMode(EShadowFilterMode::VSM);
 						}
+						ImGui::SameLine();
+						if (ImGui::RadioButton("ESM", CurrentFilterMode == EShadowFilterMode::ESM))
+						{
+							Shadow->SetGlobalFilterMode(EShadowFilterMode::ESM);
+						}
 					}
 				}
 			}

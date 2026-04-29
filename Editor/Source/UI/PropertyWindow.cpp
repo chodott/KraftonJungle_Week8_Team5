@@ -2771,71 +2771,108 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 		ImGui::Text("Debug Slice");
 		ImGui::NextColumn();
 
-		const TArray<uint32>& AvailableSlices = ShadowFeature->GetDebugAvailableSlices();
+		bIsDirectional = SelectedComponent && SelectedComponent->IsA(UDirectionalLightComponent::StaticClass());
+		bool bIsSpot = SelectedComponent && SelectedComponent->IsA(USpotLightComponent::StaticClass());
+		bool bIsPoint = SelectedComponent && SelectedComponent->IsA(UPointLightComponent::StaticClass());
+		AActor* SelectedOwner = SelectedComponent ? SelectedComponent->GetOwner() : nullptr;
 
-		if (AvailableSlices.empty())
+		const auto& AllViews = bIsDirectional ? ShadowFeature->GetLastDirectionalShadowViews() : ShadowFeature->GetLastLocalShadowViews();
+		std::vector<const FShadowViewRenderItem*> MyViews;
+
+		for (const auto& View : AllViews)
 		{
-			ImGui::TextDisabled("No rendered shadow slices.");
+			if (bIsDirectional || View.SourceActor == SelectedOwner)
+			{
+				MyViews.push_back(&View);
+			}
+		}
+
+		const FShadowViewRenderItem* SelectedView = nullptr;
+
+		if (MyViews.empty())
+		{
+			ImGui::TextDisabled("No shadow views found.");
 		}
 		else
 		{
-			uint32 CurrentSlice = ShadowFeature->GetDebugViewSlice();
-
-			bool bCurrentValid = false;
-			for (uint32 Slice : AvailableSlices)
+			if (bIsSpot)
 			{
-				if (Slice == CurrentSlice)
-				{
-					bCurrentValid = true;
-					break;
-				}
+				ImGui::TextDisabled("Single Slice (Fixed)");
+				SelectedView = MyViews[0];
+				ShadowFeature->SetDebugViewSlice(SelectedView->ArraySlice);
 			}
-
-			if (!bCurrentValid)
+			else
 			{
-				CurrentSlice = AvailableSlices[0];
-				ShadowFeature->SetDebugViewSlice(CurrentSlice);
-			}
+				uint32 CurrentSlice = ShadowFeature->GetDebugViewSlice();
 
-			char CurrentLabel[64];
-			snprintf(CurrentLabel, sizeof(CurrentLabel), "Slice %u", CurrentSlice);
-
-			if (ImGui::BeginCombo("Shadow Debug Slice", CurrentLabel))
-			{
-				for (uint32 Slice : AvailableSlices)
+				bool bValid = false;
+				for (auto* V : MyViews) { if (V->ArraySlice == CurrentSlice) { bValid = true; break; } }
+				if (!bValid)
 				{
-					char Label[64];
-					snprintf(Label, sizeof(Label), "Slice %u", Slice);
-
-					const bool bSelected = (Slice == CurrentSlice);
-					if (ImGui::Selectable(Label, bSelected))
-					{
-						ShadowFeature->SetDebugViewSlice(Slice);
-					}
-
-					if (bSelected)
-					{
-						ImGui::SetItemDefaultFocus();
-					}
+					CurrentSlice = MyViews[0]->ArraySlice;
+					ShadowFeature->SetDebugViewSlice(CurrentSlice);
 				}
 
-				ImGui::EndCombo();
+				char CurrentLabel[64];
+				snprintf(CurrentLabel, sizeof(CurrentLabel), bIsDirectional ? "Cascade %u" : "Face %u", CurrentSlice);
+
+				if (ImGui::BeginCombo("##ShadowDebugSlice", CurrentLabel))
+				{
+					for (size_t i = 0; i < MyViews.size(); ++i)
+					{
+						uint32 SliceVal = MyViews[i]->ArraySlice;
+						char Label[64];
+						snprintf(Label, sizeof(Label), bIsDirectional ? "Cascade %zu" : "Face %zu", i);
+
+						bool bSelected = (SliceVal == CurrentSlice);
+						if (ImGui::Selectable(Label, bSelected))
+						{
+							ShadowFeature->SetDebugViewSlice(SliceVal);
+						}
+						if (bSelected) ImGui::SetItemDefaultFocus();
+					}
+					ImGui::EndCombo();
+				}
+
+				for (auto* V : MyViews) { if (V->ArraySlice == ShadowFeature->GetDebugViewSlice()) { SelectedView = V; break; } }
 			}
 		}
 
-		ID3D11ShaderResourceView* ShadowPreviewSRV = ShadowFeature->GetShadowDebugPreviewSRV();
-		if (ShadowPreviewSRV && ShadowFeature->GetDebugViewMode() != EShadowDebugViewMode::None)
+		if (SelectedView && ShadowFeature->GetDebugViewMode() != EShadowDebugViewMode::None)
 		{
-			const float  PreviewWidth = (std::min)(ImGui::GetContentRegionAvail().x, 256.0f);
+			const float PreviewWidth = (std::min)(ImGui::GetContentRegionAvail().x, 256.0f);
 			const ImVec2 PreviewSize(PreviewWidth, PreviewWidth);
 
 			ImGui::Spacing();
-			ImGui::TextDisabled("Preview");
-			ImGui::Image(
-				reinterpret_cast<ImTextureID>(ShadowPreviewSRV),
-				PreviewSize,
-				ImVec2(0.0f, 0.0f),
-				ImVec2(1.0f, 1.0f));
+
+			if (SelectedView->bAtlasAllocated)
+			{
+				ID3D11ShaderResourceView* AtlasSRV = nullptr;
+				if (ShadowFeature->GetDebugViewMode() == EShadowDebugViewMode::Depth)
+				{
+					AtlasSRV = bIsDirectional ? ShadowFeature->GetDirShadowDepthAtlasSRV() : ShadowFeature->GetLocalShadowAtlasPreviewSRV();
+				}
+				else
+				{
+					AtlasSRV = bIsDirectional ? ShadowFeature->GetDirShadowMomentsAtlasSRV() : ShadowFeature->GetLocalShadowMomentsAtlasSRV();
+				}
+
+				if (AtlasSRV)
+				{
+					const float AtlasRes = static_cast<float>(bIsDirectional ? ShadowConfig::DirMaxShadowDepthResolution : ShadowConfig::MaxShadowMapResolution);
+
+					ImVec2 uv0(SelectedView->AtlasUV.X / AtlasRes, SelectedView->AtlasUV.Y / AtlasRes);
+					ImVec2 uv1((SelectedView->AtlasUV.X + SelectedView->AtlasUV.Z) / AtlasRes,
+						(SelectedView->AtlasUV.Y + SelectedView->AtlasUV.Z) / AtlasRes);
+
+					ImGui::TextDisabled(bIsDirectional ? "Preview: Cascade Map" : "Preview: Local Map");
+					ImGui::Image(reinterpret_cast<ImTextureID>(AtlasSRV), PreviewSize, uv0, uv1);
+				}
+			}
+			else
+			{
+				ImGui::TextDisabled("Shadow Atlas not allocated yet.");
+			}
 		}
 		else
 		{

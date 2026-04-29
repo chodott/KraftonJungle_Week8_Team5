@@ -55,9 +55,9 @@ namespace
 	bool HasSceneRenderBatch(const FSceneViewData& SceneViewData)
 	{
 		const uint32 EditorOnlyMask =
-				static_cast<uint32>(EMeshPassMask::EditorPicking) |
-				static_cast<uint32>(EMeshPassMask::EditorGrid) |
-				static_cast<uint32>(EMeshPassMask::EditorPrimitive);
+			static_cast<uint32>(EMeshPassMask::EditorPicking) |
+			static_cast<uint32>(EMeshPassMask::EditorGrid) |
+			static_cast<uint32>(EMeshPassMask::EditorPrimitive);
 
 		for (const FMeshBatch& Batch : SceneViewData.MeshInputs.Batches)
 		{
@@ -68,21 +68,6 @@ namespace
 		}
 
 		return false;
-	}
-
-
-	bool HasShadowCasterForCurrentFilterMode(
-		const FSceneViewData& SceneViewData,
-		EShadowFilterMode     FilterMode)
-	{
-		// VSM explicitly requires a ShadowVSM material pass in the current renderer.
-		// Raw/PCF/ESM paths should not be skipped just because ShadowVSM is absent.
-		if (FilterMode == EShadowFilterMode::VSM)
-		{
-			return HasShadowVSMCaster(SceneViewData);
-		}
-
-		return HasSceneRenderBatch(SceneViewData);
 	}
 
 	bool ShouldPreserveAtlasForAuxiliaryPass(const FSceneViewData& SceneViewData)
@@ -143,7 +128,7 @@ void FShadowRenderFeature::BindShadowResources(
 	}
 
 	ID3D11ShaderResourceView* MomentsSRV = (bNeedLinearSampler) ? LocalShadowMomentsAtlasSRV : nullptr;
-	ID3D11ShaderResourceView* SRVs[4]    =
+	ID3D11ShaderResourceView* SRVs[4] =
 	{
 		ShadowLightBufferSRV,
 		ShadowViewBufferSRV,
@@ -402,10 +387,7 @@ bool FShadowRenderFeature::RenderShadows(
 ID3D11ShaderResourceView* FShadowRenderFeature::GetPointLightFacePreviewSRV(ID3D11Device* Device, ID3D11DeviceContext* Context, uint32 ArraySlice)
 {
 	ID3D11ShaderResourceView* CubeArraySRV = ShadowDepthCubeArraySRV;
-	if (!CubeArraySRV)
-	{
-		return nullptr;
-	}
+	if (!CubeArraySRV) return nullptr;
 
 	ID3D11Resource* CubeRes = nullptr;
 	CubeArraySRV->GetResource(&CubeRes);
@@ -416,15 +398,15 @@ ID3D11ShaderResourceView* FShadowRenderFeature::GetPointLightFacePreviewSRV(ID3D
 	if (!PointDebugTexture)
 	{
 		D3D11_TEXTURE2D_DESC TexDesc = CubeDesc;
-		TexDesc.ArraySize            = 1;
-		TexDesc.MiscFlags            = 0;
-		TexDesc.BindFlags            = D3D11_BIND_SHADER_RESOURCE;
+		TexDesc.ArraySize = 1;
+		TexDesc.MiscFlags = 0;
+		TexDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 		Device->CreateTexture2D(&TexDesc, nullptr, &PointDebugTexture);
 
 		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-		srvDesc.Format                          = DXGI_FORMAT_R32_FLOAT;
-		srvDesc.ViewDimension                   = D3D11_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Texture2D.MipLevels             = 1;
+		srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
+		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Texture2D.MipLevels = 1;
 
 		Device->CreateShaderResourceView(PointDebugTexture, &srvDesc, &PointDebugSRV);
 	}
@@ -681,7 +663,7 @@ bool FShadowRenderFeature::EnsureResources(
 			bLocalOk = EnsureMomentsAtlas(Renderer, RequiredResolution);
 		}
 
-		if (GlobalFilterMode == EShadowFilterMode::ESM && bLocalOk)
+		if(GlobalFilterMode == EShadowFilterMode::ESM && bLocalOk)
 		{
 			bLocalOk = EnsureESMConstantBuffer(Renderer);
 		}
@@ -906,10 +888,10 @@ bool FShadowRenderFeature::EnsureESMConstantBuffer(FRenderer& Renderer)
 	};
 
 	D3D11_BUFFER_DESC Desc = {};
-	Desc.ByteWidth         = sizeof(FESMConstantData);
-	Desc.Usage             = D3D11_USAGE_DYNAMIC;
-	Desc.BindFlags         = D3D11_BIND_CONSTANT_BUFFER;
-	Desc.CPUAccessFlags    = D3D11_CPU_ACCESS_WRITE;
+	Desc.ByteWidth = sizeof(FESMConstantData);
+	Desc.Usage = D3D11_USAGE_DYNAMIC;
+	Desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	Desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
 	return SUCCEEDED(Device->CreateBuffer(&Desc, nullptr, &ShadowESMConstantBuffer)) && ShadowESMConstantBuffer;
 	return false;
@@ -922,7 +904,7 @@ void FShadowRenderFeature::UpdateESMConstantBuffer(ID3D11DeviceContext* DeviceCo
 		float ESMExponent;
 		float Pad[3];
 	} ESMConstants;
-	ESMConstants.ESMExponent        = ESMExponent;
+	ESMConstants.ESMExponent = ESMExponent;
 	D3D11_MAPPED_SUBRESOURCE Mapped = {};
 	if (SUCCEEDED(DeviceContext->Map(ShadowESMConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
 	{
@@ -1262,7 +1244,7 @@ void FShadowRenderFeature::UploadShadowBuffers(
 	{
 		const uint32 DirLightCount = (std::min)(
 			static_cast<uint32>(SceneViewData.LightingInputs.DirShadowLights.size()),
-			ShadowConfig::MaxShadowLights);
+			ShadowConfig::MaxDirCascade);
 
 		const uint32 DirViewCount = (std::min)(
 			static_cast<uint32>(SceneViewData.LightingInputs.DirShadowViews.size()),
@@ -1279,12 +1261,12 @@ void FShadowRenderFeature::UploadShadowBuffers(
 
 				Dst.LightType      = static_cast<uint32>(Src.LightType);
 				Dst.FirstViewIndex = Src.FirstViewIndex;
-				Dst.ViewCount      = Src.ViewCount;
-				Dst.Flags          = 0;
-				Dst.PositionType   = FVector4(Src.PositionWS.X, Src.PositionWS.Y, Src.PositionWS.Z, 0.0f);
-				Dst.DirectionBias  = FVector4(Src.DirectionWS.X, Src.DirectionWS.Y, Src.DirectionWS.Z, Src.Bias);
-				Dst.Params0        = FVector4(Src.SlopeBias, Src.NormalBias, Src.Sharpen, 0.0f);
-				Dst.Params1        = FVector4(Src.ESMExponent, 0.0f, 0.0f, 0.0f);
+				Dst.ViewCount = Src.ViewCount;
+				Dst.Flags = 0;
+				Dst.PositionType = FVector4(Src.PositionWS.X, Src.PositionWS.Y, Src.PositionWS.Z, 0.0f);
+				Dst.DirectionBias = FVector4(Src.DirectionWS.X, Src.DirectionWS.Y, Src.DirectionWS.Z, Src.Bias);
+				Dst.Params0 = FVector4(Src.SlopeBias, Src.NormalBias, Src.Sharpen, 0.0f);
+				Dst.Params1 = FVector4(Src.ESMExponent, 0.0f, 0.0f, 0.0f);
 			}
 
 			D3D11_MAPPED_SUBRESOURCE Mapped = {};
@@ -1353,7 +1335,7 @@ void FShadowRenderFeature::RenderShadowViews(
 		return;
 	}
 
-	if (!HasShadowCasterForCurrentFilterMode(SceneViewData, GlobalFilterMode))
+	if (!HasShadowVSMCaster(SceneViewData))
 	{
 		if (!ShouldPreserveAtlasForAuxiliaryPass(SceneViewData))
 		{
@@ -1402,13 +1384,14 @@ void FShadowRenderFeature::RenderShadowViews(
 		FShadowViewRenderItem& ShadowView = SceneViewData.LightingInputs.ShadowViews[ViewIndex];
 		if (ShadowView.LightType == EShadowLightType::Spot)
 		{
-			const uint32           ResolvedResolution = ResolveShadowViewResolution(ShadowView.RequestedResolution);
+			const uint32 ResolvedResolution = ResolveShadowViewResolution(ShadowView.RequestedResolution);
 			FShadowAtlasAllocation OutAllocation;
 			if (ShadowAtlasAllocator->Allocate(ResolvedResolution, OutAllocation))
 			{
-				ShadowView.AtlasUV             = FVector(static_cast<float>(OutAllocation.X), static_cast<float>(OutAllocation.Y), static_cast<float>(OutAllocation.Size));
+				ShadowView.AtlasUV = FVector(static_cast<float>(OutAllocation.X), static_cast<float>(OutAllocation.Y), static_cast<float>(OutAllocation.Size));
 				ShadowView.AllocatedResolution = OutAllocation.Size;
-				ShadowView.bAtlasAllocated     = true;
+				ShadowView.bAtlasAllocated = true;
+
 			}
 		}
 	}
@@ -1539,7 +1522,7 @@ void FShadowRenderFeature::RenderShadowViews(
 					BeginPass(Renderer, LocalShadowCacheMomentsAtlasRTV, LocalShadowCacheDepthAtlasDSV, SceneViewData.View.Viewport, SceneViewData.Frame, SceneViewData.View);
 					Processor.ExecutePass(Renderer, Targets, SceneViewData, EMeshPassType::ShadowVSM);
 				}
-				else if (GlobalFilterMode == EShadowFilterMode::ESM)
+				else if(GlobalFilterMode == EShadowFilterMode::ESM)
 				{
 					BeginPass(Renderer, LocalShadowCacheMomentsAtlasRTV, LocalShadowCacheDepthAtlasDSV, SceneViewData.View.Viewport, SceneViewData.Frame, SceneViewData.View);
 					Processor.ExecutePass(Renderer, Targets, SceneViewData, EMeshPassType::ShadowESM);
@@ -1650,34 +1633,29 @@ void FShadowRenderFeature::RenderShadowViews(
 		SceneViewData.View.bOrthographic         = ShadowView.ProjectionType == EShadowProjectionType::Orthographic;
 		SceneViewData.View.Viewport              = ShadowViewport;
 
-		auto PassType = EMeshPassType::DepthPrepass;
+		EMeshPassType PassType = EMeshPassType::DepthPrepass;
 
 		switch (GlobalFilterMode)
 		{
-		case EShadowFilterMode::VSM:
-			if (!MomentsRTV)
+			case EShadowFilterMode::VSM:
+				if (!MomentsRTV) continue;
+				PassType = EMeshPassType::ShadowVSM;
+				break;
+			case EShadowFilterMode::ESM:
 			{
-				continue;
-			}
-			PassType = EMeshPassType::ShadowVSM;
-			break;
-		case EShadowFilterMode::ESM:
-			{
-				if (!MomentsRTV)
-				{
-					continue;
-				}
+				if (!MomentsRTV) continue;
 				PassType = EMeshPassType::ShadowESM;
 				UpdateESMConstantBuffer(DeviceContext, Light.ESMExponent);
 				break;
 			}
-		default:
-			PassType = EMeshPassType::DepthPrepass;
-			break;
+			default:
+				PassType = EMeshPassType::DepthPrepass;
+				break;
 		}
 
 		BeginPass(Renderer, MomentsRTV, ShadowDSV, ShadowViewport, SceneViewData.Frame, SceneViewData.View);
 		Processor.ExecutePass(Renderer, Targets, SceneViewData, PassType);
+
 	}
 
 	CachedLocalShadowViews.clear();
@@ -1718,7 +1696,7 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 		return;
 	}
 
-	if (!HasShadowCasterForCurrentFilterMode(SceneViewData, GlobalFilterMode))
+	if (!HasShadowVSMCaster(SceneViewData))
 	{
 		if (!ShouldPreserveAtlasForAuxiliaryPass(SceneViewData))
 		{
@@ -1734,18 +1712,15 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 	}
 
 	DirShadowAtlasAllocator->Reset();
-	const FViewContext OriginalView    = SceneViewData.View;
+	const FViewContext OriginalView = SceneViewData.View;
 	static const float ClearMoments[4] = { 1.0f, 1.0f, 0.0f, 0.0f };
-	if (DirShadowMomentsAtlasRTV)
-	{
-		DeviceContext->ClearRenderTargetView(DirShadowMomentsAtlasRTV, ClearMoments);
-	}
+	DeviceContext->ClearRenderTargetView(DirShadowMomentsAtlasRTV, ClearMoments);
 	DeviceContext->ClearDepthStencilView(DirShadowDepthAtlasDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	for (uint32 ViewIndex = 0; ViewIndex < DirShadowViewCount; ++ViewIndex)
 	{
-		FShadowViewRenderItem&        DirShadowView = SceneViewData.LightingInputs.DirShadowViews[ViewIndex];
-		const FShadowLightRenderItem& Light         = SceneViewData.LightingInputs.DirShadowLights[DirShadowView.ShadowLightIndex];
+		FShadowViewRenderItem& DirShadowView = SceneViewData.LightingInputs.DirShadowViews[ViewIndex];
+		const FShadowLightRenderItem& Light = SceneViewData.LightingInputs.DirShadowLights[DirShadowView.ShadowLightIndex];
 
 		if (DirShadowView.ArraySlice >= ShadowConfig::MaxDirCascade)
 		{
@@ -1758,9 +1733,9 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 			continue;
 		}
 
-		DirShadowView.AtlasUV             = FVector(static_cast<float>(OutAllocation.X), static_cast<float>(OutAllocation.Y), static_cast<float>(OutAllocation.Size));
+		DirShadowView.AtlasUV = FVector(static_cast<float>(OutAllocation.X), static_cast<float>(OutAllocation.Y), static_cast<float>(OutAllocation.Size));
 		DirShadowView.AllocatedResolution = OutAllocation.Size;
-		DirShadowView.bAtlasAllocated     = true;
+		DirShadowView.bAtlasAllocated = true;
 
 		D3D11_VIEWPORT DirShadowViewport = BuildShadowViewport(OutAllocation.X, OutAllocation.Y, OutAllocation.Size);
 
@@ -1776,29 +1751,23 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 		SceneViewData.View.bOrthographic         = DirShadowView.ProjectionType == EShadowProjectionType::Orthographic;
 		SceneViewData.View.Viewport              = DirShadowViewport;
 
-		auto                    PassType      = EMeshPassType::DepthPrepass;
+		EMeshPassType PassType = EMeshPassType::DepthPrepass;
 		ID3D11RenderTargetView* DirMomentsRTV = nullptr;
 		switch (GlobalFilterMode)
 		{
 		case EShadowFilterMode::VSM:
-			if (!DirShadowMomentsAtlasRTV)
-			{
-				continue;
-			}
+			if (!DirShadowMomentsAtlasRTV) continue;
 			DirMomentsRTV = DirShadowMomentsAtlasRTV;
-			PassType      = EMeshPassType::ShadowVSM;
+			PassType = EMeshPassType::ShadowVSM;
 			break;
 		case EShadowFilterMode::ESM:
-			{
-				if (!DirShadowMomentsAtlasRTV)
-				{
-					continue;
-				}
-				DirMomentsRTV = DirShadowMomentsAtlasRTV;
-				PassType      = EMeshPassType::ShadowESM;
-				UpdateESMConstantBuffer(DeviceContext, Light.ESMExponent);
-				break;
-			}
+		{
+			if (!DirShadowMomentsAtlasRTV) continue;
+			DirMomentsRTV = DirShadowMomentsAtlasRTV;
+			PassType = EMeshPassType::ShadowESM;
+			UpdateESMConstantBuffer(DeviceContext, Light.ESMExponent);
+			break;
+		}
 		default:
 			PassType = EMeshPassType::DepthPrepass;
 			break;
@@ -2025,199 +1994,6 @@ bool FShadowRenderFeature::EnsureDebugPreviewResources(FRenderer& Renderer)
 	return ShadowDebugVS != nullptr && ShadowDebugPS != nullptr && ShadowAtlasPreviewPS != nullptr;
 }
 
-bool FShadowRenderFeature::RenderDebugPreview(
-	FRenderer&            Renderer,
-	FSceneRenderTargets&  Targets,
-	const FSceneViewData& SceneViewData)
-{
-	if (DebugViewMode == EShadowDebugViewMode::None)
-	{
-		return true;
-	}
-
-	ID3D11ShaderResourceView* TargetDepthSRV   = bDebugDirectional ? DirShadowDepthAtlasSRV : LocalShadowDepthAtlasSRV;
-	ID3D11ShaderResourceView* TargetMomentsSRV = bDebugDirectional ? DirShadowMomentsAtlasSRV : LocalShadowMomentsAtlasSRV;
-	const auto&               TargetViews      = bDebugDirectional ? SceneViewData.LightingInputs.DirShadowViews : SceneViewData.LightingInputs.ShadowViews;
-	if (!TargetDepthSRV)
-	{
-		return false;
-	}
-
-	if ((DebugViewMode == EShadowDebugViewMode::VSMMean
-			|| DebugViewMode == EShadowDebugViewMode::VSMVariance)
-		&& !TargetMomentsSRV)
-	{
-		return false;
-	}
-
-	if (!EnsureDebugPreviewResources(Renderer))
-	{
-		return false;
-	}
-
-	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
-	if (!Context || !ShadowDebugPreviewRTV || !ShadowDebugCB)
-	{
-		return false;
-	}
-
-	const uint32 ShadowViewCount    = static_cast<uint32>(SceneViewData.LightingInputs.ShadowViews.size());
-	const uint32 DirShadowViewCount = static_cast<uint32>(SceneViewData.LightingInputs.DirShadowViews.size());
-	if (ShadowViewCount == 0 && DirShadowViewCount == 0)
-	{
-		return false;
-	}
-
-	DebugAvailableSlices.clear();
-
-	for (const FShadowViewRenderItem& View : TargetViews)
-	{
-		uint32 MaxLimit = bDebugDirectional ? ShadowConfig::MaxDirCascade : ShadowConfig::MaxShadowViews;
-		if (View.ArraySlice < MaxLimit)
-		{
-			if (std::find(DebugAvailableSlices.begin(), DebugAvailableSlices.end(), View.ArraySlice) == DebugAvailableSlices.end())
-			{
-				DebugAvailableSlices.push_back(View.ArraySlice);
-			}
-		}
-	}
-
-	std::sort(DebugAvailableSlices.begin(), DebugAvailableSlices.end());
-
-	if (DebugAvailableSlices.empty())
-	{
-		return false;
-	}
-
-	const uint32 RequestedSlice = (std::min)(DebugViewSlice, (bDebugDirectional ? ShadowConfig::MaxDirCascade : ShadowConfig::MaxShadowViews) - 1u);
-
-	const FShadowViewRenderItem* SelectedView = nullptr;
-	for (const FShadowViewRenderItem& View : TargetViews)
-	{
-		if (View.ArraySlice == RequestedSlice)
-		{
-			SelectedView = &View;
-			break;
-		}
-	}
-
-	if (!SelectedView)
-	{
-		DebugViewSlice = DebugAvailableSlices[0];
-
-		for (const FShadowViewRenderItem& View : SceneViewData.LightingInputs.ShadowViews)
-		{
-			if (View.ArraySlice == DebugViewSlice)
-			{
-				SelectedView = &View;
-				break;
-			}
-		}
-	}
-
-	if (!SelectedView)
-	{
-		return false;
-	}
-
-	struct FShadowDebugCBData
-	{
-		uint32 DebugMode;
-		uint32 SliceIndex;
-		float  NearZ;
-		float  FarZ;
-
-		uint32 bOrthographic;
-		float  Exposure;
-		float  Padding0;
-		float  Padding1;
-	};
-
-	FShadowDebugCBData CBData = {};
-	CBData.DebugMode          = static_cast<uint32>(DebugViewMode);
-	CBData.SliceIndex         = SelectedView->ArraySlice;
-	CBData.NearZ              = SelectedView->NearZ;
-	CBData.FarZ               = SelectedView->FarZ;
-	CBData.bOrthographic      = SelectedView->ProjectionType == EShadowProjectionType::Orthographic ? 1u : 0u;
-	CBData.Exposure           = DebugVarianceExposure;
-
-	D3D11_MAPPED_SUBRESOURCE Mapped = {};
-	if (FAILED(Context->Map(ShadowDebugCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
-	{
-		return false;
-	}
-
-	std::memcpy(Mapped.pData, &CBData, sizeof(CBData));
-	Context->Unmap(ShadowDebugCB, 0);
-
-	const float ClearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-	Context->ClearRenderTargetView(ShadowDebugPreviewRTV, ClearColor);
-
-	const float Size = static_cast<float>(
-		ShadowDepthArrayResolution > 0
-			? ShadowDepthArrayResolution
-			: DefaultShadowMapResolution);
-
-	D3D11_VIEWPORT PreviewViewport = {};
-	PreviewViewport.TopLeftX       = 0.0f;
-	PreviewViewport.TopLeftY       = 0.0f;
-	PreviewViewport.Width          = Size;
-	PreviewViewport.Height         = Size;
-	PreviewViewport.MinDepth       = 0.0f;
-	PreviewViewport.MaxDepth       = 1.0f;
-
-	const FFullscreenPassConstantBufferBinding ConstantBuffers[] =
-	{
-		{ 0, ShadowDebugCB },
-	};
-
-	const FFullscreenPassShaderResourceBinding ShaderResources[] =
-	{
-		{ 0, TargetDepthSRV },
-		{ 1, TargetMomentsSRV },
-	};
-
-	const FFullscreenPassSamplerBinding Samplers[] =
-	{
-		{ 0, ShadowDebugSampler },
-	};
-
-	const FFullscreenPassBindings Bindings
-	{
-		ConstantBuffers,
-		static_cast<uint32>(sizeof(ConstantBuffers) / sizeof(ConstantBuffers[0])),
-		ShaderResources,
-		static_cast<uint32>(sizeof(ShaderResources) / sizeof(ShaderResources[0])),
-		Samplers,
-		static_cast<uint32>(sizeof(Samplers) / sizeof(Samplers[0]))
-	};
-
-	const bool bRendered = ExecuteFullscreenPass(
-		Renderer,
-		SceneViewData.Frame,
-		SceneViewData.View,
-		ShadowDebugPreviewRTV,
-		nullptr,
-		PreviewViewport,
-		{ ShadowDebugVS, ShadowDebugPS },
-		{},
-		Bindings,
-		[](ID3D11DeviceContext& DrawContext)
-		{
-			DrawContext.Draw(3, 0);
-		});
-
-	BeginPass(
-		Renderer,
-		Targets.SceneColorRTV,
-		Targets.SceneDepthDSV,
-		SceneViewData.View.Viewport,
-		SceneViewData.Frame,
-		SceneViewData.View);
-
-	return bRendered;
-}
-
 bool FShadowRenderFeature::EnsureAtlasPreviewTexture(
 	FRenderer&                 Renderer,
 	uint32                     Size,
@@ -2390,4 +2166,194 @@ void FShadowRenderFeature::RenderShadowAtlasPreviews(FRenderer& Renderer, const 
 	SafeRelease(DirShadowAtlasPreviewSRV);
 	SafeRelease(DirShadowAtlasPreviewRTV);
 	SafeRelease(DirShadowAtlasPreviewTexture);
+}
+
+bool FShadowRenderFeature::RenderDebugPreview(
+	FRenderer&            Renderer,
+	FSceneRenderTargets&  Targets,
+	const FSceneViewData& SceneViewData)
+{
+	if (DebugViewMode == EShadowDebugViewMode::None)
+	{
+		return true;
+	}
+
+	ID3D11ShaderResourceView* TargetDepthSRV = bDebugDirectional ? DirShadowDepthAtlasSRV : LocalShadowDepthAtlasSRV;
+	ID3D11ShaderResourceView* TargetMomentsSRV = bDebugDirectional ? DirShadowMomentsAtlasSRV : LocalShadowMomentsAtlasSRV;
+	const auto& TargetViews = bDebugDirectional ? SceneViewData.LightingInputs.DirShadowViews : SceneViewData.LightingInputs.ShadowViews;
+	if (!TargetDepthSRV) return false;
+
+	if ((DebugViewMode == EShadowDebugViewMode::VSMMean 
+		|| DebugViewMode == EShadowDebugViewMode::VSMVariance)
+		&& !TargetMomentsSRV)
+	{
+		return false;
+	}
+
+	if (!EnsureDebugPreviewResources(Renderer))
+	{
+		return false;
+	}
+
+	ID3D11DeviceContext* Context = Renderer.GetDeviceContext();
+	if (!Context || !ShadowDebugPreviewRTV || !ShadowDebugCB)
+	{
+		return false;
+	}
+
+	const uint32 ShadowViewCount = static_cast<uint32>(SceneViewData.LightingInputs.ShadowViews.size());
+	const uint32 DirShadowViewCount = static_cast<uint32>(SceneViewData.LightingInputs.DirShadowViews.size());
+	if (ShadowViewCount == 0 && DirShadowViewCount == 0)
+	{
+		return false;
+	}
+
+	DebugAvailableSlices.clear();
+
+	for (const FShadowViewRenderItem& View : TargetViews)
+	{
+		uint32 MaxLimit = bDebugDirectional ? ShadowConfig::MaxDirCascade : ShadowConfig::MaxShadowViews;
+		if (View.ArraySlice < MaxLimit)
+		{
+			if (std::find(DebugAvailableSlices.begin(), DebugAvailableSlices.end(), View.ArraySlice) == DebugAvailableSlices.end())
+			{
+				DebugAvailableSlices.push_back(View.ArraySlice);
+			}
+		}
+	}
+
+	std::sort(DebugAvailableSlices.begin(), DebugAvailableSlices.end());
+
+	if (DebugAvailableSlices.empty())
+	{
+		return false;
+	}
+
+	const uint32 RequestedSlice = (std::min)(DebugViewSlice, (bDebugDirectional ? ShadowConfig::MaxDirCascade : ShadowConfig::MaxShadowViews) - 1u);
+
+	const FShadowViewRenderItem* SelectedView = nullptr;
+	for (const FShadowViewRenderItem& View : TargetViews)
+	{
+		if (View.ArraySlice == RequestedSlice)
+		{
+			SelectedView = &View;
+			break;
+		}
+	}
+
+	if (!SelectedView)
+	{
+		DebugViewSlice = DebugAvailableSlices[0];
+
+		for (const FShadowViewRenderItem& View : SceneViewData.LightingInputs.ShadowViews)
+		{
+			if (View.ArraySlice == DebugViewSlice)
+			{
+				SelectedView = &View;
+				break;
+			}
+		}
+	}
+
+	if (!SelectedView)
+	{
+		return false;
+	}
+
+	struct FShadowDebugCBData
+	{
+		uint32 DebugMode;
+		uint32 SliceIndex;
+		float  NearZ;
+		float  FarZ;
+
+		uint32 bOrthographic;
+		float  Exposure;
+		float  Padding0;
+		float  Padding1;
+	};
+
+	FShadowDebugCBData CBData = {};
+	CBData.DebugMode          = static_cast<uint32>(DebugViewMode);
+	CBData.SliceIndex         = SelectedView->ArraySlice;
+	CBData.NearZ              = SelectedView->NearZ;
+	CBData.FarZ               = SelectedView->FarZ;
+	CBData.bOrthographic      = SelectedView->ProjectionType == EShadowProjectionType::Orthographic ? 1u : 0u;
+	CBData.Exposure           = DebugVarianceExposure;
+
+	D3D11_MAPPED_SUBRESOURCE Mapped = {};
+	if (FAILED(Context->Map(ShadowDebugCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
+	{
+		return false;
+	}
+
+	std::memcpy(Mapped.pData, &CBData, sizeof(CBData));
+	Context->Unmap(ShadowDebugCB, 0);
+
+	const float ClearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	Context->ClearRenderTargetView(ShadowDebugPreviewRTV, ClearColor);
+
+	const float Size = static_cast<float>(
+		ShadowDepthArrayResolution > 0
+			? ShadowDepthArrayResolution
+			: DefaultShadowMapResolution);
+
+	D3D11_VIEWPORT PreviewViewport = {};
+	PreviewViewport.TopLeftX       = 0.0f;
+	PreviewViewport.TopLeftY       = 0.0f;
+	PreviewViewport.Width          = Size;
+	PreviewViewport.Height         = Size;
+	PreviewViewport.MinDepth       = 0.0f;
+	PreviewViewport.MaxDepth       = 1.0f;
+
+	const FFullscreenPassConstantBufferBinding ConstantBuffers[] =
+	{
+		{ 0, ShadowDebugCB },
+	};
+
+	const FFullscreenPassShaderResourceBinding ShaderResources[] =
+	{
+		{ 0, TargetDepthSRV },
+		{ 1, TargetMomentsSRV },
+	};
+
+	const FFullscreenPassSamplerBinding Samplers[] =
+	{
+		{ 0, ShadowDebugSampler },
+	};
+
+	const FFullscreenPassBindings Bindings
+	{
+		ConstantBuffers,
+		static_cast<uint32>(sizeof(ConstantBuffers) / sizeof(ConstantBuffers[0])),
+		ShaderResources,
+		static_cast<uint32>(sizeof(ShaderResources) / sizeof(ShaderResources[0])),
+		Samplers,
+		static_cast<uint32>(sizeof(Samplers) / sizeof(Samplers[0]))
+	};
+
+	const bool bRendered = ExecuteFullscreenPass(
+		Renderer,
+		SceneViewData.Frame,
+		SceneViewData.View,
+		ShadowDebugPreviewRTV,
+		nullptr,
+		PreviewViewport,
+		{ ShadowDebugVS, ShadowDebugPS },
+		{},
+		Bindings,
+		[](ID3D11DeviceContext& DrawContext)
+		{
+			DrawContext.Draw(3, 0);
+		});
+
+	BeginPass(
+		Renderer,
+		Targets.SceneColorRTV,
+		Targets.SceneDepthDSV,
+		SceneViewData.View.Viewport,
+		SceneViewData.Frame,
+		SceneViewData.View);
+
+	return bRendered;
 }
