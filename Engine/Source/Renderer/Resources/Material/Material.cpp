@@ -1,6 +1,7 @@
 #include "Renderer/Resources/Material/Material.h"
 #include "Renderer/Renderer.h"
 #include "Core/Engine.h"
+#include "Core/Paths.h"
 #include "Debug/EngineLog.h"
 #include "Renderer/Resources/Shader/ShaderHandles.h"
 #include <cstdint>
@@ -442,9 +443,10 @@ bool LoadNormalTextureFromFile(const std::shared_ptr<FMaterial>& Material, const
 
 	auto NormalTexture = std::make_shared<FMaterialTexture>();
 	NormalTexture->TextureSRV = NewSRV;
-	NormalTexture->SourcePath = TexturePath.string();
+	const FString TexturePathUtf8 = FPaths::FromPath(TexturePath);
+	NormalTexture->SourcePath = TexturePathUtf8;
 	Material->SetNormalTexture(NormalTexture);
-	UE_LOG("[Material] Loaded normal map: %s", TexturePath.string().c_str());
+	UE_LOG("[Material] Loaded normal map: %s", TexturePathUtf8.c_str());
 	return true;
 }
 
