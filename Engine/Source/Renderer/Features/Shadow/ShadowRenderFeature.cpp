@@ -30,19 +30,27 @@ namespace
 		}
 	}
 
-	bool HasShadowVSMCaster(const FSceneViewData& SceneViewData)
+	bool HasShadowMomentCaster(const FSceneViewData& SceneViewData, EShadowFilterMode FilterMode)
 	{
+		const bool bUseESM = FilterMode == EShadowFilterMode::ESM;
+		const EMeshPassMask RequiredMask = bUseESM
+			? EMeshPassMask::ShadowESM
+			: EMeshPassMask::ShadowVSM;
+		const EMaterialPassType RequiredPass = bUseESM
+			? EMaterialPassType::ShadowESM
+			: EMaterialPassType::ShadowVSM;
+
 		for (const FMeshBatch& Batch : SceneViewData.MeshInputs.Batches)
 		{
 			if (!Batch.Mesh || !Batch.Material)
 			{
 				continue;
 			}
-			if (!EnumHasAnyFlags(Batch.PassMask, EMeshPassMask::ShadowVSM))
+			if (!EnumHasAnyFlags(Batch.PassMask, RequiredMask))
 			{
 				continue;
 			}
-			if (Batch.Material->GetPassShaders(EMaterialPassType::ShadowVSM) == nullptr)
+			if (Batch.Material->GetPassShaders(RequiredPass) == nullptr)
 			{
 				continue;
 			}
@@ -1316,7 +1324,7 @@ void FShadowRenderFeature::RenderShadowViews(
 		return;
 	}
 
-	if (!HasShadowVSMCaster(SceneViewData))
+	if (!HasShadowMomentCaster(SceneViewData, GlobalFilterMode))
 	{
 		if (!ShouldPreserveAtlasForAuxiliaryPass(SceneViewData))
 		{
@@ -1721,7 +1729,7 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 		return;
 	}
 
-	if (!HasShadowVSMCaster(SceneViewData))
+	if (!HasShadowMomentCaster(SceneViewData, GlobalFilterMode))
 	{
 		if (!ShouldPreserveAtlasForAuxiliaryPass(SceneViewData))
 		{

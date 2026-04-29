@@ -2694,6 +2694,14 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 		LightComponent->SetShadowSharpen(ShadowSharpeness);
 	}
 
+	float ShadowESMExponent = LightComponent->GetShadowESMExponent();
+	ImGui::Text("Shadow ESM Exponent");
+	ImGui::NextColumn();
+	if (ImGui::DragFloat("Shadow ESM Exponent", &ShadowESMExponent, 1.0f, 0.0f, 80.0f, "%.1f"))
+	{
+		LightComponent->SetShadowESMExponent(ShadowESMExponent);
+	}
+
 	ImGui::Spacing();
 	ImGui::Separator();
 	ImGui::TextDisabled("Shadow Map Debug");

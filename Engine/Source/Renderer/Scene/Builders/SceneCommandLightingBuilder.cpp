@@ -1530,7 +1530,7 @@ namespace
 		ShadowLight.Bias = 0.0f;
 		ShadowLight.SlopeBias = 0.0f;
 		ShadowLight.NormalBias = 0.0f;
-		ShadowLight.Sharpen = 0.0f;
+		ShadowLight.Sharpen = DirLight->GetShadowSharpen();
 		ShadowLight.ESMExponent = DirLight->GetShadowESMExponent();
 
 		const bool bUsePSM =

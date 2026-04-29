@@ -94,5 +94,5 @@ protected:
 	float ShadowBias            = 0.0001f;
 	float ShadowSlopeBias       = 0.0f;
 	float ShadowSharpen         = 0.0f;
-	float ShadowESMExponent		= 30.0f;
+	float ShadowESMExponent		= 80.0f;
 };

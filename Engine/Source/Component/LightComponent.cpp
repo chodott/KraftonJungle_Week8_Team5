@@ -135,7 +135,7 @@ void ULightComponent::SetShadowESMExponent(float NewExponent)
 	{
 		return;
 	}
-	ShadowESMExponent = std::max(0.0f, NewExponent);
+	ShadowESMExponent = FMath::Clamp(NewExponent, 0.0f, 80.0f);
 	NotifyOwnerLightPropertyChanged();
 }
 
@@ -167,6 +167,7 @@ void ULightComponent::Serialize(FArchive& Ar)
 	Ar.Serialize("ShadowBias", ShadowBias);
 	Ar.Serialize("ShadowSlopeBias", ShadowSlopeBias);
 	Ar.Serialize("ShadowSharpen", ShadowSharpen);
+	Ar.Serialize("ShadowESMExponent", ShadowESMExponent);
 	if (Ar.IsLoading())
 	{
 		Intensity      = (std::max)(0.0f, Intensity);
@@ -177,6 +178,7 @@ void ULightComponent::Serialize(FArchive& Ar)
 		ShadowBias          = (std::max)(0.0f, ShadowBias);
 		ShadowSlopeBias     = (std::max)(0.0f, ShadowSlopeBias);
 		ShadowSharpen       = FMath::Clamp(ShadowSharpen, 0.0f, 1.0f);
+		ShadowESMExponent   = FMath::Clamp(ShadowESMExponent, 0.0f, 80.0f);
 	}
 }
 
