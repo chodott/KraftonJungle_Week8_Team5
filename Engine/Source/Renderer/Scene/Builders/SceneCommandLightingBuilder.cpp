@@ -611,6 +611,7 @@ namespace
 			View.PositionWS = LightItem.PositionWS;
 			View.NearZ = NearZ;
 			View.FarZ = FarZ;
+			View.SourceActor = Point->GetOwner();
 			View.RequestedResolution = RequestedResolution;
 
 			View.View = FMatrix::MakeViewLookAtLH(

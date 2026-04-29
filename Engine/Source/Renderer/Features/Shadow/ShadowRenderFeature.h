@@ -110,7 +110,7 @@ public:
 	{
 		return ShadowDebugPreviewSRV;
 	}
-	ID3D11ShaderResourceView* GetPointLightFacePreviewSRV(ID3D11Device* Device, ID3D11DeviceContext* Context, uint32 ArraySlice);
+	ID3D11ShaderResourceView* GetPointLightFacePreviewSRV(uint32 ArraySlice, uint32 Resolution) const;
 	const TArray<uint32>& GetDebugAvailableSlices() const
 	{
 		return DebugAvailableSlices;
@@ -182,6 +182,11 @@ private:
 		ID3D11ShaderResourceView* SourceSRV,
 		uint32 Size,
 		ID3D11RenderTargetView* TargetRTV);
+	bool           RenderPointLightFacePreview(
+		FRenderer& Renderer,
+		const FSceneViewData& SceneViewData,
+		uint32 ArraySlice,
+		uint32 Resolution);
 	void           RenderShadowAtlasPreviews(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 
 	ID3D11Texture2D*          ShadowDebugPreviewTexture = nullptr;
@@ -256,8 +261,13 @@ private:
 	ID3D11Buffer*				DirShadowViewBuffer		= nullptr;
 	ID3D11ShaderResourceView*	DirShadowViewBufferSRV = nullptr;
 
+	ID3D11Texture2D*			PointDebugDepthTexture	= nullptr;
+	ID3D11ShaderResourceView*	PointDebugDepthSRV		= nullptr;
 	ID3D11Texture2D*			PointDebugTexture		= nullptr;
+	ID3D11RenderTargetView*		PointDebugRTV			= nullptr;
 	ID3D11ShaderResourceView*	PointDebugSRV			= nullptr;
+	uint32						PointDebugPreviewSlice	= UINT32_MAX;
+	uint32						PointDebugPreviewResolution = 0;
 
 	ID3D11SamplerState*  ShadowComparisonSampler    = nullptr;
 	ID3D11SamplerState*  ShadowLinearSampler        = nullptr;
