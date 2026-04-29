@@ -2697,7 +2697,7 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 	float ShadowESMExponent = LightComponent->GetShadowESMExponent();
 	ImGui::Text("Shadow ESM Exponent");
 	ImGui::NextColumn();
-	if (ImGui::DragFloat("Shadow ESM Exponent", &ShadowESMExponent, 1.0f, 0.0f, 80.0f, "%.1f"))
+	if (ImGui::DragFloat("Shadow ESM Exponent", &ShadowESMExponent, 1.0f, 0.0f, 300.0f, "%.1f"))
 	{
 		LightComponent->SetShadowESMExponent(ShadowESMExponent);
 	}

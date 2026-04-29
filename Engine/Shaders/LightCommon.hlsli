@@ -584,6 +584,13 @@ float SampleShadowViewPointVSM(FShadowLightGPU shadowLight, float3 worldPos, flo
     return saturate(pMax);
 }
 
+float EvaluateESMShadowTerm(float esmSample, float compareDepth, float exponent)
+{
+	const float k = max(exponent, 0.001f);
+	const float exponentTerm = min(k * (1.0f - compareDepth), 80.0f);
+	return saturate(esmSample * exp(exponentTerm));
+}
+
 float SampleShadowViewPointESM(FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L) 
 {
 	uint cubeIndex = (uint) shadowLight.Params0.w;
@@ -611,9 +618,7 @@ float SampleShadowViewPointESM(FShadowLightGPU shadowLight, float3 worldPos, flo
 	
 	float esmSample = SamplePointShadowMoments(view, lightToSurface, cubeIndex).r;
 
-	const float k = max(shadowLight.Params1.x, 0.001f);
-	float shadowTerm = esmSample * exp(k * (1.0f - compareDepth));
-    return saturate(shadowTerm);
+	return EvaluateESMShadowTerm(esmSample, compareDepth, shadowLight.Params1.x);
 }
 
 float SampleShadowViewVSM(
@@ -683,12 +688,8 @@ float SampleShadowViewESM(
 		uv,
 		0.0f
 	).r;
-	
-	const float k = max(shadowLight.Params1.x, 0.001f);
-	
-	float shadowTerm = esmSample * exp(k * (1.0f - compareDepth));
 
-	return saturate(shadowTerm);
+	return EvaluateESMShadowTerm(esmSample, compareDepth, shadowLight.Params1.x);
 }
 
 float SampleShadowViewRawDepth(
@@ -796,11 +797,8 @@ float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, flo
 					LinearClampSampler, 
 					baseUV,
 					0.0f).r;
-		const float k = max(shadowLight.Params1.x, 0.001f);
-	
-		float shadowTerm = esmSample * exp(k * (1.0f - compareDepth));
 
-		return saturate(shadowTerm);
+		return EvaluateESMShadowTerm(esmSample, compareDepth, shadowLight.Params1.x);
 	}
 
     // FilterMode == 0u (Raw Depth)
