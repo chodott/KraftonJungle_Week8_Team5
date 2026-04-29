@@ -60,6 +60,11 @@ namespace
 		return false;
 	}
 
+	float ResolveShadowViewESMExponent(const FShadowLightRenderItem& Light, const FShadowViewRenderItem& View)
+	{
+		return View.ESMExponent > 0.0f ? View.ESMExponent : Light.ESMExponent;
+	}
+
 	bool HasSceneRenderBatch(const FSceneViewData& SceneViewData)
 	{
 		const uint32 EditorOnlyMask =
@@ -1217,6 +1222,7 @@ void FShadowRenderFeature::UploadShadowBuffers(
 				Dst.ViewParams          = FVector4(Src.NearZ, Src.FarZ, AtlasScale, TexelSize);
 				Dst.BiasParams          = Src.BiasParams;
 				Dst.AtlasUV             = Src.AtlasUV;
+				Dst.ESMExponent         = Src.ESMExponent;
 			}
 
 			D3D11_MAPPED_SUBRESOURCE Mapped = {};
@@ -1286,6 +1292,7 @@ void FShadowRenderFeature::UploadShadowBuffers(
 				Dst.ViewParams          = FVector4(Src.NearZ, Src.FarZ, AtlasScale, TexelSize);
 				Dst.BiasParams          = Src.BiasParams;
 				Dst.AtlasUV             = Src.AtlasUV;
+				Dst.ESMExponent         = Src.ESMExponent;
 			}
 
 			D3D11_MAPPED_SUBRESOURCE Mapped = {};
@@ -1678,7 +1685,7 @@ void FShadowRenderFeature::RenderShadowViews(
 			{
 				if (!MomentsRTV) continue;
 				PassType = EMeshPassType::ShadowESM;
-				UpdateESMConstantBuffer(DeviceContext, Light.ESMExponent);
+				UpdateESMConstantBuffer(DeviceContext, ResolveShadowViewESMExponent(Light, ShadowView));
 				break;
 			}
 			default:
@@ -1798,7 +1805,7 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 			if (!DirShadowMomentsAtlasRTV) continue;
 			DirMomentsRTV = DirShadowMomentsAtlasRTV;
 			PassType = EMeshPassType::ShadowESM;
-			UpdateESMConstantBuffer(DeviceContext, Light.ESMExponent);
+			UpdateESMConstantBuffer(DeviceContext, ResolveShadowViewESMExponent(Light, DirShadowView));
 			break;
 		}
 		default:

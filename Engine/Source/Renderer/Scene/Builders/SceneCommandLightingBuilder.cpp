@@ -478,6 +478,7 @@ namespace
 		View.LightType = EShadowLightType::Spot;
 		View.Viewport = {};
 		View.RequestedResolution = RequestedResolution;
+		View.ESMExponent = ShadowLight.ESMExponent;
 
 		AddShadowView(Inputs, ShadowLightIndex, View);
 	}
@@ -1561,6 +1562,10 @@ namespace
 				(std::max)(RequestedResolution, 4096u));
 		}
 
+		constexpr float MaxDirectionalESMExponent = 512.0f;
+		constexpr float MinESMDepthRange = 0.001f;
+		float ReferenceESMDepthRange = 0.0f;
+
 		for (uint32 CascadeIndex = 0; CascadeIndex < CascadeCount; ++CascadeIndex)
 		{
 			const float SplitNear = FrustumSplits[CascadeIndex];
@@ -1583,6 +1588,12 @@ namespace
 					RequestedResolution,
 					DirLight);
 
+			const float ESMDepthRange = (std::max)(ShadowProjection.FarZ - ShadowProjection.NearZ, MinESMDepthRange);
+			if (CascadeIndex == 0)
+			{
+				ReferenceESMDepthRange = ESMDepthRange;
+			}
+
 			FShadowViewRenderItem ViewItem;
 			ViewItem.LightType = EShadowLightType::Directional;
 			ViewItem.ProjectionType = ShadowProjection.ProjectionType;
@@ -1597,6 +1608,13 @@ namespace
 
 			ViewItem.RequestedResolution = RequestedResolution;
 			ViewItem.BiasParams = ShadowProjection.BiasParams;
+			const float ESMRangeScale = bUsePSM
+				? 1.0f
+				: ESMDepthRange / (std::max)(ReferenceESMDepthRange, MinESMDepthRange);
+			ViewItem.ESMExponent = FMath::Clamp(
+				DirLight->GetShadowESMExponent() * ESMRangeScale,
+				0.0f,
+				MaxDirectionalESMExponent);
 			ViewItem.Viewport = {};
 
 			AddDirShadowView(Inputs, ShadowLightIndex, ViewItem);
@@ -1688,6 +1706,7 @@ namespace
 			View.ViewProjection = View.View * View.Projection;
 			View.FilterMode = EShadowFilterMode::Raw;
 			View.LightType = EShadowLightType::Point;
+			View.ESMExponent = ShadowLight.ESMExponent;
 
 			AddPointShadowView(
 				Inputs,

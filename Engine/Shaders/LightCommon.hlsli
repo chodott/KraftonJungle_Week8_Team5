@@ -222,10 +222,10 @@ struct FShadowViewGPU
 	uint Pad0;
 
 	float4 ViewParams;
-    float4 BiasParams;
+	float4 BiasParams;
 
 	float3 AtlasUV;
-	float Pad1;
+	float ESMExponent;
 };
 
 StructuredBuffer<FShadowLightGPU> ShadowLights       : register(t20);
@@ -591,6 +591,11 @@ float EvaluateESMShadowTerm(float esmSample, float compareDepth, float exponent)
 	return saturate(esmSample * exp(exponentTerm));
 }
 
+float ResolveViewESMExponent(FShadowLightGPU shadowLight, FShadowViewGPU view)
+{
+	return view.ESMExponent > 0.0f ? view.ESMExponent : shadowLight.Params1.x;
+}
+
 float SampleShadowViewPointESM(FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L) 
 {
 	uint cubeIndex = (uint) shadowLight.Params0.w;
@@ -618,7 +623,7 @@ float SampleShadowViewPointESM(FShadowLightGPU shadowLight, float3 worldPos, flo
 	
 	float esmSample = SamplePointShadowMoments(view, lightToSurface, cubeIndex).r;
 
-	return EvaluateESMShadowTerm(esmSample, compareDepth, shadowLight.Params1.x);
+	return EvaluateESMShadowTerm(esmSample, compareDepth, ResolveViewESMExponent(shadowLight, view));
 }
 
 float SampleShadowViewVSM(
@@ -689,7 +694,7 @@ float SampleShadowViewESM(
 		0.0f
 	).r;
 
-	return EvaluateESMShadowTerm(esmSample, compareDepth, shadowLight.Params1.x);
+	return EvaluateESMShadowTerm(esmSample, compareDepth, ResolveViewESMExponent(shadowLight, shadowView));
 }
 
 float SampleShadowViewRawDepth(
@@ -798,7 +803,7 @@ float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, flo
 					baseUV,
 					0.0f).r;
 
-		return EvaluateESMShadowTerm(esmSample, compareDepth, shadowLight.Params1.x);
+		return EvaluateESMShadowTerm(esmSample, compareDepth, ResolveViewESMExponent(shadowLight, view));
 	}
 
     // FilterMode == 0u (Raw Depth)

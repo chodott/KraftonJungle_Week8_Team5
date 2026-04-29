@@ -124,6 +124,7 @@ struct FShadowViewRenderItem
 	D3D11_VIEWPORT Viewport = {};
 
 	FVector4 BiasParams = FVector4(0, 0, 0, 0);
+	float ESMExponent = 0.0f;
 
 	AActor* SourceActor = nullptr;
 };
@@ -159,5 +160,5 @@ struct FShadowViewGPU
 	FVector4 BiasParams;
 	
 	FVector AtlasUV; // X,Y: UV offset, Z: UV scale
-	float   Pad1 = 0.0f;
+	float   ESMExponent = 0.0f;
 };
