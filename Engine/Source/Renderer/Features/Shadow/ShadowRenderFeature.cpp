@@ -626,70 +626,77 @@ bool FShadowRenderFeature::EnsureMomentsAtlas(const FRenderer& Renderer, uint32 
 }
 
 bool FShadowRenderFeature::EnsureResources(
-	FRenderer&            Renderer,
-	const FSceneViewData& SceneViewData)
+    FRenderer&            Renderer,
+    const FSceneViewData& SceneViewData)
 {
-	const bool bNeedLinearSampler = (GlobalFilterMode == EShadowFilterMode::VSM || GlobalFilterMode == EShadowFilterMode::ESM);
+    const bool bNeedLinearSampler =
+        (GlobalFilterMode == EShadowFilterMode::VSM ||
+         GlobalFilterMode == EShadowFilterMode::ESM);
 
-	bool bGlobalOk = EnsureComparisonSampler(Renderer);
-	if (bNeedLinearSampler)
-	{
-		bGlobalOk = bGlobalOk && EnsureLinearSampler(Renderer);
-	}
+    bool bGlobalOk = EnsureComparisonSampler(Renderer);
 
-	if (!bGlobalOk)
-	{
-		return false;
-	}
+    if (bNeedLinearSampler)
+    {
+        bGlobalOk = bGlobalOk && EnsureLinearSampler(Renderer);
+    }
 
-	const uint32 ShadowLightCount = (std::min)(
-		static_cast<uint32>(SceneViewData.LightingInputs.ShadowLights.size()),
-		ShadowConfig::MaxShadowLights);
+    if (GlobalFilterMode == EShadowFilterMode::ESM)
+    {
+        bGlobalOk = bGlobalOk && EnsureESMConstantBuffer(Renderer);
+    }
 
-	const uint32 ShadowViewCount = (std::min)(
-		static_cast<uint32>(SceneViewData.LightingInputs.ShadowViews.size()),
-		ShadowConfig::MaxShadowViews);
+    if (!bGlobalOk)
+    {
+        return false;
+    }
 
-	const uint32 RequiredResolution = ComputeRequiredShadowDepthArrayResolution(SceneViewData);
+    const uint32 ShadowLightCount = (std::min)(
+        static_cast<uint32>(SceneViewData.LightingInputs.ShadowLights.size()),
+        ShadowConfig::MaxShadowLights);
 
-	bool bLocalOk = true;
-	if (ShadowViewCount > 0)
-	{
-		bLocalOk = EnsureShadowDepthAtlas(Renderer, RequiredResolution) &&
-				EnsureShadowBuffers(Renderer, ShadowLightCount, ShadowViewCount);
+    const uint32 ShadowViewCount = (std::min)(
+        static_cast<uint32>(SceneViewData.LightingInputs.ShadowViews.size()),
+        ShadowConfig::MaxShadowViews);
 
-		if (bNeedLinearSampler && bLocalOk)
-		{
-			bLocalOk = EnsureMomentsAtlas(Renderer, RequiredResolution);
-		}
+    const uint32 RequiredResolution = ComputeRequiredShadowDepthArrayResolution(SceneViewData);
 
-		if(GlobalFilterMode == EShadowFilterMode::ESM && bLocalOk)
-		{
-			bLocalOk = EnsureESMConstantBuffer(Renderer);
-		}
-	}
+    bool bLocalOk = true;
 
-	const uint32 DirLightCount = (std::min)(
-		static_cast<uint32>(SceneViewData.LightingInputs.DirShadowLights.size()),
-		ShadowConfig::MaxShadowLights);
+    if (ShadowViewCount > 0)
+    {
+        bLocalOk =
+            EnsureShadowDepthAtlas(Renderer, RequiredResolution) &&
+            EnsureShadowBuffers(Renderer, ShadowLightCount, ShadowViewCount);
 
-	const uint32 DirViewCount = (std::min)(
-		static_cast<uint32>(SceneViewData.LightingInputs.DirShadowViews.size()),
-		ShadowConfig::MaxDirCascade);
+        if (bNeedLinearSampler && bLocalOk)
+        {
+            bLocalOk = EnsureMomentsAtlas(Renderer, RequiredResolution);
+        }
+    }
 
-	bool bDirOk = true;
-	if (DirViewCount > 0)
-	{
-		bDirOk = EnsureDirShadowDepthAtlas(Renderer, ShadowConfig::DirMaxShadowDepthResolution) &&
-				EnsureDirShadowBuffers(Renderer, DirLightCount, DirViewCount);
+    const uint32 DirLightCount = (std::min)(
+        static_cast<uint32>(SceneViewData.LightingInputs.DirShadowLights.size()),
+        ShadowConfig::MaxShadowLights);
 
-		if (bNeedLinearSampler && bDirOk)
-		{
-			bDirOk = EnsureDirMomentsAtlas(Renderer, ShadowConfig::DirMaxShadowDepthResolution);
-		}
-	}
+    const uint32 DirViewCount = (std::min)(
+        static_cast<uint32>(SceneViewData.LightingInputs.DirShadowViews.size()),
+        ShadowConfig::MaxDirCascade);
 
-	return bLocalOk || bDirOk;
+    bool bDirOk = true;
+
+    if (DirViewCount > 0)
+    {
+        bDirOk =
+            EnsureDirShadowDepthAtlas(Renderer, ShadowConfig::DirMaxShadowDepthResolution) &&
+            EnsureDirShadowBuffers(Renderer, DirLightCount, DirViewCount);
+
+        if (bNeedLinearSampler && bDirOk)
+        {
+            bDirOk = EnsureDirMomentsAtlas(Renderer, ShadowConfig::DirMaxShadowDepthResolution);
+        }
+    }
+
+    return bLocalOk && bDirOk;
 }
 
 bool FShadowRenderFeature::EnsureShadowDepthAtlas(FRenderer& Renderer, uint32 RequiredResolution)
