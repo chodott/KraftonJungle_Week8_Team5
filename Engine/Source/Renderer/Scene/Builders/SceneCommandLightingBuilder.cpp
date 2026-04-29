@@ -2,6 +2,7 @@
 
 #include "Renderer/Scene/Builders/SceneCommandBuilder.h"
 #include "Renderer/Scene/SceneViewData.h"
+#include "Level/SceneRenderPacket.h"
 
 #include "Actor/Actor.h"
 #include "Component/AmbientLightComponent.h"
@@ -9,6 +10,7 @@
 #include "Component/PrimitiveComponent.h"
 #include "Component/PointLightComponent.h"
 #include "Component/SpotLightComponent.h"
+#include "Component/SkyComponent.h"
 #include "Math/MathUtility.h"
 #include "World/World.h"
 
@@ -17,6 +19,7 @@
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
+#include <vector>
 
 #include "Math/Cascade.h"
 
@@ -541,6 +544,59 @@ namespace
 		}
 	};
 
+	float VectorLength(const FVector& V)
+	{
+		return std::sqrt((std::max)(0.0f, V.SizeSquared()));
+	}
+
+	float LerpFloat(float A, float B, float T)
+	{
+		return A + (B - A) * T;
+	}
+
+	float SmoothStep01(float Edge0, float Edge1, float X)
+	{
+		if (std::abs(Edge1 - Edge0) <= 1.0e-6f)
+		{
+			return (X >= Edge1) ? 1.0f : 0.0f;
+		}
+
+		const float T = FMath::Clamp((X - Edge0) / (Edge1 - Edge0), 0.0f, 1.0f);
+		return T * T * (3.0f - 2.0f * T);
+	}
+
+	float QuantizePSMDepth(float Value)
+	{
+		const float Step = 1.0f / 16.0f;
+		return std::floor(Value / Step + 0.5f) * Step;
+	}
+
+	float QuantizePSMDepthCeil(float Value)
+	{
+		const float Step = 1.0f / 16.0f;
+		return std::ceil(Value / Step) * Step;
+	}
+
+	float QuantizePSMValue(float Value, float Step)
+	{
+		if (Step <= 0.0f)
+		{
+			return Value;
+		}
+
+		return std::floor(Value / Step + 0.5f) * Step;
+	}
+
+	float QuantizeToStep(float Value, float Step)
+	{
+		if (Step <= 0.0f)
+		{
+			return Value;
+		}
+
+		return std::floor(Value / Step + 0.5f) * Step;
+	}
+
 	void BuildAABBCorners(const FVector& MinWS, const FVector& MaxWS, FVector OutCorners[8])
 	{
 		OutCorners[0] = FVector(MinWS.X, MinWS.Y, MinWS.Z);
@@ -552,6 +608,73 @@ namespace
 		OutCorners[5] = FVector(MaxWS.X, MinWS.Y, MaxWS.Z);
 		OutCorners[6] = FVector(MinWS.X, MaxWS.Y, MaxWS.Z);
 		OutCorners[7] = FVector(MaxWS.X, MaxWS.Y, MaxWS.Z);
+	}
+
+	bool IsFiniteVector(const FVector& V)
+	{
+		return std::isfinite(V.X) && std::isfinite(V.Y) && std::isfinite(V.Z);
+	}
+
+	bool ShouldUsePrimitiveForPSMBounds(const UPrimitiveComponent* Primitive)
+	{
+		if (!Primitive || Primitive->IsPendingKill() || !Primitive->IsRegistered())
+		{
+			return false;
+		}
+
+		if (Primitive->IsHiddenInGame() || Primitive->IsEditorVisualization())
+		{
+			return false;
+		}
+
+		if (Primitive->IsA(USkyComponent::StaticClass()))
+		{
+			return false;
+		}
+
+		const AActor* Owner = Primitive->GetOwner();
+		if (!Owner || Owner->IsPendingDestroy() || !Owner->IsVisible())
+		{
+			return false;
+		}
+
+		return Primitive->GetRenderMesh() != nullptr;
+	}
+
+	void MergePrimitiveIntoPSMBounds(FPSMSceneBounds& Bounds, const UPrimitiveComponent* Primitive)
+	{
+		if (!ShouldUsePrimitiveForPSMBounds(Primitive))
+		{
+			return;
+		}
+
+		FBoxSphereBounds WorldBounds = Primitive->GetWorldBounds();
+
+		if (!IsFiniteVector(WorldBounds.Center)
+			|| !IsFiniteVector(WorldBounds.BoxExtent)
+			|| !std::isfinite(WorldBounds.Radius)
+			|| WorldBounds.Radius <= 0.0f
+			|| WorldBounds.Radius > 1.0e7f)
+		{
+			return;
+		}
+
+		const float Expand = FMath::Clamp(WorldBounds.Radius * 0.03f, 5.0f, 50.0f);
+		WorldBounds.BoxExtent += FVector(Expand, Expand, Expand);
+
+		Bounds.MergeBounds(WorldBounds);
+	}
+
+	FPSMSceneBounds BuildPSMSceneBoundsFromPacket(const FSceneRenderPacket& Packet)
+	{
+		FPSMSceneBounds Bounds;
+
+		for (const FSceneMeshPrimitive& Primitive : Packet.MeshPrimitives)
+		{
+			MergePrimitiveIntoPSMBounds(Bounds, Primitive.Component);
+		}
+
+		return Bounds;
 	}
 
 	FPSMSceneBounds BuildPSMSceneBoundsFromWorld(const FSceneCommandBuildContext& BuildContext)
@@ -574,27 +697,29 @@ namespace
 
 			for (UActorComponent* Component : Actor->GetComponents())
 			{
-				if (!Component || Component->IsPendingKill() || !Component->IsRegistered())
+				if (!Component || !Component->IsA(UPrimitiveComponent::StaticClass()))
 				{
 					continue;
 				}
 
-				if (!Component->IsA(UPrimitiveComponent::StaticClass()))
-				{
-					continue;
-				}
-
-				const UPrimitiveComponent* Primitive =
-					static_cast<const UPrimitiveComponent*>(Component);
-
-				FBoxSphereBounds WorldBounds = Primitive->GetWorldBounds();
-
-				// PSM에서 receiver bounds만 너무 타이트하게 잡으면
-				// 화면 밖 caster / potential caster가 잘릴 수 있으므로 약간 확장합니다.
-				WorldBounds.BoxExtent += FVector(50.0f, 50.0f, 50.0f);
-
-				Bounds.MergeBounds(WorldBounds);
+				MergePrimitiveIntoPSMBounds(
+					Bounds,
+					static_cast<const UPrimitiveComponent*>(Component));
 			}
+		}
+
+		return Bounds;
+	}
+
+	FPSMSceneBounds BuildPSMSceneBounds(
+		const FSceneCommandBuildContext& BuildContext,
+		const FSceneRenderPacket& Packet)
+	{
+		FPSMSceneBounds Bounds = BuildPSMSceneBoundsFromPacket(Packet);
+
+		if (!Bounds.bValid)
+		{
+			Bounds = BuildPSMSceneBoundsFromWorld(BuildContext);
 		}
 
 		return Bounds;
@@ -652,13 +777,13 @@ namespace
 
 		const float NearSafetyMargin = FMath::Clamp(
 			BaseRange * 0.03f,
-			1.0f,
-			10.0f);
+			0.50f,
+			8.0f);
 
 		const float FarSafetyMargin = FMath::Clamp(
-			BaseRange * 0.12f,
-			20.0f,
-			120.0f);
+			BaseRange * 0.10f,
+			5.0f,
+			80.0f);
 
 		const float CandidateNear =
 			MinPositiveDepth + VirtualSlideBack - NearSafetyMargin;
@@ -668,17 +793,26 @@ namespace
 
 		constexpr float PSMMinNearZ = 0.50f;
 
-		const float MinPSMRange = (std::min)(
-			BaseRange,
-			FMath::Clamp(BaseRange * 0.45f, 50.0f, 200.0f));
+		const float MinPSMRange = FMath::Clamp(
+			BaseRange * 0.25f,
+			3.0f,
+			(std::max)(3.0f, BaseRange * 0.65f));
 
-		OutNear = (std::max)(BaseNear, (std::max)(PSMMinNearZ, CandidateNear));
-		OutNear = (std::min)(OutNear, BaseFar - MinPSMRange);
-		OutNear = (std::max)(PSMMinNearZ, OutNear);
+		float FitNear = (std::max)(BaseNear, (std::max)(PSMMinNearZ, CandidateNear));
+		float FitFar = (std::max)(CandidateFar, FitNear + MinPSMRange);
 
-		OutFar = (std::min)(
-			BaseFar,
-			(std::max)(CandidateFar, OutNear + MinPSMRange));
+		FitFar = (std::min)(FitFar, BaseFar);
+		FitNear = (std::min)(FitNear, FitFar - MinPSMRange);
+		FitNear = (std::max)(PSMMinNearZ, FitNear);
+		FitFar = (std::max)(FitFar, FitNear + 1.0f);
+
+		OutNear = (std::max)(PSMMinNearZ, QuantizePSMDepth(FitNear));
+		OutFar = QuantizePSMDepthCeil(FitFar);
+
+		if (OutFar > BaseFar)
+		{
+			OutFar = BaseFar;
+		}
 
 		return OutFar > OutNear + 1.0f;
 	}
@@ -689,27 +823,6 @@ namespace
 		return FVector(V.X, V.Y, V.Z);
 	}
 
-	float VectorLength(const FVector& V)
-	{
-		return std::sqrt((std::max)(0.0f, V.SizeSquared()));
-	}
-
-	float LerpFloat(float A, float B, float T)
-	{
-		return A + (B - A) * T;
-	}
-
-	float SmoothStep01(float Edge0, float Edge1, float X)
-	{
-		if (std::abs(Edge1 - Edge0) <= 1.0e-6f)
-		{
-			return (X >= Edge1) ? 1.0f : 0.0f;
-		}
-
-		const float T = FMath::Clamp((X - Edge0) / (Edge1 - Edge0), 0.0f, 1.0f);
-		return T * T * (3.0f - 2.0f * T);
-	}
-
 	float ComputePSMFrontFacingT(float Dot)
 	{
 		return SmoothStep01(0.05f, 0.45f, Dot);
@@ -718,28 +831,6 @@ namespace
 	float ComputePSMSideToAlignedT(float Dot)
 	{
 		return FMath::Clamp((std::abs(Dot) - 0.18f) / 0.37f, 0.0f, 1.0f);
-	}
-
-	float QuantizePSMDepth(float Value)
-	{
-		const float Step = 1.0f / 16.0f;
-		return std::floor(Value / Step + 0.5f) * Step;
-	}
-
-	float QuantizePSMDepthCeil(float Value)
-	{
-		const float Step = 1.0f / 16.0f;
-		return std::ceil(Value / Step) * Step;
-	}
-
-	float QuantizePSMValue(float Value, float Step)
-	{
-		if (Step <= 0.0f)
-		{
-			return Value;
-		}
-
-		return std::floor(Value / Step + 0.5f) * Step;
 	}
 
 	FVector GetCameraPositionWS(const FViewContext& View)
@@ -799,16 +890,6 @@ namespace
 		Out.Aspect = (std::max)(0.001f, MaxAbsY / MaxAbsZ);
 
 		return Out;
-	}
-
-	float QuantizeToStep(float Value, float Step)
-	{
-		if (Step <= 0.0f)
-		{
-			return Value;
-		}
-
-		return std::floor(Value / Step + 0.5f) * Step;
 	}
 
 	void BuildCameraFrustumSliceCornersWS(
@@ -1073,8 +1154,11 @@ namespace
 	FPostPerspectiveShadowCamera BuildPostPerspectiveShadowCamera(
 		const FMatrix& VCView,
 		const FMatrix& VCProjection,
-		const FVector& LightDirectionWS)
+		const FVector& LightDirectionWS,
+		const FPSMSceneBounds& PSMSceneBounds)
 	{
+		(void)PSMSceneBounds;
+
 		FPostPerspectiveShadowCamera Result;
 
 		const FVector PPCenter(0.0f, 0.0f, 0.5f);
@@ -1112,8 +1196,17 @@ namespace
 			const float NearPP = (std::max)(0.001f, DistToCenter - PPRadius);
 			const float FarPP = (std::max)(NearPP + 0.001f, DistToCenter + PPRadius);
 
-			Result.View = FMatrix::MakeViewLookAtLH(LightPositionPP, PPCenter, UpPP);
-			Result.Projection = FMatrix::MakeOrthographicLH(PPRadius * 2.0f, PPRadius * 2.0f, NearPP, FarPP);
+			Result.View = FMatrix::MakeViewLookAtLH(
+				LightPositionPP,
+				PPCenter,
+				UpPP);
+
+			Result.Projection = FMatrix::MakeOrthographicLH(
+				PPRadius * 2.0f,
+				PPRadius * 2.0f,
+				NearPP,
+				FarPP);
+
 			Result.bOrthographic = true;
 			Result.bInversePerspective = false;
 
@@ -1127,14 +1220,27 @@ namespace
 		const float SafeW = WSign * SafeAbsW;
 		const float InvW = 1.0f / SafeW;
 
-		const FVector LightPositionPP(
+		FVector LightPositionPP(
 			LightPPH.X * InvW,
 			LightPPH.Y * InvW,
 			LightPPH.Z * InvW);
 
-		const FVector ToCenter = PPCenter - LightPositionPP;
-		const float DistToCenter = (std::max)(0.001f, VectorLength(ToCenter));
-		const FVector ForwardPP = ToCenter * (1.0f / DistToCenter);
+		if (!IsFiniteVector(LightPositionPP))
+		{
+			LightPositionPP = PPCenter + FVector(1.0f, 0.0f, 0.0f) * (PPRadius * 2.0f);
+		}
+
+		FVector ToCenter = PPCenter - LightPositionPP;
+		float DistToCenter = VectorLength(ToCenter);
+
+		if (DistToCenter <= 1.0e-4f)
+		{
+			LightPositionPP = PPCenter + FVector(1.0f, 0.0f, 0.0f) * (PPRadius * 2.0f);
+			ToCenter = PPCenter - LightPositionPP;
+			DistToCenter = VectorLength(ToCenter);
+		}
+
+		const FVector ForwardPP = ToCenter * (1.0f / (std::max)(DistToCenter, 1.0e-4f));
 
 		FVector UpPP = FVector::ZAxisVector;
 		if (std::abs(FVector::DotProduct(ForwardPP, UpPP)) > 0.99f)
@@ -1142,26 +1248,45 @@ namespace
 			UpPP = FVector::YAxisVector;
 		}
 
-		const float FovPP = 2.0f * std::atan(PPRadius / DistToCenter);
+		const float FovPP = FMath::Clamp(
+			2.0f * std::atan(PPRadius / (std::max)(DistToCenter, 1.0e-4f)),
+			FMath::DegreesToRadians(2.0f),
+			FMath::DegreesToRadians(155.0f));
+
 		const float AspectPP = 1.0f;
 
-		Result.View = FMatrix::MakeViewLookAtLH(LightPositionPP, PPCenter, UpPP);
-		Result.bOrthographic = false;
+		Result.View = FMatrix::MakeViewLookAtLH(
+			LightPositionPP,
+			PPCenter,
+			UpPP);
 
 		if (LightPPH.W < 0.0f)
 		{
 			const float Plane = (std::max)(0.24f, DistToCenter - PPRadius);
-			Result.Projection = FMatrix::MakePerspectiveFovLH(FovPP, AspectPP, -Plane, Plane);
+
+			Result.Projection = FMatrix::MakePerspectiveFovLH(
+				FovPP,
+				AspectPP,
+				-Plane,
+				Plane);
+
 			Result.bInversePerspective = true;
 		}
 		else
 		{
 			const float NearPP = (std::max)(0.1f, DistToCenter - PPRadius);
 			const float FarPP = (std::max)(NearPP + 0.001f, DistToCenter + PPRadius);
-			Result.Projection = FMatrix::MakePerspectiveFovLH(FovPP, AspectPP, NearPP, FarPP);
+
+			Result.Projection = FMatrix::MakePerspectiveFovLH(
+				FovPP,
+				AspectPP,
+				NearPP,
+				FarPP);
+
 			Result.bInversePerspective = false;
 		}
 
+		Result.bOrthographic = false;
 		return Result;
 	}
 
@@ -1272,7 +1397,7 @@ namespace
 		}
 
 		const FVector VCPositionWS = CameraPositionWS - CameraForwardWS * VirtualSlideBack;
-		const FVector VCTargetWS = CameraPositionWS + CameraForwardWS;
+		const FVector VCTargetWS = VCPositionWS + CameraForwardWS;
 
 		const FMatrix VCView = FMatrix::MakeViewLookAtLH(
 			VCPositionWS,
@@ -1288,9 +1413,10 @@ namespace
 		const FPostPerspectiveShadowCamera PPCamera = BuildPostPerspectiveShadowCamera(
 			VCView,
 			VCProjection,
-			LightDirectionWS);
+			LightDirectionWS,
+			PSMSceneBounds);
 
-		Result.PositionWS = CameraPositionWS;
+		Result.PositionWS = VCPositionWS;
 		Result.NearZ = VCNear;
 		Result.FarZ = VCFar;
 		Result.View = VCView;
@@ -1326,16 +1452,25 @@ namespace
 		const FViewContext& View,
 		float UserShadowFarZ)
 	{
-		constexpr float PSMQualityFarCap = 350.0f;
-		constexpr float PSMMinFarZ = 80.0f;
+		(void)UserShadowFarZ;
 
-		const float UserFar = (UserShadowFarZ > 0.0f)
-			? (std::max)(UserShadowFarZ, View.NearZ + 1.0f)
-			: PSMQualityFarCap;
+		constexpr float PSMQualityFarCap = 120.0f;
+		constexpr float PSMMinFarZ = 20.0f;
+
+		const float MaxAllowedFar = (std::max)(View.NearZ + 1.0f, PSMQualityFarCap);
+
+		auto ClampPSMFar = [&](float CandidateFar)
+		{
+			const float MinAllowedFar = (std::min)(
+				MaxAllowedFar,
+				(std::max)(View.NearZ + 10.0f, PSMMinFarZ));
+
+			return FMath::Clamp(CandidateFar, MinAllowedFar, MaxAllowedFar);
+		};
 
 		if (!Bounds.bValid)
 		{
-			return FMath::Clamp(PSMQualityFarCap, View.NearZ + 1.0f, UserFar);
+			return ClampPSMFar(PSMQualityFarCap);
 		}
 
 		const FVector CameraPositionWS = GetCameraPositionWS(View);
@@ -1343,7 +1478,7 @@ namespace
 
 		if (CameraForwardWS.IsNearlyZero())
 		{
-			return FMath::Clamp(PSMQualityFarCap, View.NearZ + 1.0f, UserFar);
+			return ClampPSMFar(PSMQualityFarCap);
 		}
 
 		FVector Corners[8];
@@ -1368,25 +1503,15 @@ namespace
 
 		if (PositiveCount == 0 || MaxPositiveDepth <= 0.0f)
 		{
-			return FMath::Clamp(PSMQualityFarCap, View.NearZ + 1.0f, UserFar);
+			return ClampPSMFar(PSMQualityFarCap);
 		}
 
 		const float FarMargin = FMath::Clamp(
-			MaxPositiveDepth * 0.20f,
-			30.0f,
-			150.0f);
+			MaxPositiveDepth * 0.15f,
+			10.0f,
+			60.0f);
 
-		const float CandidateFar = MaxPositiveDepth + FarMargin;
-
-		const float MaxAllowedFar = (std::max)(
-			View.NearZ + 1.0f,
-			(std::min)(UserFar, PSMQualityFarCap));
-
-		const float MinAllowedFar = (std::min)(
-			MaxAllowedFar,
-			(std::max)(View.NearZ + 20.0f, PSMMinFarZ));
-
-		return FMath::Clamp(CandidateFar, MinAllowedFar, MaxAllowedFar);
+		return ClampPSMFar(MaxPositiveDepth + FarMargin);
 	}
 
 	void BuildDirectionalShadowViews(
@@ -1418,8 +1543,8 @@ namespace
 		CascadeCount = (std::min)(CascadeCount, ShadowConfig::MaxDirCascade);
 
 		const float ShadowFarZ = bUsePSM
-			? ComputePSMAdaptiveShadowFarZ(PSMSceneBounds, View, DirLight->GetShadowFarZ())
-			: DirLight->GetShadowFarZ();
+			? ComputePSMAdaptiveShadowFarZ(PSMSceneBounds, View, 0.0f)
+			: (std::max)(DirLight->GetShadowFarZ(), View.NearZ + 1.0f);
 
 		TArray<float> FrustumSplits = FCasCade::CalculateCascadeSplits(
 			CascadeCount,
@@ -1597,9 +1722,7 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 	const FViewContext& View,
 	FSceneViewData& OutSceneViewData) const
 {
-	(void)Packet;
-
-	const FPSMSceneBounds PSMSceneBounds = BuildPSMSceneBoundsFromWorld(BuildContext);
+	const FPSMSceneBounds PSMSceneBounds = BuildPSMSceneBounds(BuildContext, Packet);
 
 	FSceneLightingInputs& LightingInputs = OutSceneViewData.LightingInputs;
 	LightingInputs.Clear();

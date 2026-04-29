@@ -108,8 +108,16 @@ void UDirectionalLightComponent::Serialize(FArchive& Ar)
 		ShadowProjectionMode = ProjectionModeValue == static_cast<int32>(EDirectionalShadowProjectionMode::PSM)
 			? EDirectionalShadowProjectionMode::PSM
 			: EDirectionalShadowProjectionMode::CSM;
+
 		CascadeCount = FMath::Clamp(CascadeCount, 1, 4);
-		ShadowFarZ = (std::max)(ShadowFarZ, 1.0f);
+
+		// PSM에서는 ShadowFarZ <= 0 을 auto-far 의도로 쓸 수 있게 보존합니다.
+		// CSM 경로에서만 안전값으로 보정합니다.
+		if (ShadowProjectionMode == EDirectionalShadowProjectionMode::CSM)
+		{
+			ShadowFarZ = (std::max)(ShadowFarZ, 1.0f);
+		}
+
 		SplitLambda = FMath::Clamp(SplitLambda, 0.0f, 1.0f);
 	}
 }
