@@ -524,8 +524,8 @@ namespace
 
 		// The previous implementation had a visible discontinuity at Dot ~= 0.35.
 		// Keep the same rough strength envelope, but make it a single continuous curve.
-		const float MaxAbsoluteSlide = LerpFloat(50.0f, 100.0f, FrontT);
-		const float RangeScale = LerpFloat(0.10f, 0.25f, FrontT);
+		const float MaxAbsoluteSlide = LerpFloat(40.0f, 757.0f, FrontT);
+		const float RangeScale = LerpFloat(0.075f, 0.18f, FrontT);
 
 		float SlideBack =
 			(std::min)(MaxAbsoluteSlide, Range * RangeScale)
@@ -534,8 +534,8 @@ namespace
 
 		if (CascadeIndex == 0)
 		{
-			const float TargetScale = LerpFloat(0.40f, 0.54f, SideToAlignedT);
-			const float TargetMin = LerpFloat(2.25f, 3.25f, SideToAlignedT);
+			const float TargetScale = LerpFloat(0.44f, 0.58f, SideToAlignedT);
+			const float TargetMin = LerpFloat(2.75f, 3.75f, SideToAlignedT);
 			const float TargetFarScale = LerpFloat(0.58f, 0.76f, SideToAlignedT);
 
 			const float TargetDepthAtSplitNear = FMath::Clamp(
@@ -544,7 +544,7 @@ namespace
 				(std::max)(TargetMin, SplitFar * TargetFarScale));
 
 			const float RequiredSlide = (std::max)(0.0f, TargetDepthAtSplitNear - SplitNear);
-			const float MaxSlideAbs = LerpFloat(45.0f, 65.0f, SideToAlignedT);
+			const float MaxSlideAbs = LerpFloat(55.0f, 75.0f, SideToAlignedT);
 			const float MaxSlideRange = LerpFloat(0.85f, 1.10f, SideToAlignedT);
 			const float MaxSlide = (std::min)(MaxSlideAbs, Range * MaxSlideRange);
 
@@ -672,7 +672,7 @@ namespace
 
 		const float AbsW = std::abs(LightPPH.W);
 		const float WSign = (LightPPH.W < 0.0f) ? -1.0f : 1.0f;
-		const float WSoft = 0.004f;
+		const float WSoft = 0.002f;
 		const float SafeAbsW = std::sqrt(AbsW * AbsW + WSoft * WSoft);
 		const float SafeW = WSign * SafeAbsW;
 		const float InvW = 1.0f / SafeW;
@@ -937,11 +937,28 @@ namespace
 			return;
 		}
 
+		// The first cascade is the most stable for near contact shadows.
+		// If the shader starts blending cascade 1 before the first split, cascade 1 can
+		// erase or offset cascade 0 contact shadows because each cascade has its own PSM.
+		// Push only the advertised cascade-0 -> cascade-1 boundary slightly farther out,
+		// and also build cascade 0 to that farther boundary so it remains valid there.
+		TArray<float> SelectionSplits = FrustumSplits;
+		if (CascadeCount > 1 && FrustumSplits.size() > 2)
+		{
+			const float Split0 = FrustumSplits[1];
+			const float Split1 = FrustumSplits[2];
+			const float PushRange = (std::max)(0.0f, Split1 - Split0);
+			const float Cascade0HoldRatio = 0.18f;
+			SelectionSplits[1] = (std::min)(
+				Split1 - 0.25f,
+				Split0 + PushRange * Cascade0HoldRatio);
+		}
+
 		LightItem.CascadeSplits = FVector4(
-			FrustumSplits.size() > 1 ? FrustumSplits[1] : 0.0f,
-			FrustumSplits.size() > 2 ? FrustumSplits[2] : 0.0f,
-			FrustumSplits.size() > 3 ? FrustumSplits[3] : 0.0f,
-			FrustumSplits.size() > 4 ? FrustumSplits[4] : 0.0f
+			SelectionSplits.size() > 1 ? SelectionSplits[1] : 0.0f,
+			SelectionSplits.size() > 2 ? SelectionSplits[2] : 0.0f,
+			SelectionSplits.size() > 3 ? SelectionSplits[3] : 0.0f,
+			SelectionSplits.size() > 4 ? SelectionSplits[4] : 0.0f
 		);
 
 		const float ResolutionScale = DirLight->GetShadowResolutionScale();
@@ -952,12 +969,20 @@ namespace
 		{
 			const float SplitNear = FrustumSplits[CascadeIndex];
 			const float SplitFar = FrustumSplits[CascadeIndex + 1];
+
+			float BuildSplitNear = SplitNear;
+			float BuildSplitFar = SplitFar;
+			if (CascadeIndex == 0 && SelectionSplits.size() > 1)
+			{
+				// Keep cascade 0 valid up to the delayed public boundary.
+				BuildSplitFar = (std::max)(BuildSplitFar, SelectionSplits[1]);
+			}
 			
 			const FCascadePSMResult PSM = BuildCascadePSMMatrix(
 				View,
 				LightItem.DirectionWS,
-				SplitNear,
-				SplitFar,
+				BuildSplitNear,
+				BuildSplitFar,
 				CascadeIndex,
 				DirLight);
 
