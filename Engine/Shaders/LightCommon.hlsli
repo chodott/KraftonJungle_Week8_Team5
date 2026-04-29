@@ -763,11 +763,12 @@ float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, flo
             for (int x = -1; x <= 1; ++x)
             {
 				float2 tapUV = baseUV + float2(x, y) * tile.TexelSize;
-
+                tapUV = ClampAtlasUV(tapUV, tile);
+                
                 visibility += DirShadowDepthTexture.SampleCmpLevelZero(
-					ShadowSampler, 
-					tapUV, 
-					compareDepth);
+                    ShadowSampler,
+                    tapUV,
+                    compareDepth);
             }
         }
         return visibility / 9.0f;
