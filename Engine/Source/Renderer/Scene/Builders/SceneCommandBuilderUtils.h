@@ -12,7 +12,7 @@ namespace SceneCommandBuilderUtils
 		}
 	}
 
-	inline bool AddBatch(const FSceneCommandBuildContext& BuildContext, FSceneViewData& OutSceneViewData, FMeshBatch&& Batch)
+	inline bool AddBatch(const FSceneCommandBuildContext& BuildContext, TArray<FMeshBatch>& OutBatches, FMeshBatch&& Batch)
 	{
 		FinalizeBatchMaterial(BuildContext, Batch);
 		if (!Batch.Mesh || !Batch.Material)
@@ -20,8 +20,13 @@ namespace SceneCommandBuilderUtils
 			return false;
 		}
 
-		Batch.SubmissionOrder = static_cast<uint64>(OutSceneViewData.MeshInputs.Batches.size());
-		OutSceneViewData.MeshInputs.Batches.push_back(std::move(Batch));
+		Batch.SubmissionOrder = static_cast<uint64>(OutBatches.size());
+		OutBatches.push_back(std::move(Batch));
 		return true;
+	}
+
+	inline bool AddBatch(const FSceneCommandBuildContext& BuildContext, FSceneViewData& OutSceneViewData, FMeshBatch&& Batch)
+	{
+		return AddBatch(BuildContext, OutSceneViewData.MeshInputs.Batches, std::move(Batch));
 	}
 }

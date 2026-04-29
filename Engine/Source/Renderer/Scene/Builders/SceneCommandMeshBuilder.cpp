@@ -29,12 +29,13 @@ namespace
 	}
 }
 
-void FSceneCommandMeshBuilder::BuildMeshInputs(
+static void BuildMeshInputsForPrimitives(
 	const FSceneCommandBuildContext& BuildContext,
-	const FSceneRenderPacket&        Packet,
-	FSceneViewData&                  OutSceneViewData) const
+	const TArray<FSceneMeshPrimitive>& Primitives,
+	FSceneViewData&                  OutSceneViewData,
+	FSceneMeshInputs&                OutMeshInputs)
 {
-	for (const FSceneMeshPrimitive& Primitive : Packet.MeshPrimitives)
+	for (const FSceneMeshPrimitive& Primitive : Primitives)
 	{
 		UPrimitiveComponent* PrimitiveComponent = Primitive.Component;
 		if (!PrimitiveComponent)
@@ -134,7 +135,7 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 					}
 				}
 			}
-			SceneCommandBuilderUtils::AddBatch(BuildContext, OutSceneViewData, std::move(Batch));
+			SceneCommandBuilderUtils::AddBatch(BuildContext, OutMeshInputs.Batches, std::move(Batch));
 			continue;
 		}
 
@@ -217,7 +218,31 @@ void FSceneCommandMeshBuilder::BuildMeshInputs(
 					}
 				}
 			}
-			SceneCommandBuilderUtils::AddBatch(BuildContext, OutSceneViewData, std::move(Batch));
+			SceneCommandBuilderUtils::AddBatch(BuildContext, OutMeshInputs.Batches, std::move(Batch));
 		}
 	}
+}
+
+void FSceneCommandMeshBuilder::BuildMeshInputs(
+	const FSceneCommandBuildContext& BuildContext,
+	const FSceneRenderPacket&        Packet,
+	FSceneViewData&                  OutSceneViewData) const
+{
+	BuildMeshInputsForPrimitives(
+		BuildContext,
+		Packet.MeshPrimitives,
+		OutSceneViewData,
+		OutSceneViewData.MeshInputs);
+}
+
+void FSceneCommandMeshBuilder::BuildShadowMeshInputs(
+	const FSceneCommandBuildContext& BuildContext,
+	const FSceneRenderPacket&        Packet,
+	FSceneViewData&                  OutSceneViewData) const
+{
+	BuildMeshInputsForPrimitives(
+		BuildContext,
+		Packet.ShadowCasterPrimitives,
+		OutSceneViewData,
+		OutSceneViewData.ShadowMeshInputs);
 }

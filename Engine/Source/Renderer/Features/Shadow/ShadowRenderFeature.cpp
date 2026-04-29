@@ -40,7 +40,7 @@ namespace
 			? EMaterialPassType::ShadowESM
 			: EMaterialPassType::ShadowVSM;
 
-		for (const FMeshBatch& Batch : SceneViewData.MeshInputs.Batches)
+		for (const FMeshBatch& Batch : SceneViewData.ShadowMeshInputs.Batches)
 		{
 			if (!Batch.Mesh || !Batch.Material)
 			{
@@ -1478,7 +1478,7 @@ void FShadowRenderFeature::RenderShadowViews(
 				SceneViewData.View.bShadowDynamicOnly    = false;
 
 				BeginPass(Renderer, CacheRTV, CacheDSV, SceneViewData.View.Viewport, SceneViewData.Frame, SceneViewData.View);
-				Processor.ExecutePass(Renderer, Targets, SceneViewData, EMeshPassType::ShadowVSM);
+				Processor.ExecutePass(Renderer, Targets, SceneViewData, SceneViewData.ShadowMeshInputs.Batches, EMeshPassType::ShadowVSM);
 			}
 
 			Light.bCacheDirty = false;
@@ -1544,17 +1544,17 @@ void FShadowRenderFeature::RenderShadowViews(
 				if (GlobalFilterMode == EShadowFilterMode::Raw || GlobalFilterMode == EShadowFilterMode::PCF)
 				{
 					BeginPass(Renderer, 0, nullptr, LocalShadowCacheDepthAtlasDSV, SceneViewData.View.Viewport, SceneViewData.Frame, SceneViewData.View);
-					Processor.ExecutePass(Renderer, Targets, SceneViewData, EMeshPassType::DepthPrepass);
+					Processor.ExecutePass(Renderer, Targets, SceneViewData, SceneViewData.ShadowMeshInputs.Batches, EMeshPassType::DepthPrepass);
 				}
 				else if (GlobalFilterMode == EShadowFilterMode::VSM)
 				{
 					BeginPass(Renderer, LocalShadowCacheMomentsAtlasRTV, LocalShadowCacheDepthAtlasDSV, SceneViewData.View.Viewport, SceneViewData.Frame, SceneViewData.View);
-					Processor.ExecutePass(Renderer, Targets, SceneViewData, EMeshPassType::ShadowVSM);
+					Processor.ExecutePass(Renderer, Targets, SceneViewData, SceneViewData.ShadowMeshInputs.Batches, EMeshPassType::ShadowVSM);
 				}
 				else if(GlobalFilterMode == EShadowFilterMode::ESM)
 				{
 					BeginPass(Renderer, LocalShadowCacheMomentsAtlasRTV, LocalShadowCacheDepthAtlasDSV, SceneViewData.View.Viewport, SceneViewData.Frame, SceneViewData.View);
-					Processor.ExecutePass(Renderer, Targets, SceneViewData, EMeshPassType::ShadowESM);
+					Processor.ExecutePass(Renderer, Targets, SceneViewData, SceneViewData.ShadowMeshInputs.Batches, EMeshPassType::ShadowESM);
 				}
 
 				Light.bCacheDirty = false;
@@ -1727,7 +1727,7 @@ void FShadowRenderFeature::RenderShadowViews(
 		}
 
 		BeginPass(Renderer, MomentsRTV, ShadowDSV, ShadowViewport, SceneViewData.Frame, SceneViewData.View);
-		Processor.ExecutePass(Renderer, Targets, SceneViewData, PassType);
+		Processor.ExecutePass(Renderer, Targets, SceneViewData, SceneViewData.ShadowMeshInputs.Batches, PassType);
 
 	}
 
@@ -1847,7 +1847,7 @@ void FShadowRenderFeature::RenderDirectionalShadows(
 		}
 
 		BeginPass(Renderer, DirMomentsRTV, DirShadowDSV, DirShadowViewport, SceneViewData.Frame, SceneViewData.View);
-		Processor.ExecutePass(Renderer, Targets, SceneViewData, PassType);
+		Processor.ExecutePass(Renderer, Targets, SceneViewData, SceneViewData.ShadowMeshInputs.Batches, PassType);
 	}
 
 	CachedDirShadowViews.clear();

@@ -301,11 +301,13 @@ void FSceneCommandBuilder::BuildSceneViewData(
 	OutSceneViewData.Frame = Frame;
 	OutSceneViewData.View  = View;
 	OutSceneViewData.MeshInputs.Clear();
+	OutSceneViewData.ShadowMeshInputs.Clear();
 	OutSceneViewData.LightingInputs.Clear();
 	OutSceneViewData.PostProcessInputs.Clear();
 	OutSceneViewData.DebugInputs.Clear();
 
 	MeshBuilder.BuildMeshInputs(BuildContext, Packet, OutSceneViewData);
+	MeshBuilder.BuildShadowMeshInputs(BuildContext, Packet, OutSceneViewData);
 	LightingBuilder.BuildLightingInputs(BuildContext, Packet, View, OutSceneViewData);
 	TextBuilder.BuildTextInputs(BuildContext, Packet, View, OutSceneViewData);
 	SpriteBuilder.BuildSubUVInputs(BuildContext, Packet, View, OutSceneViewData);

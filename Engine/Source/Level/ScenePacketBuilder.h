@@ -14,10 +14,16 @@ class ENGINE_API FScenePacketBuilder
 {
 public:
 	bool ShouldIncludePrimitive(UPrimitiveComponent* Primitive, const FShowFlags& ShowFlags) const;
+	bool ShouldIncludeShadowCaster(UPrimitiveComponent* Primitive, const FShowFlags& ShowFlags) const;
 
 	// 이미 수집된 프리미티브를 ShowFlag 기준으로 분류해 씬 패킷에 기록한다.
 	void BuildScenePacket(
 		const TArray<UPrimitiveComponent*>& VisiblePrimitives,
+		const FShowFlags& ShowFlags,
+		FSceneRenderPacket& OutPacket);
+
+	void BuildShadowCasterPacket(
+		const TArray<UPrimitiveComponent*>& ShadowCasterPrimitives,
 		const FShowFlags& ShowFlags,
 		FSceneRenderPacket& OutPacket);
 };

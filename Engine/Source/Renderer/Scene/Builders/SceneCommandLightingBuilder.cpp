@@ -447,12 +447,8 @@ namespace
 			Spot->GetOuterConeAngle(),
 			ViewProjMatrix);
 
-		if (Coverage <= 0.0f)
-		{
-			return;
-		}
-
-		const float ResolutionFactor = std::sqrt(Coverage) * Spot->GetShadowResolutionScale();
+		const float SafeCoverage = FMath::Clamp(Coverage, 0.01f, 1.0f);
+		const float ResolutionFactor = std::sqrt(SafeCoverage) * Spot->GetShadowResolutionScale();
 		const uint32 RequestedResolution = QuantizeShadowResolution(
 			static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionFactor));
 
@@ -671,7 +667,7 @@ namespace
 	{
 		FPSMSceneBounds Bounds;
 
-		for (const FSceneMeshPrimitive& Primitive : Packet.MeshPrimitives)
+		for (const FSceneMeshPrimitive& Primitive : Packet.ShadowCasterPrimitives)
 		{
 			MergePrimitiveIntoPSMBounds(Bounds, Primitive.Component);
 		}
@@ -1674,12 +1670,8 @@ namespace
 			LightItem.Range,
 			ViewProjMatrix);
 
-		if (Coverage <= 0.0f)
-		{
-			return;
-		}
-
-		const float ResolutionFactor = std::sqrt(Coverage) * Point->GetShadowResolutionScale();
+		const float SafeCoverage = FMath::Clamp(Coverage, 0.01f, 1.0f);
+		const float ResolutionFactor = std::sqrt(SafeCoverage) * Point->GetShadowResolutionScale();
 		const uint32 RequestedResolution = QuantizeShadowResolution(
 			static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionFactor));
 

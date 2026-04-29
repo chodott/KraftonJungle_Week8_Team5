@@ -71,6 +71,7 @@ struct ENGINE_API FSceneDirectionalLightPrimitive
 struct ENGINE_API FSceneRenderPacket
 {
 	TArray<FSceneMeshPrimitive> MeshPrimitives;
+	TArray<FSceneMeshPrimitive> ShadowCasterPrimitives;
 	TArray<FSceneTextPrimitive> TextPrimitives;
 	TArray<FSceneSubUVPrimitive> SubUVPrimitives;
 	TArray<FSceneBillboardPrimitive> BillboardPrimitives;
@@ -86,6 +87,7 @@ struct ENGINE_API FSceneRenderPacket
 	void Reserve(size_t PrimitiveCountHint)
 	{
 		MeshPrimitives.reserve(PrimitiveCountHint);
+		ShadowCasterPrimitives.reserve(PrimitiveCountHint);
 		TextPrimitives.reserve(PrimitiveCountHint);
 		SubUVPrimitives.reserve(PrimitiveCountHint);
 		BillboardPrimitives.reserve(PrimitiveCountHint);
@@ -101,6 +103,7 @@ struct ENGINE_API FSceneRenderPacket
 	void Clear()
 	{
 		MeshPrimitives.clear();
+		ShadowCasterPrimitives.clear();
 		TextPrimitives.clear();
 		SubUVPrimitives.clear();
 		BillboardPrimitives.clear();

@@ -24,6 +24,12 @@ public:
 		FSceneRenderTargets&  Targets,
 		const FSceneViewData& SceneViewData,
 		EMeshPassType         PassType) const;
+	void ExecutePass(
+		FRenderer&                Renderer,
+		FSceneRenderTargets&      Targets,
+		const FSceneViewData&     SceneViewData,
+		const TArray<FMeshBatch>& SourceBatches,
+		EMeshPassType             PassType) const;
 
 	const FMeshPassFrameStats& GetFrameStats() const
 	{

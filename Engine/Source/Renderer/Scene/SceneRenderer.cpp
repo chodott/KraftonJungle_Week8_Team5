@@ -58,7 +58,9 @@ void FSceneRenderer::BuildSceneViewData(
 		AdditionalMeshBatches,
 		OutSceneViewData);
 
-	CurrentFramePeakCommandCount = (std::max)(CurrentFramePeakCommandCount, OutSceneViewData.MeshInputs.Batches.size());
+	CurrentFramePeakCommandCount = (std::max)(
+		CurrentFramePeakCommandCount,
+		(std::max)(OutSceneViewData.MeshInputs.Batches.size(), OutSceneViewData.ShadowMeshInputs.Batches.size()));
 }
 
 bool FSceneRenderer::RenderSceneView(

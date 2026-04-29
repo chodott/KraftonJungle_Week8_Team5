@@ -13,4 +13,9 @@ public:
 		const FSceneCommandBuildContext& BuildContext,
 		const FSceneRenderPacket& Packet,
 		FSceneViewData& OutSceneViewData) const;
+
+	void BuildShadowMeshInputs(
+		const FSceneCommandBuildContext& BuildContext,
+		const FSceneRenderPacket& Packet,
+		FSceneViewData& OutSceneViewData) const;
 };

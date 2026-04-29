@@ -38,6 +38,7 @@ void BuildSceneViewDataFromPacket(
 	FSceneViewData&             OutSceneViewData)
 {
 	OutSceneViewData.MeshInputs.Batches.reserve(Packet.MeshPrimitives.size() + AdditionalMeshBatches.size());
+	OutSceneViewData.ShadowMeshInputs.Batches.reserve(Packet.ShadowCasterPrimitives.size());
 	OutSceneViewData.PostProcessInputs.Clear();
 	OutSceneViewData.DebugInputs.Clear();
 

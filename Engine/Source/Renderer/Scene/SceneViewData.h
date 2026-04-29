@@ -156,6 +156,7 @@ struct ENGINE_API FSceneViewData
 	FViewContext  View;
 
 	FSceneMeshInputs        MeshInputs;
+	FSceneMeshInputs        ShadowMeshInputs;
 	FSceneLightingInputs    LightingInputs;
 	FScenePostProcessInputs PostProcessInputs;
 	FSceneDebugInputs       DebugInputs;

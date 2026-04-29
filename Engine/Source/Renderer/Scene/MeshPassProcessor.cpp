@@ -39,15 +39,21 @@ void FMeshPassProcessor::UploadMeshBuffers(FRenderer& Renderer, const FSceneView
 	}
 
 	std::unordered_set<FRenderMesh*> UploadedMeshes;
-	for (const FMeshBatch& Batch : SceneViewData.MeshInputs.Batches)
+	const auto UploadBatches = [&](const TArray<FMeshBatch>& SourceBatches)
 	{
-		if (!Batch.Mesh || !UploadedMeshes.insert(Batch.Mesh).second)
+		for (const FMeshBatch& Batch : SourceBatches)
 		{
-			continue;
-		}
+			if (!Batch.Mesh || !UploadedMeshes.insert(Batch.Mesh).second)
+			{
+				continue;
+			}
 
-		Batch.Mesh->UpdateVertexAndIndexBuffer(Device, Context);
-	}
+			Batch.Mesh->UpdateVertexAndIndexBuffer(Device, Context);
+		}
+	};
+
+	UploadBatches(SceneViewData.MeshInputs.Batches);
+	UploadBatches(SceneViewData.ShadowMeshInputs.Batches);
 }
 
 void FMeshPassProcessor::ExecutePass(
@@ -55,6 +61,16 @@ void FMeshPassProcessor::ExecutePass(
 	FSceneRenderTargets&  Targets,
 	const FSceneViewData& SceneViewData,
 	EMeshPassType         PassType) const
+{
+	ExecutePass(Renderer, Targets, SceneViewData, SceneViewData.MeshInputs.Batches, PassType);
+}
+
+void FMeshPassProcessor::ExecutePass(
+	FRenderer&                Renderer,
+	FSceneRenderTargets&      Targets,
+	const FSceneViewData&     SceneViewData,
+	const TArray<FMeshBatch>& SourceBatches,
+	EMeshPassType             PassType) const
 {
 	const FMeshPassClock::time_point PassStartTime = FMeshPassClock::now();
 	ID3D11DeviceContext*             DeviceContext = Renderer.GetDeviceContext();
@@ -64,17 +80,20 @@ void FMeshPassProcessor::ExecutePass(
 	}
 
 	std::vector<const FMeshBatch*> Batches;
-	Batches.reserve(SceneViewData.MeshInputs.Batches.size());
+	Batches.reserve(SourceBatches.size());
 
 	// 그림자 패스에서는 라이트 영향권 밖 메시 컬링 (per-light distance culling)
 	// ShadowVSM 패스는 항상 라이트 시점이라 안전하게 컬링 가능.
 	// DepthPrepass는 메인 카메라/그림자 양쪽에서 쓰여서 컬링하면 메인 씬이 잘릴 위험.
-	const bool bIsShadowPass = (PassType == EMeshPassType::ShadowVSM);
+	const bool bIsShadowPass =
+		PassType == EMeshPassType::ShadowVSM ||
+		PassType == EMeshPassType::ShadowESM ||
+		(PassType == EMeshPassType::DepthPrepass && (SceneViewData.View.bShadowStaticOnly || SceneViewData.View.bShadowDynamicOnly));
 	const FVector LightPosWS = SceneViewData.View.CameraPosition;
 	const float   LightRange = SceneViewData.View.FarZ;
 	uint32 CulledCount = 0;
 	uint32 KeptCount = 0;
-	for (const FMeshBatch& Batch : SceneViewData.MeshInputs.Batches)
+	for (const FMeshBatch& Batch : SourceBatches)
 	{
 		if (!Batch.Mesh || !Batch.Material || !ShouldDrawInPass(Batch, PassType))
 		{

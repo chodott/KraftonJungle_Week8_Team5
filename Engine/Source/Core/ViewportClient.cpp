@@ -165,6 +165,11 @@ void IViewportClient::BuildSceneRenderPacket(
 	TArray<UPrimitiveComponent*> VisiblePrimitives;
 	Level->QueryPrimitivesByFrustum(Frustum, VisiblePrimitives);
 	ScenePacketBuilder.BuildScenePacket(VisiblePrimitives, Flags, OutPacket);
+
+	TArray<UPrimitiveComponent*> ShadowCasterPrimitives;
+	Level->GatherShadowCasterPrimitives(ShadowCasterPrimitives);
+	ScenePacketBuilder.BuildShadowCasterPacket(ShadowCasterPrimitives, Flags, OutPacket);
+
 	AppendHeightFogPrimitives(Level, Flags, OutPacket);
 	AppendFireBallPrimitives(Level, OutPacket);
 	OutPacket.bApplyFXAA = Flags.HasFlag(EEngineShowFlags::SF_FXAA);

@@ -98,6 +98,49 @@ bool FScenePacketBuilder::ShouldIncludePrimitive(UPrimitiveComponent* Primitive,
 	return bHasRenderMesh;
 }
 
+bool FScenePacketBuilder::ShouldIncludeShadowCaster(UPrimitiveComponent* Primitive, const FShowFlags& ShowFlags) const
+{
+	if (!Primitive || Primitive->IsPendingKill())
+	{
+		return false;
+	}
+
+	AActor* Owner = Primitive->GetOwner();
+	if (!Owner || !Owner->IsVisible())
+	{
+		return false;
+	}
+
+	if (UWorld* World = Owner->GetWorld())
+	{
+		const EWorldType WorldType    = World->GetWorldType();
+		const bool       bIsPlayWorld = (WorldType == EWorldType::Game || WorldType == EWorldType::PIE);
+		if (bIsPlayWorld && Primitive->IsHiddenInGame())
+		{
+			return false;
+		}
+	}
+
+	if (!ShowFlags.HasFlag(EEngineShowFlags::SF_Primitives))
+	{
+		return false;
+	}
+
+	if (Primitive->IsEditorVisualization()
+		|| IsArrowVisualizationPrimitive(Primitive)
+		|| Primitive->IsA(UUUIDBillboardComponent::StaticClass())
+		|| Primitive->IsA(UBillboardComponent::StaticClass())
+		|| Primitive->IsA(USubUVComponent::StaticClass())
+		|| Primitive->IsA(UTextRenderComponent::StaticClass())
+		|| Primitive->IsA(UDecalComponent::StaticClass())
+		|| Primitive->IsA(UMeshDecalComponent::StaticClass()))
+	{
+		return false;
+	}
+
+	return Primitive->GetRenderMesh() != nullptr;
+}
+
 void FScenePacketBuilder::BuildScenePacket(
 	const TArray<UPrimitiveComponent*>& VisiblePrimitives,
 	const FShowFlags&                   ShowFlags,
@@ -156,4 +199,22 @@ void FScenePacketBuilder::BuildScenePacket(
 		}
 	}
 
+}
+
+void FScenePacketBuilder::BuildShadowCasterPacket(
+	const TArray<UPrimitiveComponent*>& ShadowCasterPrimitives,
+	const FShowFlags&                   ShowFlags,
+	FSceneRenderPacket&                 OutPacket)
+{
+	OutPacket.ShadowCasterPrimitives.reserve(OutPacket.ShadowCasterPrimitives.size() + ShadowCasterPrimitives.size());
+
+	for (UPrimitiveComponent* Primitive : ShadowCasterPrimitives)
+	{
+		if (!ShouldIncludeShadowCaster(Primitive, ShowFlags))
+		{
+			continue;
+		}
+
+		OutPacket.ShadowCasterPrimitives.push_back({ Primitive });
+	}
 }

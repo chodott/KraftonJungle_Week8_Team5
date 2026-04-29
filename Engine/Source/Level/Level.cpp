@@ -421,6 +421,11 @@ void ULevel::GatherPrimitiveComponents(TArray<UPrimitiveComponent*>& OutPrimitiv
 	}
 }
 
+void ULevel::GatherShadowCasterPrimitives(TArray<UPrimitiveComponent*>& OutPrimitives) const
+{
+	GatherPrimitiveComponents(OutPrimitives, true, true);
+}
+
 void ULevel::RebuildSpatialIfNeeded() const
 {
 	if (!bSpatialDirty)
