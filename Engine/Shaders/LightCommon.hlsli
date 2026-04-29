@@ -730,7 +730,10 @@ float SampleShadowViewRawDepth(
 
 float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, float3 worldPos, float3 N, float3 L)
 {
-	float4 clip = mul(float4(worldPos, 1.0f), view.LightViewProjection);
+	float NdotL = saturate(dot(N, L));
+	float normalOffsetScale = saturate(1.0f - NdotL);
+	float3 biasedWorldPos = worldPos + N * (0.1 * normalOffsetScale);
+	float4 clip = mul(float4(biasedWorldPos, 1.0f), view.LightViewProjection);
     if (clip.w <= 0.0f)
         return 1.0f;
 
@@ -748,7 +751,7 @@ float GetCascadeVisibility(FShadowViewGPU view, FShadowLightGPU shadowLight, flo
     
     float baseBias = view.BiasParams.x;
     float slopeBias = view.BiasParams.y;
-    float NdotL = saturate(dot(N, L));
+  
     float slope = sqrt(saturate(1.0f - NdotL * NdotL)) / max(NdotL, 0.0001f);
     // float variableBias = clamp(slopeBias * slope, 0.0f, baseBias * 10.0f);	clamp로 slope 막기
 	float variableBias = min(slopeBias * slope, 0.05f);

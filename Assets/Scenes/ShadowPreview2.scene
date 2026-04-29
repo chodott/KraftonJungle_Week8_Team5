@@ -27,19 +27,19 @@
     "Assets/Materials/M_TintYellow.json",
     "Assets/Materials/M_TintYellow.json"
   ],
-  "NextUUID": 2288,
+  "NextUUID": 2666,
   "PerspectiveCamera": {
     "FOV": 61.13999938964844,
     "FarClip": 1000.0,
     "Location": [
-      -43.78229522705078,
-      2.671403169631958,
-      55.19343185424805
+      -47.07927322387695,
+      7.39961576461792,
+      39.41119384765625
     ],
     "NearClip": 0.10000000149011612,
     "Rotation": [
-      -26.00031852722168,
-      -22.598628997802734,
+      -19.40028190612793,
+      -8.598573684692383,
       0.0
     ]
   },
@@ -60,7 +60,7 @@
           "CascadeSlopeBias3": 9.999999747378752e-05,
           "CascadeTransitionValue": 0.10000000149011612,
           "Class": "UDirectionalLightComponent",
-          "Intensity": 0.5,
+          "Intensity": 0.05000000074505806,
           "IntensityUnits": 3,
           "LightColor": [
             1.0,
@@ -75,9 +75,9 @@
           ],
           "Name": "DirectionalLightComponent",
           "Rotation": [
-            0.00010427409870317206,
+            0.0001042741205310449,
             -45.0,
-            0.00010427409870317206
+            0.0001042741205310449
           ],
           "Scale": [
             1.0,
@@ -85,7 +85,7 @@
             1.0
           ],
           "ShadowBias": 9.999999747378752e-05,
-          "ShadowESMExponent": 80.0,
+          "ShadowESMExponent": 10.0,
           "ShadowFarZ": 300.0,
           "ShadowProjectionMode": 0,
           "ShadowResolutionScale": 8.0,
@@ -117,9 +117,9 @@
           ],
           "Name": "BillboardComponent",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -169,9 +169,9 @@
           "NormalTextureOverrides": [],
           "ObjStaticMeshAsset": "",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             0.019999999552965164,
@@ -196,9 +196,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -241,9 +241,9 @@
           ],
           "Name": "AmbientLightComponent",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -280,9 +280,9 @@
           ],
           "Name": "BillboardComponent",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -320,9 +320,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -371,7 +371,7 @@
           "Rotation": [
             -75.50958251953125,
             -3.621246337890625,
-            14.904998779296875
+            14.90499496459961
           ],
           "Scale": [
             1.0,
@@ -391,9 +391,9 @@
           "AttachParentUUID": 619,
           "AxisLockMode": 0,
           "BaseColor": [
-            1.0,
-            1.0,
-            1.0,
+            0.0,
+            0.12496589124202728,
+            0.32368773221969604,
             1.0
           ],
           "Class": "UBillboardComponent",
@@ -408,9 +408,9 @@
           ],
           "Name": "BillboardComponent",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -446,9 +446,9 @@
           ],
           "Name": "ConeGizmoComponent",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -473,9 +473,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -514,7 +514,7 @@
       "Class": "AActor",
       "Components": [
         {
-          "AttachParentUUID": 0,
+          "AttachParentUUID": 754,
           "Billboard": true,
           "Class": "UUUIDBillboardComponent",
           "DrawDebugBounds": false,
@@ -529,9 +529,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -598,9 +598,9 @@
           "NormalTextureOverrides": [],
           "ObjStaticMeshAsset": "chopper_body.model",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -637,9 +637,9 @@
           "NormalTextureOverrides": [],
           "ObjStaticMeshAsset": "chopper_propeller.model",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -669,7 +669,7 @@
       "Class": "AActor",
       "Components": [
         {
-          "AttachParentUUID": 0,
+          "AttachParentUUID": 961,
           "Billboard": true,
           "Class": "UUUIDBillboardComponent",
           "DrawDebugBounds": false,
@@ -684,9 +684,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -753,9 +753,9 @@
           "NormalTextureOverrides": [],
           "ObjStaticMeshAsset": "chopper_body.model",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -792,9 +792,9 @@
           "NormalTextureOverrides": [],
           "ObjStaticMeshAsset": "chopper_propeller.model",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -837,7 +837,7 @@
       "Class": "AActor",
       "Components": [
         {
-          "AttachParentUUID": 0,
+          "AttachParentUUID": 1110,
           "Billboard": true,
           "Class": "UUUIDBillboardComponent",
           "DrawDebugBounds": false,
@@ -852,9 +852,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -908,7 +908,7 @@
           "ObjStaticMeshAsset": "Squirtle.model",
           "Rotation": [
             0.0,
-            0.0,
+            -0.0,
             4.282848358154297
           ],
           "Scale": [
@@ -966,8 +966,8 @@
           "NormalTextureOverrides": [],
           "ObjStaticMeshAsset": "PrimitiveBox.model",
           "Rotation": [
-            -0.0,
-            90.0,
+            0.0,
+            89.000244140625,
             0.0
           ],
           "Scale": [
@@ -993,9 +993,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -1021,7 +1021,7 @@
       "Class": "AActor",
       "Components": [
         {
-          "AttachParentUUID": 0,
+          "AttachParentUUID": 1343,
           "Billboard": true,
           "Class": "UUUIDBillboardComponent",
           "DrawDebugBounds": false,
@@ -1036,9 +1036,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -1123,7 +1123,7 @@
       "Class": "AActor",
       "Components": [
         {
-          "AttachParentUUID": 0,
+          "AttachParentUUID": 1347,
           "Billboard": true,
           "Class": "UUUIDBillboardComponent",
           "DrawDebugBounds": false,
@@ -1138,9 +1138,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -1225,7 +1225,7 @@
       "Class": "AActor",
       "Components": [
         {
-          "AttachParentUUID": 0,
+          "AttachParentUUID": 1607,
           "Billboard": true,
           "Class": "UUUIDBillboardComponent",
           "DrawDebugBounds": false,
@@ -1240,9 +1240,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -1270,9 +1270,9 @@
           ],
           "Name": "PlayerStartRootComponent",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             0.0010000000474974513,
@@ -1302,9 +1302,9 @@
           ],
           "Name": "PlayerStartBillboardComponent",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -1361,7 +1361,7 @@
           "NormalTextureOverrides": [],
           "ObjStaticMeshAsset": "PrimitiveBox.model",
           "Rotation": [
-            0.0003451519296504557,
+            0.00034515204606577754,
             90.0,
             0.0
           ],
@@ -1388,9 +1388,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -1443,9 +1443,9 @@
           "NormalTextureOverrides": [],
           "ObjStaticMeshAsset": "PrimitiveBox.model",
           "Rotation": [
-            -0.0,
-            90.0,
-            0.0
+            3.597253453335725e-05,
+            89.00004577636719,
+            3.597253453335725e-05
           ],
           "Scale": [
             50.0,
@@ -1470,9 +1470,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -1525,7 +1525,7 @@
           "NormalTextureOverrides": [],
           "ObjStaticMeshAsset": "PrimitiveBox.model",
           "Rotation": [
-            90.0,
+            90.99999237060547,
             90.0,
             0.0
           ],
@@ -1552,9 +1552,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -1607,14 +1607,14 @@
           "NormalTextureOverrides": [],
           "ObjStaticMeshAsset": "PrimitiveBox.model",
           "Rotation": [
-            90.0,
-            90.0,
+            0.9999999403953552,
+            -0.0,
             0.0
           ],
           "Scale": [
             50.0,
-            50.0,
-            1.0
+            1.0,
+            50.0
           ],
           "UUID": 483
         },
@@ -1634,9 +1634,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -1689,9 +1689,9 @@
           "NormalTextureOverrides": [],
           "ObjStaticMeshAsset": "PrimitiveBox.model",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             50.0,
@@ -1716,9 +1716,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -1788,8 +1788,8 @@
           "AxisLockMode": 0,
           "BaseColor": [
             1.0,
-            1.0,
-            1.0,
+            0.0,
+            0.0,
             1.0
           ],
           "Class": "UBillboardComponent",
@@ -1804,9 +1804,9 @@
           ],
           "Name": "BillboardComponent",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -1842,9 +1842,9 @@
           ],
           "Name": "ConeGizmoComponent",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -1869,9 +1869,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -1954,8 +1954,8 @@
           "AxisLockMode": 0,
           "BaseColor": [
             1.0,
-            1.0,
-            1.0,
+            0.9024250507354736,
+            0.0,
             1.0
           ],
           "Class": "UBillboardComponent",
@@ -1970,9 +1970,9 @@
           ],
           "Name": "BillboardComponent",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -2008,9 +2008,9 @@
           ],
           "Name": "ConeGizmoComponent",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -2035,9 +2035,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -2097,9 +2097,9 @@
           "Name": "SpotLightComponent",
           "OuterConeAngle": 44.0,
           "Rotation": [
-            180.0,
+            -179.99996948242188,
             -61.5772705078125,
-            180.0
+            -179.99996948242188
           ],
           "Scale": [
             1.0,
@@ -2119,9 +2119,9 @@
           "AttachParentUUID": 501,
           "AxisLockMode": 0,
           "BaseColor": [
+            0.0,
             1.0,
-            1.0,
-            1.0,
+            0.020732024684548378,
             1.0
           ],
           "Class": "UBillboardComponent",
@@ -2136,9 +2136,9 @@
           ],
           "Name": "BillboardComponent",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -2174,9 +2174,9 @@
           ],
           "Name": "ConeGizmoComponent",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
@@ -2201,9 +2201,9 @@
           ],
           "Name": "UUIDBillboard",
           "Rotation": [
+            -0.0,
             0.0,
-            0.0,
-            0.0
+            -0.0
           ],
           "Scale": [
             1.0,
