@@ -215,6 +215,86 @@ namespace
 		return FMath::Clamp(Coverage, 0.0f, 1.0f);
 	}
 
+	float ComputePointScreenCoverage(
+		const FVector& LightPosition,
+		float Range,
+		const FMatrix& ViewProj)
+	{
+		const float SafeRange = (std::max)(Range, 0.0f);
+		if (SafeRange <= 0.0f)
+		{
+			return 0.0f;
+		}
+
+		float MinX = FLT_MAX;
+		float MinY = FLT_MAX;
+		float MaxX = -FLT_MAX;
+		float MaxY = -FLT_MAX;
+
+		int32 ProjectedCount = 0;
+
+		auto AddProjectedPoint = [&](const FVector& WorldPos)
+			{
+				const FVector4 Clip = ViewProj.TransformVector4(FVector4(WorldPos, 1.0f));
+				if (Clip.W <= 1.0e-4f)
+				{
+					return;
+				}
+
+				const float InvW = 1.0f / Clip.W;
+				const float NdcX = Clip.X * InvW;
+				const float NdcY = Clip.Y * InvW;
+
+				MinX = std::min(MinX, NdcX);
+				MinY = std::min(MinY, NdcY);
+				MaxX = std::max(MaxX, NdcX);
+				MaxY = std::max(MaxY, NdcY);
+
+				++ProjectedCount;
+			};
+
+		AddProjectedPoint(LightPosition);
+
+		static const FVector SampleDirections[] =
+		{
+			FVector(1.0f, 0.0f, 0.0f),
+			FVector(-1.0f, 0.0f, 0.0f),
+			FVector(0.0f, 1.0f, 0.0f),
+			FVector(0.0f, -1.0f, 0.0f),
+			FVector(0.0f, 0.0f, 1.0f),
+			FVector(0.0f, 0.0f, -1.0f),
+			FVector(1.0f, 1.0f, 1.0f).GetSafeNormal(),
+			FVector(1.0f, 1.0f, -1.0f).GetSafeNormal(),
+			FVector(1.0f, -1.0f, 1.0f).GetSafeNormal(),
+			FVector(1.0f, -1.0f, -1.0f).GetSafeNormal(),
+			FVector(-1.0f, 1.0f, 1.0f).GetSafeNormal(),
+			FVector(-1.0f, 1.0f, -1.0f).GetSafeNormal(),
+			FVector(-1.0f, -1.0f, 1.0f).GetSafeNormal(),
+			FVector(-1.0f, -1.0f, -1.0f).GetSafeNormal(),
+		};
+
+		for (const FVector& Direction : SampleDirections)
+		{
+			AddProjectedPoint(LightPosition + Direction * SafeRange);
+		}
+
+		if (ProjectedCount == 0)
+		{
+			return 0.0f;
+		}
+
+		MinX = FMath::Clamp(MinX, -1.0f, 1.0f);
+		MinY = FMath::Clamp(MinY, -1.0f, 1.0f);
+		MaxX = FMath::Clamp(MaxX, -1.0f, 1.0f);
+		MaxY = FMath::Clamp(MaxY, -1.0f, 1.0f);
+
+		const float Width = std::max(0.0f, MaxX - MinX);
+		const float Height = std::max(0.0f, MaxY - MinY);
+		const float Coverage = (Width * Height) * 0.25f;
+
+		return FMath::Clamp(Coverage, 0.0f, 1.0f);
+	}
+
 	uint32 QuantizeShadowResolution(uint32 Resolution)
 	{
 		if (Resolution >= 2048) return 2048;
@@ -488,7 +568,13 @@ namespace
 		}
 	}
 
-	void BuildPointShadowViews(FSceneLightingInputs& Inputs,const UPointLightComponent* Point, const FLocalLightRenderItem& LightItem,uint32 ShadowLightIndex, uint32 CubeArrayIndex)
+	void BuildPointShadowViews(
+		FSceneLightingInputs&        Inputs,
+		const UPointLightComponent*  Point,
+		const FLocalLightRenderItem& LightItem,
+		uint32                       ShadowLightIndex,
+		uint32                       CubeArrayIndex,
+		const FMatrix&               ViewProjMatrix)
 	{
 		static const FVector CubeFaceLook[6] = {{ 1, 0, 0 }, { -1, 0, 0 },	{ 0, 1, 0 }, { 0,-1, 0 },{0, 0, 1 },{ 0, 0, -1 },};
 		static const FVector CubeFaceUp[6] = {{ 0, 1, 0 }, { 0, 1, 0 }, { 0, 0, -1 }, { 0, 0, 1 },{ 0, 1, 0 }, { 0, 1, 0 },	};
@@ -506,6 +592,16 @@ namespace
 		const float NearZ = ShadowConfig::DefaultNearZ;
 		const float FarZ = (std::max)(LightItem.Range, NearZ + 0.001f);
 
+		const float Coverage = ComputePointScreenCoverage(LightItem.PositionWS, LightItem.Range, ViewProjMatrix);
+		if (Coverage <= 0.0f)
+		{
+			return;
+		}
+
+		const float ResolutionFactor = std::sqrt(Coverage) * Point->GetShadowResolutionScale();
+		const uint32 RequestedResolution = QuantizeShadowResolution(
+			static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionFactor));
+
 		const uint32 BaseSlice = ShadowConfig::PointShadowSliceOffset + CubeArrayIndex * 6;
 
 		for (uint32 F = 0; F < 6; ++F)
@@ -515,7 +611,7 @@ namespace
 			View.PositionWS = LightItem.PositionWS;
 			View.NearZ = NearZ;
 			View.FarZ = FarZ;
-			View.RequestedResolution = ShadowConfig::DefaultShadowMapResolution;
+			View.RequestedResolution = RequestedResolution;
 
 			View.View = FMatrix::MakeViewLookAtLH(
 				LightItem.PositionWS,
@@ -725,7 +821,7 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 			if (ShadowLightIndex != UINT32_MAX)
 			{
 				BuildPointShadowViews(LightingInputs, Candidate.PointLightl, LightItem,
-					ShadowLightIndex, PointCubeCounter);
+					ShadowLightIndex, PointCubeCounter, View.ViewProjection);
 
 				if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount == 6)
 				{

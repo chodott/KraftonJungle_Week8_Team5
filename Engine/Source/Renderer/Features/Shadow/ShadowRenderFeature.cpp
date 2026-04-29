@@ -1251,7 +1251,7 @@ void FShadowRenderFeature::RenderShadowViews(
 		RenderOrder.push_back(i);
 	}
 
-	std::sort(
+	std::stable_sort(
 		RenderOrder.begin(),
 		RenderOrder.end(),
 		[&](uint32 A, uint32 B)
@@ -1260,9 +1260,15 @@ void FShadowRenderFeature::RenderShadowViews(
 			const FShadowViewRenderItem& VB = SceneViewData.LightingInputs.ShadowViews[B];
 			const bool AIsSpot = VA.LightType == EShadowLightType::Spot;
 			const bool BIsSpot = VB.LightType == EShadowLightType::Spot;
+			const bool AIsPoint = VA.LightType == EShadowLightType::Point;
+			const bool BIsPoint = VB.LightType == EShadowLightType::Point;
 			if (AIsSpot != BIsSpot) return AIsSpot; // spot 먼저
 			if (AIsSpot && BIsSpot) return VA.RequestedResolution > VB.RequestedResolution;
-			return A < B; // point는 기존 순서 유지
+			if (AIsPoint && BIsPoint && VA.RequestedResolution != VB.RequestedResolution)
+			{
+				return VA.RequestedResolution > VB.RequestedResolution;
+			}
+			return false;
 		});
 
 	// Spot Light 아틀라스 할당
