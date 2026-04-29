@@ -2792,7 +2792,11 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 				(bIsSpot && View.LightType == EShadowLightType::Spot) ||
 				(bIsPoint && View.LightType == EShadowLightType::Point);
 
-			if (bMatchesLightType && (bIsDirectional || View.SourceActor == SelectedOwner))
+			const bool bMatchesComponent = View.SourceComponent
+				? View.SourceComponent == LightComponent
+				: View.SourceActor == SelectedOwner;
+
+			if (bMatchesLightType && bMatchesComponent)
 			{
 				MyViews.push_back(&View);
 			}
@@ -2846,6 +2850,32 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 				}
 
 				for (auto* V : MyViews) { if (V->ArraySlice == ShadowFeature->GetDebugViewSlice()) { SelectedView = V; break; } }
+			}
+		}
+
+		if (SelectedView)
+		{
+			const char* ResolutionSuffix = bIsPoint ? " per face" : "";
+
+			ImGui::Text("Requested Resolution");
+			ImGui::NextColumn();
+			ImGui::Text("%u x %u%s",
+				SelectedView->RequestedResolution,
+				SelectedView->RequestedResolution,
+				ResolutionSuffix);
+
+			ImGui::Text("Allocated Resolution");
+			ImGui::NextColumn();
+			if (SelectedView->AllocatedResolution > 0)
+			{
+				ImGui::Text("%u x %u%s",
+					SelectedView->AllocatedResolution,
+					SelectedView->AllocatedResolution,
+					ResolutionSuffix);
+			}
+			else
+			{
+				ImGui::TextDisabled("Unavailable");
 			}
 		}
 

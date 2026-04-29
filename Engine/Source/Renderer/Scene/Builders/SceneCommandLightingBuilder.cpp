@@ -462,6 +462,7 @@ namespace
 		View.NearZ = NearZ;
 		View.FarZ = FarZ;
 		View.SourceActor = Spot->GetOwner();
+		View.SourceComponent = Spot;
 
 		View.View = FMatrix::MakeViewLookAtLH(
 			LightItem.PositionWS,
@@ -1616,6 +1617,8 @@ namespace
 				0.0f,
 				MaxDirectionalESMExponent);
 			ViewItem.Viewport = {};
+			ViewItem.SourceActor = DirLight->GetOwner();
+			ViewItem.SourceComponent = DirLight;
 
 			AddDirShadowView(Inputs, ShadowLightIndex, ViewItem);
 		}
@@ -1690,6 +1693,7 @@ namespace
 			View.NearZ = NearZ;
 			View.FarZ = FarZ;
 			View.SourceActor = Point->GetOwner();
+			View.SourceComponent = Point;
 			View.RequestedResolution = RequestedResolution;
 
 			View.View = FMatrix::MakeViewLookAtLH(
