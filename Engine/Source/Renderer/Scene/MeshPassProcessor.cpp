@@ -132,7 +132,7 @@ void FMeshPassProcessor::ExecutePass(
 	}
 	if (bIsShadowPass)
 	{
-		UE_LOG("Shadow culling: %u kept, %u culled", KeptCount, CulledCount);
+		/// UE_LOG("Shadow culling: %u kept, %u culled", KeptCount, CulledCount);
 	}
 	if (Batches.empty())
 	{
