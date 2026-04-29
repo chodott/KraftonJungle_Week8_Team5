@@ -30,6 +30,36 @@ namespace
 		}
 	}
 
+	uint32 CountAllocatedLocalShadowLights(
+		const TArray<FShadowViewRenderItem>& Views,
+		EShadowLightType LightType)
+	{
+		std::vector<uint32> CountedLightIndices;
+
+		for (const FShadowViewRenderItem& View : Views)
+		{
+			if (View.LightType != LightType || View.ShadowLightIndex == UINT32_MAX)
+			{
+				continue;
+			}
+
+			const bool bAllocated = LightType == EShadowLightType::Spot
+				? View.bAtlasAllocated
+				: View.AllocatedResolution > 0;
+			if (!bAllocated)
+			{
+				continue;
+			}
+
+			if (std::find(CountedLightIndices.begin(), CountedLightIndices.end(), View.ShadowLightIndex) == CountedLightIndices.end())
+			{
+				CountedLightIndices.push_back(View.ShadowLightIndex);
+			}
+		}
+
+		return static_cast<uint32>(CountedLightIndices.size());
+	}
+
 	bool HasShadowMomentCaster(const FSceneViewData& SceneViewData, EShadowFilterMode FilterMode)
 	{
 		const bool bUseESM = FilterMode == EShadowFilterMode::ESM;
@@ -383,6 +413,7 @@ bool FShadowRenderFeature::RenderShadows(
 		{
 			ClearShadowAtlasState(Renderer);
 		}
+		ShadowStatsCache = FShadowStats{};
 		return true;
 	}
 
@@ -408,11 +439,12 @@ bool FShadowRenderFeature::RenderShadows(
 	// snapshot per-frame stats for editor queries
 	ShadowStatsCache = FShadowStats{};
 	ShadowStatsCache.ActiveDirShadowLights = static_cast<uint32>(SceneViewData.LightingInputs.DirShadowLights.size());
-	for (const FShadowLightRenderItem& L : SceneViewData.LightingInputs.ShadowLights)
-	{
-		if (L.LightType == EShadowLightType::Spot)        ++ShadowStatsCache.ActiveSpotShadowLights;
-		else if (L.LightType == EShadowLightType::Point)  ++ShadowStatsCache.ActivePointShadowLights;
-	}
+	ShadowStatsCache.ActiveSpotShadowLights = CountAllocatedLocalShadowLights(
+		SceneViewData.LightingInputs.ShadowViews,
+		EShadowLightType::Spot);
+	ShadowStatsCache.ActivePointShadowLights = CountAllocatedLocalShadowLights(
+		SceneViewData.LightingInputs.ShadowViews,
+		EShadowLightType::Point);
 	auto TextureBytes = [](ID3D11Texture2D* Tex, uint32 BytesPerPixel) -> uint64
 	{
 		if (!Tex) return 0;
@@ -1456,9 +1488,17 @@ void FShadowRenderFeature::RenderShadowViews(
 				}
 				const FShadowViewRenderItem& CacheView = SceneViewData.LightingInputs.ShadowViews[ViewIdx];
 				const uint32                 Slice     = CacheView.ArraySlice;
+				if (Slice >= ShadowConfig::MaxShadowViews)
+				{
+					continue;
+				}
 
 				ID3D11RenderTargetView* CacheRTV = ShadowCacheMomentsCubeRTVs[Slice];
 				ID3D11DepthStencilView* CacheDSV = ShadowCacheDepthCubeDSVs[Slice];
+				if (!CacheRTV || !CacheDSV)
+				{
+					continue;
+				}
 
 				DeviceContext->ClearRenderTargetView(CacheRTV, ClearMoments);
 				DeviceContext->ClearDepthStencilView(CacheDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
@@ -1673,6 +1713,10 @@ void FShadowRenderFeature::RenderShadowViews(
 
 			ShadowDSV = Pool.DepthDSVs[Slice];
 			MomentsRTV = Pool.MomentsRTVs[Slice];
+			if (!ShadowDSV || !MomentsRTV || Resolution == 0)
+			{
+				continue;
+			}
 			ShadowViewport = BuildShadowViewport(0, 0, Resolution);
 
 			if (Light.Mobility == ELightMobility::Movable)
