@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 
 class AActor;
+class ULightComponent;
 
 namespace ShadowConfig
 {
@@ -127,6 +128,7 @@ struct FShadowViewRenderItem
 	float ESMExponent = 0.0f;
 
 	AActor* SourceActor = nullptr;
+	const ULightComponent* SourceComponent = nullptr;
 };
 
 
