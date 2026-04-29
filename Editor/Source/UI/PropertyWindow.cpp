@@ -2709,6 +2709,14 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 		LightComponent->SetShadowSharpen(ShadowSharpeness);
 	}
 
+	float ShadowESMExponent = LightComponent->GetShadowESMExponent();
+	ImGui::Text("Shadow ESM Exponent");
+	ImGui::NextColumn();
+	if (ImGui::DragFloat("Shadow ESM Exponent", &ShadowESMExponent, 1.0f, 0.0f, 300.0f, "%.1f"))
+	{
+		LightComponent->SetShadowESMExponent(ShadowESMExponent);
+	}
+
 	ImGui::Spacing();
 	ImGui::Separator();
 	ImGui::TextDisabled("View");
@@ -2782,8 +2790,7 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 			ShadowFeature->SetDebugDirectional(bIsDirectional);
 		}
 
-		int DebugMode  = static_cast<int>(ShadowFeature->GetDebugViewMode());
-		int DebugSlice = static_cast<int>(ShadowFeature->GetDebugViewSlice());
+		int DebugMode = static_cast<int>(ShadowFeature->GetDebugViewMode());
 
 		const char* DebugModeNames[] =
 		{
@@ -2837,12 +2844,12 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 		ImGui::EndDisabled();
 
 
-		ImGui::Text("Debug Slice");
+ImGui::Text("Debug Slice");
 		ImGui::NextColumn();
 
-		bIsDirectional = SelectedComponent && SelectedComponent->IsA(UDirectionalLightComponent::StaticClass());
-		bool bIsLocal = SelectedComponent && (SelectedComponent->IsA(USpotLightComponent::StaticClass()) || SelectedComponent->IsA(UPointLightComponent::StaticClass()));
-		AActor* SelectedOwner = SelectedComponent ? SelectedComponent->GetOwner() : nullptr;
+		bIsDirectional = LightComponent->IsA(UDirectionalLightComponent::StaticClass());
+		bool bIsLocal = LightComponent->IsA(USpotLightComponent::StaticClass()) || LightComponent->IsA(UPointLightComponent::StaticClass());
+		AActor* SelectedOwner = LightComponent->GetOwner();
 
 		std::vector<const FShadowViewRenderItem*> MyLightViews;
 		const auto& AllViews = bIsDirectional ? ShadowFeature->GetLastDirectionalShadowViews() : ShadowFeature->GetLastLocalShadowViews();
@@ -2951,10 +2958,10 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 			}
 		}
 
-		bIsDirectional = SelectedComponent && SelectedComponent->IsA(UDirectionalLightComponent::StaticClass());
-		bool bIsSpot = SelectedComponent && SelectedComponent->IsA(USpotLightComponent::StaticClass());
-		bool bIsPoint = SelectedComponent && SelectedComponent->IsA(UPointLightComponent::StaticClass());
-		SelectedOwner = SelectedComponent ? SelectedComponent->GetOwner() : nullptr;
+bIsDirectional = LightComponent->IsA(UDirectionalLightComponent::StaticClass());
+		bool bIsSpot = LightComponent->IsA(USpotLightComponent::StaticClass());
+		bool bIsPoint = !bIsSpot && LightComponent->IsA(UPointLightComponent::StaticClass());
+		SelectedOwner = LightComponent->GetOwner();
 
 		const auto& Views = bIsDirectional
 			? ShadowFeature->GetLastDirectionalShadowViews()
@@ -2963,14 +2970,20 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 		std::vector<const FShadowViewRenderItem*> MyViews;
 		for (const auto& View : Views)
 		{
-			if (bIsDirectional || View.SourceActor == SelectedOwner)
+			const bool bMatchesLightType =
+				bIsDirectional ||
+				(bIsSpot && View.LightType == EShadowLightType::Spot) ||
+				(bIsPoint && View.LightType == EShadowLightType::Point);
+
+			const bool bMatchesComponent = View.SourceComponent
+				? View.SourceComponent == LightComponent
+				: View.SourceActor == SelectedOwner;
+
+			if (bMatchesLightType && bMatchesComponent)
 			{
 				MyViews.push_back(&View);
 			}
 		}
-
-		ImGui::Text("Debug Slice");
-		ImGui::NextColumn();
 
 		const FShadowViewRenderItem* SelectedView = nullptr;
 
@@ -2982,7 +2995,7 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 		{
 			if (bIsSpot)
 			{
-				ImGui::TextDisabled("Fixed to Selected Spot Light");
+				ImGui::TextDisabled("Single Slice (Fixed)");
 				SelectedView = MyViews[0];
 				ShadowFeature->SetDebugViewSlice(SelectedView->ArraySlice);
 			}
@@ -2999,16 +3012,15 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 				}
 
 				char CurrentLabel[64];
-				snprintf(CurrentLabel, sizeof(CurrentLabel), bIsDirectional ? "Cascade (Slice %u)" : "Face (Slice %u)", CurrentSlice);
+				snprintf(CurrentLabel, sizeof(CurrentLabel), bIsDirectional ? "Cascade %u" : "Face %u", CurrentSlice);
 
-				if (ImGui::BeginCombo(bIsDirectional ? "Cascade" : "Cube Face", CurrentLabel))
+				if (ImGui::BeginCombo("##ShadowDebugSlice", CurrentLabel))
 				{
 					for (size_t i = 0; i < MyViews.size(); ++i)
 					{
 						uint32 SliceVal = MyViews[i]->ArraySlice;
 						char Label[64];
-
-						snprintf(Label, sizeof(Label), bIsDirectional ? "Cascade %zu (Slice %u)" : "Face %zu (Slice %u)", i, SliceVal);
+						snprintf(Label, sizeof(Label), bIsDirectional ? "Cascade %zu" : "Face %zu", i);
 
 						bool bSelected = (SliceVal == CurrentSlice);
 						if (ImGui::Selectable(Label, bSelected))
@@ -3024,6 +3036,32 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 			}
 		}
 
+		if (SelectedView)
+		{
+			const char* ResolutionSuffix = bIsPoint ? " per face" : "";
+
+			ImGui::Text("Requested Resolution");
+			ImGui::NextColumn();
+			ImGui::Text("%u x %u%s",
+				SelectedView->RequestedResolution,
+				SelectedView->RequestedResolution,
+				ResolutionSuffix);
+
+			ImGui::Text("Allocated Resolution");
+			ImGui::NextColumn();
+			if (SelectedView->AllocatedResolution > 0)
+			{
+				ImGui::Text("%u x %u%s",
+					SelectedView->AllocatedResolution,
+					SelectedView->AllocatedResolution,
+					ResolutionSuffix);
+			}
+			else
+			{
+				ImGui::TextDisabled("Unavailable");
+			}
+		}
+
 		if (SelectedView && ShadowFeature->GetDebugViewMode() != EShadowDebugViewMode::None)
 		{
 			const float PreviewWidth = (std::min)(ImGui::GetContentRegionAvail().x, 256.0f);
@@ -3031,26 +3069,43 @@ void FPropertyWindow::DrawLightComponentDetails(ULightComponent* LightComponent,
 
 			ImGui::Spacing();
 
-			if (SelectedView->bAtlasAllocated)
+			if (bIsPoint)
+			{
+				ID3D11ShaderResourceView* PointFaceSRV = ShadowFeature->GetPointLightFacePreviewSRV(
+					SelectedView->ArraySlice,
+					SelectedView->AllocatedResolution);
+
+				if (PointFaceSRV)
+				{
+					ImGui::TextDisabled("Preview: Point Light Face");
+					ImGui::Image(reinterpret_cast<ImTextureID>(PointFaceSRV), PreviewSize);
+				}
+				else
+				{
+					ImGui::TextDisabled("Point Light Preview SRV unavailable.");
+				}
+			}
+			else if (SelectedView->bAtlasAllocated)
 			{
 				ID3D11ShaderResourceView* AtlasSRV = bIsDirectional
 					? ShadowFeature->GetDirShadowDepthAtlasSRV()
-					: ShadowFeature->GetLocalShadowDepthAtlasSRV();
+					: ShadowFeature->GetLocalShadowAtlasPreviewSRV();
 
-				const float AtlasRes = static_cast<float>(bIsDirectional
-					? ShadowConfig::DirMaxShadowDepthResolution
-					: ShadowConfig::MaxShadowMapResolution);
+				if (AtlasSRV)
+				{
+					const float AtlasRes = static_cast<float>(bIsDirectional ? ShadowConfig::DirMaxShadowDepthResolution : ShadowConfig::MaxShadowMapResolution);
 
-				ImVec2 uv0(SelectedView->AtlasUV.X / AtlasRes, SelectedView->AtlasUV.Y / AtlasRes);
-				ImVec2 uv1((SelectedView->AtlasUV.X + SelectedView->AtlasUV.Z) / AtlasRes,
-					(SelectedView->AtlasUV.Y + SelectedView->AtlasUV.Z) / AtlasRes);
+					ImVec2 uv0(SelectedView->AtlasUV.X / AtlasRes, SelectedView->AtlasUV.Y / AtlasRes);
+					ImVec2 uv1((SelectedView->AtlasUV.X + SelectedView->AtlasUV.Z) / AtlasRes,
+						(SelectedView->AtlasUV.Y + SelectedView->AtlasUV.Z) / AtlasRes);
 
-				ImGui::TextDisabled(bIsDirectional ? "Preview: Directional Cascade" : "Preview: Spot Light");
-				ImGui::Image(reinterpret_cast<ImTextureID>(AtlasSRV), PreviewSize, uv0, uv1);
+					ImGui::TextDisabled(bIsDirectional ? "Preview: Cascade Map" : "Preview: Local Map");
+					ImGui::Image(reinterpret_cast<ImTextureID>(AtlasSRV), PreviewSize, uv0, uv1);
+				}
 			}
 			else
 			{
-				ImGui::TextDisabled("Point Light Preview SRV unavailable.");
+				ImGui::TextDisabled("Shadow preview unavailable.");
 			}
 		}
 		else
@@ -3179,15 +3234,22 @@ void FPropertyWindow::DrawDirectionalLightComponentDetails(class UDirectionalLig
 	}
 
 	ImGui::Spacing();
-	ImGui::TextDisabled("Directional Light (CSM)");
+	ImGui::TextDisabled("Directional Light Shadow");
 
-	int cascadeCount = DirectionalLightComponent->GetCascadeCount();
-	ImGui::Text("Cascade Count");
+	int projectionMode = static_cast<int>(DirectionalLightComponent->GetShadowProjectionMode());
+	const char* ProjectionModeNames[] = { "CSM", "PSM" };
+	ImGui::Text("Shadow Projection");
 	ImGui::NextColumn();
-	if (ImGui::SliderInt("Cascade Count", &cascadeCount, 1, 4))
+	if (ImGui::Combo("Shadow Projection", &projectionMode, ProjectionModeNames, IM_ARRAYSIZE(ProjectionModeNames)))
 	{
-		DirectionalLightComponent->SetCascadeCount(cascadeCount);
+		DirectionalLightComponent->SetShadowProjectionMode(
+			projectionMode == static_cast<int>(EDirectionalShadowProjectionMode::PSM)
+				? EDirectionalShadowProjectionMode::PSM
+				: EDirectionalShadowProjectionMode::CSM);
 	}
+
+	const bool bUseCSM = DirectionalLightComponent->GetShadowProjectionMode() == EDirectionalShadowProjectionMode::CSM;
+
 
 	float shadowFarZ = DirectionalLightComponent->GetShadowFarZ();
 	ImGui::Text("Shadow Far Z");
@@ -3197,41 +3259,77 @@ void FPropertyWindow::DrawDirectionalLightComponentDetails(class UDirectionalLig
 		DirectionalLightComponent->SetShadowFarZ(shadowFarZ);
 	}
 
-	float splitLambda = DirectionalLightComponent->GetSplitLambda();
-	ImGui::Text("Split Lambda");
-	ImGui::NextColumn();
-	if (ImGui::SliderFloat("Split Lambda", &splitLambda, 0.0f, 1.0f, "%.3f"))
+	if (bUseCSM)
 	{
-		DirectionalLightComponent->SetSplitLambda(splitLambda);
-	}
-
-	ImGui::Separator();
-	ImGui::TextDisabled("Cascade Biases");
-
-	for (int i = 0; i < cascadeCount; ++i)
-	{
-		ImGui::PushID(i);
-		ImGui::Text("Cascade %d", i);
+		int cascadeCount = DirectionalLightComponent->GetCascadeCount();
+		ImGui::Text("Cascade Count");
 		ImGui::NextColumn();
+		if (ImGui::SliderInt("Cascade Count", &cascadeCount, 1, 4))
+		{
+			DirectionalLightComponent->SetCascadeCount(cascadeCount);
+		}
 
-		float bias = DirectionalLightComponent->GetCascadeBias(i);
-		if (ImGui::DragFloat("Bias", &bias, 0.0001f, 0.0f, 1.0f, "%.5f"))
-			DirectionalLightComponent->SetCascadeBias(i, bias);
-
-		float slopeBias = DirectionalLightComponent->GetCascadeSlopeBias(i);
-		if (ImGui::DragFloat("Slope Bias", &slopeBias, 0.001f, 0.0f, 10.0f, "%.4f"))
-			DirectionalLightComponent->SetCascadeSlopeBias(i, slopeBias);
+		float splitLambda = DirectionalLightComponent->GetSplitLambda();
+		ImGui::Text("Split Lambda");
+		ImGui::NextColumn();
+		if (ImGui::SliderFloat("Split Lambda", &splitLambda, 0.0f, 1.0f, "%.3f"))
+		{
+			DirectionalLightComponent->SetSplitLambda(splitLambda);
+		}
 
 		ImGui::Separator();
-		ImGui::PopID();
-	}
+		ImGui::TextDisabled("Cascade Biases");
 
-	float cascadeTransition = DirectionalLightComponent->GetCascadeTransitionValue();
-	ImGui::Text("Cascade Transition");
-	ImGui::NextColumn();
-	if (ImGui::DragFloat("Cascade Transition", &cascadeTransition, 0.001f, 0.0f, 1.0f, "%.3f"))
+		for (int i = 0; i < cascadeCount; ++i)
+		{
+			ImGui::PushID(i);
+			ImGui::Text("Cascade %d", i);
+			ImGui::NextColumn();
+
+			float bias = DirectionalLightComponent->GetCascadeBias(i);
+			if (ImGui::DragFloat("Bias", &bias, 0.000001f, 0.0f, 1.0f, "%.8f"))
+			{
+				DirectionalLightComponent->SetCascadeBias(i, bias);
+			}
+
+			float slopeBias = DirectionalLightComponent->GetCascadeSlopeBias(i);
+			if (ImGui::DragFloat("Slope Bias", &slopeBias, 0.00001f, 0.0f, 10.0f, "%.6f"))
+			{
+				DirectionalLightComponent->SetCascadeSlopeBias(i, slopeBias);
+			}
+
+			ImGui::Separator();
+			ImGui::PopID();
+		}
+
+		float cascadeTransition = DirectionalLightComponent->GetCascadeTransitionValue();
+		ImGui::Text("Cascade Transition");
+		ImGui::NextColumn();
+		if (ImGui::DragFloat("Cascade Transition", &cascadeTransition, 0.001f, 0.0f, 1.0f, "%.3f"))
+		{
+			DirectionalLightComponent->SetCascadeTransitionValue(cascadeTransition);
+		}
+	}
+	else
 	{
-		DirectionalLightComponent->SetCascadeTransitionValue(cascadeTransition);
+		ImGui::Separator();
+		ImGui::TextDisabled("PSM Bias");
+
+		float bias = DirectionalLightComponent->GetCascadeBias(0);
+		ImGui::Text("Bias");
+		ImGui::NextColumn();
+		if (ImGui::DragFloat("PSM Bias", &bias, 0.000001f, 0.0f, 1.0f, "%.8f"))
+		{
+			DirectionalLightComponent->SetCascadeBias(0, bias);
+		}
+
+		float slopeBias = DirectionalLightComponent->GetCascadeSlopeBias(0);
+		ImGui::Text("Slope Bias");
+		ImGui::NextColumn();
+		if (ImGui::DragFloat("PSM Slope Bias", &slopeBias, 0.00001f, 0.0f, 10.0f, "%.6f"))
+		{
+			DirectionalLightComponent->SetCascadeSlopeBias(0, slopeBias);
+		}
 	}
 }
 

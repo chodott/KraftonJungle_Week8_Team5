@@ -13,7 +13,7 @@ float2 main(ESMMomentPSInput Input) : SV_Target0
 {
     float depth = saturate(Input.Position.z);
     
-    float esm = exp(Exponent * depth);
+    float esm = exp(-Exponent * (1.0f - depth));
     
-    return esm;
+    return float2(esm, esm);
 }

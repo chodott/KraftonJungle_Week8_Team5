@@ -6,6 +6,9 @@
 
 #include "Renderer/Resources/Shader/ShaderHandles.h"
 
+//구조체 분리 이후 소스 파일 이동 예정
+#include "PointShadowPoolManager.h"
+
 struct FSceneViewData;
 struct FSceneRenderTargets;
 class FMeshPassProcessor;
@@ -122,7 +125,7 @@ public:
 	{
 		return ShadowDebugPreviewSRV;
 	}
-	ID3D11ShaderResourceView* GetPointLightFacePreviewSRV(ID3D11Device* Device, ID3D11DeviceContext* Context, uint32 ArraySlice);
+	ID3D11ShaderResourceView* GetPointLightFacePreviewSRV(uint32 ArraySlice, uint32 Resolution) const;
 	const TArray<uint32>& GetDebugAvailableSlices() const
 	{
 		return DebugAvailableSlices;
@@ -196,6 +199,11 @@ private:
 		ID3D11ShaderResourceView* SourceSRV,
 		uint32 Size,
 		ID3D11RenderTargetView* TargetRTV);
+	bool           RenderPointLightFacePreview(
+		FRenderer& Renderer,
+		const FSceneViewData& SceneViewData,
+		uint32 ArraySlice,
+		uint32 Resolution);
 	void           RenderShadowAtlasPreviews(FRenderer& Renderer, const FSceneViewData& SceneViewData);
 
 	ID3D11Texture2D*          ShadowDebugPreviewTexture = nullptr;
@@ -242,14 +250,10 @@ private:
 	ID3D11ShaderResourceView* ShadowCacheMomentsCubeSRV = nullptr;
 	ID3D11DepthStencilView*   ShadowCacheDepthCubeDSVs[ShadowConfig::MaxShadowViews]   = {};
 	ID3D11RenderTargetView*   ShadowCacheMomentsCubeRTVs[ShadowConfig::MaxShadowViews] = {};
-	//PointCubeMap
-	ID3D11Texture2D*          ShadowDepthCubeArray                             = nullptr;
-	ID3D11ShaderResourceView* ShadowDepthCubeArraySRV					   = nullptr;
-	ID3D11DepthStencilView*   ShadowDepthCubeDSVs[ShadowConfig::MaxShadowViews] = {};
 
-	ID3D11Texture2D* ShadowMomentsCubeArray = nullptr;
-	ID3D11ShaderResourceView* ShadowMomentsCubeArraySRV = nullptr;
-	ID3D11RenderTargetView* ShadowMomentsCubeRTVs[ShadowConfig::MaxShadowViews] = {};
+	//PointCubeMap
+	PointShadowPoolManager PointShadowPool;
+	FPointShadowPoolResource PointShadowResources[(int)EShadowResolutionClass::Count];
 
 	ID3D11Buffer*			  ShadowESMConstantBuffer = nullptr;
 
@@ -274,8 +278,13 @@ private:
 	ID3D11Buffer*				DirShadowViewBuffer		= nullptr;
 	ID3D11ShaderResourceView*	DirShadowViewBufferSRV = nullptr;
 
+	ID3D11Texture2D*			PointDebugDepthTexture	= nullptr;
+	ID3D11ShaderResourceView*	PointDebugDepthSRV		= nullptr;
 	ID3D11Texture2D*			PointDebugTexture		= nullptr;
+	ID3D11RenderTargetView*		PointDebugRTV			= nullptr;
 	ID3D11ShaderResourceView*	PointDebugSRV			= nullptr;
+	uint32						PointDebugPreviewSlice	= UINT32_MAX;
+	uint32						PointDebugPreviewResolution = 0;
 
 	ID3D11SamplerState*  ShadowComparisonSampler    = nullptr;
 	ID3D11SamplerState*  ShadowLinearSampler        = nullptr;

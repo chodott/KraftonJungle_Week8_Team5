@@ -1,0 +1,5588 @@
+{
+  "LevelSettings": {
+    "AutoSpawnPlayerStart": true,
+    "DefaultPawnMeshAsset": "cube-tex.obj",
+    "DefaultPawnSpringArmLength": 4.0,
+    "DefaultPawnSpringArmSocketOffset": [
+      0.0,
+      0.0,
+      1.5
+    ]
+  },
+  "Materials": [
+    "Assets/Materials/M_BlueColor.json",
+    "Assets/Materials/M_BlueColor.json",
+    "Assets/Materials/M_Water.json",
+    "Assets/Materials/M_Water.json",
+    "Assets/Materials/M_Gizmos.json",
+    "Assets/Materials/M_Gizmos.json",
+    "Assets/Materials/M_GreenColor.json",
+    "Assets/Materials/M_GreenColor.json",
+    "Assets/Materials/M_Wireframe.json",
+    "Assets/Materials/M_Wireframe.json",
+    "Assets/Materials/M_RedColor.json",
+    "Assets/Materials/M_RedColor.json",
+    "Assets/Materials/M_Sky.json",
+    "Assets/Materials/M_Sky.json",
+    "Assets/Materials/M_TintYellow.json",
+    "Assets/Materials/M_TintYellow.json"
+  ],
+  "NextUUID": 305,
+  "PerspectiveCamera": {
+    "FOV": 61.13999938964844,
+    "FarClip": 1000.0,
+    "Location": [
+      -25.479951858520508,
+      108.30963134765625,
+      15.973977088928223
+    ],
+    "NearClip": 0.10000000149011612,
+    "Rotation": [
+      -21.896331787109375,
+      986.9755249023438,
+      0.0
+    ]
+  },
+  "Primitives": {
+    "0": {
+      "Class": "ADirectionalLightActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "CascadeBias0": 4.999999873689376e-05,
+          "CascadeBias1": 4.999999873689376e-05,
+          "CascadeBias2": 4.999999873689376e-05,
+          "CascadeBias3": 4.999999873689376e-05,
+          "CascadeCount": 4,
+          "CascadeSlopeBias0": 9.999999747378752e-05,
+          "CascadeSlopeBias1": 9.999999747378752e-05,
+          "CascadeSlopeBias2": 9.999999747378752e-05,
+          "CascadeSlopeBias3": 9.999999747378752e-05,
+          "CascadeTransitionValue": 0.10000000149011612,
+          "Class": "UDirectionalLightComponent",
+          "Intensity": 1.0,
+          "IntensityUnits": 3,
+          "LightColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "DirectionalLightComponent",
+          "Rotation": [
+            0.0,
+            45.999996185302734,
+            -17.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "ShadowBias": 9.999999747378752e-05,
+          "ShadowESMExponent": 80.0,
+          "ShadowFarZ": 200.0,
+          "ShadowProjectionMode": 0,
+          "ShadowResolutionScale": 10.0,
+          "ShadowSharpen": 0.8100000023841858,
+          "ShadowSlopeBias": 0.0,
+          "SplitLambda": 0.5019999742507935,
+          "UUID": 111,
+          "bCastShadows": true,
+          "bVisible": true
+        },
+        {
+          "AttachParentUUID": 111,
+          "AxisLockMode": 0,
+          "BaseColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Class": "UBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": true,
+          "HiddenInGame": true,
+          "IgnoreParentScaleInRender": true,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "BillboardComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Size": [
+            0.699999988079071,
+            0.699999988079071
+          ],
+          "TexturePath": "Editor\\Icon\\S_LightDirectional.png",
+          "UUID": 112,
+          "UVMax": [
+            1.0,
+            1.0
+          ],
+          "UVMin": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "AttachParentUUID": 111,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": true,
+          "EnableLOD": true,
+          "HiddenInGame": true,
+          "IgnoreParentScaleInRender": true,
+          "LODDistanceCount": 0,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Gizmos"
+          ],
+          "Name": "ArrowComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            0.019999999552965164,
+            0.019999999552965164,
+            0.019999999552965164
+          ],
+          "UUID": 113
+        },
+        {
+          "AttachParentUUID": 111,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 114,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 111,
+      "UUID": 110
+    },
+    "1": {
+      "Class": "AAmbientLightActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UAmbientLightComponent",
+          "Intensity": 0.10000000149011612,
+          "IntensityUnits": 0,
+          "LightColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "AmbientLightComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "ShadowBias": 9.999999747378752e-05,
+          "ShadowESMExponent": 80.0,
+          "ShadowResolutionScale": 1.0,
+          "ShadowSharpen": 0.0,
+          "ShadowSlopeBias": 0.0,
+          "UUID": 116,
+          "bCastShadows": true,
+          "bVisible": true
+        },
+        {
+          "AttachParentUUID": 116,
+          "AxisLockMode": 0,
+          "BaseColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Class": "UBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": true,
+          "HiddenInGame": true,
+          "IgnoreParentScaleInRender": true,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "BillboardComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Size": [
+            0.699999988079071,
+            0.699999988079071
+          ],
+          "TexturePath": "Editor\\Icon\\SkyLight.png",
+          "UUID": 117,
+          "UVMax": [
+            1.0,
+            1.0
+          ],
+          "UVMin": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "AttachParentUUID": 116,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 118,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 116,
+      "UUID": 115
+    },
+    "10": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            100.0,
+            200.0,
+            3.0
+          ],
+          "UUID": 124
+        },
+        {
+          "AttachParentUUID": 124,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 125,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 124,
+      "UUID": 123
+    },
+    "11": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.65839385986328,
+            36.352142333984375,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 145
+        },
+        {
+          "AttachParentUUID": 145,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 146,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 145,
+      "UUID": 144
+    },
+    "12": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 128,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 127,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            28.10633087158203,
+            76.20704650878906,
+            8.733229637145996
+          ],
+          "MaterialBaseColorCount": 0,
+          "Materials": [],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "UUID": 128
+        }
+      ],
+      "RootComponentUUID": 128,
+      "UUID": 126
+    },
+    "13": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 131,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 130,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -28.68419647216797,
+            8.383037567138672,
+            4.737835884094238
+          ],
+          "MaterialBaseColorCount": 12,
+          "MaterialBaseColor_0": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_10": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_11": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_2": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_3": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "MaterialBaseColor_4": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_5": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_6": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_7": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_8": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_9": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "Materials": [
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha",
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Plant.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "UUID": 131
+        }
+      ],
+      "RootComponentUUID": 131,
+      "UUID": 129
+    },
+    "14": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -43.058387756347656,
+            0.0,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 133
+        },
+        {
+          "AttachParentUUID": 133,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 134,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 133,
+      "UUID": 132
+    },
+    "15": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.95838928222656,
+            9.032127380371094,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 136
+        },
+        {
+          "AttachParentUUID": 136,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 137,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 136,
+      "UUID": 135
+    },
+    "16": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.85839080810547,
+            18.362876892089844,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 139
+        },
+        {
+          "AttachParentUUID": 139,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 140,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 139,
+      "UUID": 138
+    },
+    "17": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.758392333984375,
+            27.34597396850586,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 142
+        },
+        {
+          "AttachParentUUID": 142,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 143,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 142,
+      "UUID": 141
+    },
+    "18": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 211,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 210,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            2.7153940200805664,
+            76.97212219238281,
+            8.617782592773438
+          ],
+          "MaterialBaseColorCount": 36,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_10": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_11": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_12": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_13": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_14": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_15": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_16": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_17": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_18": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_19": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_2": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_20": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_21": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_22": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_23": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_24": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_25": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_26": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_27": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_28": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_29": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_3": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_30": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_31": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_32": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_33": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_34": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_35": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_4": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_5": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_6": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_7": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_8": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_9": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper",
+            "Creeper"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Creeper.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "UUID": 211
+        }
+      ],
+      "RootComponentUUID": 211,
+      "UUID": 209
+    },
+    "19": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 215,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 214,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            3.2920093536376953,
+            48.59968185424805,
+            7.905896186828613
+          ],
+          "MaterialBaseColorCount": 12,
+          "MaterialBaseColor_0": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_10": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_11": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_2": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_3": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "MaterialBaseColor_4": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_5": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_6": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_7": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_8": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_9": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "Materials": [
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha",
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Plant.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "UUID": 215
+        }
+      ],
+      "RootComponentUUID": 215,
+      "UUID": 213
+    },
+    "2": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.85839080810547,
+            -53.72975158691406,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 169
+        },
+        {
+          "AttachParentUUID": 169,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 170,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 169,
+      "UUID": 168
+    },
+    "20": {
+      "Class": "ASpotLightActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "AttenuationRadius": 32.20000076293945,
+          "Class": "USpotLightComponent",
+          "InnerConeAngle": 30.799999237060547,
+          "Intensity": 161.0,
+          "IntensityUnits": 1,
+          "LightColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "LightFalloffExponent": 0.0,
+          "Location": [
+            3.6731128692626953,
+            77.01309967041016,
+            17.687091827392578
+          ],
+          "Name": "SpotLightComponent",
+          "OuterConeAngle": 49.79999923706055,
+          "Rotation": [
+            0.0,
+            90.0,
+            0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "ShadowBias": 9.999999747378752e-05,
+          "ShadowESMExponent": 80.0,
+          "ShadowResolutionScale": 1.0,
+          "ShadowSharpen": 0.0,
+          "ShadowSlopeBias": 0.0,
+          "UUID": 217,
+          "bCastShadows": true,
+          "bVisible": true
+        },
+        {
+          "AttachParentUUID": 217,
+          "AxisLockMode": 0,
+          "BaseColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Class": "UBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": true,
+          "HiddenInGame": true,
+          "IgnoreParentScaleInRender": true,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "BillboardComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Size": [
+            0.5,
+            0.5
+          ],
+          "TexturePath": "Editor\\Icon\\S_LightSpot.png",
+          "UUID": 218,
+          "UVMax": [
+            1.0,
+            1.0
+          ],
+          "UVMin": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "AttachParentUUID": 217,
+          "Class": "ULineBatchComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": true,
+          "HiddenInGame": true,
+          "IgnoreParentScaleInRender": true,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "ConeGizmoComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "UUID": 219
+        },
+        {
+          "AttachParentUUID": 217,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 220,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 217,
+      "UUID": 216
+    },
+    "21": {
+      "Class": "ASpotLightActor",
+      "Components": [
+        {
+          "AttachParentUUID": 224,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.10000000149011612,
+            0.10000000149011612,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 222,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 224,
+          "Class": "ULineBatchComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": true,
+          "HiddenInGame": true,
+          "IgnoreParentScaleInRender": true,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "ConeGizmoComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "UUID": 223
+        },
+        {
+          "AttachParentUUID": 0,
+          "AttenuationRadius": 32.20000076293945,
+          "Class": "USpotLightComponent",
+          "InnerConeAngle": 30.799999237060547,
+          "Intensity": 161.0,
+          "IntensityUnits": 1,
+          "LightColor": [
+            1.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "LightFalloffExponent": 0.0,
+          "Location": [
+            4.37384033203125,
+            51.18264389038086,
+            17.687091827392578
+          ],
+          "Name": "SpotLightComponent",
+          "OuterConeAngle": 49.79999923706055,
+          "Rotation": [
+            0.0,
+            90.0,
+            0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "ShadowBias": 9.999999747378752e-05,
+          "ShadowESMExponent": 80.0,
+          "ShadowResolutionScale": 1.0,
+          "ShadowSharpen": 0.0,
+          "ShadowSlopeBias": 0.0,
+          "UUID": 224,
+          "bCastShadows": true,
+          "bVisible": true
+        },
+        {
+          "AttachParentUUID": 224,
+          "AxisLockMode": 0,
+          "BaseColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Class": "UBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": true,
+          "HiddenInGame": true,
+          "IgnoreParentScaleInRender": true,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "BillboardComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Size": [
+            0.5,
+            0.5
+          ],
+          "TexturePath": "Editor\\Icon\\S_LightSpot.png",
+          "UUID": 225,
+          "UVMax": [
+            1.0,
+            1.0
+          ],
+          "UVMin": [
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "RootComponentUUID": 224,
+      "UUID": 221
+    },
+    "22": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.55839538574219,
+            44.82929992675781,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            -0.227447509765625,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 148
+        },
+        {
+          "AttachParentUUID": 148,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 149,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 148,
+      "UUID": 147
+    },
+    "23": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.95838928222656,
+            52.41510009765625,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 151
+        },
+        {
+          "AttachParentUUID": 151,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 152,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 151,
+      "UUID": 150
+    },
+    "24": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.85839080810547,
+            61.447227478027344,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 154
+        },
+        {
+          "AttachParentUUID": 154,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 155,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 154,
+      "UUID": 153
+    },
+    "25": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.758392333984375,
+            70.7779769897461,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 157
+        },
+        {
+          "AttachParentUUID": 157,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 158,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 157,
+      "UUID": 156
+    },
+    "26": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.65839385986328,
+            79.76107788085938,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 160
+        },
+        {
+          "AttachParentUUID": 160,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 161,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 160,
+      "UUID": 159
+    },
+    "27": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.55839538574219,
+            88.76724243164063,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 163
+        },
+        {
+          "AttachParentUUID": 163,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 164,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 163,
+      "UUID": 162
+    },
+    "28": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.458396911621094,
+            97.24440002441406,
+            6.2004289627075195
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            -0.227447509765625,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 166
+        },
+        {
+          "AttachParentUUID": 166,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 167,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 166,
+      "UUID": 165
+    },
+    "29": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -13.32232666015625,
+            -4.385284423828125,
+            25.157800674438477
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            200.0,
+            50.0
+          ],
+          "UUID": 244
+        },
+        {
+          "AttachParentUUID": 244,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 245,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 244,
+      "UUID": 243
+    },
+    "3": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.758392333984375,
+            -44.69762420654297,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 172
+        },
+        {
+          "AttachParentUUID": 172,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 173,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 172,
+      "UUID": 171
+    },
+    "30": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 248,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.10000000149011612,
+            0.10000000149011612,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 247,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -28.68419647216797,
+            30.36563491821289,
+            4.737835884094238
+          ],
+          "MaterialBaseColorCount": 12,
+          "MaterialBaseColor_0": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_10": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_11": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_2": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_3": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "MaterialBaseColor_4": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_5": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_6": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_7": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_8": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_9": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "Materials": [
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha",
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Plant.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "UUID": 248
+        }
+      ],
+      "RootComponentUUID": 248,
+      "UUID": 246
+    },
+    "31": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 251,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.20000000298023224,
+            0.20000000298023224,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 250,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -28.68419647216797,
+            44.815242767333984,
+            4.737835884094238
+          ],
+          "MaterialBaseColorCount": 12,
+          "MaterialBaseColor_0": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_10": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_11": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_2": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_3": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "MaterialBaseColor_4": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_5": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_6": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_7": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_8": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_9": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "Materials": [
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha",
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Plant.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "UUID": 251
+        }
+      ],
+      "RootComponentUUID": 251,
+      "UUID": 249
+    },
+    "32": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 254,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.30000001192092896,
+            0.30000001192092896,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 253,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -28.68419647216797,
+            56.97329330444336,
+            4.737835884094238
+          ],
+          "MaterialBaseColorCount": 12,
+          "MaterialBaseColor_0": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_10": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_11": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_2": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_3": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "MaterialBaseColor_4": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_5": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_6": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_7": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_8": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_9": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "Materials": [
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha",
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Plant.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "UUID": 254
+        }
+      ],
+      "RootComponentUUID": 254,
+      "UUID": 252
+    },
+    "33": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 257,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.4000000059604645,
+            0.4000000059604645,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 256,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -28.68419647216797,
+            66.98423767089844,
+            4.737835884094238
+          ],
+          "MaterialBaseColorCount": 12,
+          "MaterialBaseColor_0": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_10": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_11": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_2": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_3": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "MaterialBaseColor_4": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_5": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_6": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_7": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_8": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_9": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "Materials": [
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha",
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Plant.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "UUID": 257
+        }
+      ],
+      "RootComponentUUID": 257,
+      "UUID": 255
+    },
+    "34": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 260,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.10000000149011612,
+            0.10000000149011612,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 259,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -28.68419647216797,
+            -65.07461547851563,
+            4.737835884094238
+          ],
+          "MaterialBaseColorCount": 12,
+          "MaterialBaseColor_0": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_10": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_11": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_2": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_3": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "MaterialBaseColor_4": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_5": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_6": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_7": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_8": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_9": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "Materials": [
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha",
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Plant.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "UUID": 260
+        }
+      ],
+      "RootComponentUUID": 260,
+      "UUID": 258
+    },
+    "35": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 263,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.20000000298023224,
+            0.20000000298023224,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 262,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -28.68419647216797,
+            -43.09201431274414,
+            4.737835884094238
+          ],
+          "MaterialBaseColorCount": 12,
+          "MaterialBaseColor_0": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_10": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_11": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_2": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_3": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "MaterialBaseColor_4": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_5": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_6": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_7": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_8": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_9": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "Materials": [
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha",
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Plant.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "UUID": 263
+        }
+      ],
+      "RootComponentUUID": 263,
+      "UUID": 261
+    },
+    "36": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 266,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.30000001192092896,
+            0.30000001192092896,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 265,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -28.68419647216797,
+            -28.642406463623047,
+            4.737835884094238
+          ],
+          "MaterialBaseColorCount": 12,
+          "MaterialBaseColor_0": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_10": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_11": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_2": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_3": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "MaterialBaseColor_4": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_5": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_6": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_7": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_8": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_9": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "Materials": [
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha",
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Plant.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "UUID": 266
+        }
+      ],
+      "RootComponentUUID": 266,
+      "UUID": 264
+    },
+    "37": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 269,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.4000000059604645,
+            0.4000000059604645,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 268,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -28.68419647216797,
+            -16.484355926513672,
+            4.737835884094238
+          ],
+          "MaterialBaseColorCount": 12,
+          "MaterialBaseColor_0": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_10": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_11": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_2": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_3": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "MaterialBaseColor_4": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_5": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_6": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_7": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_8": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_9": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "Materials": [
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha",
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Plant.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "UUID": 269
+        }
+      ],
+      "RootComponentUUID": 269,
+      "UUID": 267
+    },
+    "38": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 272,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.5,
+            0.5,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 271,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -28.68419647216797,
+            -6.473411560058594,
+            4.737835884094238
+          ],
+          "MaterialBaseColorCount": 12,
+          "MaterialBaseColor_0": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_10": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_11": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_2": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_3": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "MaterialBaseColor_4": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_5": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_6": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_7": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_8": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_9": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "Materials": [
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha",
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Plant.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "UUID": 272
+        }
+      ],
+      "RootComponentUUID": 272,
+      "UUID": 270
+    },
+    "39": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 275,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.5,
+            0.5,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 274,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -28.68419647216797,
+            76.5941390991211,
+            4.737835884094238
+          ],
+          "MaterialBaseColorCount": 12,
+          "MaterialBaseColor_0": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_10": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_11": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_2": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_3": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "MaterialBaseColor_4": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_5": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_6": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_7": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_8": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_9": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "Materials": [
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha",
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Plant.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "UUID": 275
+        }
+      ],
+      "RootComponentUUID": 275,
+      "UUID": 273
+    },
+    "4": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 121,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 120,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "USceneComponent",
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "PlayerStartRootComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "UUID": 121
+        },
+        {
+          "AttachParentUUID": 121,
+          "AxisLockMode": 0,
+          "BaseColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Class": "UBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": true,
+          "HiddenInGame": true,
+          "IgnoreParentScaleInRender": true,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "PlayerStartBillboardComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Size": [
+            0.800000011920929,
+            0.800000011920929
+          ],
+          "TexturePath": "Editor\\Icon\\S_Player.PNG",
+          "UUID": 122,
+          "UVMax": [
+            1.0,
+            1.0
+          ],
+          "UVMin": [
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "RootComponentUUID": 121,
+      "UUID": 119
+    },
+    "40": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -28.584196090698242,
+            88.28868865966797,
+            4.737835884094238
+          ],
+          "MaterialBaseColorCount": 12,
+          "MaterialBaseColor_0": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_10": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_11": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_2": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_3": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "MaterialBaseColor_4": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_5": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_6": [
+            0.7529420256614685,
+            0.7230550050735474,
+            0.6375970244407654,
+            1.0
+          ],
+          "MaterialBaseColor_7": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_8": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_9": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "Materials": [
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha",
+            "Glazed_ceramic",
+            "Soil_1",
+            "Soil_1",
+            "Daun",
+            "Fiber",
+            "FIber_Alpha"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Plant.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "UUID": 277
+        },
+        {
+          "AttachParentUUID": 277,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.5,
+            0.5,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 278,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 277,
+      "UUID": 276
+    },
+    "41": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 280,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -2.1571130752563477,
+            6.90269660949707,
+            4.915167808532715
+          ],
+          "MaterialBaseColorCount": 2,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "SquirtleBody",
+            "SquirtleEye"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Squirtle.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "UUID": 281
+        }
+      ],
+      "RootComponentUUID": 281,
+      "UUID": 279
+    },
+    "42": {
+      "Class": "AActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.10000000149011612,
+            0.10000000149011612,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 284,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -2.1571130752563477,
+            0.353299617767334,
+            4.915167808532715
+          ],
+          "MaterialBaseColorCount": 2,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "MaterialBaseColor_1": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "SquirtleBody",
+            "SquirtleEye"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "Squirtle.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "UUID": 285
+        }
+      ],
+      "RootComponentUUID": 285,
+      "UUID": 283
+    },
+    "43": {
+      "Class": "APointLightActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "AttenuationRadius": 39.5,
+          "Class": "UPointLightComponent",
+          "Intensity": 157.0,
+          "IntensityUnits": 1,
+          "LightColor": [
+            1.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "LightFalloffExponent": 0.0,
+          "Location": [
+            0.0,
+            4.327889442443848,
+            6.746301651000977
+          ],
+          "Name": "PointLightComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "ShadowBias": 9.999999747378752e-05,
+          "ShadowESMExponent": 80.0,
+          "ShadowResolutionScale": 1.0,
+          "ShadowSharpen": 0.0,
+          "ShadowSlopeBias": 0.0,
+          "UUID": 287,
+          "bCastShadows": true,
+          "bVisible": true
+        },
+        {
+          "AttachParentUUID": 287,
+          "AxisLockMode": 0,
+          "BaseColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Class": "UBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": true,
+          "HiddenInGame": true,
+          "IgnoreParentScaleInRender": true,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "BillboardComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Size": [
+            0.5,
+            0.5
+          ],
+          "TexturePath": "Editor\\Icon\\S_LightPoint.png",
+          "UUID": 288,
+          "UVMax": [
+            1.0,
+            1.0
+          ],
+          "UVMin": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "AttachParentUUID": 287,
+          "Class": "ULineBatchComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": true,
+          "HiddenInGame": true,
+          "IgnoreParentScaleInRender": true,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "RadiusGizmoComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "UUID": 289
+        },
+        {
+          "AttachParentUUID": 287,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 290,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 287,
+      "UUID": 286
+    },
+    "44": {
+      "Class": "ASpotLightActor",
+      "Components": [
+        {
+          "AttachParentUUID": 299,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.20000000298023224,
+            0.20000000298023224,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 297,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 299,
+          "Class": "ULineBatchComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": true,
+          "HiddenInGame": true,
+          "IgnoreParentScaleInRender": true,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "ConeGizmoComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "UUID": 298
+        },
+        {
+          "AttachParentUUID": 0,
+          "AttenuationRadius": 32.20000076293945,
+          "Class": "USpotLightComponent",
+          "InnerConeAngle": 30.799999237060547,
+          "Intensity": 161.0,
+          "IntensityUnits": 1,
+          "LightColor": [
+            0.004618676379323006,
+            0.0,
+            1.0,
+            1.0
+          ],
+          "LightFalloffExponent": 0.0,
+          "Location": [
+            4.37384033203125,
+            46.633209228515625,
+            17.687091827392578
+          ],
+          "Name": "SpotLightComponent",
+          "OuterConeAngle": 49.79999923706055,
+          "Rotation": [
+            0.0,
+            90.0,
+            0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "ShadowBias": 9.999999747378752e-05,
+          "ShadowESMExponent": 80.0,
+          "ShadowResolutionScale": 1.0,
+          "ShadowSharpen": 0.0,
+          "ShadowSlopeBias": 0.0,
+          "UUID": 299,
+          "bCastShadows": true,
+          "bVisible": true
+        },
+        {
+          "AttachParentUUID": 299,
+          "AxisLockMode": 0,
+          "BaseColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Class": "UBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": true,
+          "HiddenInGame": true,
+          "IgnoreParentScaleInRender": true,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "BillboardComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Size": [
+            0.5,
+            0.5
+          ],
+          "TexturePath": "Editor\\Icon\\S_LightSpot.png",
+          "UUID": 300,
+          "UVMax": [
+            1.0,
+            1.0
+          ],
+          "UVMin": [
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "RootComponentUUID": 299,
+      "UUID": 296
+    },
+    "45": {
+      "Class": "ASpotLightActor",
+      "Components": [
+        {
+          "AttachParentUUID": 305,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.30000001192092896,
+            0.30000001192092896,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 302,
+          "VerticalAlignment": 1
+        },
+        {
+          "AttachParentUUID": 305,
+          "Class": "ULineBatchComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": true,
+          "HiddenInGame": true,
+          "IgnoreParentScaleInRender": true,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "ConeGizmoComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "UUID": 303
+        },
+        {
+          "AttachParentUUID": 305,
+          "AxisLockMode": 0,
+          "BaseColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Class": "UBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": true,
+          "HiddenInGame": true,
+          "IgnoreParentScaleInRender": true,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "BillboardComponent",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Size": [
+            0.5,
+            0.5
+          ],
+          "TexturePath": "Editor\\Icon\\S_LightSpot.png",
+          "UUID": 304,
+          "UVMax": [
+            1.0,
+            1.0
+          ],
+          "UVMin": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "AttachParentUUID": 0,
+          "AttenuationRadius": 32.20000076293945,
+          "Class": "USpotLightComponent",
+          "InnerConeAngle": 30.799999237060547,
+          "Intensity": 161.0,
+          "IntensityUnits": 1,
+          "LightColor": [
+            0.20692569017410278,
+            1.0,
+            0.0,
+            1.0
+          ],
+          "LightFalloffExponent": 0.0,
+          "Location": [
+            1.1817035675048828,
+            46.633209228515625,
+            17.687091827392578
+          ],
+          "Name": "SpotLightComponent",
+          "OuterConeAngle": 49.79999923706055,
+          "Rotation": [
+            0.0,
+            90.0,
+            0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "ShadowBias": 9.999999747378752e-05,
+          "ShadowESMExponent": 80.0,
+          "ShadowResolutionScale": 1.0,
+          "ShadowSharpen": 0.0,
+          "ShadowSlopeBias": 0.0,
+          "UUID": 305,
+          "bCastShadows": true,
+          "bVisible": true
+        }
+      ],
+      "RootComponentUUID": 305,
+      "UUID": 301
+    },
+    "5": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.65839385986328,
+            -35.36687469482422,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 175
+        },
+        {
+          "AttachParentUUID": 175,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 176,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 175,
+      "UUID": 174
+    },
+    "6": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.55839538574219,
+            -26.383773803710938,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 178
+        },
+        {
+          "AttachParentUUID": 178,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 179,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 178,
+      "UUID": 177
+    },
+    "7": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.458396911621094,
+            -17.377609252929688,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 181
+        },
+        {
+          "AttachParentUUID": 181,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 182,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 181,
+      "UUID": 180
+    },
+    "8": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            -42.3583984375,
+            -8.90045166015625,
+            6.010805130004883
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            -0.227447509765625,
+            -0.0
+          ],
+          "Scale": [
+            3.0,
+            3.0,
+            10.0
+          ],
+          "UUID": 184
+        },
+        {
+          "AttachParentUUID": 184,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 185,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 184,
+      "UUID": 183
+    },
+    "9": {
+      "Class": "ACubeActor",
+      "Components": [
+        {
+          "AttachParentUUID": 0,
+          "Class": "UStaticMeshComponent",
+          "DrawDebugBounds": true,
+          "EditorVisualization": false,
+          "EnableLOD": true,
+          "HiddenInGame": false,
+          "IgnoreParentScaleInRender": false,
+          "LODDistanceCount": 0,
+          "Location": [
+            0.10000000149011612,
+            0.10000000149011612,
+            45.314727783203125
+          ],
+          "MaterialBaseColorCount": 1,
+          "MaterialBaseColor_0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Materials": [
+            "M_Default"
+          ],
+          "Name": "StaticMeshComponent",
+          "NormalTextureOverrides": [],
+          "ObjStaticMeshAsset": "PrimitiveBox.model",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            100.0,
+            200.0,
+            3.0
+          ],
+          "UUID": 190
+        },
+        {
+          "AttachParentUUID": 190,
+          "Billboard": true,
+          "Class": "UUUIDBillboardComponent",
+          "DrawDebugBounds": false,
+          "EditorVisualization": false,
+          "HiddenInGame": false,
+          "HorizontalAlignment": 1,
+          "IgnoreParentScaleInRender": false,
+          "Location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Name": "UUIDBillboard",
+          "Rotation": [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Text": "Text",
+          "TextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "TextScale": 0.30000001192092896,
+          "UUID": 191,
+          "VerticalAlignment": 1
+        }
+      ],
+      "RootComponentUUID": 190,
+      "UUID": 189
+    }
+  }
+}
