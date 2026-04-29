@@ -39,7 +39,7 @@ protected:
 private:
 	EDirectionalShadowProjectionMode ShadowProjectionMode = EDirectionalShadowProjectionMode::CSM;
 	int32 CascadeCount = 0;
-	float ShadowFarZ = 0.0f;
+	float ShadowFarZ = 25.0f;
 	float SplitLambda = 0.0f;
 	float CascadeTransitionValue = 0.0f;
 	float CascadeBiases[4] = { 0.00005f, 0.00005f, 0.00005f, 0.00005f };

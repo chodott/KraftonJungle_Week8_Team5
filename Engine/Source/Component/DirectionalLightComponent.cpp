@@ -16,7 +16,7 @@ void UDirectionalLightComponent::PostConstruct()
 
 	ShadowProjectionMode = EDirectionalShadowProjectionMode::CSM;
 	CascadeCount = 4;
-	ShadowFarZ = 300.0f;
+	ShadowFarZ = 25.0f;
 	SplitLambda = 0.9f;
 	CascadeTransitionValue = 0.1f;
 }

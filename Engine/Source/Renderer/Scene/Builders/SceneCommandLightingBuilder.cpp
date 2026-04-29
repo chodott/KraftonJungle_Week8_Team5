@@ -6,6 +6,7 @@
 #include "Actor/Actor.h"
 #include "Component/AmbientLightComponent.h"
 #include "Component/DirectionalLightComponent.h"
+#include "Component/PrimitiveComponent.h"
 #include "Component/PointLightComponent.h"
 #include "Component/SpotLightComponent.h"
 #include "Math/MathUtility.h"
@@ -59,8 +60,11 @@ namespace
 		L.Intensity       = C->GetEffectiveIntensity();
 		L.Flags           = 0;
 
-		const float InnerAngleRad = FMath::DegreesToRadians(FMath::Clamp(C->GetInnerConeAngle(), 0.0f, 89.0f));
-		const float OuterAngleRad = FMath::DegreesToRadians(FMath::Clamp(C->GetOuterConeAngle(), 0.0f, 89.0f));
+		const float InnerAngleRad = FMath::DegreesToRadians(
+			FMath::Clamp(C->GetInnerConeAngle(), 0.0f, 89.0f));
+
+		const float OuterAngleRad = FMath::DegreesToRadians(
+			FMath::Clamp(C->GetOuterConeAngle(), 0.0f, 89.0f));
 
 		L.InnerAngleCos = std::cos(InnerAngleRad);
 		L.OuterAngleCos = std::cos(OuterAngleRad);
@@ -70,7 +74,6 @@ namespace
 			std::swap(L.InnerAngleCos, L.OuterAngleCos);
 		}
 
-		// conservative sphere
 		L.CullCenterWS = L.PositionWS + L.DirectionWS * (L.Range * 0.5f);
 		L.CullRadius   = L.Range;
 
@@ -87,7 +90,10 @@ namespace
 		return L;
 	}
 
-	uint32 AllocalteShadowLight(FSceneLightingInputs& Inputs, EShadowLightType LightType, uint32 SourceLightIndex)
+	uint32 AllocalteShadowLight(
+		FSceneLightingInputs& Inputs,
+		EShadowLightType LightType,
+		uint32 SourceLightIndex)
 	{
 		if (Inputs.ShadowLights.size() >= ShadowConfig::MaxShadowLights)
 		{
@@ -95,22 +101,27 @@ namespace
 		}
 
 		FShadowLightRenderItem Item = {};
-		Item.LightType              = LightType;
-		Item.SourceLightIndex       = SourceLightIndex;
-		Item.ShadowIndex            = static_cast<uint32>(Inputs.ShadowLights.size());
-		Inputs.ShadowLights.push_back(Item);
+		Item.LightType        = LightType;
+		Item.SourceLightIndex = SourceLightIndex;
+		Item.ShadowIndex      = static_cast<uint32>(Inputs.ShadowLights.size());
 
+		Inputs.ShadowLights.push_back(Item);
 		return Item.ShadowIndex;
 	}
 
-	uint32 AddShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, const FShadowViewRenderItem& InView)
+	uint32 AddShadowView(
+		FSceneLightingInputs& Inputs,
+		uint32 ShadowLightIndex,
+		const FShadowViewRenderItem& InView)
 	{
 		if (Inputs.ShadowViews.size() >= ShadowConfig::MaxShadowViews)
+		{
 			return UINT32_MAX;
+		}
 
 		FShadowViewRenderItem View = InView;
 		View.ShadowLightIndex = ShadowLightIndex;
-		View.ArraySlice = static_cast<uint32>(Inputs.ShadowViews.size());
+		View.ArraySlice       = static_cast<uint32>(Inputs.ShadowViews.size());
 
 		const uint32 ViewIndex = static_cast<uint32>(Inputs.ShadowViews.size());
 		Inputs.ShadowViews.push_back(std::move(View));
@@ -123,9 +134,9 @@ namespace
 		}
 
 		++ShadowLight.ViewCount;
-
 		return ViewIndex;
 	}
+
 	float ComputeSpotScreenCoverage(
 		const FVector& LightPosition,
 		const FVector& LightDirection,
@@ -135,6 +146,7 @@ namespace
 	{
 		const float SafeRange = (std::max)(Range, 0.0f);
 		const FVector Direction = LightDirection.GetSafeNormal();
+
 		if (Direction.IsNearlyZero())
 		{
 			return 0.0f;
@@ -163,25 +175,25 @@ namespace
 		int32 ProjectedCount = 0;
 
 		auto AddProjectedPoint = [&](const FVector& WorldPos)
+		{
+			const FVector4 Clip = ViewProj.TransformVector4(FVector4(WorldPos, 1.0f));
+
+			if (Clip.W <= 1.0e-4f)
 			{
-				const FVector4 Clip = ViewProj.TransformVector4(FVector4(WorldPos, 1.0f));
+				return;
+			}
 
-				// Near plane 뒤에 있는 점은 일단 제외.
-				// 완전 정확하게 하려면 near clipping이 필요하지만, shadow resolution 용도면 이 정도로 충분.
-				if (Clip.W <= 1.0e-4f)
-					return;
+			const float InvW = 1.0f / Clip.W;
+			const float NdcX = Clip.X * InvW;
+			const float NdcY = Clip.Y * InvW;
 
-				const float InvW = 1.0f / Clip.W;
-				const float NdcX = Clip.X * InvW;
-				const float NdcY = Clip.Y * InvW;
+			MinX = std::min(MinX, NdcX);
+			MinY = std::min(MinY, NdcY);
+			MaxX = std::max(MaxX, NdcX);
+			MaxY = std::max(MaxY, NdcY);
 
-				MinX = std::min(MinX, NdcX);
-				MinY = std::min(MinY, NdcY);
-				MaxX = std::max(MaxX, NdcX);
-				MaxY = std::max(MaxY, NdcY);
-
-				++ProjectedCount;
-			};
+			++ProjectedCount;
+		};
 
 		AddProjectedPoint(LightPosition);
 		AddProjectedPoint(EndCenter);
@@ -201,16 +213,17 @@ namespace
 		}
 
 		if (ProjectedCount == 0)
+		{
 			return 0.0f;
+		}
 
 		MinX = FMath::Clamp(MinX, -1.0f, 1.0f);
 		MinY = FMath::Clamp(MinY, -1.0f, 1.0f);
 		MaxX = FMath::Clamp(MaxX, -1.0f, 1.0f);
 		MaxY = FMath::Clamp(MaxY, -1.0f, 1.0f);
 
-		const float Width = std::max(0.0f, MaxX - MinX);
+		const float Width  = std::max(0.0f, MaxX - MinX);
 		const float Height = std::max(0.0f, MaxY - MinY);
-
 		const float Coverage = (Width * Height) * 0.25f;
 
 		return FMath::Clamp(Coverage, 0.0f, 1.0f);
@@ -235,24 +248,25 @@ namespace
 		int32 ProjectedCount = 0;
 
 		auto AddProjectedPoint = [&](const FVector& WorldPos)
+		{
+			const FVector4 Clip = ViewProj.TransformVector4(FVector4(WorldPos, 1.0f));
+
+			if (Clip.W <= 1.0e-4f)
 			{
-				const FVector4 Clip = ViewProj.TransformVector4(FVector4(WorldPos, 1.0f));
-				if (Clip.W <= 1.0e-4f)
-				{
-					return;
-				}
+				return;
+			}
 
-				const float InvW = 1.0f / Clip.W;
-				const float NdcX = Clip.X * InvW;
-				const float NdcY = Clip.Y * InvW;
+			const float InvW = 1.0f / Clip.W;
+			const float NdcX = Clip.X * InvW;
+			const float NdcY = Clip.Y * InvW;
 
-				MinX = std::min(MinX, NdcX);
-				MinY = std::min(MinY, NdcY);
-				MaxX = std::max(MaxX, NdcX);
-				MaxY = std::max(MaxY, NdcY);
+			MinX = std::min(MinX, NdcX);
+			MinY = std::min(MinY, NdcY);
+			MaxX = std::max(MaxX, NdcX);
+			MaxY = std::max(MaxY, NdcY);
 
-				++ProjectedCount;
-			};
+			++ProjectedCount;
+		};
 
 		AddProjectedPoint(LightPosition);
 
@@ -289,7 +303,7 @@ namespace
 		MaxX = FMath::Clamp(MaxX, -1.0f, 1.0f);
 		MaxY = FMath::Clamp(MaxY, -1.0f, 1.0f);
 
-		const float Width = std::max(0.0f, MaxX - MinX);
+		const float Width  = std::max(0.0f, MaxX - MinX);
 		const float Height = std::max(0.0f, MaxY - MinY);
 		const float Coverage = (Width * Height) * 0.25f;
 
@@ -305,31 +319,43 @@ namespace
 		if (Resolution >= 128)  return 128;
 		return 64;
 	}
+
 	uint32 QuantizeDiraShadowResolution(uint32 Resolution)
 	{
 		if (Resolution >= 4096) return 4096;
 		return QuantizeShadowResolution(Resolution);
 	}
 
-	uint32 AddPointShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, uint32 ExplicitArraySlice, const FShadowViewRenderItem& InView) 
+	uint32 AddPointShadowView(
+		FSceneLightingInputs& Inputs,
+		uint32 ShadowLightIndex,
+		uint32 ExplicitArraySlice,
+		const FShadowViewRenderItem& InView)
 	{
 		FShadowViewRenderItem View = InView;
 		View.ShadowLightIndex = ShadowLightIndex;
 		View.ArraySlice = ExplicitArraySlice;
 
-		uint32 ViewIndex = static_cast<uint32>(Inputs.ShadowViews.size());
+		const uint32 ViewIndex = static_cast<uint32>(Inputs.ShadowViews.size());
 		Inputs.ShadowViews.push_back(std::move(View));
 
 		FShadowLightRenderItem& Light = Inputs.ShadowLights[ShadowLightIndex];
+
 		if (Light.ViewCount == 0)
+		{
 			Light.FirstViewIndex = ViewIndex;
-		Light.ViewCount++;
+		}
+
+		++Light.ViewCount;
 		Light.LightType = EShadowLightType::Point;
 
 		return ViewIndex;
 	}
 
-	uint32 AllocateDirShadowLight(FSceneLightingInputs& Inputs, EShadowLightType LightType, uint32 SourceLightIndex)
+	uint32 AllocateDirShadowLight(
+		FSceneLightingInputs& Inputs,
+		EShadowLightType LightType,
+		uint32 SourceLightIndex)
 	{
 		if (Inputs.DirShadowLights.size() >= ShadowConfig::MaxShadowLights)
 		{
@@ -340,12 +366,15 @@ namespace
 		Item.LightType = LightType;
 		Item.SourceLightIndex = SourceLightIndex;
 		Item.ShadowIndex = static_cast<uint32>(Inputs.DirShadowLights.size());
-		Inputs.DirShadowLights.push_back(Item);
 
+		Inputs.DirShadowLights.push_back(Item);
 		return Item.ShadowIndex;
 	}
 
-	uint32 AddDirShadowView(FSceneLightingInputs& Inputs, uint32 ShadowLightIndex, const FShadowViewRenderItem& InView)
+	uint32 AddDirShadowView(
+		FSceneLightingInputs& Inputs,
+		uint32 ShadowLightIndex,
+		const FShadowViewRenderItem& InView)
 	{
 		if (Inputs.DirShadowViews.size() >= ShadowConfig::MaxDirCascade)
 		{
@@ -360,24 +389,26 @@ namespace
 		Inputs.DirShadowViews.push_back(std::move(View));
 
 		FShadowLightRenderItem& ShadowLight = Inputs.DirShadowLights[ShadowLightIndex];
+
 		if (ShadowLight.ViewCount == 0)
 		{
 			ShadowLight.FirstViewIndex = ViewIndex;
 		}
-		++ShadowLight.ViewCount;
 
+		++ShadowLight.ViewCount;
 		return ViewIndex;
 	}
 
-
 	void BuildSpotShadowViews(
-		FSceneLightingInputs&        Inputs,
-		const USpotLightComponent*   Spot,
+		FSceneLightingInputs& Inputs,
+		const USpotLightComponent* Spot,
 		const FLocalLightRenderItem& LightItem,
-		uint32                       LocalLightIndex,
-		uint32                       ShadowLightIndex,
-		const FMatrix&				 ViewProjMatrix)
+		uint32 LocalLightIndex,
+		uint32 ShadowLightIndex,
+		const FMatrix& ViewProjMatrix)
 	{
+		(void)LocalLightIndex;
+
 		FShadowLightRenderItem& ShadowLight = Inputs.ShadowLights[ShadowLightIndex];
 
 		ShadowLight.LightType   = EShadowLightType::Spot;
@@ -401,26 +432,33 @@ namespace
 		}
 
 		const float NearZ = ShadowConfig::DefaultNearZ;
-		const float FarZ  = (std::max)(LightItem.Range, NearZ + 0.001f);
+		const float FarZ = (std::max)(LightItem.Range, NearZ + 0.001f);
 
 		const float OuterHalfAngleDeg = FMath::Clamp(Spot->GetOuterConeAngle(), 1.0f, 80.0f);
-		const float FullFovRad        = FMath::DegreesToRadians(OuterHalfAngleDeg * 2.0f);
+		const float FullFovRad = FMath::DegreesToRadians(OuterHalfAngleDeg * 2.0f);
 
-		const float Coverage = ComputeSpotScreenCoverage(LightItem.PositionWS, LightItem.DirectionWS,LightItem.Range, Spot->GetOuterConeAngle(), ViewProjMatrix);
-		if(Coverage <= 0.0f)
+		const float Coverage = ComputeSpotScreenCoverage(
+			LightItem.PositionWS,
+			LightItem.DirectionWS,
+			LightItem.Range,
+			Spot->GetOuterConeAngle(),
+			ViewProjMatrix);
+
+		if (Coverage <= 0.0f)
 		{
 			return;
 		}
 
-		float ResolutionFactor = std::sqrt(Coverage) * Spot->GetShadowResolutionScale();
-		uint32 RequestedResolution = QuantizeShadowResolution(static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionFactor));
+		const float ResolutionFactor = std::sqrt(Coverage) * Spot->GetShadowResolutionScale();
+		const uint32 RequestedResolution = QuantizeShadowResolution(
+			static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionFactor));
 
 		FShadowViewRenderItem View;
-		View.ProjectionType      = EShadowProjectionType::Perspective;
-		View.PositionWS          = LightItem.PositionWS;
-		View.NearZ               = NearZ;
-		View.FarZ                = FarZ;
-		View.SourceActor         = Spot->GetOwner();
+		View.ProjectionType = EShadowProjectionType::Perspective;
+		View.PositionWS = LightItem.PositionWS;
+		View.NearZ = NearZ;
+		View.FarZ = FarZ;
+		View.SourceActor = Spot->GetOwner();
 
 		View.View = FMatrix::MakeViewLookAtLH(
 			LightItem.PositionWS,
@@ -435,9 +473,8 @@ namespace
 
 		View.ViewProjection = View.View * View.Projection;
 		View.LightType = EShadowLightType::Spot;
-
 		View.Viewport = {};
-		View.RequestedResolution = QuantizeShadowResolution(RequestedResolution);
+		View.RequestedResolution = RequestedResolution;
 
 		AddShadowView(Inputs, ShadowLightIndex, View);
 	}
@@ -451,8 +488,8 @@ namespace
 
 	struct FPostPerspectiveShadowCamera
 	{
-		FMatrix View;
-		FMatrix Projection;
+		FMatrix View = FMatrix::Identity;
+		FMatrix Projection = FMatrix::Identity;
 		bool bOrthographic = false;
 		bool bInversePerspective = false;
 	};
@@ -472,6 +509,179 @@ namespace
 		EShadowProjectionType ProjectionType = EShadowProjectionType::Orthographic;
 		FVector4 BiasParams = FVector4(0.0f, 0.0f, 0.0f, 0.0f);
 	};
+
+	struct FPSMSceneBounds
+	{
+		bool bValid = false;
+		FVector MinWS = FVector(FLT_MAX, FLT_MAX, FLT_MAX);
+		FVector MaxWS = FVector(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+
+		void MergePoint(const FVector& PointWS)
+		{
+			MinWS.X = (std::min)(MinWS.X, PointWS.X);
+			MinWS.Y = (std::min)(MinWS.Y, PointWS.Y);
+			MinWS.Z = (std::min)(MinWS.Z, PointWS.Z);
+
+			MaxWS.X = (std::max)(MaxWS.X, PointWS.X);
+			MaxWS.Y = (std::max)(MaxWS.Y, PointWS.Y);
+			MaxWS.Z = (std::max)(MaxWS.Z, PointWS.Z);
+
+			bValid = true;
+		}
+
+		void MergeBounds(const FBoxSphereBounds& Bounds)
+		{
+			const FVector Extent(
+				(std::max)(0.0f, Bounds.BoxExtent.X),
+				(std::max)(0.0f, Bounds.BoxExtent.Y),
+				(std::max)(0.0f, Bounds.BoxExtent.Z));
+
+			MergePoint(Bounds.Center - Extent);
+			MergePoint(Bounds.Center + Extent);
+		}
+	};
+
+	void BuildAABBCorners(const FVector& MinWS, const FVector& MaxWS, FVector OutCorners[8])
+	{
+		OutCorners[0] = FVector(MinWS.X, MinWS.Y, MinWS.Z);
+		OutCorners[1] = FVector(MaxWS.X, MinWS.Y, MinWS.Z);
+		OutCorners[2] = FVector(MinWS.X, MaxWS.Y, MinWS.Z);
+		OutCorners[3] = FVector(MaxWS.X, MaxWS.Y, MinWS.Z);
+
+		OutCorners[4] = FVector(MinWS.X, MinWS.Y, MaxWS.Z);
+		OutCorners[5] = FVector(MaxWS.X, MinWS.Y, MaxWS.Z);
+		OutCorners[6] = FVector(MinWS.X, MaxWS.Y, MaxWS.Z);
+		OutCorners[7] = FVector(MaxWS.X, MaxWS.Y, MaxWS.Z);
+	}
+
+	FPSMSceneBounds BuildPSMSceneBoundsFromWorld(const FSceneCommandBuildContext& BuildContext)
+	{
+		FPSMSceneBounds Bounds;
+
+		if (!BuildContext.World)
+		{
+			return Bounds;
+		}
+
+		const TArray<AActor*> Actors = BuildContext.World->GetAllActors();
+
+		for (AActor* Actor : Actors)
+		{
+			if (!Actor || Actor->IsPendingDestroy() || !Actor->IsVisible())
+			{
+				continue;
+			}
+
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				if (!Component || Component->IsPendingKill() || !Component->IsRegistered())
+				{
+					continue;
+				}
+
+				if (!Component->IsA(UPrimitiveComponent::StaticClass()))
+				{
+					continue;
+				}
+
+				const UPrimitiveComponent* Primitive =
+					static_cast<const UPrimitiveComponent*>(Component);
+
+				FBoxSphereBounds WorldBounds = Primitive->GetWorldBounds();
+
+				// PSM에서 receiver bounds만 너무 타이트하게 잡으면
+				// 화면 밖 caster / potential caster가 잘릴 수 있으므로 약간 확장합니다.
+				WorldBounds.BoxExtent += FVector(50.0f, 50.0f, 50.0f);
+
+				Bounds.MergeBounds(WorldBounds);
+			}
+		}
+
+		return Bounds;
+	}
+
+	bool ComputePSMFitRangeFromBounds(
+		const FPSMSceneBounds& Bounds,
+		const FVector& CameraPositionWS,
+		const FVector& CameraForwardWS,
+		float VirtualSlideBack,
+		float BaseNear,
+		float BaseFar,
+		float& OutNear,
+		float& OutFar)
+	{
+		if (!Bounds.bValid)
+		{
+			return false;
+		}
+
+		const FVector ForwardWS = CameraForwardWS.GetSafeNormal();
+		if (ForwardWS.IsNearlyZero())
+		{
+			return false;
+		}
+
+		FVector Corners[8];
+		BuildAABBCorners(Bounds.MinWS, Bounds.MaxWS, Corners);
+
+		float MinPositiveDepth = FLT_MAX;
+		float MaxPositiveDepth = -FLT_MAX;
+		uint32 PositiveCount = 0;
+
+		for (uint32 CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
+		{
+			const float DepthFromCamera =
+				FVector::DotProduct(Corners[CornerIndex] - CameraPositionWS, ForwardWS);
+
+			if (DepthFromCamera <= 0.0f)
+			{
+				continue;
+			}
+
+			MinPositiveDepth = (std::min)(MinPositiveDepth, DepthFromCamera);
+			MaxPositiveDepth = (std::max)(MaxPositiveDepth, DepthFromCamera);
+			++PositiveCount;
+		}
+
+		if (PositiveCount == 0 || MaxPositiveDepth <= 0.0f)
+		{
+			return false;
+		}
+
+		const float BaseRange = (std::max)(1.0f, BaseFar - BaseNear);
+
+		const float NearSafetyMargin = FMath::Clamp(
+			BaseRange * 0.03f,
+			1.0f,
+			10.0f);
+
+		const float FarSafetyMargin = FMath::Clamp(
+			BaseRange * 0.12f,
+			20.0f,
+			120.0f);
+
+		const float CandidateNear =
+			MinPositiveDepth + VirtualSlideBack - NearSafetyMargin;
+
+		const float CandidateFar =
+			MaxPositiveDepth + VirtualSlideBack + FarSafetyMargin;
+
+		constexpr float PSMMinNearZ = 0.50f;
+
+		const float MinPSMRange = (std::min)(
+			BaseRange,
+			FMath::Clamp(BaseRange * 0.45f, 50.0f, 200.0f));
+
+		OutNear = (std::max)(BaseNear, (std::max)(PSMMinNearZ, CandidateNear));
+		OutNear = (std::min)(OutNear, BaseFar - MinPSMRange);
+		OutNear = (std::max)(PSMMinNearZ, OutNear);
+
+		OutFar = (std::min)(
+			BaseFar,
+			(std::max)(CandidateFar, OutNear + MinPSMRange));
+
+		return OutFar > OutNear + 1.0f;
+	}
 
 	FVector TransformDirectionRow(const FMatrix& Matrix, const FVector& Direction)
 	{
@@ -502,7 +712,6 @@ namespace
 
 	float ComputePSMFrontFacingT(float Dot)
 	{
-		// Smoothly replaces the old Dot > 0.10 / Dot > 0.35 branches.
 		return SmoothStep01(0.05f, 0.45f, Dot);
 	}
 
@@ -514,7 +723,13 @@ namespace
 	float QuantizePSMDepth(float Value)
 	{
 		const float Step = 1.0f / 16.0f;
-		return std::floor(Value / Step) * Step;
+		return std::floor(Value / Step + 0.5f) * Step;
+	}
+
+	float QuantizePSMDepthCeil(float Value)
+	{
+		const float Step = 1.0f / 16.0f;
+		return std::ceil(Value / Step) * Step;
 	}
 
 	float QuantizePSMValue(float Value, float Step)
@@ -523,6 +738,7 @@ namespace
 		{
 			return Value;
 		}
+
 		return std::floor(Value / Step + 0.5f) * Step;
 	}
 
@@ -581,6 +797,7 @@ namespace
 		MaxAbsZ = (std::max)(MaxAbsZ, 1.0e-6f);
 		Out.FovYRad = 2.0f * std::atan(MaxAbsZ);
 		Out.Aspect = (std::max)(0.001f, MaxAbsY / MaxAbsZ);
+
 		return Out;
 	}
 
@@ -615,20 +832,24 @@ namespace
 	FVector ComputeCornersCenter(const FVector CornersWS[8])
 	{
 		FVector Center = FVector::ZeroVector;
+
 		for (int32 CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
 		{
 			Center += CornersWS[CornerIndex];
 		}
+
 		return Center / 8.0f;
 	}
 
 	float ComputeCornersRadius(const FVector CornersWS[8], const FVector& CenterWS)
 	{
 		float Radius = 0.0f;
+
 		for (int32 CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
 		{
 			Radius = (std::max)(Radius, VectorLength(CornersWS[CornerIndex] - CenterWS));
 		}
+
 		return (std::max)(Radius, 1.0f);
 	}
 
@@ -639,12 +860,14 @@ namespace
 		FVector& OutUpWS)
 	{
 		OutForwardWS = LightDirectionWS.GetSafeNormal();
+
 		if (OutForwardWS.IsNearlyZero())
 		{
 			OutForwardWS = FVector::ForwardVector;
 		}
 
 		OutUpWS = FVector::ZAxisVector;
+
 		if (std::abs(FVector::DotProduct(OutForwardWS, OutUpWS)) > 0.98f)
 		{
 			OutUpWS = FVector::YAxisVector;
@@ -666,9 +889,11 @@ namespace
 		for (int32 CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
 		{
 			const FVector CornerVS = ViewMatrix.TransformPosition(CornersWS[CornerIndex]);
+
 			OutMin.X = (std::min)(OutMin.X, CornerVS.X);
 			OutMin.Y = (std::min)(OutMin.Y, CornerVS.Y);
 			OutMin.Z = (std::min)(OutMin.Z, CornerVS.Z);
+
 			OutMax.X = (std::max)(OutMax.X, CornerVS.X);
 			OutMax.Y = (std::max)(OutMax.Y, CornerVS.Y);
 			OutMax.Z = (std::max)(OutMax.Z, CornerVS.Z);
@@ -702,6 +927,7 @@ namespace
 
 		const float InitialBackDistance = Radius + (std::max)(10.0f, Radius * 0.25f);
 		FVector LightPositionWS = CenterWS - LightForwardWS * InitialBackDistance;
+
 		FMatrix LightView = FMatrix::MakeViewLookAtLH(
 			LightPositionWS,
 			LightPositionWS + LightForwardWS,
@@ -713,7 +939,9 @@ namespace
 
 		float ViewWidth = (std::max)(1.0f, MaxVS.Y - MinVS.Y);
 		float ViewHeight = (std::max)(1.0f, MaxVS.Z - MinVS.Z);
+
 		const float XYMargin = (std::max)(0.5f, (std::max)(ViewWidth, ViewHeight) * 0.05f);
+
 		ViewWidth += XYMargin * 2.0f;
 		ViewHeight += XYMargin * 2.0f;
 
@@ -725,6 +953,7 @@ namespace
 		CenterZ = QuantizeToStep(CenterZ, ViewHeight / SafeResolution);
 
 		LightPositionWS += LightRightWS * CenterY + LightUpWS * CenterZ;
+
 		LightView = FMatrix::MakeViewLookAtLH(
 			LightPositionWS,
 			LightPositionWS + LightForwardWS,
@@ -758,7 +987,10 @@ namespace
 		float SplitNear,
 		float SplitFar)
 	{
-		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
+		const float Dot = FVector::DotProduct(
+			CameraForwardWS.GetSafeNormal(),
+			LightDirectionWS.GetSafeNormal());
+
 		const float SideToAlignedT = ComputePSMSideToAlignedT(Dot);
 		const float FrontT = ComputePSMFrontFacingT(Dot);
 		const float Range = (std::max)(1.0f, SplitFar - SplitNear);
@@ -772,7 +1004,7 @@ namespace
 			* SideToAlignedT;
 
 		const float TargetScale = LerpFloat(0.44f, 0.58f, SideToAlignedT);
-		const float TargetMin = LerpFloat(2.75f, 3.75f, SideToAlignedT);
+		const float TargetMin = LerpFloat(8.0f, 16.0f, SideToAlignedT);
 		const float TargetFarScale = LerpFloat(0.58f, 0.76f, SideToAlignedT);
 
 		const float TargetDepthAtSplitNear = FMath::Clamp(
@@ -781,7 +1013,7 @@ namespace
 			(std::max)(TargetMin, SplitFar * TargetFarScale));
 
 		const float RequiredSlide = (std::max)(0.0f, TargetDepthAtSplitNear - SplitNear);
-		const float MaxSlideAbs = LerpFloat(55.0f, 75.0f, SideToAlignedT);
+		const float MaxSlideAbs = LerpFloat(100.0f, 150.0f, SideToAlignedT);
 		const float MaxSlideRange = LerpFloat(0.85f, 1.10f, SideToAlignedT);
 		const float MaxSlide = (std::min)(MaxSlideAbs, Range * MaxSlideRange);
 
@@ -803,27 +1035,29 @@ namespace
 		float& OutFar)
 	{
 		const float Range = (std::max)(1.0f, SplitFar - SplitNear);
-		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
+
+		const float Dot = FVector::DotProduct(
+			CameraForwardWS.GetSafeNormal(),
+			LightDirectionWS.GetSafeNormal());
+
 		const float SideToAlignedT = ComputePSMSideToAlignedT(Dot);
 		const float FrontT = ComputePSMFrontFacingT(Dot);
-
-		float NearMargin = (std::max)(1.0f, Range * 0.02f);
-		float FarMargin = NearMargin;
 
 		const float SideNearMargin = FMath::Clamp(Range * 0.010f, 0.10f, 0.90f);
 		const float AlignedNearMargin = FMath::Clamp(Range * 0.015f, 0.15f, 1.25f);
 		const float SideFarMargin = FMath::Clamp(Range * 0.012f, 0.15f, 1.00f);
 		const float AlignedFarMargin = FMath::Clamp(Range * 0.018f, 0.20f, 1.50f);
 
-		NearMargin = LerpFloat(SideNearMargin, AlignedNearMargin, SideToAlignedT);
-		FarMargin = LerpFloat(SideFarMargin, AlignedFarMargin, SideToAlignedT);
+		float NearMargin = LerpFloat(SideNearMargin, AlignedNearMargin, SideToAlignedT);
+		float FarMargin = LerpFloat(SideFarMargin, AlignedFarMargin, SideToAlignedT);
 
 		const float FrontNearMargin = FMath::Clamp(
 			Range * LerpFloat(0.015f, 0.045f, FrontT),
 			0.15f,
 			2.0f);
+
 		NearMargin = (std::max)(NearMargin, FrontNearMargin * FrontT);
-		
+
 		constexpr float PSMMinNearZ = 0.50f;
 
 		const float RawNear = SplitNear + VirtualSlideBack - NearMargin;
@@ -833,7 +1067,7 @@ namespace
 		OutFar = (std::max)(OutNear + 1.0f, RawFar);
 
 		OutNear = (std::max)(PSMMinNearZ, QuantizePSMDepth(OutNear));
-		OutFar = (std::max)(OutNear + 1.0f, QuantizePSMDepth(OutFar));
+		OutFar = (std::max)(OutNear + 1.0f, QuantizePSMDepthCeil(OutFar));
 	}
 
 	FPostPerspectiveShadowCamera BuildPostPerspectiveShadowCamera(
@@ -857,10 +1091,12 @@ namespace
 		if (bOrthoLike)
 		{
 			FVector LightDirPP(LightPPH.X, LightPPH.Y, LightPPH.Z);
+
 			if (LightDirPP.IsNearlyZero())
 			{
 				LightDirPP = FVector(1.0f, 0.0f, 0.0f);
 			}
+
 			LightDirPP = LightDirPP.GetSafeNormal();
 
 			const FVector LightPositionPP = PPCenter + LightDirPP * (PPRadius * 2.0f);
@@ -880,6 +1116,7 @@ namespace
 			Result.Projection = FMatrix::MakeOrthographicLH(PPRadius * 2.0f, PPRadius * 2.0f, NearPP, FarPP);
 			Result.bOrthographic = true;
 			Result.bInversePerspective = false;
+
 			return Result;
 		}
 
@@ -936,7 +1173,10 @@ namespace
 		float& OutSlopeBias,
 		float& OutNormalBias)
 	{
-		const float Dot = FVector::DotProduct(CameraForwardWS.GetSafeNormal(), LightDirectionWS.GetSafeNormal());
+		const float Dot = FVector::DotProduct(
+			CameraForwardWS.GetSafeNormal(),
+			LightDirectionWS.GetSafeNormal());
+
 		const float AlignT = FMath::Clamp((std::abs(Dot) - 0.15f) / 0.85f, 0.0f, 1.0f);
 		const float SideToAlignedT = ComputePSMSideToAlignedT(Dot);
 		const float FrontBiasT = SmoothStep01(-0.05f, 0.10f, Dot);
@@ -957,19 +1197,16 @@ namespace
 			0.0030f);
 
 		OutConstantBias *= LerpFloat(1.0f, 0.75f, FrontBiasT);
-		OutSlopeBias *= LerpFloat(
-			1.0f,
-			0.90f,
-			FrontBiasT);
+		OutSlopeBias *= LerpFloat(1.0f, 0.90f, FrontBiasT);
 
 		if (SideToAlignedT < 1.0f)
 		{
 			const float BiasReleaseT = SideToAlignedT * SideToAlignedT * SideToAlignedT;
 
 			const float ConstantCap = LerpFloat(0.00000025f, 0.0000075f, BiasReleaseT);
-			OutConstantBias = (std::min)(OutConstantBias, ConstantCap);
-
 			const float SlopeCap = LerpFloat(0.00035f, 0.0030f, BiasReleaseT);
+
+			OutConstantBias = (std::min)(OutConstantBias, ConstantCap);
 			OutSlopeBias = (std::min)(OutSlopeBias, SlopeCap);
 		}
 
@@ -979,8 +1216,6 @@ namespace
 			OutSlopeBias = (std::min)(OutSlopeBias, 0.00045f);
 		}
 
-		OutConstantBias = (std::min)(OutConstantBias, 0.00000001f);
-		OutSlopeBias = (std::min)(OutSlopeBias, 0.000012f);
 		OutNormalBias = 0.0f;
 	}
 
@@ -989,7 +1224,8 @@ namespace
 		const FVector& LightDirectionWS,
 		float SplitNear,
 		float SplitFar,
-		const UDirectionalLightComponent* DirLight)
+		const UDirectionalLightComponent* DirLight,
+		const FPSMSceneBounds& PSMSceneBounds)
 	{
 		FDirectionalShadowProjectionResult Result;
 		Result.SplitNear = SplitNear;
@@ -1008,6 +1244,7 @@ namespace
 
 		float VCNear = 0.0f;
 		float VCFar = 0.0f;
+
 		ComputePSMVirtualCameraRange(
 			CameraForwardWS,
 			LightDirectionWS,
@@ -1017,11 +1254,36 @@ namespace
 			VCNear,
 			VCFar);
 
+		float FitNear = 0.0f;
+		float FitFar = 0.0f;
+
+		if (ComputePSMFitRangeFromBounds(
+			PSMSceneBounds,
+			CameraPositionWS,
+			CameraForwardWS,
+			VirtualSlideBack,
+			VCNear,
+			VCFar,
+			FitNear,
+			FitFar))
+		{
+			VCNear = FitNear;
+			VCFar = FitFar;
+		}
+
 		const FVector VCPositionWS = CameraPositionWS - CameraForwardWS * VirtualSlideBack;
 		const FVector VCTargetWS = CameraPositionWS + CameraForwardWS;
 
-		const FMatrix VCView = FMatrix::MakeViewLookAtLH(VCPositionWS, VCTargetWS, CameraUpWS);
-		const FMatrix VCProjection = FMatrix::MakePerspectiveFovLH(Basis.FovYRad, Basis.Aspect, VCNear, VCFar);
+		const FMatrix VCView = FMatrix::MakeViewLookAtLH(
+			VCPositionWS,
+			VCTargetWS,
+			CameraUpWS);
+
+		const FMatrix VCProjection = FMatrix::MakePerspectiveFovLH(
+			Basis.FovYRad,
+			Basis.Aspect,
+			VCNear,
+			VCFar);
 
 		const FPostPerspectiveShadowCamera PPCamera = BuildPostPerspectiveShadowCamera(
 			VCView,
@@ -1041,6 +1303,7 @@ namespace
 		float ConstantBias = 0.0f;
 		float SlopeBias = 0.0f;
 		float NormalBias = 0.0f;
+
 		ComputePSMBias(
 			CameraForwardWS,
 			LightDirectionWS,
@@ -1058,15 +1321,84 @@ namespace
 		return Result;
 	}
 
+	float ComputePSMAdaptiveShadowFarZ(
+		const FPSMSceneBounds& Bounds,
+		const FViewContext& View,
+		float UserShadowFarZ)
+	{
+		constexpr float PSMQualityFarCap = 350.0f;
+		constexpr float PSMMinFarZ = 80.0f;
+
+		const float UserFar = (UserShadowFarZ > 0.0f)
+			? (std::max)(UserShadowFarZ, View.NearZ + 1.0f)
+			: PSMQualityFarCap;
+
+		if (!Bounds.bValid)
+		{
+			return FMath::Clamp(PSMQualityFarCap, View.NearZ + 1.0f, UserFar);
+		}
+
+		const FVector CameraPositionWS = GetCameraPositionWS(View);
+		const FVector CameraForwardWS = GetCameraForwardWS(View);
+
+		if (CameraForwardWS.IsNearlyZero())
+		{
+			return FMath::Clamp(PSMQualityFarCap, View.NearZ + 1.0f, UserFar);
+		}
+
+		FVector Corners[8];
+		BuildAABBCorners(Bounds.MinWS, Bounds.MaxWS, Corners);
+
+		float MaxPositiveDepth = -FLT_MAX;
+		uint32 PositiveCount = 0;
+
+		for (uint32 CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
+		{
+			const float Depth =
+				FVector::DotProduct(Corners[CornerIndex] - CameraPositionWS, CameraForwardWS);
+
+			if (Depth <= 0.0f)
+			{
+				continue;
+			}
+
+			MaxPositiveDepth = (std::max)(MaxPositiveDepth, Depth);
+			++PositiveCount;
+		}
+
+		if (PositiveCount == 0 || MaxPositiveDepth <= 0.0f)
+		{
+			return FMath::Clamp(PSMQualityFarCap, View.NearZ + 1.0f, UserFar);
+		}
+
+		const float FarMargin = FMath::Clamp(
+			MaxPositiveDepth * 0.20f,
+			30.0f,
+			150.0f);
+
+		const float CandidateFar = MaxPositiveDepth + FarMargin;
+
+		const float MaxAllowedFar = (std::max)(
+			View.NearZ + 1.0f,
+			(std::min)(UserFar, PSMQualityFarCap));
+
+		const float MinAllowedFar = (std::min)(
+			MaxAllowedFar,
+			(std::max)(View.NearZ + 20.0f, PSMMinFarZ));
+
+		return FMath::Clamp(CandidateFar, MinAllowedFar, MaxAllowedFar);
+	}
 
 	void BuildDirectionalShadowViews(
 		FSceneLightingInputs& Inputs,
 		const UDirectionalLightComponent* DirLight,
 		FDirectionalLightRenderItem& LightItem,
 		uint32 ShadowLightIndex,
-		const FViewContext& View)
+		const FViewContext& View,
+		const FPSMSceneBounds& PSMSceneBounds)
 	{
 		FShadowLightRenderItem& ShadowLight = Inputs.DirShadowLights[ShadowLightIndex];
+
 		ShadowLight.LightType = EShadowLightType::Directional;
 		ShadowLight.PositionWS = FVector::ZeroVector;
 		ShadowLight.DirectionWS = LightItem.DirectionWS;
@@ -1076,16 +1408,23 @@ namespace
 		ShadowLight.Sharpen = 0.0f;
 		ShadowLight.ESMExponent = DirLight->GetShadowESMExponent();
 
-		const bool bUsePSM = DirLight->GetShadowProjectionMode() == EDirectionalShadowProjectionMode::PSM;
+		const bool bUsePSM =
+			DirLight->GetShadowProjectionMode() == EDirectionalShadowProjectionMode::PSM;
+
 		uint32 CascadeCount = bUsePSM
 			? 1u
 			: static_cast<uint32>(DirLight->GetCascadeCount());
+
 		CascadeCount = (std::min)(CascadeCount, ShadowConfig::MaxDirCascade);
+
+		const float ShadowFarZ = bUsePSM
+			? ComputePSMAdaptiveShadowFarZ(PSMSceneBounds, View, DirLight->GetShadowFarZ())
+			: DirLight->GetShadowFarZ();
 
 		TArray<float> FrustumSplits = FCasCade::CalculateCascadeSplits(
 			CascadeCount,
 			View.NearZ,
-			DirLight->GetShadowFarZ(),
+			ShadowFarZ,
 			DirLight->GetSplitLambda());
 
 		if (FrustumSplits.size() < 2)
@@ -1097,11 +1436,18 @@ namespace
 			FrustumSplits.size() > 1 ? FrustumSplits[1] : 0.0f,
 			FrustumSplits.size() > 2 ? FrustumSplits[2] : 0.0f,
 			FrustumSplits.size() > 3 ? FrustumSplits[3] : 0.0f,
-			FrustumSplits.size() > 4 ? FrustumSplits[4] : 0.0f
-		);
+			FrustumSplits.size() > 4 ? FrustumSplits[4] : 0.0f);
 
 		float ResolutionScale = DirLight->GetShadowResolutionScale();
-		uint32 RequestedResolution = QuantizeDiraShadowResolution(static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionScale));
+
+		uint32 RequestedResolution = QuantizeDiraShadowResolution(
+			static_cast<uint32>(ShadowConfig::DefaultShadowMapResolution * ResolutionScale));
+
+		if (bUsePSM)
+		{
+			RequestedResolution = QuantizeDiraShadowResolution(
+				(std::max)(RequestedResolution, 4096u));
+		}
 
 		for (uint32 CascadeIndex = 0; CascadeIndex < CascadeCount; ++CascadeIndex)
 		{
@@ -1114,7 +1460,8 @@ namespace
 					LightItem.DirectionWS,
 					SplitNear,
 					SplitFar,
-					DirLight)
+					DirLight,
+					PSMSceneBounds)
 				: BuildCSMShadowProjection(
 					View,
 					LightItem.DirectionWS,
@@ -1138,7 +1485,6 @@ namespace
 
 			ViewItem.RequestedResolution = RequestedResolution;
 			ViewItem.BiasParams = ShadowProjection.BiasParams;
-
 			ViewItem.Viewport = {};
 
 			AddDirShadowView(Inputs, ShadowLightIndex, ViewItem);
@@ -1146,30 +1492,55 @@ namespace
 	}
 
 	void BuildPointShadowViews(
-		FSceneLightingInputs&        Inputs,
-		const UPointLightComponent*  Point,
+		FSceneLightingInputs& Inputs,
+		const UPointLightComponent* Point,
 		const FLocalLightRenderItem& LightItem,
-		uint32                       ShadowLightIndex,
-		uint32                       CubeArrayIndex,
-		const FMatrix&               ViewProjMatrix)
+		uint32 ShadowLightIndex,
+		uint32 CubeArrayIndex,
+		const FMatrix& ViewProjMatrix)
 	{
-		static const FVector CubeFaceLook[6] = {{ 1, 0, 0 }, { -1, 0, 0 },	{ 0, 1, 0 }, { 0,-1, 0 },{0, 0, 1 },{ 0, 0, -1 },};
-		static const FVector CubeFaceUp[6] = {{ 0, 1, 0 }, { 0, 1, 0 }, { 0, 0, -1 }, { 0, 0, 1 },{ 0, 1, 0 }, { 0, 1, 0 },	};
+		static const FVector CubeFaceLook[6] =
+		{
+			FVector( 1,  0,  0),
+			FVector(-1,  0,  0),
+			FVector( 0,  1,  0),
+			FVector( 0, -1,  0),
+			FVector( 0,  0,  1),
+			FVector( 0,  0, -1),
+		};
+
+		static const FVector CubeFaceUp[6] =
+		{
+			FVector(0, 1,  0),
+			FVector(0, 1,  0),
+			FVector(0, 0, -1),
+			FVector(0, 0,  1),
+			FVector(0, 1,  0),
+			FVector(0, 1,  0),
+		};
+
 		FShadowLightRenderItem& ShadowLight = Inputs.ShadowLights[ShadowLightIndex];
+
 		ShadowLight.PositionWS = LightItem.PositionWS;
 		ShadowLight.Mobility = Point->GetMobility();
 		ShadowLight.bCacheDirty = Point->IsCacheDirty();
+
 		Point->ResetShadowCacheDirty();
-		ShadowLight.Bias       = Point->GetShadowBias();
-		ShadowLight.SlopeBias  = Point->GetShadowSlopeBias();
-		ShadowLight.Sharpen    = Point->GetShadowSharpen();
+
+		ShadowLight.Bias = Point->GetShadowBias();
+		ShadowLight.SlopeBias = Point->GetShadowSlopeBias();
+		ShadowLight.Sharpen = Point->GetShadowSharpen();
 		ShadowLight.CubeArrayIndex = CubeArrayIndex;
 		ShadowLight.ESMExponent = Point->GetShadowESMExponent();
 
 		const float NearZ = ShadowConfig::DefaultNearZ;
 		const float FarZ = (std::max)(LightItem.Range, NearZ + 0.001f);
 
-		const float Coverage = ComputePointScreenCoverage(LightItem.PositionWS, LightItem.Range, ViewProjMatrix);
+		const float Coverage = ComputePointScreenCoverage(
+			LightItem.PositionWS,
+			LightItem.Range,
+			ViewProjMatrix);
+
 		if (Coverage <= 0.0f)
 		{
 			return;
@@ -1181,7 +1552,7 @@ namespace
 
 		const uint32 BaseSlice = ShadowConfig::PointShadowSliceOffset + CubeArrayIndex * 6;
 
-		for (uint32 F = 0; F < 6; ++F)
+		for (uint32 FaceIndex = 0; FaceIndex < 6; ++FaceIndex)
 		{
 			FShadowViewRenderItem View;
 			View.ProjectionType = EShadowProjectionType::Perspective;
@@ -1193,41 +1564,47 @@ namespace
 
 			View.View = FMatrix::MakeViewLookAtLH(
 				LightItem.PositionWS,
-				LightItem.PositionWS + CubeFaceLook[F],
-				CubeFaceUp[F]);	
+				LightItem.PositionWS + CubeFaceLook[FaceIndex],
+				CubeFaceUp[FaceIndex]);
 
 			View.Projection = FMatrix::MakePerspectiveFovLH(
-				FMath::DegreesToRadians(90.0f), 1.0f, NearZ, FarZ);
+				FMath::DegreesToRadians(90.0f),
+				1.0f,
+				NearZ,
+				FarZ);
 
 			View.ViewProjection = View.View * View.Projection;
-			View.FilterMode = EShadowFilterMode::Raw; 
+			View.FilterMode = EShadowFilterMode::Raw;
 			View.LightType = EShadowLightType::Point;
 
-			AddPointShadowView(Inputs, ShadowLightIndex, BaseSlice + F, View);
+			AddPointShadowView(
+				Inputs,
+				ShadowLightIndex,
+				BaseSlice + FaceIndex,
+				View);
 		}
-
 	}
+
 	float ComputeShadowPriority(const FVector& LightPos, const FVector& CameraPos)
 	{
 		return (LightPos - CameraPos).SizeSquared();
-
 	}
-
 }
-
 
 void FSceneCommandLightingBuilder::BuildLightingInputs(
 	const FSceneCommandBuildContext& BuildContext,
-	const FSceneRenderPacket&        Packet,
-	const FViewContext&              View,
-	FSceneViewData&                  OutSceneViewData) const
+	const FSceneRenderPacket& Packet,
+	const FViewContext& View,
+	FSceneViewData& OutSceneViewData) const
 {
 	(void)Packet;
-	(void)View;
+
+	const FPSMSceneBounds PSMSceneBounds = BuildPSMSceneBoundsFromWorld(BuildContext);
+
 	FSceneLightingInputs& LightingInputs = OutSceneViewData.LightingInputs;
 	LightingInputs.Clear();
 
-	LightingInputs.Ambient.Color     = FVector::OneVector;
+	LightingInputs.Ambient.Color = FVector::OneVector;
 	LightingInputs.Ambient.Intensity = 0.0f;
 
 	if (!BuildContext.World)
@@ -1235,8 +1612,6 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 		return;
 	}
 
-
-	//temp Condidtate colletion vector
 	struct FPointShadowCandidate
 	{
 		const UPointLightComponent* PointLightl = nullptr;
@@ -1244,14 +1619,17 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 		uint32 LocalLightIndex = 0;
 		float SortKey = 0.0f;
 	};
+
 	std::vector<FPointShadowCandidate> ShadowCandidates;
 	ShadowCandidates.reserve(16);
 
-	FVector                     AmbientRadiance      = FVector::ZeroVector;
-	float                       AmbientIntensitySum  = 0.0f;
-	bool                        bHasAmbientLight     = false;
-	bool                        bHasDirectionalLight = false;
-	float                       StrongestDirectional = -1.0f;
+	FVector AmbientRadiance = FVector::ZeroVector;
+	float AmbientIntensitySum = 0.0f;
+
+	bool bHasAmbientLight = false;
+	bool bHasDirectionalLight = false;
+
+	float StrongestDirectional = -1.0f;
 	FDirectionalLightRenderItem DirectionalLightItem;
 
 	const TArray<AActor*> Actors = BuildContext.World->GetAllActors();
@@ -1273,33 +1651,40 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 			if (Component->IsA(UAmbientLightComponent::StaticClass()))
 			{
-				const UAmbientLightComponent* Ambient = static_cast<UAmbientLightComponent*>(Component);
+				const UAmbientLightComponent* Ambient =
+					static_cast<UAmbientLightComponent*>(Component);
+
 				if (!Ambient->GetVisible())
 				{
 					continue;
 				}
 
 				const float EffectiveIntensity = Ambient->GetEffectiveIntensity();
+
 				if (EffectiveIntensity <= 0.0f)
 				{
 					continue;
 				}
 
-				AmbientRadiance     += ToLightRGB(Ambient->GetColor()) * EffectiveIntensity;
+				AmbientRadiance += ToLightRGB(Ambient->GetColor()) * EffectiveIntensity;
 				AmbientIntensitySum += EffectiveIntensity;
-				bHasAmbientLight    = true;
+				bHasAmbientLight = true;
+
 				continue;
 			}
 
 			if (Component->IsA(UDirectionalLightComponent::StaticClass()))
 			{
-				const UDirectionalLightComponent* Directional = static_cast<UDirectionalLightComponent*>(Component);
+				const UDirectionalLightComponent* Directional =
+					static_cast<UDirectionalLightComponent*>(Component);
+
 				if (!Directional->GetVisible() || Directional->GetEffectiveIntensity() <= 0.0f)
 				{
 					continue;
 				}
 
 				const FDirectionalLightRenderItem Candidate = BuildDirectionalLight(Directional);
+
 				if (!bHasDirectionalLight || Candidate.Intensity > StrongestDirectional)
 				{
 					DirectionalLightItem = Candidate;
@@ -1308,37 +1693,62 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 					LightingInputs.DirShadowLights.clear();
 					LightingInputs.DirShadowViews.clear();
-					
+
 					if (Directional->IsCastingShadows())
 					{
-						const uint32 ShadowLightIndex = AllocateDirShadowLight(LightingInputs, EShadowLightType::Directional, 0);
+						const uint32 ShadowLightIndex = AllocateDirShadowLight(
+							LightingInputs,
+							EShadowLightType::Directional,
+							0);
+
 						if (ShadowLightIndex != UINT32_MAX)
 						{
-							BuildDirectionalShadowViews(LightingInputs, Directional, DirectionalLightItem, ShadowLightIndex, View);
+							BuildDirectionalShadowViews(
+								LightingInputs,
+								Directional,
+								DirectionalLightItem,
+								ShadowLightIndex,
+								View,
+								PSMSceneBounds);
 						}
 					}
 				}
+
 				continue;
 			}
 
 			if (Component->IsA(USpotLightComponent::StaticClass()))
 			{
-				
-				const USpotLightComponent* Spot = static_cast<USpotLightComponent*>(Component);
-				if (!Spot->GetVisible() || Spot->GetEffectiveIntensity() <= 0.0f || Spot->GetAttenuationRadius() <= 0.0f)
+				const USpotLightComponent* Spot =
+					static_cast<USpotLightComponent*>(Component);
+
+				if (!Spot->GetVisible()
+					|| Spot->GetEffectiveIntensity() <= 0.0f
+					|| Spot->GetAttenuationRadius() <= 0.0f)
 				{
 					continue;
 				}
 
-				FLocalLightRenderItem LightItem       = BuildSpotLight(Spot);
-				const uint32          LocalLightIndex = static_cast<uint32>(LightingInputs.LocalLights.size());
+				FLocalLightRenderItem LightItem = BuildSpotLight(Spot);
+				const uint32 LocalLightIndex = static_cast<uint32>(LightingInputs.LocalLights.size());
+
 				if (Spot->IsCastingShadows())
 				{
-					const uint32 ShadowLightIndex = AllocalteShadowLight(LightingInputs, EShadowLightType::Spot, LocalLightIndex);
+					const uint32 ShadowLightIndex = AllocalteShadowLight(
+						LightingInputs,
+						EShadowLightType::Spot,
+						LocalLightIndex);
 
 					if (ShadowLightIndex != UINT32_MAX)
 					{
-						BuildSpotShadowViews(LightingInputs, Spot, LightItem, LocalLightIndex, ShadowLightIndex, View.ViewProjection);
+						BuildSpotShadowViews(
+							LightingInputs,
+							Spot,
+							LightItem,
+							LocalLightIndex,
+							ShadowLightIndex,
+							View.ViewProjection);
+
 						if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount > 0)
 						{
 							LightItem.ShadowIndex = ShadowLightIndex;
@@ -1352,38 +1762,48 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 			if (Component->IsA(UPointLightComponent::StaticClass()))
 			{
-				const UPointLightComponent* Point = static_cast<UPointLightComponent*>(Component);
-				if (!Point->GetVisible() || Point->GetEffectiveIntensity() <= 0.0f
+				const UPointLightComponent* Point =
+					static_cast<UPointLightComponent*>(Component);
+
+				if (!Point->GetVisible()
+					|| Point->GetEffectiveIntensity() <= 0.0f
 					|| Point->GetAttenuationRadius() <= 0.0f)
+				{
 					continue;
+				}
 
 				FLocalLightRenderItem LightItem = BuildPointLight(Point);
 				const uint32 LocalLightIndex = static_cast<uint32>(LightingInputs.LocalLights.size());
 
 				if (Point->IsCastingShadows())
 				{
-					// 후보로만 수집 등록은 정렬 후 2차 패스에서
 					FPointShadowCandidate Candidate;
 					Candidate.PointLightl = Point;
 					Candidate.LightItem = LightItem;
 					Candidate.LocalLightIndex = LocalLightIndex;
-					Candidate.SortKey = ComputeShadowPriority(LightItem.PositionWS, OutSceneViewData.View.CameraPosition);
+					Candidate.SortKey = ComputeShadowPriority(
+						LightItem.PositionWS,
+						OutSceneViewData.View.CameraPosition);
+
 					ShadowCandidates.push_back(Candidate);
-			
 				}
 				else
 				{
 					LightingInputs.LocalLights.push_back(LightItem);
 				}
+
 				continue;
 			}
 		}
 	}
-	std::sort(ShadowCandidates.begin(), ShadowCandidates.end(),
+
+	std::sort(
+		ShadowCandidates.begin(),
+		ShadowCandidates.end(),
 		[](const FPointShadowCandidate& A, const FPointShadowCandidate& B)
-	{;
-	return A.SortKey < B.SortKey;
-	});
+		{
+			return A.SortKey < B.SortKey;
+		});
 
 	uint32 PointCubeCounter = 0;
 
@@ -1394,12 +1814,19 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 		if (PointCubeCounter < ShadowConfig::MaxPointShadowCubes)
 		{
 			const uint32 ShadowLightIndex = AllocalteShadowLight(
-				LightingInputs, EShadowLightType::Point, Candidate.LocalLightIndex);
+				LightingInputs,
+				EShadowLightType::Point,
+				Candidate.LocalLightIndex);
 
 			if (ShadowLightIndex != UINT32_MAX)
 			{
-				BuildPointShadowViews(LightingInputs, Candidate.PointLightl, LightItem,
-					ShadowLightIndex, PointCubeCounter, View.ViewProjection);
+				BuildPointShadowViews(
+					LightingInputs,
+					Candidate.PointLightl,
+					LightItem,
+					ShadowLightIndex,
+					PointCubeCounter,
+					View.ViewProjection);
 
 				if (LightingInputs.ShadowLights[ShadowLightIndex].ViewCount == 6)
 				{
@@ -1411,9 +1838,10 @@ void FSceneCommandLightingBuilder::BuildLightingInputs(
 
 		LightingInputs.LocalLights.push_back(LightItem);
 	}
+
 	if (bHasAmbientLight && AmbientIntensitySum > 0.0f)
 	{
-		LightingInputs.Ambient.Color     = AmbientRadiance / AmbientIntensitySum;
+		LightingInputs.Ambient.Color = AmbientRadiance / AmbientIntensitySum;
 		LightingInputs.Ambient.Intensity = AmbientIntensitySum;
 	}
 
