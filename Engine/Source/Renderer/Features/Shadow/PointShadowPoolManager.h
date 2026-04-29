@@ -6,6 +6,7 @@
 
 enum class EShadowResolutionClass
 {
+	R128,
 	R256,
 	R512,
 	R1024,

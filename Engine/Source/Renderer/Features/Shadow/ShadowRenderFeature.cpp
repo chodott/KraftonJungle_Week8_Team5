@@ -1486,9 +1486,11 @@ void FShadowRenderFeature::RenderShadowViews(
 			}
 
 			const uint32 Resolution = ShadowView.AllocatedResolution;
-			const EShadowResolutionClass PoolClass = (Resolution <= 256)
-				? EShadowResolutionClass::R256
-				: (Resolution <= 512 ? EShadowResolutionClass::R512 : EShadowResolutionClass::R1024);
+			const EShadowResolutionClass PoolClass = (Resolution <= 128)
+				? EShadowResolutionClass::R128
+				: (Resolution <= 256
+					? EShadowResolutionClass::R256
+					: (Resolution <= 512 ? EShadowResolutionClass::R512 : EShadowResolutionClass::R1024));
 			FPointShadowPoolResource& Pool = PointShadowPool.GetPool(PoolClass);
 			const uint32 Slice = ShadowView.ArraySlice;
 			if (Slice >= static_cast<uint32>(Pool.MaxSlices))

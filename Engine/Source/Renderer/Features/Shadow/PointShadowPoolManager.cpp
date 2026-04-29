@@ -201,6 +201,7 @@ bool PointShadowPoolManager::Initialize(ID3D11Device* Device)
 
 	bool bOk = true;
 
+	bOk &= Pools[(int)EShadowResolutionClass::R128].Create(Device, 128, 8);
 	bOk &= Pools[(int)EShadowResolutionClass::R256].Create(Device, 256, 8);
 	bOk &= Pools[(int)EShadowResolutionClass::R512].Create(Device, 512, 8);
 	bOk &= Pools[(int)EShadowResolutionClass::R1024].Create(Device, 1024, 4);
@@ -254,10 +255,30 @@ FPointShadowAllocation PointShadowPoolManager::Allocate(int RequestedResolution)
 		{
 			return Alloc;
 		}
+
+		Alloc = TryAllocate(EShadowResolutionClass::R128);
+		if (Alloc.bValid)
+		{
+			return Alloc;
+		}
 	}
 	else if (Class == EShadowResolutionClass::R512)
 	{
 		Alloc = TryAllocate(EShadowResolutionClass::R256);
+		if (Alloc.bValid)
+		{
+			return Alloc;
+		}
+
+		Alloc = TryAllocate(EShadowResolutionClass::R128);
+		if (Alloc.bValid)
+		{
+			return Alloc;
+		}
+	}
+	else if (Class == EShadowResolutionClass::R256)
+	{
+		Alloc = TryAllocate(EShadowResolutionClass::R128);
 		if (Alloc.bValid)
 		{
 			return Alloc;
@@ -293,6 +314,11 @@ FPointShadowAllocation PointShadowPoolManager::TryAllocate(EShadowResolutionClas
 
 EShadowResolutionClass PointShadowPoolManager::SelectClass(int RequestedResolution) const
 {
+	if (RequestedResolution <= 128)
+	{
+		return EShadowResolutionClass::R128;
+	}
+
 	if (RequestedResolution <= 256)
 	{
 		return EShadowResolutionClass::R256;

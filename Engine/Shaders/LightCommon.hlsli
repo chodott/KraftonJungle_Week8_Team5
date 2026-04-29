@@ -242,12 +242,14 @@ Texture2D<float2>				DirShadowMomentsTexture		: register(t29); // VSM
 
 
 // 큐브맵 해상도 종류 추가 시 수정 필요(셰이더만 고치면 됨)
-TextureCubeArray<float>		     ShadowDepth256CubeArray: register(t30);// Cube Map
-TextureCubeArray<float>		     ShadowDepth512CubeArray: register(t31);// Cube Map
-TextureCubeArray<float>		     ShadowDepth1024CubeArray: register(t32);// Cube Map
-TextureCubeArray<float2>		     ShadowMoments256CubeArray: register(t33);// Cube Map
-TextureCubeArray<float2>		     ShadowMoments512CubeArray: register(t34);// Cube Map
-TextureCubeArray<float2>		     ShadowMoments1024CubeArray: register(t35);// Cube Map
+TextureCubeArray<float>		     ShadowDepth128CubeArray: register(t30);// Cube Map
+TextureCubeArray<float>		     ShadowDepth256CubeArray: register(t31);// Cube Map
+TextureCubeArray<float>		     ShadowDepth512CubeArray: register(t32);// Cube Map
+TextureCubeArray<float>		     ShadowDepth1024CubeArray: register(t33);// Cube Map
+TextureCubeArray<float2>		     ShadowMoments128CubeArray: register(t34);// Cube Map
+TextureCubeArray<float2>		     ShadowMoments256CubeArray: register(t35);// Cube Map
+TextureCubeArray<float2>		     ShadowMoments512CubeArray: register(t36);// Cube Map
+TextureCubeArray<float2>		     ShadowMoments1024CubeArray: register(t37);// Cube Map
 
 SamplerComparisonState            ShadowSampler      : register(s8); // PCF
 SamplerState                      LinearClampSampler : register(s9); // VSM
@@ -377,6 +379,10 @@ float SamplePointShadowDepth(FShadowViewGPU view, float3 sampleDir, uint cubeInd
 	const float resolution = view.ViewParams.z;
 	const float4 cubeUV = float4(sampleDir, (float)cubeIndex);
 
+	if (resolution <= 128.5f)
+	{
+		return ShadowDepth128CubeArray.SampleLevel(LinearClampSampler, cubeUV, 0.0f).r;
+	}
 	if (resolution <= 256.5f)
 	{
 		return ShadowDepth256CubeArray.SampleLevel(LinearClampSampler, cubeUV, 0.0f).r;
@@ -394,6 +400,10 @@ float SamplePointShadowDepthCmp(FShadowViewGPU view, float3 sampleDir, uint cube
 	const float resolution = view.ViewParams.z;
 	const float4 cubeUV = float4(sampleDir, (float)cubeIndex);
 
+	if (resolution <= 128.5f)
+	{
+		return ShadowDepth128CubeArray.SampleCmpLevelZero(ShadowSampler, cubeUV, compareDepth);
+	}
 	if (resolution <= 256.5f)
 	{
 		return ShadowDepth256CubeArray.SampleCmpLevelZero(ShadowSampler, cubeUV, compareDepth);
@@ -411,6 +421,10 @@ float2 SamplePointShadowMoments(FShadowViewGPU view, float3 sampleDir, uint cube
 	const float resolution = view.ViewParams.z;
 	const float4 cubeUV = float4(sampleDir, (float)cubeIndex);
 
+	if (resolution <= 128.5f)
+	{
+		return ShadowMoments128CubeArray.SampleLevel(LinearClampSampler, cubeUV, 0.0f).rg;
+	}
 	if (resolution <= 256.5f)
 	{
 		return ShadowMoments256CubeArray.SampleLevel(LinearClampSampler, cubeUV, 0.0f).rg;
