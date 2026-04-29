@@ -424,8 +424,15 @@ bool FShadowRenderFeature::RenderShadows(
 	ShadowStatsCache.SpotMomentsAtlasBytes = TextureBytes(LocalShadowMomentsAtlas, 8);  // RG32
 	ShadowStatsCache.DirDepthAtlasBytes    = TextureBytes(DirShadowDepthAtlas,     4);
 	ShadowStatsCache.DirMomentsAtlasBytes  = TextureBytes(DirShadowMomentsAtlas,   8);
-	ShadowStatsCache.CubeDepthArrayBytes   = TextureBytes(ShadowDepthCubeArray,    4);
-	ShadowStatsCache.CubeMomentsArrayBytes = TextureBytes(ShadowMomentsCubeArray,  8);
+	uint64 CubeDepthBytes = 0;
+	uint64 CubeMomentsBytes = 0;
+	for (int i = 0; i < (int)EShadowResolutionClass::Count; ++i)
+	{
+		CubeDepthBytes += TextureBytes(PointShadowResources[i].DepthArray, 4);
+		CubeMomentsBytes += TextureBytes(PointShadowResources[i].MomentsArray, 8);
+	}
+	ShadowStatsCache.CubeDepthArrayBytes   = CubeDepthBytes;
+	ShadowStatsCache.CubeMomentsArrayBytes = CubeMomentsBytes;
 	ShadowStatsCache.TotalShadowMemoryBytes =
 		ShadowStatsCache.SpotDepthAtlasBytes   + ShadowStatsCache.SpotMomentsAtlasBytes +
 		ShadowStatsCache.DirDepthAtlasBytes    + ShadowStatsCache.DirMomentsAtlasBytes  +
